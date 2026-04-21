@@ -1,0 +1,31 @@
+{
+	"name": "rbxts",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "pnpm -r run build",
+		"dev": "pnpm -r run dev",
+		"serve": "pnpm -r run serve",
+		"build:packages": "pnpm --filter \"./packages/**\" build",
+		"build:test": "pnpm --filter \"./test/**\" build",
+		"dev:packages": "pnpm --filter \"./packages/**\" dev",
+		"dev:test": "pnpm --filter \"./test/**\" dev",
+		"release": "pnpm -r publish --access=public && changeset tag",
+		"version": "changeset version"
+	},
+	"devDependencies": {
+		"@changesets/changelog-github": "catalog:",
+		"@changesets/cli": "catalog:",
+		"@isentinel/jest-roblox": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
+		"@rbxts/compiler-types": "catalog:",
+		"@rbxts/types": "catalog:",
+		"husky": "catalog:",
+		"io-serve": "catalog:",
+		"shx": "catalog:",
+		"typescript": "catalog:"
+	},
+	"packageManager": "pnpm@10.33.0"
+}

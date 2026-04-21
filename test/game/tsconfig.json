@@ -1,0 +1,10 @@
+{
+	"extends": "@isentinel/configs/roblox",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"rootDir": ".",
+		"outDir": "out",
+		"types": ["@rbxts/jest", "@rbxts/jest-globals"]
+	},
+	"include": ["**/*.ts", "**/*.tsx"]
+}

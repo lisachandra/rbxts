@@ -1,0 +1,6 @@
+{
+	"name": "platform",
+	"tree": {
+		"$path": "out"
+	}
+}

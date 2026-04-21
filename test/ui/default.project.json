@@ -1,0 +1,41 @@
+{
+	"name": "test",
+	"globIgnorePaths": ["**/package.json", "**/tsconfig.json"],
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"ui:tests": {
+				"$path": "out"
+			},
+			"rbxts_include": {
+				"$path": "out/include",
+				"node_modules": {
+					"$className": "Folder",
+					"@rbxts": {
+						"$path": "node_modules/@rbxts",
+						"ui": {
+							"$path": "../../packages/ui/out"
+						}
+					},
+					"@rbxts-js": {
+						"$path": "node_modules/@rbxts-js"
+					}
+				}
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$properties": {
+				"LoadStringEnabled": true
+			}
+		},
+		"TestService": {
+			"$className": "TestService",
+			"$properties": {
+				"AutoRuns": false,
+				"ExecuteWithStudioRun": false
+			}
+		}
+	}
+}

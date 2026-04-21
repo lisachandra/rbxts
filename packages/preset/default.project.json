@@ -1,0 +1,6 @@
+{
+	"name": "preset",
+	"tree": {
+		"$path": "out"
+	}
+}

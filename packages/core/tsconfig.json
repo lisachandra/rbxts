@@ -1,0 +1,11 @@
+{
+	"extends": "@isentinel/configs/roblox",
+	"compilerOptions": {
+		"tsBuildInfoFile": "out/tsconfig.tsbuildinfo",
+		"baseUrl": "src",
+		"rootDir": "src",
+		"typeRoots": ["../../node_modules/@rbxts", "../../node_modules/@types"],
+		"outDir": "out"
+	},
+	"include": ["src/**/*"]
+}

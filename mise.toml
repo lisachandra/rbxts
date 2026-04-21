@@ -1,0 +1,6 @@
+[tools]
+"github:rojo-rbx/rojo" = "v7.7.0-rc.1"
+node = { version = "lts", postinstall = "corepack enable" }
+
+[env]
+_.file = { path = ".env", redact = true }
