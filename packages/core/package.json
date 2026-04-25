@@ -18,11 +18,96 @@
 	"exports": {
 		".": {
 			"source": "./src/index.ts",
-			"import": "./out/index.luau",
+			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
+		},
+		"./logger": {
+			"source": "./src/logger.ts",
+			"import": "./out/logger.luau",
+			"types": "./out/logger.d.ts"
+		},
+		"./store": {
+			"source": "./src/store.ts",
+			"import": "./out/store.luau",
+			"types": "./out/store.d.ts"
+		},
+		"./schemas": {
+			"source": "./src/schemas/index.ts",
+			"import": "./out/schemas/init.luau",
+			"types": "./out/schemas/index.d.ts"
+		},
+		"./centurion": {
+			"source": "./src/centurion/utility.ts",
+			"import": "./out/centurion/utility.luau",
+			"types": "./out/centurion/utility.d.ts"
+		},
+		"./utils/asset": {
+			"source": "./src/utils/asset.ts",
+			"import": "./out/utils/asset.luau",
+			"types": "./out/utils/asset.d.ts"
+		},
+		"./utils/cframe": {
+			"source": "./src/utils/cframe.ts",
+			"import": "./out/utils/cframe.luau",
+			"types": "./out/utils/cframe.d.ts"
+		},
+		"./utils/color": {
+			"source": "./src/utils/color.ts",
+			"import": "./out/utils/color.luau",
+			"types": "./out/utils/color.d.ts"
+		},
+		"./utils/formatTable": {
+			"source": "./src/utils/formatTable.luau",
+			"import": "./out/utils/formatTable.luau",
+			"types": "./out/utils/formatTable.d.ts"
+		},
+		"./utils/main": {
+			"source": "./src/utils/main.ts",
+			"import": "./out/utils/main.luau",
+			"types": "./out/utils/main.d.ts"
+		},
+		"./utils/math": {
+			"source": "./src/utils/math.ts",
+			"import": "./out/utils/math.luau",
+			"types": "./out/utils/math.d.ts"
+		},
+		"./utils/r6ik": {
+			"source": "./src/utils/r6ik.luau",
+			"import": "./out/utils/r6ik.luau",
+			"types": "./out/utils/r6ik.d.ts"
+		},
+		"./utils/string": {
+			"source": "./src/utils/string.ts",
+			"import": "./out/utils/string.luau",
+			"types": "./out/utils/string.d.ts"
+		},
+		"./utils/type": {
+			"source": "./src/utils/type.ts",
+			"import": "./out/utils/type.luau",
+			"types": "./out/utils/type.d.ts"
+		},
+		"./utils/validate": {
+			"source": "./src/utils/validate.ts",
+			"import": "./out/utils/validate.luau",
+			"types": "./out/utils/validate.d.ts"
+		},
+		"./utils/vector": {
+			"source": "./src/utils/vector.ts",
+			"import": "./out/utils/vector.luau",
+			"types": "./out/utils/vector.d.ts"
+		},
+		"./utils/vfx": {
+			"source": "./src/utils/vfx.ts",
+			"import": "./out/utils/vfx.luau",
+			"types": "./out/utils/vfx.d.ts"
+		},
+		"./test": {
+			"source": "./src/test/index.ts",
+			"import": "./out/test/init.luau",
+			"types": "./out/test/index.d.ts"
 		}
 	},
-	"main": "out/index.luau",
+	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
@@ -31,13 +116,47 @@
 		"clean": "shx rm -rf out"
 	},
 	"devDependencies": {
-		"@isentinel/roblox-ts": "catalog:",
+		"@lisachandra/types": "workspace:*",
+		"roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
+		"@rbxts/centurion": "catalog:",
+		"@rbxts/crate": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
+		"@rbxts/lapis": "catalog:",
+		"@rbxts/lemon-signal": "catalog:",
+		"@rbxts/log": "catalog:",
+		"@rbxts/luau-polyfill": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"@rbxts/message-templates": "catalog:",
+		"@rbxts/serio": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/sift": "catalog:",
 		"@rbxts/types": "catalog:",
+		"@rbxts/validate-tree": "catalog:",
+		"@rbxts/t": "catalog:",
+		"@rbxts/object-cache": "catalog:",
+		"@flamework/core": "catalog:",
+		"type-fest": "catalog:",
 		"shx": "catalog:"
 	},
 	"peerDependencies": {
-		"@rbxts/log": "catalog:"
+		"@lisachandra/types": "*",
+		"@flamework/core": "*",
+		"@rbxts/centurion": "*",
+		"@rbxts/crate": "*",
+		"@rbxts/lapis": "*",
+		"@rbxts/lemon-signal": "*",
+		"@rbxts/log": "*",
+		"@rbxts/luau-polyfill": "*",
+		"@rbxts/matter": "*",
+		"@rbxts/message-templates": "*",
+		"@rbxts/serio": "*",
+		"@rbxts/services": "*",
+		"@rbxts/sift": "*",
+		"@rbxts/validate-tree": "*",
+		"@rbxts/t": "*",
+		"@rbxts/object-cache": "*",
+		"type-fest": "*"
 	},
 	"publishConfig": {
 		"access": "public"
