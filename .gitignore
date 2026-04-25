@@ -3,40 +3,6 @@
 
 *.env
 
-# AI related folders, enforce conventional naming by junction/symlink
-/plans
-/skills
-.agent
-.augment
-.claude
-.cline
-.codebuddy
-.commandcode
-.continue
-.crush
-.cursor
-.factory
-.goose
-.junie
-.iflow
-.kilocode
-.kiro
-.kode
-.mcpjam
-.vibe
-.mux
-.openhands
-.pi
-.qoder
-.qwen
-.roo
-.trae
-.windsurf
-.zencoder
-.neovate
-.pochi
-.adal
-
 ### Roblox-TS ###
 
 # Assets

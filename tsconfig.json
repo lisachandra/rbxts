@@ -1,46 +1,17 @@
 {
-	"extends": "@isentinel/configs/roblox",
+	"extends": "@isentinel/tsconfig/roblox",
 	"compilerOptions": {
-		"composite": true,
-		"tsBuildInfoFile": "${configDir}/tsconfig.tsbuildinfo",
-		"module": "preserve",
-		"moduleResolution": "bundler",
-		"typeRoots": ["${configDir}/node_modules/@rbxts"],
-		"types": ["compiler-types"],
-		"sourceMap": true
+		"typeRoots": [
+			"${configDir}/node_modules/@rbxts",
+			"${configDir}/node_modules/@lisachandra",
+			"${configDir}/node_modules/@flamework"
+		],
+		"types": [
+			"../@rbxts/types",
+			"../@rbxts/services",
+			"../@rbxts/compiler-types",
+			"../@lisachandra/types",
+		],
+		"declaration": true,
 	},
-	"references": [
-		{
-			"path": "packages/core"
-		},
-		{
-			"path": "packages/game"
-		},
-		{
-			"path": "packages/matter"
-		},
-		{
-			"path": "packages/preset"
-		},
-		{
-			"path": "packages/ui"
-		},
-		{
-			"path": "test/core"
-		},
-		{
-			"path": "test/game"
-		},
-		{
-			"path": "test/matter"
-		},
-		{
-			"path": "test/preset"
-		},
-		{
-			"path": "test/ui"
-		},
-	],
-	"files": [],
-	"include": []
 }

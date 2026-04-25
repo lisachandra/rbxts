@@ -8,23 +8,39 @@ catalog:
   "@changesets/changelog-github": 0.6.0
   "@changesets/cli": 2.31.0
   "@isentinel/jest-roblox": 0.2.5
-  "@isentinel/roblox-ts": 3.2.0
   '@isentinel/tsconfig': 1.2.0
-  "@rbxts/centurion": latest
+  "@rbxts/centurion": 1.0.1
   "@rbxts/compiler-types": latest
-  "@rbxts/jest": latest
-  "@rbxts/jest-globals": latest
-  "@rbxts/log": latest
-  "@rbxts/matter": latest
-  "@rbxts/react": latest
-  "@rbxts/react-roblox": latest
-  "@rbxts/rewire": latest
+  "@rbxts/crate": 1.0.3-rc.1
+  "@rbxts/jest": 3.13.3-ts.1
+  "@rbxts/jest-globals": 3.13.3-ts.1
+  "@rbxts/lapis": 0.3.8
+  "@rbxts/lemon-signal": 1.2.0
+  "@rbxts/log": 0.6.3
+  "@rbxts/luau-polyfill": latest
+  "@rbxts/matter": github:matter-ecs/matter-types
+  "@rbxts/message-templates": 0.3.2
+  "@rbxts/object-cache": 1.4.5
+  "@rbxts/react": 17.3.7-ts.1
+  "@rbxts/react-roblox": 17.3.7-ts.1
+  "@rbxts/rewire": 0.3.0
+  "@rbxts/serio": 1.2.5
   "@rbxts/services": latest
+  "@rbxts/sift": 0.0.11
+  "@rbxts/t": 3.2.1
+  "@rbxts/tether": 1.4.17
   "@rbxts/types": latest
+  "@rbxts/janitor": 1.18.3-ts.0
+  "@rbxts/validate-tree": 2.0.2
+  "@rbxts/pretty-react-hooks": 0.6.4
+  "@flamework/core": 1.3.2
+  roblox-ts: 3.0.0
   husky: 9.1.7
   io-serve: 1.1.2
+  rbxts-transformer-flamework: 1.3.2
   shx: 0.4.0
-  typescript: =5.9.3
+  type-fest: 5.6.0
+  typescript: =5.5.3
 catalogMode: prefer
 cleanupUnusedCatalogs: true
 
