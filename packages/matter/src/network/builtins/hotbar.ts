@@ -11,8 +11,7 @@ export type HotbarPayload = {
 	equipped?: u16;
 };
 
-const unpackTable: LuaGlobals["unpack"] = getfenv(0)["unpack" as never];
-let lastReplicatedItems: Array<Components.Item> = [];
+const lastReplicatedItems: Array<Components.Item> = [];
 
 registry.register<Components.Hotbar, HotbarPayload>(createSerializer<HotbarPayload>(), {
 	component: Components.Hotbar,
@@ -22,7 +21,10 @@ registry.register<Components.Hotbar, HotbarPayload>(createSerializer<HotbarPaylo
 			{ new: record.new!.items, old: record.old?.items },
 			lastReplicatedItems,
 		);
-		lastReplicatedItems = newReplicatedItems
+		lastReplicatedItems.clear();
+		for (const i of newReplicatedItems) {
+			lastReplicatedItems.push(i)
+		}
 		return {
 			items,
 			equipped:

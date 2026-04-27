@@ -18,11 +18,11 @@
 	"exports": {
 		".": {
 			"source": "./src/index.ts",
-			"import": "./out/index.luau",
+			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
 		}
 	},
-	"main": "out/index.luau",
+	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
@@ -31,14 +31,17 @@
 		"clean": "shx rm -rf out"
 	},
 	"devDependencies": {
-		"@isentinel/roblox-ts": "catalog:",
+		"@lisachandra/types": "workspace:*",
+		"roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",
-		"shx": "catalog:"
+		"shx": "catalog:",
+		"typescript": "catalog:"
 	},
 	"peerDependencies": {
+		"@lisachandra/types": "*",
 		"@lisachandra/core": "workspace:*",
-		"@lisachandra/game": "workspace:*",
 		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/platform": "workspace:*",
 		"@lisachandra/ui": "workspace:*"

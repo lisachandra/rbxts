@@ -127,7 +127,6 @@ import {
     configureRuntimeAdapters,
     configureEntityLookup,
     configureStreamableEntityLookup,
-    configureDocuments,
 } from "@lisachandra/matter";
 import { Components } from "@lisachandra/matter";
 
@@ -172,16 +171,13 @@ configureRuntimeAdapters({
         // Override default entity lookup if needed
         return undefined; // fall through to default
     },
-});
-
-// -- Documents (just provide the Lapis collection) --
-import { collection } from "./myDocumentCollection";
-configureDocuments({
-    collection,
-    persistedComponents: {
-        Hotbar: "hotbar",
-        Inventory: "inventory",
-        Stats: "stats",
+    document: {
+        collection,
+        persistedComponents: {
+            Hotbar: "hotbar",
+            Inventory: "inventory",
+            Stats: "stats",
+        },
     },
 });
 ```
@@ -346,14 +342,14 @@ Hot reloading is wired through **`packages/platform`** (bootstrap) and **`packag
 ### How It Works
 
 ```
-packages/platform/bootstrap/runtime.ts
-├── resolveClientBootstrapRuntimeBoundary()
+packages/platform/bootstrap.ts
+├── resolveBoundary()
 │   ├── production: collectSystems([modules.client, modules.shared])
-│   └── development: use hotReloadContainers (empty systems initially)
+│   └── development: use hotReload.containers (empty systems initially)
 │                     ^-- rewire HotReloader rescans these containers
 │
-└── bootstrapClientRuntime() / bootstrapServerRuntime()
-    └── start(systems, containers)
+└── bootstrap()
+    └── start({ systems, containers })
         └── loop.scheduleSystems(systems)
 ```
 
@@ -362,18 +358,20 @@ In **development mode**: the bootstrap passes hot-reload container `Instance`s i
 ### Platform Bootstrap (Client Example)
 
 ```ts
-// The user calls bootstrapClient() from @lisachandra/platform:
-import { bootstrapClient } from "@lisachandra/platform";
+// The user calls bootstrap() from @lisachandra/platform:
+import { bootstrap } from "@lisachandra/platform";
 
-bootstrapClient({
-    isProduction: false,            // false → hot reload mode
+bootstrap({
+    mode: "development",            // "development" → hot reload mode
     modules: {
         client: clientSystemsModule, // barrel module of client systems
         shared: sharedSystemsModule, // barrel module of shared systems
     },
-    hotReloadContainers: {
-        client: script.Parent!.WaitForChild("client") as Instance,
-        shared: script.Parent!.WaitForChild("shared") as Instance,
+    hotReload: {
+        containers: [
+            script.Parent!.WaitForChild("client") as Instance,
+            script.Parent!.WaitForChild("shared") as Instance,
+        ],
     },
     extensions: {
         // Additional systems from external packages
@@ -382,7 +380,7 @@ bootstrapClient({
 });
 ```
 
-In production mode (`isProduction: true`), `findSystems()` recursively scans the barrel modules and extracts all systems with `meta` exports. In development mode, the HotReloader rescans containers on every file change, and the `Loop` re-schedules updated systems on the next frame.
+In production mode (`mode: "production"`), `findSystems()` recursively scans the barrel modules and extracts all systems with `meta` exports. In development mode, the HotReloader rescans containers on every file change, and the `Loop` re-schedules updated systems on the next frame.
 
 ### UI Hot Reloading (`packages/ui`)
 
@@ -416,7 +414,7 @@ User code (game/src/shared/bootstrap.ts):
 ├── configureRuntimeAdapters({ playerLifecycle, inputAdapter, ... })
 ├── configureEntityLookup({ instanceComponents, humanoidComponents })
 ├── configureStreamableEntityLookup({ components })
-├── configureDocuments({ collection, persistedComponents })
+├── configureRuntimeAdapters({ document: { collection, persistedComponents } })
 ├── defineItems({ Weapon: { Sword: {...}, Bow: {...} } })
 │
 ├── [Path A] createMatterTemplateFamilies(resolvers)
@@ -429,7 +427,7 @@ User code (game/src/shared/bootstrap.ts):
 │            → runtime.buildSystems()
 │            → runtime.installReplication(replBuilder)
 │
-└── start(systems) → [world, crate]
+└── start({ systems }) → [world, crate, loop]
     │
     ├── new World()
     ├── new Loop(world, store.shared)
@@ -473,7 +471,7 @@ export const collection = createCollection<CollectionData>("PlayerData", {
 });
 ```
 
-Then pass it to `configureDocuments({ collection })` — done.
+Then pass it to `configureRuntimeAdapters({ document: { collection } })` — done.
 
 ---
 

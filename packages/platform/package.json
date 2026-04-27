@@ -18,11 +18,46 @@
 	"exports": {
 		".": {
 			"source": "./src/index.ts",
-			"import": "./out/index.luau",
+			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
+		},
+		"./bootstrap": {
+			"source": "./src/bootstrap.ts",
+			"import": "./out/bootstrap.luau",
+			"types": "./out/bootstrap.d.ts"
+		},
+		"./centurion/type": {
+			"source": "./src/centurion/type.ts",
+			"import": "./out/centurion/type.luau",
+			"types": "./out/centurion/type.d.ts"
+		},
+		"./centurion/guards": {
+			"source": "./src/centurion/guards.ts",
+			"import": "./out/centurion/guards.luau",
+			"types": "./out/centurion/guards.d.ts"
+		},
+		"./centurion/commands": {
+			"source": "./src/centurion/commands/index.ts",
+			"import": "./out/centurion/commands/init.luau",
+			"types": "./out/centurion/commands/index.d.ts"
+		},
+		"./centurion/types": {
+			"source": "./src/centurion/types/index.ts",
+			"import": "./out/centurion/types/init.luau",
+			"types": "./out/centurion/types/index.d.ts"
+		},
+		"./centurion/presets": {
+			"source": "./src/centurion/presets.ts",
+			"import": "./out/centurion/presets.luau",
+			"types": "./out/centurion/presets.d.ts"
+		},
+		"./teleporter": {
+			"source": "./src/teleporter.ts",
+			"import": "./out/teleporter.luau",
+			"types": "./out/teleporter.d.ts"
 		}
 	},
-	"main": "out/index.luau",
+	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
@@ -31,15 +66,50 @@
 		"clean": "shx rm -rf out"
 	},
 	"devDependencies": {
-		"@isentinel/roblox-ts": "catalog:",
+		"@lisachandra/types": "workspace:*",
+		"roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",
-		"shx": "catalog:"
+		"shx": "catalog:",
+		"@lisachandra/matter": "workspace:*",
+		"@lisachandra/core": "workspace:*",
+		"@rbxts/lapis-mockdatastore": "catalog:",
+		"@rbxts/centurion": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/log": "catalog:",
+		"@rbxts/lapis": "catalog:",
+		"@rbxts/sift": "catalog:",
+		"@flamework/core": "catalog:",
+		"@rbxts/object-utils": "catalog:",
+		"@rbxts/t": "catalog:",
+		"@rbxts/serio": "catalog:",
+		"@rbxts/regexp": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"@rbxts/luau-polyfill": "catalog:",
+		"@rbxts/rbxts-hashlib": "catalog:",
+		"type-fest": "catalog:",
+		"rbxts-transformer-flamework": "catalog:",
+		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"@lisachandra/core": "workspace:*",
-		"@rbxts/centurion": "catalog:",
-		"@rbxts/services": "catalog:"
+		"@lisachandra/types": "*",
+		"@lisachandra/matter": "*",
+		"@lisachandra/core": "*",
+		"@flamework/core": "*",
+		"@rbxts/rbxts-hashlib": "*",
+		"@rbxts/object-utils": "*",
+		"@rbxts/t": "*",
+		"@rbxts/serio": "*",
+		"@rbxts/regexp": "*",
+		"@rbxts/matter": "*",
+		"@rbxts/lapis-mockdatastore": "*",
+		"@rbxts/centurion": "*",
+		"@rbxts/services": "*",
+		"@rbxts/log": "*",
+		"@rbxts/lapis": "*",
+		"@rbxts/sift": "*",
+		"type-fest": "*"
 	},
 	"publishConfig": {
 		"access": "public"
