@@ -1,0 +1,254 @@
+import type { Crate } from "@rbxts/crate";
+import type { AnyEntity, Component, System } from "@rbxts/matter";
+import { Loop, World } from "@rbxts/matter";
+import { RunService } from "@rbxts/services";
+
+import type { ClientState, ServerState } from "@lisachandra/core/out/store";
+import { store } from "@lisachandra/core/out/store";
+
+import { getEntityInstanceComponent } from "./entityLookup";
+import { bindSimulationPhaseEvents, customPhases, renderPriorityPhaseEvents } from "./phases";
+import { getComponentObject } from "./utils/entity";
+import type { Collection } from "@rbxts/lapis";
+import { Janitor } from "@rbxts/janitor";
+
+export type AnySystem = System<Array<unknown>>;
+export type SystemContainer = {
+	event?: string;
+	phase?: string;
+	placeIds?: Array<number>;
+};
+export type SystemEvent = NonNullable<SystemContainer["event"]>;
+export type SystemModule = Record<string, unknown> & { meta: SystemContainer };
+
+export interface DocumentConfig {
+	/**
+	 * The Lapis collection instance for document persistence.
+	 * Create one with `createCollection()` from `@rbxts/lapis`.
+	 */
+	collection: Collection<any, any>;
+	/**
+	 * Map of component names → document keys for change-triggered
+	 * persistence.
+	 *
+	 * Default: `{ Hotbar: "hotbar", Inventory: "inventory" }`
+	 */
+	persistedComponents?: Record<string, string>;
+}
+
+export interface PlayerLifecycleHooks {
+	/**
+	 * Validate before spawn. Return `false` or a rejected Promise to kick
+	 * the player. Called BEFORE the entity is spawned and the document is
+	 * loaded.
+	 *
+	 * @param player - The Player who is joining.
+	 */
+	preSpawn?: (player: Player) => [boolean, string?] | Promise<[boolean, string?]>;
+
+	/**
+	 * Customize which components are inserted into the player entity.
+	 * Called AFTER the entity is spawned and document is loaded.
+	 *
+	 * Default components:
+	 * ```ts
+	 * [Profile({ janitor, player }), Inventory(), Hotbar(), Forces()]
+	 * ```
+	 *
+	 * @param player  - The Player who joined.
+	 * @param janitor - A Janitor scoped to this player's lifecycle.
+	 */
+	componentFactory?: (player: Player, janitor: Janitor) => Array<Component<object>>;
+
+	/**
+	 * Called AFTER spawn, component insertion, and `Message.Time` emit.
+	 *
+	 * @param world    - The Matter world.
+	 * @param player   - The Player who joined.
+	 * @param entityId - The newly spawned entity's ID.
+	 */
+	postSpawn?: (world: World, player: Player, entityId: AnyEntity) => void;
+
+	/**
+	 * Custom player initialization.
+	 *
+	 * If provided, this **completely replaces** the default `playerAdded`
+	 * logic (spawn entity, load document, insert components). Your
+	 * implementation owns the full lifecycle — spawn the entity, load
+	 * documents, insert components, emit timing messages, etc.
+	 *
+	 * If not provided, the default behavior runs:
+	 *   1. Call `preSpawn` (kick if returns false)
+	 *   2. Spawn an entity
+	 *   3. Wait for the player's "Loaded" message
+	 *   4. Create a Janitor and load the player's document
+	 *   5. Insert components via `componentFactory` (or defaults)
+	 *   6. Emit `Message.Time` with server clock/epoch
+	 *   7. Call `postSpawn`
+	 *
+	 * @param world  - The Matter world.
+	 * @param player - The Player who joined.
+	 */
+	onPlayerAdded?: (world: World, player: Player) => void;
+
+	/**
+	 * Custom player removal.
+	 *
+	 * If provided, called **before** the default cleanup (janitor destroy
+	 * + entity despawn). Useful for saving game-specific state.
+	 *
+	 * If not provided, only the default cleanup runs.
+	 *
+	 * @param world  - The Matter world.
+	 * @param player - The Player who left.
+	 */
+	onPlayerRemoving?: (world: World, player: Player) => void;
+}
+
+export interface InputAdapter {
+	/** Returns which keycodes are currently held down. */
+	getHeldKeys(): Array<Enum.KeyCode>;
+	/** Fires when a key is pressed. */
+	onKeyPressed(callback: (key: Enum.KeyCode) => void): () => void;
+}
+
+export interface RuntimeAdapters {
+	authorize?: (player: Player) => Promise<boolean>;
+	findInstanceFromEntity?: (world: World, entityId: AnyEntity) => N<Instance>;
+	playerLifecycle?: PlayerLifecycleHooks;
+	hotbarInputAdapter?: InputAdapter;
+	document?: DocumentConfig;
+}
+
+const runtimeAdapters: RuntimeAdapters = {};
+
+export function configureRuntimeAdapters(adapters: RuntimeAdapters): void {
+	if (adapters.authorize) {
+		runtimeAdapters.authorize = adapters.authorize;
+	}
+
+	if (adapters.findInstanceFromEntity) {
+		runtimeAdapters.findInstanceFromEntity = adapters.findInstanceFromEntity;
+	}
+
+	if (adapters.playerLifecycle) {
+		runtimeAdapters.playerLifecycle = adapters.playerLifecycle;
+	}
+
+	if (adapters.hotbarInputAdapter) {
+		runtimeAdapters.hotbarInputAdapter = adapters.hotbarInputAdapter;
+	}
+
+	if (adapters.document) {
+		runtimeAdapters.document = adapters.document;
+	}
+}
+
+/**
+ * Returns the configured hotbar input adapter, if any.
+ * If no adapter was configured, the system falls back to detecting
+ * `Enum.KeyCode` presses directly via `UserInputService`.
+ */
+export function getHotbarInputAdapter(): N<InputAdapter> {
+	return runtimeAdapters.hotbarInputAdapter;
+}
+
+/**
+ * Returns the configured player lifecycle hooks, if any.
+ */
+export function getPlayerLifecycleHooks(): N<PlayerLifecycleHooks> {
+	return runtimeAdapters.playerLifecycle;
+}
+
+/**
+ * Returns the configured document config, if any.
+ */
+export function getDocumentConfig(): N<DocumentConfig> {
+	return runtimeAdapters.document;
+}
+
+
+
+export function findInstanceFromEntity(world: World, entityId: AnyEntity): N<Instance> {
+	if (runtimeAdapters.findInstanceFromEntity) {
+		return runtimeAdapters.findInstanceFromEntity(world, entityId);
+	}
+
+	return getComponentObject(getEntityInstanceComponent(world, entityId));
+}
+
+export async function isAuthorized(player: Player): Promise<boolean> {
+	if (runtimeAdapters.authorize) {
+		return runtimeAdapters.authorize(player);
+	}
+
+	// Maintainability-first fallback: package runtime does not hardcode game-level policy.
+	return player.UserId > 0;
+}
+
+export function findSystems(barrel: object, systems: Array<AnySystem> = []): Array<AnySystem> {
+	for (const [, container] of pairs(barrel)) {
+		if (!typeIs(container, "table")) {
+			continue;
+		}
+
+		const typedContainer = container as SystemModule;
+		const system = "meta" in typedContainer ? typedContainer.meta : undefined;
+
+		if (!system) {
+			findSystems(container, systems);
+			continue;
+		}
+
+		if (!(system.placeIds ?? [game.PlaceId]).includes(game.PlaceId)) {
+			continue;
+		}
+
+		if (system.phase !== undefined) {
+			system.event = system.phase;
+		}
+		systems.push(system as never as AnySystem);
+	}
+
+	return systems;
+}
+
+export interface StartOptions {
+	systems?: Array<AnySystem>;
+	containers?: Array<Instance>;
+}
+
+export function start(
+	options: StartOptions = {},
+): { world: World; crate: Crate<ClientState | ServerState>; loop: Loop<any> } {
+	const world = new World();
+	const loop = new Loop(world, store.shared, options.containers ?? []);
+
+	store.world = world;
+	loop.setWorlds({ world });
+	loop.scheduleSystems(options.systems ?? []);
+
+	const clientPhases = RunService.IsClient()
+		? {
+				renderStepped: RunService.RenderStepped,
+				...renderPriorityPhaseEvents,
+		  }
+		: ({} as never);
+
+	const phases = {
+		default: RunService.Heartbeat,
+		heartbeat: RunService.Heartbeat,
+		postSimulation: RunService.PostSimulation,
+		preAnimation: RunService.PreAnimation,
+		preRender: RunService.PreRender,
+		preSimulation: RunService.PreSimulation,
+		stepped: RunService.Stepped,
+		...bindSimulationPhaseEvents,
+		...clientPhases,
+		...(customPhases as never as Record<keyof typeof customPhases, RBXScriptSignal>),
+	};
+
+	loop.begin(phases);
+
+	return { world, crate: store.shared, loop };
+}

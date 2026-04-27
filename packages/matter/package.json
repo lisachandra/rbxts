@@ -18,11 +18,26 @@
 	"exports": {
 		".": {
 			"source": "./src/index.ts",
-			"import": "./out/index.luau",
+			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
+		},
+		"./packages": {
+			"source": "./src/packages/index.ts",
+			"import": "./out/packages/init.luau",
+			"types": "./out/packages/index.d.ts"
+		},
+		"./items": {
+			"source": "./src/items/index.ts",
+			"import": "./out/items/init.luau",
+			"types": "./out/items/index.d.ts"
+		},
+		"./utils/item": {
+			"source": "./src/utils/item.ts",
+			"import": "./out/utils/item.luau",
+			"types": "./out/utils/item.d.ts"
 		}
 	},
-	"main": "out/index.luau",
+	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
@@ -31,15 +46,55 @@
 		"clean": "shx rm -rf out"
 	},
 	"devDependencies": {
-		"@isentinel/roblox-ts": "catalog:",
+		"@lisachandra/types": "workspace:*",
+		"@lisachandra/core": "workspace:*",
+		"@flamework/core": "catalog:",
+		"@rbxts/t": "catalog:",
+		"@rbxts/crate": "catalog:",
+		"@rbxts/janitor": "catalog:",
+		"@rbxts/lemon-signal": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"@rbxts/rewire": "catalog:",
+		"@rbxts/tether": "catalog:",
+		"roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",
-		"shx": "catalog:"
+		"@rbxts/object-utils": "catalog:",
+		"@rbxts/object-cache": "catalog:",
+		"@rbxts/log": "catalog:",
+		"@rbxts/luau-polyfill": "catalog:",
+		"@rbxts/sift": "catalog:",
+		"@rbxts/plasma": "catalog:",
+		"@rbxts/lapis": "catalog:",
+		"rbxts-transformer-flamework": "catalog:",
+		"@rbxts/serio": "catalog:",
+		"type-fest": "catalog:",
+		"shx": "catalog:",
+		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"@lisachandra/core": "workspace:*",
-		"@rbxts/matter": "catalog:",
-		"@rbxts/rewire": "catalog:"
+		"@lisachandra/types": "*",
+		"@lisachandra/core": "*",
+		"type-fest": "*",
+		"@flamework/core": "*",
+		"@rbxts/t": "*",
+		"@rbxts/log": "*",
+		"@rbxts/luau-polyfill": "*",
+		"@rbxts/sift": "*",
+		"@rbxts/serio": "*",
+		"@rbxts/object-utils": "*",
+		"@rbxts/object-cache": "*",
+		"@rbxts/matter": "*",
+		"@rbxts/rewire": "*",
+		"@rbxts/crate": "*",
+		"@rbxts/janitor": "*",
+		"@rbxts/lemon-signal": "*",
+		"@rbxts/tether": "*",
+		"@rbxts/services": "*",
+		"@rbxts/plasma": "*",
+		"@rbxts/lapis": "*"
 	},
 	"publishConfig": {
 		"access": "public"

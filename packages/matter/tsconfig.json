@@ -1,11 +1,11 @@
 {
-	"extends": "@isentinel/configs/roblox",
+	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"tsBuildInfoFile": "out/tsconfig.tsbuildinfo",
-		"baseUrl": "src",
-		"rootDir": "src",
-		"typeRoots": ["../../node_modules/@rbxts", "../../node_modules/@types"],
-		"outDir": "out"
+		"plugins": [
+			{
+				"transform": "rbxts-transformer-flamework",
+				"obfuscation": false
+			}
+		]
 	},
-	"include": ["src/**/*"]
 }
