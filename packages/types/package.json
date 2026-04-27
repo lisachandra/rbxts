@@ -1,0 +1,44 @@
+{
+	"name": "@lisachandra/types",
+	"version": "0.1.0",
+	"description": "Global types for @lisachandra packages and games",
+	"keywords": ["roblox", "rbxts"],
+	"homepage": "https://github.com/lisachandra/rbxts",
+	"bugs": {
+		"url": "https://github.com/lisachandra/rbxts/issues"
+	},
+	"repository": {
+		"url": "https://github.com/lisachandra/rbxts",
+		"type": "git"
+	},
+	"license": "MIT",
+	"author": "lisachandra <lisachandra@proton.me>",
+	"private": false,
+	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
+	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
+	"scripts": {
+		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
+		"dev": "shx rm -rf out && rbxtsc --watch --allowCommentDirectives",
+		"clean": "shx rm -rf out"
+	},
+	"devDependencies": {
+		"roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
+		"type-fest": "catalog:",
+		"@rbxts/types": "catalog:",
+		"@rbxts/compiler-types": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"shx": "catalog:"
+	},
+	"peerDependencies": {
+		"type-fest": "*",
+		"@rbxts/types": "*",
+		"@rbxts/compiler-types": "*",
+		"@rbxts/matter": "*"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
