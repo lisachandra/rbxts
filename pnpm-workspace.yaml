@@ -31,8 +31,13 @@ catalog:
   "@rbxts/tether": 1.4.17
   "@rbxts/types": latest
   "@rbxts/janitor": 1.18.3-ts.0
+  "@rbxts/object-utils": 1.0.4
   "@rbxts/validate-tree": 2.0.2
   "@rbxts/pretty-react-hooks": 0.6.4
+  "@rbxts/plasma": 0.4.5
+  "@rbxts/lapis-mockdatastore": 0.3.7
+  "@rbxts/regexp": latest
+  "@rbxts/rbxts-hashlib": 1.0.2
   "@flamework/core": 1.3.2
   roblox-ts: 3.0.0
   husky: 9.1.7

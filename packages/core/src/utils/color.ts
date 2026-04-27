@@ -7,7 +7,7 @@
  * @param t - The interpolation factor (0 to 1) applied at each step.
  * @returns The final interpolated Color3 value.
  */
-export function iterativeLerpColorArray(this: void, colors: Array<Color3>, t: number): Color3 {
+export function iterativeLerpColorArray(colors: Array<Color3>, t: number): Color3 {
 	const numberColors = colors.size();
 
 	// Handle edge cases: less than 1 color

@@ -42,6 +42,9 @@ catalogs:
     '@rbxts/lapis':
       specifier: 0.3.8
       version: 0.3.8
+    '@rbxts/lapis-mockdatastore':
+      specifier: 0.3.7
+      version: 0.3.7
     '@rbxts/lemon-signal':
       specifier: 1.2.0
       version: 1.2.0
@@ -60,15 +63,27 @@ catalogs:
     '@rbxts/object-cache':
       specifier: 1.4.5
       version: 1.4.5
+    '@rbxts/object-utils':
+      specifier: 1.0.4
+      version: 1.0.4
+    '@rbxts/plasma':
+      specifier: 0.4.5
+      version: 0.4.5
     '@rbxts/pretty-react-hooks':
       specifier: 0.6.4
       version: 0.6.4
+    '@rbxts/rbxts-hashlib':
+      specifier: 1.0.2
+      version: 1.0.2
     '@rbxts/react':
       specifier: 17.3.7-ts.1
       version: 17.3.7-ts.1
     '@rbxts/react-roblox':
       specifier: 17.3.7-ts.1
       version: 17.3.7-ts.1
+    '@rbxts/regexp':
+      specifier: latest
+      version: 0.2.1-ts.4
     '@rbxts/rewire':
       specifier: 0.3.0
       version: 0.3.0
@@ -165,7 +180,7 @@ importers:
         version: 1.3.2
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.9.3)
+        version: 1.2.0(typescript@5.5.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -199,9 +214,6 @@ importers:
       '@rbxts/object-cache':
         specifier: 'catalog:'
         version: 1.4.5
-      '@rbxts/serio':
-        specifier: 'catalog:'
-        version: 1.2.5
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -226,12 +238,18 @@ importers:
       type-fest:
         specifier: 'catalog:'
         version: 5.6.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.5.3
 
   packages/matter:
     devDependencies:
+      '@flamework/core':
+        specifier: 'catalog:'
+        version: 1.3.2
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.9.3)
+        version: 1.2.0(typescript@5.5.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -247,12 +265,30 @@ importers:
       '@rbxts/janitor':
         specifier: 'catalog:'
         version: 1.18.3-ts.0
+      '@rbxts/lapis':
+        specifier: 'catalog:'
+        version: 0.3.8(@rbxts/t@3.2.1)
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
+      '@rbxts/log':
+        specifier: 'catalog:'
+        version: 0.6.3
+      '@rbxts/luau-polyfill':
+        specifier: 'catalog:'
+        version: 1.1.3
       '@rbxts/matter':
         specifier: 'catalog:'
         version: https://codeload.github.com/matter-ecs/matter-types/tar.gz/d37078ce9b4eb6171f46acbe0c0fca55472a640c
+      '@rbxts/object-cache':
+        specifier: 'catalog:'
+        version: 1.4.5
+      '@rbxts/object-utils':
+        specifier: 'catalog:'
+        version: 1.0.4
+      '@rbxts/plasma':
+        specifier: 'catalog:'
+        version: 0.4.5
       '@rbxts/rewire':
         specifier: 'catalog:'
         version: 0.3.0
@@ -262,6 +298,12 @@ importers:
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
+      '@rbxts/sift':
+        specifier: 'catalog:'
+        version: 0.0.11
+      '@rbxts/t':
+        specifier: 'catalog:'
+        version: 3.2.1
       '@rbxts/tether':
         specifier: 'catalog:'
         version: 1.4.17
@@ -270,19 +312,28 @@ importers:
         version: 1.0.916
       rbxts-transformer-flamework:
         specifier: 'catalog:'
-        version: 1.3.2(typescript@5.9.3)
+        version: 1.3.2(typescript@5.5.3)
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
       shx:
         specifier: 'catalog:'
         version: 0.4.0
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.6.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.5.3
 
   packages/platform:
     devDependencies:
+      '@flamework/core':
+        specifier: 'catalog:'
+        version: 1.3.2
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.9.3)
+        version: 1.2.0(typescript@5.5.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -298,12 +349,48 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
+      '@rbxts/lapis':
+        specifier: 'catalog:'
+        version: 0.3.8(@rbxts/t@3.2.1)
+      '@rbxts/lapis-mockdatastore':
+        specifier: 'catalog:'
+        version: 0.3.7
+      '@rbxts/log':
+        specifier: 'catalog:'
+        version: 0.6.3
+      '@rbxts/luau-polyfill':
+        specifier: 'catalog:'
+        version: 1.1.3
+      '@rbxts/matter':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/matter-ecs/matter-types/tar.gz/d37078ce9b4eb6171f46acbe0c0fca55472a640c
+      '@rbxts/object-utils':
+        specifier: 'catalog:'
+        version: 1.0.4
+      '@rbxts/rbxts-hashlib':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@rbxts/regexp':
+        specifier: 'catalog:'
+        version: 0.2.1-ts.4
+      '@rbxts/serio':
+        specifier: 'catalog:'
+        version: 1.2.5
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
+      '@rbxts/sift':
+        specifier: 'catalog:'
+        version: 0.0.11
+      '@rbxts/t':
+        specifier: 'catalog:'
+        version: 3.2.1
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916
+      rbxts-transformer-flamework:
+        specifier: 'catalog:'
+        version: 1.3.2(typescript@5.5.3)
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -313,6 +400,9 @@ importers:
       type-fest:
         specifier: 'catalog:'
         version: 5.6.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.5.3
 
   packages/preset:
     dependencies:
@@ -331,7 +421,7 @@ importers:
     devDependencies:
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.9.3)
+        version: 1.2.0(typescript@5.5.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -347,18 +437,21 @@ importers:
       shx:
         specifier: 'catalog:'
         version: 0.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.5.3
 
   packages/types:
     devDependencies:
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.9.3)
-      '@lisachandra/types':
-        specifier: workspace:*
-        version: 'link:'
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
+      '@rbxts/matter':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/matter-ecs/matter-types/tar.gz/d37078ce9b4eb6171f46acbe0c0fca55472a640c
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916
@@ -368,6 +461,9 @@ importers:
       shx:
         specifier: 'catalog:'
         version: 0.4.0
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.6.0
 
   packages/ui:
     devDependencies:
@@ -1063,6 +1159,9 @@ packages:
   '@rbxts/jest@3.13.3-ts.1':
     resolution: {integrity: sha512-3Nd0PTYG+Dej1Gz0MSJlzirycbaahZtGFKXvFnu2pNZKqvti9QCzFVHsMZ2GYWAYG3DwlgYRsaxNfLsQ/gMy8A==}
 
+  '@rbxts/lapis-mockdatastore@0.3.7':
+    resolution: {integrity: sha512-D8DhcnTDoMit7Rne6AQxAas8H5ZK7B6StFIGNTUoe2oUfQVmEbPF85Q78PjBEww2vAjVAnAF2FbMnbcALQjaUQ==}
+
   '@rbxts/lapis@0.3.8':
     resolution: {integrity: sha512-SQTVdSp47Rh7nzuI/ArUsGssz2+KmciPlue4Qlj3i9iO2p3Xgf1ZsgfhvMemPih/kFdjSH47E8wHGA4dY/Y+AA==}
     peerDependencies:
@@ -1093,6 +1192,9 @@ packages:
   '@rbxts/object-utils@1.0.4':
     resolution: {integrity: sha512-dLLhf022ipV+9i910sOE7kl9losKHoon0WgeerHqVMQA5EYsLUsVT2AxhJuhk8MiDn5oJ2GiFofE/LadY9TpJQ==}
 
+  '@rbxts/plasma@0.4.5':
+    resolution: {integrity: sha512-VtbrO/ZRxnRNDadFth/Y0+3NNxJlYTMhS1qWnbRht4NrAOK0hrk0iwGZJz+aOfKSQ2h/Rbh9DLW3SKy124XqaA==}
+
   '@rbxts/pretty-format@3.13.3-ts.1':
     resolution: {integrity: sha512-uTSxVdfQv/cD+kvttLzw/LfyNC35mxAsJrSqom+F94etDYlz7ZRvG75izSPfzG2oVRSrhv6roaeWPeTqkpcIug==}
 
@@ -1102,6 +1204,9 @@ packages:
       '@rbxts/react': '*'
       '@rbxts/react-roblox': '*'
 
+  '@rbxts/rbxts-hashlib@1.0.2':
+    resolution: {integrity: sha512-AmczMFYxiVJbpWymYr1M5RemSOFagLg/TLJBY8RjK4Vg1gR0B8vI6E6+iOD5QmuFe849nBnEKHZ+uF/KSc5huA==}
+
   '@rbxts/react-roblox@17.3.7-ts.1':
     resolution: {integrity: sha512-lsH3lP+X0JUS/6Fg5MJfP8OjMn7bjxapbg3r1ajrpvwZGPGU1WOFcFDS/xMMk/2RK/GNYRmkduNM8pQ9vHw54Q==}
     peerDependencies:
@@ -1109,6 +1214,9 @@ packages:
 
   '@rbxts/react@17.3.7-ts.1':
     resolution: {integrity: sha512-/jqZ2TvyLSAPwC30h95loUmy4XN2PwPhv6fBARJKtZfyozFx2RuxC9FiQSjpEZ2uOOPzr60It0MBUf94D+tsMg==}
+
+  '@rbxts/regexp@0.2.1-ts.4':
+    resolution: {integrity: sha512-UGHGq9xJ86ObpfY4bKkOeoBSQz6GpCwhfYteoxh5M15QFNS1MG8Ut9BPp8m3r8VOKftk94yY5X0hZ1bKYm439g==}
 
   '@rbxts/repr@1.0.3':
     resolution: {integrity: sha512-5CnUheadvAF97F1gDK9Vo42vthCInCLlHGOLSB5qJit72GKoPCYZqTnKEDfhqLy5Cp28cQCdhUmB2fdKTvuGtg==}
@@ -3143,6 +3251,8 @@ snapshots:
       '@rbxts/jest-globals': 3.13.3-ts.1
       '@rbxts/pretty-format': 3.13.3-ts.1
 
+  '@rbxts/lapis-mockdatastore@0.3.7': {}
+
   '@rbxts/lapis@0.3.8(@rbxts/t@3.2.1)':
     dependencies:
       '@rbxts/t': 3.2.1
@@ -3165,6 +3275,8 @@ snapshots:
 
   '@rbxts/object-utils@1.0.4': {}
 
+  '@rbxts/plasma@0.4.5': {}
+
   '@rbxts/pretty-format@3.13.3-ts.1':
     dependencies:
       '@rbxts-js/pretty-format': 3.13.3-ts.3
@@ -3177,6 +3289,8 @@ snapshots:
       '@rbxts/services': 1.6.0
       '@rbxts/set-timeout': 1.1.2
 
+  '@rbxts/rbxts-hashlib@1.0.2': {}
+
   '@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1)':
     dependencies:
       '@rbxts-js/react-roblox': 17.3.7-ts.1
@@ -3185,6 +3299,8 @@ snapshots:
   '@rbxts/react@17.3.7-ts.1':
     dependencies:
       '@rbxts-js/react': 17.3.7-ts.1
+
+  '@rbxts/regexp@0.2.1-ts.4': {}
 
   '@rbxts/repr@1.0.3': {}
 
@@ -4064,7 +4180,7 @@ snapshots:
       iconv-lite: 0.4.24
       unpipe: 1.0.0
 
-  rbxts-transformer-flamework@1.3.2(typescript@5.9.3):
+  rbxts-transformer-flamework@1.3.2(typescript@5.5.3):
     dependencies:
       '@roblox-ts/rojo-resolver': 1.1.0
       ajv: 8.18.0
@@ -4073,7 +4189,7 @@ snapshots:
       glob: 9.3.5
       hashids: 2.3.0
       normalize-package-data: 3.0.3
-      typescript: 5.9.3
+      typescript: 5.5.3
       uuid: 8.3.2
 
   rc9@3.0.1:

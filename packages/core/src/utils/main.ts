@@ -24,7 +24,7 @@ export function configureDocumentAccessor(accessor: DocumentAccessor): void {
 
 export const tracks = new Map<Humanoid | AnimationController, Array<AnimationTrack>>();
 
-export function lazyConnect(this: void, event: EventLike, callback: Callback): ConnectionLike {
+export function lazyConnect(event: EventLike, callback: Callback): ConnectionLike {
 		if (typeIs(event, "RBXScriptSignal")) {
 			const connection = event.Connect((...args: Array<unknown>) => {
 				if (connection.Connected) {
@@ -49,7 +49,7 @@ export function lazyConnect(this: void, event: EventLike, callback: Callback): C
 		throw new Error(Log.Error("Event-like object does not have a supported connect method."));
 }
 
-export function lazyDisconnect(this: void, connection: ConnectionLike): void {
+export function lazyDisconnect(connection: ConnectionLike): void {
 		if (typeIs(connection, "function")) {
 			connection();
 		} else if (typeIs(connection, "RBXScriptConnection") || "Disconnect" in connection) {
@@ -63,7 +63,7 @@ export function lazyDisconnect(this: void, connection: ConnectionLike): void {
 		}
 }
 
-export function getHumanoid(this: void, model?: Instance, nonStrict = false): N<Humanoid> {
+export function getHumanoid(model?: Instance, nonStrict = false): N<Humanoid> {
 		if (!model) {
 			return;
 		}
@@ -163,7 +163,7 @@ export async function loadAnimation(
 		return { cached: false, track };
 }
 
-export async function loadFlag(this: void, flag: string): Promise<boolean> {
+export async function loadFlag(flag: string): Promise<boolean> {
 		if (!RunService.IsClient()) {
 			throw new Error(Log.Error("LoadFlag() must be called from the client!"));
 		}
@@ -257,7 +257,7 @@ export async function waitForFirst(
 		return Promise.race(slots) as Promise<defined>;
 }
 
-export function catcher(this: void, err: object): void {
+export function catcher(err: object): void {
 		Log.Warn(debug.traceback(`\n${tostring(err)}`));
 }
 

@@ -21,10 +21,10 @@
  *   Further reading on vector reflection:
  *   https://mathworld.wolfram.com/Reflection.html.
  */
-export function reflect(this: void, surfaceNormal: Vector3, bulletNormal: Vector3): Vector3 {
+export function reflect(surfaceNormal: Vector3, bulletNormal: Vector3): Vector3 {
 	return bulletNormal.sub(surfaceNormal.mul(bulletNormal.Dot(surfaceNormal)).mul(2));
 }
 
-export function distance(this: void, aV: Vector3, bV: Vector3): number {
+export function distance(aV: Vector3, bV: Vector3): number {
 	return aV.sub(bV).Magnitude;
 }

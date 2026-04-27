@@ -27,14 +27,14 @@ for (const instance of ReplicatedStorage.Animations.GetDescendants()) {
 	}
 }
 
-export function getSoundGroupFromId(this: void, id: number): N<SoundGroup> {
+export function getSoundGroupFromId(id: number): N<SoundGroup> {
 	return soundGroups.get(id);
 }
 
-export function getSoundFromId(this: void, id: number): N<Sound> {
+export function getSoundFromId(id: number): N<Sound> {
 	return sounds.get(id);
 }
 
-export function getAnimationFromId(this: void, id: number): N<Animation> {
+export function getAnimationFromId(id: number): N<Animation> {
 	return animations.get(id);
 }

@@ -4,28 +4,27 @@ import { type formatMode, formatTable as formatTableImpl } from "./formatTable";
 import type { KeyValueString, LookupKeyIgnoreCase, StringIncludes } from "./type";
 import { iterate } from "./type";
 
-export function toPascalCase<T extends string>(this: void, str: T): PascalCase<T> {
+export function toPascalCase<T extends string>(str: T): PascalCase<T> {
 	return `${str.sub(1, 1).upper()}${str.sub(1 + 1, -1)}` as never;
 }
 
-export function isPascalCase(this: void, str: string): boolean {
+export function isPascalCase(str: string): boolean {
 	return str.sub(1, 1).upper() === str.sub(1, 1);
 }
 
-export function toCamelCase<T extends string>(this: void, str: T): CamelCase<T> {
+export function toCamelCase<T extends string>(str: T): CamelCase<T> {
 	return `${str.sub(1, 1).lower()}${str.sub(1 + 1, -1)}` as never;
 }
 
-export function isCamelCase(this: void, str: string): boolean {
+export function isCamelCase(str: string): boolean {
 	return str.sub(1, 1).lower() === str.sub(1, 1);
 }
 
-export function formatTable(this: void, object: Table, mode: ValueOf<typeof formatMode>): string {
+export function formatTable(object: Table, mode: ValueOf<typeof formatMode>): string {
 	return formatTableImpl(object, mode);
 }
 
 export function lookupKeyIgnoreCase<A extends object, B extends string>(
-	this: void,
 	key: B,
 	object: A,
 ): N<LookupKeyIgnoreCase<A, B>> {
@@ -39,7 +38,6 @@ export function lookupKeyIgnoreCase<A extends object, B extends string>(
 }
 
 export function toPath<T, S extends string>(
-	this: void,
 	object: T,
 	separator: S,
 ): Array<KeyValueString<T, S>> {
@@ -65,7 +63,6 @@ export function toPath<T, S extends string>(
 }
 
 export function includes<A extends string, B extends string>(
-	this: void,
 	str: A,
 	stringToCheck: B,
 ): StringIncludes<A, B> {

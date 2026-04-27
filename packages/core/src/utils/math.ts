@@ -1,6 +1,6 @@
 import { Workspace } from "@rbxts/services";
 
-import store from "../store";
+import { store } from "../store";
 
 /**
  * Calculates the average of a list of numbers.
@@ -8,7 +8,7 @@ import store from "../store";
  * @param numbers - The list of numbers.
  * @returns The average of the numbers.
  */
-export function average(this: void, ...numbers: Array<number>): number {
+export function average(...numbers: Array<number>): number {
 	const sum = numbers.reduce((accumulator, number) => accumulator + number, 0);
 	return sum / numbers.size();
 }
@@ -20,7 +20,7 @@ export function average(this: void, ...numbers: Array<number>): number {
  * @param numbers - The list of numbers to search.
  * @returns The closest number in the list.
  */
-export function closest(this: void, x: number, ...numbers: Array<number>): number {
+export function closest(x: number, ...numbers: Array<number>): number {
 	return numbers.reduce((closestNumber, number) => {
 		return math.abs(x - number) < math.abs(x - closestNumber!) ? number : closestNumber;
 	}, numbers[0])!;
@@ -33,7 +33,7 @@ export function closest(this: void, x: number, ...numbers: Array<number>): numbe
  * @param numbers - The list of numbers to search.
  * @returns The farthest number in the list.
  */
-export function farthest(this: void, x: number, ...numbers: Array<number>): number {
+export function farthest(x: number, ...numbers: Array<number>): number {
 	return numbers.reduce((farthestNumber, number) => {
 		return math.abs(x - number) > math.abs(x - farthestNumber!) ? number : farthestNumber;
 	}, numbers[0])!;
@@ -47,7 +47,7 @@ export function farthest(this: void, x: number, ...numbers: Array<number>): numb
  * @param b - The end of the range.
  * @returns The percentage of x within the range a to b.
  */
-export function percentage(this: void, x: number, a: number, b: number): number {
+export function percentage(x: number, a: number, b: number): number {
 	return 1 - (b - x) / (b - a);
 }
 
@@ -58,7 +58,7 @@ export function percentage(this: void, x: number, a: number, b: number): number 
  * @param decimals - The number of decimal places to round to.
  * @returns The rounded number.
  */
-export function round(this: void, n: number, decimals: number): number {
+export function round(n: number, decimals: number): number {
 	// Calculate the power of 10 for the specified decimals
 	const power = 10 ** decimals;
 	return math.floor(n * power) / power;
@@ -72,7 +72,7 @@ export function round(this: void, n: number, decimals: number): number {
  * @param x - The input value.
  * @returns The interpolated value between 0 and 1.
  */
-export function smoothstep(this: void, a: number, b: number, x: number): number {
+export function smoothstep(a: number, b: number, x: number): number {
 	if (x < a) {
 		return 0;
 	}
@@ -92,7 +92,7 @@ export function smoothstep(this: void, a: number, b: number, x: number): number 
  *   index.
  * @returns A randomly selected index based on the provided weights.
  */
-export function weightRandom(this: void, ...selections: Array<number>): number {
+export function weightRandom(...selections: Array<number>): number {
 	const totalChances = selections.reduce((sum, chance) => sum + chance, 0);
 	const number = math.random() * totalChances;
 

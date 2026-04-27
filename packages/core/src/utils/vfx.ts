@@ -20,7 +20,7 @@ type VFXAnimationMarkerParameters<VFX extends Part> =
  *   considered the parent part in the weld.
  * @returns The created WeldConstraint instance.
  */
-export function weldTo(this: void, part1: BasePart, part0: BasePart): WeldConstraint {
+export function weldTo(part1: BasePart, part0: BasePart): WeldConstraint {
 	const weld = new Instance("WeldConstraint");
 	weld.Part0 = part0;
 	weld.Part1 = part1;
@@ -42,7 +42,7 @@ export function weldTo(this: void, part1: BasePart, part0: BasePart): WeldConstr
  * @param weld - Optional part to weld the VFX to.
  * @returns The cloned VFX instance.
  */
-export function playVFX(this: void, vfx: BasePart, cf: CFrame, weld?: BasePart): BasePart {
+export function playVFX(vfx: BasePart, cf: CFrame, weld?: BasePart): BasePart {
 	const lifetime = vfx.GetAttribute<number>("lifetime")!;
 	const bursts = vfx.GetAttribute<number>("bursts")!;
 	const duration = vfx.GetAttribute<number>("duration")!;
@@ -112,7 +112,6 @@ export function playVFX(this: void, vfx: BasePart, cf: CFrame, weld?: BasePart):
  * @param lifetime - The lifetime of the emitter.
  */
 export async function emitAllDescendants(
-	this: void,
 	clone: Model | BasePart | Attachment,
 	at?: () => CFrame,
 	delay = 0,
@@ -147,7 +146,7 @@ export async function emitAllDescendants(
  * @param model - A .Clone() of the vfx asset.
  * @param state - .Enabled = true or false.
  */
-export function toggleAllDescendants(this: void, model: Instance, state: boolean): void {
+export function toggleAllDescendants(model: Instance, state: boolean): void {
 	model.Parent ??= Workspace;
 
 	for (const child of model.GetDescendants()) {
@@ -176,7 +175,6 @@ export function toggleAllDescendants(this: void, model: Instance, state: boolean
  * @returns A resolved Promise when check Param returns false.
  */
 export async function enableWhile<T extends Model | Trail | BasePart | Highlight | Attachment>(
-	this: void,
 	clone: T,
 	check: (clone: T) => boolean,
 	atCFrame?: CFrame,
@@ -214,7 +212,6 @@ export async function enableWhile<T extends Model | Trail | BasePart | Highlight
  * @param parameters - The string parameters from the marker event.
  */
 export function vfxAnimationMarkerReached(
-	this: void,
 	vfx: Part,
 	track: AnimationTrack,
 	parameters?: string,
@@ -262,7 +259,7 @@ export function vfxAnimationMarkerReached(
  * @param track - The animation track of the VFX.
  * @param assetVfx - The VFX Part or Model to clone for the animation.
  */
-export function animatedVFX(this: void, character: Character, track: AnimationTrack, assetVfx: Part): void {
+export function animatedVFX(character: Character, track: AnimationTrack, assetVfx: Part): void {
 	if (!track?.IsPlaying) {
 		return;
 	}
