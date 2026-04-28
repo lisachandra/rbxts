@@ -4,7 +4,6 @@
  */
 
 import type { Serializer } from "@rbxts/serio";
-import createSerializer from "@rbxts/serio";
 
 import type { Items } from "./definitions";
 import type { PascalCaseKeys } from "./types";

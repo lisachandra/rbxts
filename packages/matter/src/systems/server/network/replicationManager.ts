@@ -13,12 +13,12 @@ import { removeValue } from "@rbxts/sift/out/Array";
 
 import type { ServerState } from "@lisachandra/core/out/store";
 import { iterate } from "@lisachandra/core/out/utils/type";
-import type { ChangeRecord } from "../../../components";
-import { Components } from "../../../components";
+import { ChangeRecord, ComponentKey, getComponent } from "../../../components";
 import { useMessage } from "../../../hooks/useMessage";
 import { meta as hotbarManager } from "../item/hotbarManager";
 import { meta as itemManager } from "../item/itemManager";
 import { Message, messaging, registry } from "../../../network";
+
 const hasReceived: Array<Player> = [];
 
 type Payload = Record<
@@ -32,9 +32,9 @@ function componentIsWithinScope(
 	world: World,
 	playerEntityId: AnyEntity,
 	componentEntityId: AnyEntity,
-	componentName: keyof typeof Components,
+	componentName: ComponentKey,
 ): boolean {
-	const scope = world.get(componentEntityId, Components.ReplicationScope);
+	const scope = world.get(componentEntityId, getComponent("ReplicationScope"));
 	if (!scope) {
 		return true;
 	}
@@ -138,7 +138,7 @@ function replicateComponentForPlayer(
 			world,
 			viewerEntityId,
 			targetEntityId,
-			codec.componentKey as keyof typeof Components,
+			codec.componentKey as ComponentKey,
 		)
 	) {
 		return;
@@ -164,7 +164,7 @@ function handleInitialReplication(
 	initialized: Array<Player>,
 	loaded: Array<Player>,
 ): void {
-	for (const [componentEntityId, profile] of world.query(Components.Profile)) {
+	for (const [componentEntityId, profile] of world.query(getComponent("Profile"))) {
 		const playerHasReceived = hasReceived.includes(profile.player);
 
 		if (playerHasReceived && !loaded.includes(profile.player)) {
@@ -201,10 +201,10 @@ function handleComponentChanges(
 	initialized: Array<Player>,
 ): void {
 	for (const [componentKey, codec] of registry.entries()) {
-		const componentName = codec.componentKey as keyof typeof Components;
+		const componentName = codec.componentKey as ComponentKey;
 
 		for (const [targetEntityId, record] of world.queryChanged(codec.component)) {
-			for (const [viewerEntityId, profile] of world.query(Components.Profile)) {
+			for (const [viewerEntityId, profile] of world.query(getComponent("Profile"))) {
 				if (
 					initialized.includes(profile.player) ||
 					(codec.mode === "owner" && targetEntityId !== viewerEntityId) ||

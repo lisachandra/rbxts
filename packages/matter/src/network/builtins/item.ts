@@ -6,9 +6,9 @@ import { store } from "@lisachandra/core/out/store";
 import { required } from "@lisachandra/core/out/utils/type";
 
 import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
-import { Components } from "../../components";
 import type { ValidItemPath } from "../../items";
-import { serdes, privateDefinitions } from "../../items";
+import { privateDefinitions, serdes } from "../../items";
+import { Item } from "../../components";
 
 export type ItemData = { guid: u16 } | {
 	blobs: unknown;
@@ -45,8 +45,8 @@ function findItemSerdes<T>(itemId: ValidItemPath): Serializer<T> {
 }
 
 function getReplicatedData(
-	item: Components.Item,
-): [newData: Partial<Components.Item["data"]>, unreplicatedData: Partial<Components.Item["data"]>] {
+	item: Item,
+): [newData: Partial<Item["data"]>, unreplicatedData: Partial<Item["data"]>] {
 	const newData = table.clone(item.data);
 	const unreplicatedData = {};
 	let unreplicatedKeys: Array<string> = [];
@@ -66,7 +66,7 @@ function getReplicatedData(
 }
 
 function isItemReplicateSafe(
-	item: Components.Item,
+	item: Item,
 ): [safe: false] | [safe: true, itemId: number, guidId: number] {
 	const itemId = getNumericItemIdFromId(item.id);
 	if (itemId === undefined) {
@@ -84,12 +84,12 @@ function isItemReplicateSafe(
 }
 
 function shouldItemBeReplicated(
-	item: Components.Item,
-	newData: Partial<Components.Item["data"]>,
-	lastReplicatedItems: Array<Components.Item>,
+	item: Item,
+	newData: Partial<Item["data"]>,
+	lastReplicatedItems: Array<Item>,
 ):
 	| [shouldBeReplicated: false]
-	| [shouldBeReplicated: true, filteredNewData: Partial<Components.Item["data"]>] {
+	| [shouldBeReplicated: true, filteredNewData: Partial<Item["data"]>] {
 	const oldReplicatedItem = lastReplicatedItems.find((value) => value.guid === item.guid);
 	const filteredNewData = oldReplicatedItem
 		? filter(newData, (value, key) => oldReplicatedItem.data[key] !== value)
@@ -103,8 +103,8 @@ function shouldItemBeReplicated(
 }
 
 function serializeSingleItem(
-	item: Components.Item,
-	lastReplicatedItems: Array<Components.Item>,
+	item: Item,
+	lastReplicatedItems: Array<Item>,
 ): N<ItemData> {
 	const [replicateSafe, numericId, guidId] = isItemReplicateSafe(item);
 	if (!replicateSafe) {
@@ -149,14 +149,14 @@ function serializeSingleItem(
  *   and an updated list of replicated items.
  */
 export function itemsSerializer(
-	items: { new: Array<Components.Item>; old?: Array<Components.Item> },
-	lastReplicatedItems: Array<Components.Item>,
+	items: { new: Array<Item>; old?: Array<Item> },
+	lastReplicatedItems: Array<Item>,
 ): [
 	serializedItems: Array<ItemData>,
-	newReplicatedItems: Array<Components.Item>,
+	newReplicatedItems: Array<Item>,
 ] {
 	const serializedItems: Array<ItemData> = [];
-	const newReplicatedItems: Array<Components.Item> = [];
+	const newReplicatedItems: Array<Item> = [];
 
 	for (const item of items.new) {
 		const serializedItem = serializeSingleItem(item, lastReplicatedItems);
@@ -165,7 +165,7 @@ export function itemsSerializer(
 			serializedItems.push(serializedItem);
 			newReplicatedItems.push({
 				...item,
-				data: { ...newData, ...unreplicatedData } as Components.Item["data"],
+				data: { ...newData, ...unreplicatedData } as Item["data"],
 			});
 		}
 	}
@@ -187,13 +187,13 @@ export function itemsSerializer(
 function deserializeItemData(
 	item: ItemData,
 	itemId: ValidItemPath,
-): N<Components.Item["data"]> {
+): N<Item["data"]> {
 	if (!("buf" in item)) {
 		return;
 	}
 
 	const dataSerdes = findItemSerdes(itemId);
-	return dataSerdes.deserialize({ blobs: item.blobs as defined[], buf: item.buf }) as Components.Item["data"];
+	return dataSerdes.deserialize({ blobs: item.blobs as defined[], buf: item.buf }) as Item["data"];
 }
 
 /**
@@ -208,9 +208,9 @@ function deserializeItemData(
  */
 export function itemsDeserializer(
 	items: Array<ItemData>,
-	oldItems?: Array<Components.Item>,
-): [newItems: Array<Components.Item>, removedItems: Array<string>] {
-	const newItems: Array<Components.Item> = [];
+	oldItems?: Array<Item>,
+): [newItems: Array<Item>, removedItems: Array<string>] {
+	const newItems: Array<Item> = [];
 	const removedItems: Array<string> = [];
 	const flippedGUIDMap = flip(store.client.getState("itemGUIDMap"));
 
@@ -230,7 +230,7 @@ export function itemsDeserializer(
 
 		const oldItem = (oldItems?.find((itemOld) => itemGUID === itemOld.guid) ?? {
 			data: {},
-		}) as Components.Item;
+		}) as Item;
 
 		const deserializedItemData = deserializeItemData(item, itemId) ?? {};
 

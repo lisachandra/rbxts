@@ -1,6 +1,6 @@
-import { createPipeline } from "../pipeline";
 import type { PipelineRegistration } from "../pipeline";
-import type { ReplicationBuilder, ReplicationComponentRegistration } from "../replication";
+import { createPipeline } from "../pipeline";
+import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
 
 import type {
 	MatterPackageRuntime,
@@ -40,8 +40,7 @@ export function createPackageRuntime<
 	resolved: ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey>,
 ): MatterPackageRuntime<TId, TSystem, TCrateState, TStateKey> {
 	const pipelineRegistrations = new Array<PipelineRegistration<TSystem>>();
-	const replicationComponents = new Array<ReplicationComponentRegistration>();
-	const replicationConfigurators = new Array<(builder: ReplicationBuilder<TSystem>) => void>();
+	const replicationComponents = new Array<ReplicationCodecRegistration>();
 	const stateSlices = new Array<MatterPackageStateSlice<TCrateState, unknown, TStateKey>>();
 
 	for (const pkg of resolved.order) {
@@ -50,17 +49,13 @@ export function createPackageRuntime<
 		}
 
 		for (const registration of pkg.replication?.templates ?? []) {
-			pipelineRegistrations.push(registration);
+			pipelineRegistrations.push(registration as PipelineRegistration<TSystem>);
 		}
 
-		for (const component of pkg.replication?.components ?? []) {
-			replicationComponents.push(component);
+		for (const codec of pkg.replication?.codecs ?? []) {
+			replicationComponents.push(codec);
 		}
 
-		const configureReplication = pkg.replication?.configure;
-		if (configureReplication !== undefined) {
-			replicationConfigurators.push((builder) => configureReplication(builder));
-		}
 
 		for (const state of pkg.state ?? []) {
 			stateSlices.push(state);
@@ -81,25 +76,10 @@ export function createPackageRuntime<
 
 			return builder;
 		},
-		installReplication(builder) {
-			for (const component of replicationComponents) {
-				const options: Omit<ReplicationComponentRegistration, "component"> = {};
-				if (component.mode !== undefined) {
-					options.mode = component.mode;
-				}
-
-				if (component.notes !== undefined) {
-					options.notes = component.notes;
-				}
-
-				builder.addComponent(component.component, options);
+		installCodecs(r: ReplicationCodecRegistry) {
+			for (const codecRegistration of replicationComponents) {
+				r.register(codecRegistration);
 			}
-
-			for (const configure of replicationConfigurators) {
-				configure(builder);
-			}
-
-			return builder;
 		},
 		pipelineRegistrations,
 		replicationComponents,

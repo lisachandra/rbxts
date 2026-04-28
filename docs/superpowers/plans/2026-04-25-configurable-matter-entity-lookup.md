@@ -33,10 +33,10 @@ import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { Components } from "./components";
 
 export type EntityLookupComponent =
-	| typeof Components.Profile
-	| typeof Components.Items
-	| typeof Components.Node
-	| typeof Components.NPC;
+	| Components["Profile"]
+	| Components["Items"]
+	| Components["Node"]
+	| Components["NPC"];
 
 export interface EntityLookupConfig {
 	components: ReadonlyArray<EntityLookupComponent>;

@@ -5,18 +5,10 @@
  * synchronizes item data across players and the game state.
  */
 import type { Crate } from "@rbxts/crate";
-import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { None } from "@rbxts/matter";
+import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals as equals } from "@rbxts/sift/out/Array";
-import {
-	equals as dictionaryEquals,
-	filter,
-	flip,
-	fromArrays,
-	map,
-	values,
-} from "@rbxts/sift/out/Dictionary";
-import { ChangeRecord, Components, isComponent } from "../../../components";
+import { equals as dictionaryEquals, filter, flip, fromArrays, map, values, } from "@rbxts/sift/out/Dictionary";
+import { ChangeRecord, Components, getComponent, isComponent } from "../../../components";
 import { ServerState } from "@lisachandra/core/out/store";
 import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
 import { catcher, getHumanoid } from "@lisachandra/core/out/utils/main";
@@ -35,7 +27,7 @@ function validateItemPickup(
 	itemEntityId: AnyEntity,
 	pickupRange: number,
 ): boolean {
-	const { model } = world.get(itemEntityId, Components.Items) ?? { model: undefined };
+	const { model } = world.get(itemEntityId, getComponent("Items")) ?? { model: undefined };
 	if (!model) {
 		return false;
 	}
@@ -50,7 +42,7 @@ function handleHotbarEquip(
 	guid: string,
 	destination: boolean,
 ): N<ServerState["itemPointers"]> {
-	const hotbar = world.get(entityId, Components.Hotbar)!;
+	const hotbar = world.get(entityId, getComponent("Hotbar"))!;
 	if (hotbar.equipped !== guid) {
 		return;
 	}
@@ -128,7 +120,7 @@ function dropItem(
 	return { ...itemPointers, [guid]: `${itemEntityId}` };
 }
 
-function handlePlayerToolEquip(profile: Components.Profile, equippedTool: N<Tool>): void {
+function handlePlayerToolEquip(profile: Components["Profile"], equippedTool: N<Tool>): void {
 	// Equip the tool to the player if found.
 	if (equippedTool !== undefined) {
 		equippedTool.Parent = profile.player;
@@ -156,7 +148,7 @@ function handlePlayerToolEquip(profile: Components.Profile, equippedTool: N<Tool
 	});
 }
 
-type ItemRelatedComponents = Components.Items | Components.Hotbar | Components.Inventory;
+type ItemRelatedComponents = Components["Items"] | Components["Hotbar"] | Components["Inventory"];
 
 function cleanupItemPointers(
 	record: ChangeRecord<ItemRelatedComponents>,
@@ -185,7 +177,7 @@ function determineItemPointer(entityId: AnyEntity, name: "Items" | "Hotbar" | "I
 }
 
 function filterItemsToAdd(
-	record: ChangeRecord<Components.Items | Components.Hotbar | Components.Inventory>,
+	record: ChangeRecord<Components["Items"] | Components["Hotbar"] | Components["Inventory"]>,
 	updatedItemPointers: ServerState["itemPointers"],
 	pointer: string,
 ): Array<string> {
@@ -210,7 +202,7 @@ function filterItemsToAdd(
 function handleItemChanges(
 	entityId: AnyEntity,
 	name: "Items" | "Hotbar" | "Inventory",
-	record: ChangeRecord<Components.Items | Components.Hotbar | Components.Inventory>,
+	record: ChangeRecord<Components["Items"] | Components["Hotbar"] | Components["Inventory"]>,
 	newItemPointers: ServerState["itemPointers"],
 ): ServerState["itemPointers"] {
 	const updatedItemPointers = newItemPointers;
@@ -241,7 +233,7 @@ function handleItemChanges(
 }
 
 function handlePlayerToolSync(world: World): void {
-	for (const [_, profile] of world.query(Components.Profile)) {
+	for (const [_, profile] of world.query(getComponent("Profile"))) {
 		const character = profile.player.Character;
 		if (
 			!getHumanoid(profile.player) &&
@@ -304,7 +296,7 @@ function updateItemPointers(
 ): ServerState["itemPointers"] {
 	let updatedItemPointers = newItemPointers;
 	for (const name of ["Inventory", "Hotbar", "Items"] as const) {
-		for (const [entityId, record] of world.queryChanged(Components[name])) {
+		for (const [entityId, record] of world.queryChanged(getComponent(name))) {
 			updatedItemPointers = handleItemChanges(entityId, name, record, updatedItemPointers);
 		}
 	}

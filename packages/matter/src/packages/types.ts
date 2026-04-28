@@ -1,7 +1,7 @@
 import type { Crate } from "@rbxts/crate";
 
 import type { PipelineBuilder, PipelineRegistration, SystemTemplate } from "../pipeline";
-import type { ReplicationBuilder, ReplicationComponentRegistration } from "../replication";
+import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
 
 export interface MatterPackageMetadata {
 	description?: string;
@@ -18,10 +18,9 @@ export interface MatterPackageStateSlice<
 	key: TKey;
 }
 
-export interface MatterPackageReplication<TSystem = unknown> {
-	components?: ReadonlyArray<ReplicationComponentRegistration>;
-	configure?: (builder: ReplicationBuilder<TSystem>) => void;
-	templates?: ReadonlyArray<SystemTemplate<TSystem>>;
+export interface MatterPackageReplication {
+	codecs?: ReadonlyArray<ReplicationCodecRegistration>;
+	templates?: ReadonlyArray<SystemTemplate>;
 }
 
 export interface MatterPackageDescriptor<
@@ -34,7 +33,7 @@ export interface MatterPackageDescriptor<
 	id: TId;
 	metadata?: MatterPackageMetadata;
 	pipeline?: ReadonlyArray<PipelineRegistration<TSystem>>;
-	replication?: MatterPackageReplication<TSystem>;
+	replication?: MatterPackageReplication;
 	state?: ReadonlyArray<MatterPackageStateSlice<TCrateState, unknown, TStateKey>>;
 }
 
@@ -83,9 +82,9 @@ export interface MatterPackageRuntime<
 > {
 	buildSystems(builder?: PipelineBuilder<TSystem>): Array<TSystem>;
 	installPipeline(builder: PipelineBuilder<TSystem>): PipelineBuilder<TSystem>;
-	installReplication(builder: ReplicationBuilder<TSystem>): ReplicationBuilder<TSystem>;
+	installCodecs(registry: ReplicationCodecRegistry): void;
 	pipelineRegistrations: ReadonlyArray<PipelineRegistration<TSystem>>;
-	replicationComponents: ReadonlyArray<ReplicationComponentRegistration>;
+	replicationComponents: ReadonlyArray<ReplicationCodecRegistration>;
 	resolved: ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey>;
 	state: MatterPackageStateManager<TCrateState, TStateKey>;
 }

@@ -1,7 +1,7 @@
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import HashLib from "@rbxts/rbxts-hashlib";
-import { HttpService, Players, TeleportService } from "@rbxts/services";
+import { TeleportService } from "@rbxts/services";
 import { t } from "@rbxts/t";
 
 import { catcher } from "@lisachandra/core/out/utils/main";

@@ -1,9 +1,9 @@
 import {
-	type ListArgumentType,
-	ListTypeBuilder,
-	type SingleArgumentType,
-	TransformResult,
-	TypeBuilder,
+    type ListArgumentType,
+    ListTypeBuilder,
+    type SingleArgumentType,
+    TransformResult,
+    TypeBuilder,
 } from "@rbxts/centurion";
 
 import { is } from "@lisachandra/core/out/utils/type";

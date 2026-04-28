@@ -34,10 +34,10 @@ Expose a function from `packages/matter`:
 ```ts
 configureEntityLookup({
 	components: [
-		Components.Profile,
-		Components.Items,
-		Components.Node,
-		Components.NPC,
+		getComponent("Profile"),
+		getComponent("Items"),
+		getComponent("Node"),
+		getComponent("NPC"),
 	],
 });
 ```
@@ -68,10 +68,10 @@ This removes duplicated fallback chains from multiple call sites.
 
 If the user does not configure anything, entity lookup keeps the existing non-system order:
 
-1. `Components.Profile`
-2. `Components.Items`
-3. `Components.Node`
-4. `Components.NPC`
+1. `getComponent("Profile")`
+2. `getComponent("Items")`
+3. `getComponent("Node")`
+4. `getComponent("NPC")`
 
 ### Configured behavior
 

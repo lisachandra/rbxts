@@ -11,15 +11,15 @@ This guide shows how a game project bootstraps the `@lisachandra/matter` runtime
 
 1. **Runtime configuration** — entity lookup, player lifecycle, input adapters, documents
 2. **Item definitions** — one-call `defineItems`
-3. **System composition** — pipeline, template families, replication builder
-4. **External npm packages** — how an NPC package provides systems and components
+3. **System composition** — direct systems, package runtime, pipeline registrations
+4. **External npm packages** — how a package provides systems, components, and replication codecs
 5. **Hot reloading** — how `packages/platform` and `packages/ui` wire into the bootstrap
 
 ---
 
 ## 1. External npm Packages: NPC Example
 
-An external npm package (e.g., `@my-game/npcs`) can define Matter systems, components, and pipeline registrations, then have the user bootstrap them via the packages system.
+An external npm package (for example `@my-game/npcs`) can define Matter systems, components, and replication codecs, then let the user bootstrap them through the packages system.
 
 ### The NPC Package (`@my-game/npcs`)
 
@@ -27,13 +27,32 @@ An external npm package (e.g., `@my-game/npcs`) can define Matter systems, compo
 // ============ @my-game/npcs/src/index.ts ============
 import {
     definePackage,
-    type MatterPackageDescriptor
+    registerComponent,
+    type ComponentTypeMap,
 } from "@lisachandra/matter";
-import { component } from "@rbxts/matter";
+import { registry, type ReplicationCodecRegistration } from "@lisachandra/matter";
+import { component, type World } from "@rbxts/matter";
+import type { Crate } from "@rbxts/crate";
+import type { ClientState } from "@lisachandra/core/out/store";
+import createSerializer, { u16 } from "@rbxts/serio";
+
+declare module "@lisachandra/matter" {
+    interface Components {
+        NPC: { health: number; owner?: Player };
+        NPCAI: { behavior: string };
+    }
+}
 
 // Define NPC components
-export const NPC = component<{ health: number; owner?: Player }>("NPC");
-export const NPCAI = component<{ behavior: string }>("NPCAI");
+export const NPC = registerComponent(
+    "NPC",
+    component<Components["NPC"]>("NPC"),
+);
+
+export const NPCAI = registerComponent(
+    "NPCAI",
+    component<Components["NPCAI"]>("NPCAI"),
+);
 
 // Define NPC systems
 function serverNPCManager(world: World): void {
@@ -43,13 +62,29 @@ function serverNPCManager(world: World): void {
 }
 
 function clientNPCReplicator(world: World, crate: Crate<ClientState>): void {
-    // Client-side NPC streaming...
+    // Client-side NPC logic...
 }
+
+const npcCodecs: ReadonlyArray<ReplicationCodecRegistration> = [
+    {
+        component: NPC,
+        mode: "all",
+        serializer: (record) => ({ health: record.new!.health }),
+        deserializer: (data) => ({ health: (data as { health: number }).health }),
+        serializerMetadata: createSerializer<{ health: u16 }>().metadata,
+    },
+    {
+        component: NPCAI,
+        mode: "owner",
+        serializer: (record) => ({ behavior: record.new!.behavior }),
+        deserializer: (data) => ({ behavior: (data as { behavior: string }).behavior }),
+    },
+];
 
 // Export as a package that users register
 export const npcPackage = definePackage({
     id: "npcs",
-    dependencies: ["items"],  // NPCs depend on the items system
+    dependencies: ["items"],
     metadata: {
         description: "NPC spawning, AI, and replication",
         version: "1.0.0",
@@ -57,24 +92,15 @@ export const npcPackage = definePackage({
     pipeline: [
         {
             name: "npcRuntimeServer",
-            systems: [
-                { key: "serverNPCManager", system: serverNPCManager },
-            ],
-            dependencies: ["itemsRuntimeServer"],
+            systems: [{ key: "serverNPCManager", system: serverNPCManager }],
         },
         {
             name: "npcRuntimeClient",
-            systems: [
-                { key: "clientNPCReplicator", system: clientNPCReplicator },
-            ],
-            dependencies: ["itemsRuntimeClient"],
+            systems: [{ key: "clientNPCReplicator", system: clientNPCReplicator }],
         },
     ],
     replication: {
-        components: [
-            { component: "NPC", mode: "all" },
-            { component: "NPCAI", mode: "owner" },
-        ],
+        codecs: npcCodecs,
     },
 });
 ```
@@ -83,24 +109,17 @@ export const npcPackage = definePackage({
 
 ```ts
 // ============ game/src/shared/bootstrap.ts ============
+import { createPackageRegistry, createPackageRuntime, registry, start } from "@lisachandra/matter";
 import { npcPackage } from "@my-game/npcs";
-import {
-    createPackageRegistry,
-    createPackageRuntime,
-    createPipeline,
-    start,
-    configureRuntimeAdapters,
-} from "@lisachandra/matter";
 
-// Register external packages
-const registry = createPackageRegistry();
-registry.register(npcPackage);
+const packageRegistry = createPackageRegistry();
+packageRegistry.register(npcPackage);
 
-// Resolve dependency graph
-const resolved = registry.resolve(["npcs"]);
-
-// Compile into runnable systems
+const resolved = packageRegistry.resolve(["npcs"]);
 const runtime = createPackageRuntime(resolved);
+
+// Register package codecs into the shared replication registry
+runtime.installCodecs(registry);
 
 // Build the final system array
 const systems = runtime.buildSystems();
@@ -110,9 +129,9 @@ const { world, crate } = start({ systems });
 ```
 
 This works because the packages system (`packages/`) handles:
-- **Topological sort** (`resolvePackageGraph.ts`) — ensures `items` loads before `npcs`
-- **Pipeline registration** — each package's `pipeline` entries become `SystemTemplate`s
-- **Replication wiring** — each package's `replication` config feeds into the replication builder
+- **Topological sort** (`resolvePackageGraph.ts`) — ensures dependencies load in order
+- **Pipeline registration** — each package's `pipeline` entries become runnable systems
+- **Replication wiring** — each package's `replication.codecs` is registered into the replication codec registry
 - **State slices** — each package can declare its own crate state keys
 
 ---
@@ -127,8 +146,9 @@ import {
     configureRuntimeAdapters,
     configureEntityLookup,
     configureStreamableEntityLookup,
+    getComponent,
 } from "@lisachandra/matter";
-import { Components } from "@lisachandra/matter";
+import { Message, messaging } from "@lisachandra/matter";
 
 // -- Entity Lookup --
 configureEntityLookup({
@@ -146,30 +166,28 @@ configureRuntimeAdapters({
     authorize: async (player) => player.UserId > 0,
     playerLifecycle: {
         preSpawn: async (player) => {
-            // Validate before spawn — return false to reject
-            return !myBanService.isBanned(player.UserId);
+            return [!myBanService.isBanned(player.UserId)];
         },
         componentFactory: (player, janitor) => [
-            Components.Profile({ janitor, player }),
-            Components.Inventory(),
-            Components.Hotbar(),
-            Components.Forces(),
-            // Game-specific:
-            Components.Stats({ level: 1, xp: 0 }),
+            getComponent("Profile")({ janitor, player }),
+            getComponent("Inventory")(),
+            getComponent("Hotbar")(),
+            getComponent("Forces")(),
+            getComponent("Stats")({ level: 1, xp: 0 }),
         ],
         postSpawn: (world, player, entityId) => {
-            messaging.client.emit(player, Message.GameReady, { map: "lobby" });
+            messaging.client.emit(player, Message.Time, {
+                startClock: os.clock(),
+                startEpoch: DateTime.now().UnixTimestampMillis,
+            });
         },
     },
-    // Input adapter for toolManager (any input package — not just gamejoy)
     hotbarInputAdapter: {
         getHeldKeys: () => myInputSystem.getHeldKeys(),
         onKeyPressed: (cb) => myInputSystem.onKeyPressed(cb),
     },
-    // Custom entity→instance resolution
     findInstanceFromEntity: (world, entityId) => {
-        // Override default entity lookup if needed
-        return undefined; // fall through to default
+        return undefined;
     },
     document: {
         collection,
@@ -199,7 +217,7 @@ defineItems({
                 defaultData: { damage: 10, durability: 100 },
                 description: "A sharp blade",
                 image: "rbxassetid://456",
-                privateKeys: ["durability"], // server-only
+                privateKeys: ["durability"],
             },
             Bow: {
                 serdes: createSerializer<{ damage: u16; range: u16 }>(),
@@ -221,87 +239,52 @@ defineItems({
 
 ### Step 3: System Composition
 
-There are three paths, depending on how much control you want:
+There are two primary paths, depending on how much composition you want.
 
-#### Path A: Pre-built Template Families (Simplest)
+#### Path A: Direct Systems
+
+Use this when you already have a flat system list or are relying on `@lisachandra/platform` to collect systems from barrel modules.
 
 ```ts
-// ============ game/src/server/bootstrap.ts ============
-import {
-    createMatterTemplateFamilies,
-    createPipeline,
-    start,
-    type MatterTemplateResolvers,
-} from "@lisachandra/matter";
-import { bootstrap } from "@lisachandra/platform";
+import { start } from "@lisachandra/matter";
 
-const resolvers: MatterTemplateResolvers = {
-    server: {
-        serverPlayerManager: playerManagerSystem,
-        serverDocumentManager: documentManagerSystem,
-        serverReplicationManager: replicationManagerSystem,
-        serverItemManager: itemManagerSystem,
-        // ... etc — any unresoloved keys get a placeholder that throws
-    },
-    client: {
-        clientReplicationManager: replicationManagerSystem,
-        clientItemManager: clientItemManagerSystem,
-        // ...
-    },
-};
+const systems = [
+    playerManagerSystem,
+    documentManagerSystem,
+    replicationManagerSystem,
+    itemManagerSystem,
+];
 
-const families = createMatterTemplateFamilies(resolvers);
-const pipeline = createPipeline()
-    .use(...families.registrations);
-    // Optionally exclude families: { exclude: ["sound"] }
-
-const systems = pipeline.build();
 const { world, crate, loop } = start({ systems });
 ```
 
-#### Path B: Individual Feature Functions
+#### Path B: External Packages + Pipeline Runtime
+
+Use this when you want dependency ordering, package composition, and package-provided codecs.
 
 ```ts
-import {
-    useItemFeature,
-    useNetworkFeature,
-    useSoundFeature,
-    useWorldFeature,
-    usePlayerInitFeature,
-    createPipeline,
-} from "@lisachandra/matter";
-
-const systems = createPipeline()
-    .use(...usePlayerInitFeature({ server: { serverPlayerManager: myPM } }))
-    .use(...useItemFeature({ server: { serverItemManager: myIM } }))
-    .use(...useNetworkFeature({ /* ... */ }))
-    .use(...useSoundFeature({ /* ... */ }))
-    .override("serverItemManager", myCustomItemManager)  // swap one system
-    .build();
-```
-
-#### Path C: External Packages (Most Modular)
-
-```ts
-import { npcPackage } from "@my-game/npcs";
-import { questPackage } from "@my-game/quests";
 import {
     createPackageRegistry,
     createPackageRuntime,
+    registry,
     start,
 } from "@lisachandra/matter";
+import { npcPackage } from "@my-game/npcs";
+import { questPackage } from "@my-game/quests";
 
-const registry = createPackageRegistry();
-registry.registerMany([npcPackage, questPackage]);
+const packageRegistry = createPackageRegistry();
+packageRegistry.registerMany([npcPackage, questPackage]);
 
-const resolved = registry.resolve(["npcs", "quests"]);
+const resolved = packageRegistry.resolve(["npcs", "quests"]);
 const runtime = createPackageRuntime(resolved);
-const systems = runtime.buildSystems();
 
+runtime.installCodecs(registry);
+
+const systems = runtime.buildSystems();
 const { world, crate } = start({ systems });
 ```
 
-In Path C, `runtime.installReplication(builder)` also feeds replication templates into the replication builder, which you can then build and add to the pipeline.
+If you want more control, `createPackageRuntime().installPipeline(builder)` still lets you compose package registrations into a custom pipeline before building.
 
 ---
 
@@ -311,7 +294,7 @@ Each system declares its execution phase in its `meta` export:
 
 ```ts
 export const meta = {
-    phase: "preSimulation",   // or: heartbeat, preRender, stepped, etc.
+    phase: "preSimulation",
     system: mySystem,
 } satisfies SystemStruct<[World, Crate<...>, DebugWidgets]>;
 ```
@@ -328,7 +311,7 @@ export const meta = {
 | `"stepped"` | `RunService.Stepped` |
 | `"renderStepped"` | `RunService.RenderStepped` (client) |
 | `"renderCamera"`, `"renderCharacter"`, `"renderFirst"`, `"renderInput"`, `"renderLast"` | `RunService.BindToRenderStep` with matching priority |
-| `"Hz1"` – `"Hz60"` | `RunService.BindToSimulation` (fixed-step simulation) |
+| `"Hz1"` – `"Hz60"` | `RunService.BindToSimulation` |
 | `"playerModuleCamera"` | Custom `LemonSignal` |
 
 Systems can also declare `after: [otherSystem]` to enforce execution order within a phase.
@@ -341,31 +324,29 @@ Hot reloading is wired through **`packages/platform`** (bootstrap) and **`packag
 
 ### How It Works
 
-```
+```text
 packages/platform/bootstrap.ts
 ├── resolveBoundary()
-│   ├── production: collectSystems([modules.client, modules.shared])
-│   └── development: use hotReload.containers (empty systems initially)
-│                     ^-- rewire HotReloader rescans these containers
+│   ├── production: collect systems from provided modules/systems
+│   └── development: use hotReload.containers for rewire rescans
 │
 └── bootstrap()
     └── start({ systems, containers })
         └── loop.scheduleSystems(systems)
 ```
 
-In **development mode**: the bootstrap passes hot-reload container `Instance`s instead of pre-built system arrays. The `@rbxts/rewire` HotReloader watches these containers for module changes, re-requires changed modules, and re-registers their systems via the `Loop`.
+In **development mode**, the bootstrap passes hot-reload container `Instance`s into the Matter loop. The `@rbxts/rewire` hot reloader watches those containers for module changes and re-registers systems.
 
 ### Platform Bootstrap (Client Example)
 
 ```ts
-// The user calls bootstrap() from @lisachandra/platform:
 import { bootstrap } from "@lisachandra/platform";
 
 bootstrap({
-    mode: "development",            // "development" → hot reload mode
+    mode: "development",
     modules: {
-        client: clientSystemsModule, // barrel module of client systems
-        shared: sharedSystemsModule, // barrel module of shared systems
+        client: clientSystemsModule,
+        shared: sharedSystemsModule,
     },
     hotReload: {
         containers: [
@@ -374,13 +355,12 @@ bootstrap({
         ],
     },
     extensions: {
-        // Additional systems from external packages
         systems: runtime.buildSystems(),
     },
 });
 ```
 
-In production mode (`mode: "production"`), `findSystems()` recursively scans the barrel modules and extracts all systems with `meta` exports. In development mode, the HotReloader rescans containers on every file change, and the `Loop` re-schedules updated systems on the next frame.
+In production mode, `findSystems()` recursively scans the barrel modules and extracts systems with `meta` exports. In development mode, the hot reloader rescans containers on file changes and the `Loop` re-schedules them.
 
 ### UI Hot Reloading (`packages/ui`)
 
@@ -389,55 +369,39 @@ import { createAppHotReloader } from "@lisachandra/ui";
 import React from "@rbxts/react";
 
 const { hotReloader, load, render, start, unload } = createAppHotReloader({
-    target: playerGui,              // Where to render (e.g., PlayerGui)
-    moduleRoot: uiContainer,        // Instance containing UI module scripts
-    entryModuleName: "app",         // First module to load
-    resolveEntryModule: () => {     // Re-resolve entry after any file change
-        return uiContainer.FindFirstChild("app") as ModuleScript;
-    },
+    target: playerGui,
+    moduleRoot: uiContainer,
+    entryModuleName: "app",
+    resolveEntryModule: () => uiContainer.FindFirstChild("app") as ModuleScript,
     strictMode: true,
 });
 
-// Start scanning for changes
 start();
-// On module change → rewire calls load(module) → require → render(app)
-// Each render call unmounts the previous root and creates a new one.
 ```
 
 ---
 
 ## 5. Full Bootstrap Chain (Visual)
 
-```
-User code (game/src/shared/bootstrap.ts):
+```text
+User code:
 │
 ├── configureRuntimeAdapters({ playerLifecycle, inputAdapter, ... })
 ├── configureEntityLookup({ instanceComponents, humanoidComponents })
 ├── configureStreamableEntityLookup({ components })
-├── configureRuntimeAdapters({ document: { collection, persistedComponents } })
 ├── defineItems({ Weapon: { Sword: {...}, Bow: {...} } })
 │
-├── [Path A] createMatterTemplateFamilies(resolvers)
-│            → createPipeline().use(families).build()
+├── [Direct] systems = [systemA, systemB, ...]
 │
-├── [Path B] useItemFeature({...}) + useNetworkFeature({...})
-│            → createPipeline().use(...).build()
-│
-├── [Path C] createPackageRegistry() + definePackage() + createPackageRuntime()
+├── [Packages] createPackageRegistry() + definePackage() + createPackageRuntime()
+│            → runtime.installCodecs(registry)
 │            → runtime.buildSystems()
-│            → runtime.installReplication(replBuilder)
 │
 └── start({ systems }) → [world, crate, loop]
-    │
     ├── new World()
     ├── new Loop(world, store.shared)
     ├── loop.scheduleSystems(systems)
     └── loop.begin(phases)
-        │
-        ├── heartbeat   → systems with phase:"heartbeat"
-        ├── preSimulation → systems with phase:"preSimulation"
-        ├── preRender    → systems with phase:"preRender"
-        └── ... etc
 ```
 
 ---
@@ -452,7 +416,6 @@ import { createCollection } from "@rbxts/lapis";
 import { createDataStoreValidator } from "@lisachandra/platform";
 import type { CollectionData } from "@lisachandra/core/store";
 
-// Augment CollectionData to add game-specific keys
 declare module "@lisachandra/core/store" {
     interface CollectionData {
         stats: { level: number; xp: number };
@@ -471,7 +434,7 @@ export const collection = createCollection<CollectionData>("PlayerData", {
 });
 ```
 
-Then pass it to `configureRuntimeAdapters({ document: { collection } })` — done.
+Then pass it to `configureRuntimeAdapters({ document: { collection } })`.
 
 ---
 
@@ -480,6 +443,6 @@ Then pass it to `configureRuntimeAdapters({ document: { collection } })` — don
 1. **Configuration over code** — users call config functions, don't fork internals
 2. **Fine-grained hooks** — `preSpawn`, `componentFactory`, `postSpawn` instead of one monolithic `onPlayerAdded`
 3. **Input abstraction** — `InputAdapter` decouples toolManager from any specific input library
-4. **Document templating** — user provides only the Lapis `Collection`; the system handles the rest
-5. **Package composability** — external npm packages can ship systems + components + replication config
+4. **Type-safe extensibility** — external packages augment `ComponentTypeMap` and register runtime component constructors
+5. **Package composability** — external npm packages can ship systems + components + replication codecs
 6. **Hot reload from day one** — development mode is built into the bootstrap, not bolted on

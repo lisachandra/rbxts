@@ -1,6 +1,6 @@
 import { registry } from "../registry";
-import { Components } from "../../components";
-import { itemsSerializer, itemsDeserializer, type ItemData } from "./item";
+import { Components, getComponent, Item } from "../../components";
+import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 import createSerializer from "@rbxts/serio";
 
@@ -8,10 +8,11 @@ export type InventoryPayload = {
 	items: Array<ItemData>;
 };
 
-const lastReplicatedItems: Record<string, Array<Components.Item>> = {};
+const lastReplicatedItems: Record<string, Array<Item>> = {};
 
-registry.register<Components.Inventory, InventoryPayload>(createSerializer<InventoryPayload>(), {
-	component: Components.Inventory,
+registry.register<Components["Inventory"], InventoryPayload>({
+	component: getComponent("Inventory"),
+	serdes: createSerializer<InventoryPayload>(),
 	mode: "owner",
 	serializer: (record, _playerEntityId, componentEntityId) => {
 		const key = `${componentEntityId}`;
@@ -25,7 +26,7 @@ registry.register<Components.Inventory, InventoryPayload>(createSerializer<Inven
 	deserializer: (data, _serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
-			? store.world.get(clientEntityId, Components.Inventory)!.items
+			? store.world.get(clientEntityId, getComponent("Inventory"))!.items
 			: undefined;
 		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems);
 		if (oldItems) {

@@ -1,5 +1,5 @@
 import { registry } from "../registry";
-import { Components } from "../../components";
+import { Components, getComponent } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import createSerializer, { u8 } from "@rbxts/serio";
 import { Workspace } from "@rbxts/services";
@@ -9,8 +9,9 @@ export type NodePayload = {
 	model: Instance
 };
 
-registry.register<Components.Node, NodePayload>(createSerializer<NodePayload>(), {
-	component: Components.Node,
+registry.register<Components["Node"], NodePayload>({
+	component: getComponent("Node"),
+	serdes: createSerializer<NodePayload>(),
 	mode: "all",
 	serializer: (record) => record.new!,
 	deserializer: (data, serverEntityId) => {

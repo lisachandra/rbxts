@@ -7,7 +7,7 @@
 import { Component } from "@rbxts/matter";
 import { ValidItemPath } from "./definitions";
 
-export type ItemContainer = Component<{ items: Array<Components.Item> }>;
+export type ItemContainer = Component<{ items: Array<Item> }>;
 
 export type ExtractItemWithId<P extends ValidItemPath> = Extract<
 	ValidItemPath,

@@ -10,18 +10,13 @@ import Log from "@rbxts/log";
 import type { Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { Players } from "@rbxts/services";
 import { equals as equals } from "@rbxts/sift/out/Array";
-import {
-	count,
-	equals as dictionaryEquals,
-	fromArrays,
-	removeKeys,
-} from "@rbxts/sift/out/Dictionary";
+import { count, equals as dictionaryEquals, fromArrays, removeKeys, } from "@rbxts/sift/out/Dictionary";
 
 import { meta as replicationManager } from "../network/replicationManager";
 import { useMessage, useThrottle } from "../../../hooks";
 import { catcher, getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import { iterate } from "@lisachandra/core/out/utils/type";
-import { ChangeRecord, Components, isComponent } from "../../../components";
+import { ChangeRecord, Components, getComponent, isComponent, Item } from "../../../components";
 import { Message, messaging } from "../../../network";
 
 
@@ -73,7 +68,7 @@ function resyncItems(crate: Crate<ClientState>): void {
  * @returns An object containing two arrays: `itemsToAdd` and `itemsToRemove`.
  */
 function getItemChanges(
-	record: ChangeRecord<Components.Items | Components.Hotbar | Components.Inventory>,
+	record: ChangeRecord<Components["Items"] | Components["Hotbar"] | Components["Inventory"]>,
 	newItemPointers: Record<string, string>,
 	pointer: string,
 ): { itemsToAdd: Array<string>; itemsToRemove: Array<string> } {
@@ -114,7 +109,7 @@ function updateItemPointersForComponent(
 	newItemPointers: Record<string, string>,
 ): Record<string, string> {
 	let updatedPointers = newItemPointers;
-	for (const [entityId, record] of world.queryChanged(Components[name])) {
+	for (const [entityId, record] of world.queryChanged(getComponent(name))) {
 		if (
 			(record.old || !record.new) &&
 			(!record.new || !record.old || equals(record.new.items, record.old.items))
@@ -152,9 +147,9 @@ function updateToolReferences(
 		return;
 	}
 
-	const component: Component<{ items: Array<Components.Item> }> = world.get(
+	const component: Component<{ items: Array<Item> }> = world.get(
 		state.playerEntityId!,
-		Components[name],
+		getComponent(name),
 	)!;
 	const backpack = Players.LocalPlayer.FindFirstChildWhichIsA("Backpack")!;
 

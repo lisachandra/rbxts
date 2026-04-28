@@ -3,9 +3,8 @@ import ObjectCache from "@rbxts/object-cache";
 import { RunService, Workspace } from "@rbxts/services";
 
 import type { Character } from "@lisachandra/core/out/schemas";
-
-import { Components } from "../components";
 import { getEntityObject } from "./entity";
+import { getComponent } from "../components";
 
 type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
 
@@ -91,7 +90,7 @@ export function findFreeAudioNode(
 		return undefined;
 	}
 
-	for (const [_nodeEntityId, sound, node] of world.query(Components.Sound, Components.Node)) {
+	for (const [_nodeEntityId, sound, node] of world.query(getComponent("Sound"), getComponent("Node"))) {
 		if (!node.model.IsDescendantOf(character) || !sound?.emitter || !sound.players) {
 			continue;
 		}
@@ -139,7 +138,7 @@ export function placeCharacterAudioInWorld(world: World, entityId: AnyEntity, so
 	world.insert(
 		entityId,
 		...[
-			Components.Sound(
+			getComponent("Sound")(
 				RunService.IsClient()
 					? {
 							effects: effects.GetChildren(),
@@ -149,12 +148,12 @@ export function placeCharacterAudioInWorld(world: World, entityId: AnyEntity, so
 						}
 					: { id: soundId },
 			),
-			Components.Node({
+			getComponent("Node")({
 				type: nodeMarker,
 				model: node,
 			}),
 			(RunService.IsServer()
-				? Components.ReplicationScope([
+				? getComponent("ReplicationScope")([
 						{
 							components: ["Sound"],
 							ids: [entityId],

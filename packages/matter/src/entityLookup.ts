@@ -1,10 +1,11 @@
 import type { AnyEntity, Component, World } from "@rbxts/matter";
 
-import { Components } from "./components";
+import { ComponentKey, getComponent } from "./components";
+import { ComponentCtor } from "@rbxts/matter/lib/component";
 
-type MatterComponentFactory = (data?: object) => Component<object>;
+type MatterComponentFactory = ComponentCtor
 
-export type EntityLookupComponentName = string;
+export type EntityLookupComponentName = ComponentKey;
 
 export interface EntityLookupConfig {
 	humanoidComponents?: ReadonlyArray<EntityLookupComponentName>;
@@ -41,7 +42,7 @@ export function getEntityHumanoidComponents(): ReadonlyArray<EntityLookupCompone
 }
 
 export function getEntityLookupComponent(name: EntityLookupComponentName): MatterComponentFactory | undefined {
-	return (Components as never as Record<string, MatterComponentFactory | undefined>)[name];
+	return getComponent(name as ComponentKey);
 }
 
 export function getEntityComponentByName(

@@ -1,9 +1,4 @@
-import type {
-	PipelineBuilder,
-	PipelineExtension,
-	SystemTemplate,
-	TemplateSystem,
-} from "./types";
+import type { PipelineBuilder, PipelineExtension, SystemTemplate, TemplateSystem, } from "./types";
 
 function ensureUniqueKeys<TSystem>(systems: ReadonlyArray<TemplateSystem<TSystem>>, owner: string): void {
 	const seen = new Set<string>();

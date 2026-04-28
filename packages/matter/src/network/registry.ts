@@ -1,5 +1,4 @@
-import type { Serializer, SerializerMetadata } from "@rbxts/serio";
-import createSerializer from "@rbxts/serio";
+import type { Serializer } from "@rbxts/serio";
 
 import type { AnyEntity, Component } from "@rbxts/matter";
 import type { ChangeRecord } from "../components";
@@ -38,7 +37,7 @@ export interface ReplicationCodecRegistration<
 	deserializer: ClientDeserializerFn<TComponent, TPayload>;
 	mode?: ReplicationMode;
 	serializer: ServerSerializerFn<TComponent, TPayload>;
-	serializerMetadata?: SerializerMetadata<TPayload>;
+	serdes?: Serializer<TPayload>;
 	unreliable?: boolean;
 }
 
@@ -59,7 +58,6 @@ export interface ReplicationCodecRegistry {
 		TComponent extends object = object,
 		TPayload extends object = object
 	>(
-		serializer: Serializer<TPayload>,
 		registration: ReplicationCodecRegistration<TComponent, TPayload>
 	): ReplicationCodec<TComponent, TPayload>;
 }
@@ -78,7 +76,6 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 			TComponent extends object = object,
 			TPayload extends object = object
 		>(
-			serializer: Serializer<TPayload>,
 			registration: ReplicationCodecRegistration<TComponent, TPayload>
 		) {
 			const componentKey = tostring(registration.component);
@@ -86,7 +83,7 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 				...registration,
 				componentKey,
 				mode: registration.mode ?? "all",
-				payloadSerializer: serializer,
+				payloadSerializer: registration.serdes,
 				unreliable: registration.unreliable ?? false,
 			} as ReplicationCodec<TComponent, TPayload>;
 

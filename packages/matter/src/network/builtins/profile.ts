@@ -1,14 +1,15 @@
 import { Players } from "@rbxts/services";
 
 import { registry } from "../registry";
-import { Components } from "../../components";
+import { Components, getComponent } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import createSerializer from "@rbxts/serio";
 
 export type ProfilePayload = {}
 
-registry.register<Components.Profile, ProfilePayload>(createSerializer<ProfilePayload>(), {
-	component: Components.Profile,
+registry.register<Components["Profile"], ProfilePayload>({
+	component: getComponent("Profile"),
+	serdes: createSerializer<ProfilePayload>(),
 	mode: "all",
 	serializer: (_record) => {},
 	deserializer: (_data, serverEntityId) => {

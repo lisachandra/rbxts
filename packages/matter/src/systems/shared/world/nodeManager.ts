@@ -6,11 +6,11 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { Components } from "../../../components";
 import { ClientState, ServerState } from "@lisachandra/core/out/store";
+import { getComponent } from "../../../components";
 
 function system(world: World): void {
-	for (const [, record] of world.queryChanged(Components.Node)) {
+	for (const [, record] of world.queryChanged(getComponent("Node"))) {
 		if (record.new || !record.old) {
 			continue;
 		}

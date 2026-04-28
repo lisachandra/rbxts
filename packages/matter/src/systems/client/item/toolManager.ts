@@ -11,10 +11,10 @@
  * directly via `UserInputService`.
  */
 import type { Crate } from "@rbxts/crate";
-import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
+import type { AnyEntity, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
 import { Players, UserInputService } from "@rbxts/services";
-import { Components } from "../../../components";
+import { Components, getComponent } from "../../../components";
 import { getItemFromGUID } from "../../../utils/item";
 import { Humanoid } from "@lisachandra/core/out/schemas";
 import { ClientState } from "@lisachandra/core/out/store";
@@ -42,7 +42,7 @@ const numericKeyToIndex = new Map<Enum.KeyCode, number>([
  */
 const slotsPerRow = 10;
 
-function equipTool(humanoid: Humanoid, hotbar: Components.Hotbar): void {
+function equipTool(humanoid: Humanoid, hotbar: Components["Hotbar"]): void {
 	const order = hotbar.order ?? hotbar.items.map((item) => item.guid);
 	const adapter = getHotbarInputAdapter();
 
@@ -106,7 +106,7 @@ function equipTool(humanoid: Humanoid, hotbar: Components.Hotbar): void {
 	}
 }
 
-function syncEquippedTool(hotbar: Components.Hotbar, humanoid?: Humanoid): void {
+function syncEquippedTool(hotbar: Components["Hotbar"], humanoid?: Humanoid): void {
 	if (!humanoid) {
 		return;
 	}
@@ -151,7 +151,7 @@ function system(world: World, crate: Crate<ClientState>): void {
 	}
 
 	const clientEntityId = crate.getState("playerEntityId")! as AnyEntity;
-	const hotbar = world.get(clientEntityId, Components.Hotbar)!;
+	const hotbar = world.get(clientEntityId, getComponent("Hotbar"))!;
 	const humanoid = getHumanoid(Players.LocalPlayer);
 
 	syncEquippedTool(hotbar, humanoid);

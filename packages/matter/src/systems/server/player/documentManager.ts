@@ -6,13 +6,12 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { ChangeRecord, Components } from "../../../components";
+import { ChangeRecord, ComponentKey, Components, getComponent } from "../../../components";
 import { ServerState, store } from "@lisachandra/core/out/store";
 import { catcher } from "@lisachandra/core/out/utils/main";
 import { is } from "@lisachandra/core/out/utils/type";
 import { useDocument } from "../../../hooks/useDocument";
 import { getDocumentConfig } from "../../../start";
-import type { Collection } from "@rbxts/lapis";
 
 /*
  * Synchronizes component changes (e.g., Hotbar, Inventory) with the player's
@@ -22,7 +21,7 @@ function updateDocument(
 	discriminator: string,
 	document: ReturnType<typeof useDocument>["document"],
 	component: "Hotbar" | "Inventory",
-	record: Required<ChangeRecord<Components.Hotbar | Components.Inventory>>,
+	record: Required<ChangeRecord<Components["Hotbar"] | Components["Inventory"]>>,
 ): void {
 	if (!document) {
 		return;
@@ -68,7 +67,7 @@ function system(world: World): void {
 	};
 
 	for (const [componentName, _dataKey] of pairs(persistedComponents)) {
-		const componentConst = (Components as Record<string, unknown>)[componentName];
+		const componentConst = getComponent(componentName as ComponentKey)
 		if (componentConst === undefined) {
 			continue;
 		}
@@ -77,12 +76,12 @@ function system(world: World): void {
 			if (
 				!record.old ||
 				!record.new ||
-				!is<Required<ChangeRecord<Components.Hotbar | Components.Inventory>>>(record)
+				!is<Required<ChangeRecord<Components["Hotbar"] | Components["Inventory"]>>>(record)
 			) {
 				continue;
 			}
 
-			const profile = world.get(entityId, Components.Profile);
+			const profile = world.get(entityId, getComponent("Profile"));
 			const { discriminator, document } = profile
 				? useDocument(collection, profile.player.UserId)
 				: { discriminator: undefined, document: undefined };

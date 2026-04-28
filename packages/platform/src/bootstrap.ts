@@ -1,4 +1,4 @@
-import { findSystems, start, type AnySystem } from "@lisachandra/matter";
+import { type AnySystem, findSystems, start } from "@lisachandra/matter";
 import { RunService } from "@rbxts/services";
 
 // ─── Types ───────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 import { flip } from "@rbxts/sift/out/Dictionary";
 
 import { registry } from "../registry";
-import { Components } from "../../components";
-import { itemsSerializer, itemsDeserializer, type ItemData } from "./item";
+import { Components, getComponent, Item } from "../../components";
+import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 import createSerializer, { u16 } from "@rbxts/serio";
 
@@ -11,10 +11,11 @@ export type HotbarPayload = {
 	equipped?: u16;
 };
 
-const lastReplicatedItems: Array<Components.Item> = [];
+const lastReplicatedItems: Array<Item> = [];
 
-registry.register<Components.Hotbar, HotbarPayload>(createSerializer<HotbarPayload>(), {
-	component: Components.Hotbar,
+registry.register<Components["Hotbar"], HotbarPayload>({
+	component: getComponent("Hotbar"),
+	serdes: createSerializer<HotbarPayload>(),
 	mode: "owner",
 	serializer: (record, _playerEntityId, _componentEntityId) => {
 		const [items, newReplicatedItems] = itemsSerializer(
@@ -36,7 +37,7 @@ registry.register<Components.Hotbar, HotbarPayload>(createSerializer<HotbarPaylo
 	deserializer: (data, _serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
-			? store.world.get(clientEntityId, Components.Hotbar)!.items
+			? store.world.get(clientEntityId, getComponent("Hotbar"))!.items
 			: undefined;
 		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems);
 		if (oldItems) {

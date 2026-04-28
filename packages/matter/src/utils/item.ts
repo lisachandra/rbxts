@@ -2,17 +2,15 @@ import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { HttpService, ReplicatedStorage, Workspace } from "@rbxts/services";
-import { removeValue } from "@rbxts/sift/out/Array";
+import { equals, removeValue } from "@rbxts/sift/out/Array";
 
 import type { ExtractData, ItemContainer, ItemHierarchyIds } from "../items/types";
 import type { ValidItemPath } from "../items/definitions";
-import { descriptions } from "../items/descriptions";
 import { itemDefinitions } from "../items/definitions";
+import { descriptions } from "../items/descriptions";
 import { itemIds } from "../items/registry";
-import { Components } from "../components";
+import { Components, getComponent, Item } from "../components";
 import { store } from "@lisachandra/core/out/store";
-
-import { equals } from "@rbxts/sift/out/Array";
 import { copyDeep, removeKeys } from "@rbxts/sift/out/Dictionary";
 
 import { isPascalCase } from "@lisachandra/core/out/utils/string";
@@ -78,7 +76,7 @@ const itemConfig = getValueFromPaths(itemDefinitions);
  * @param id - The path to the item.
  * @returns The item data.
  */
-export function getCompleteItem<P extends ValidItemPath>(id: P): Components.Item<P>["data"] {
+export function getCompleteItem<P extends ValidItemPath>(id: P): Item<P>["data"] {
 	let data: Table = itemDefinitions as never;
 
 	for (const path of id) {
@@ -92,7 +90,7 @@ export function getCompleteItem<P extends ValidItemPath>(id: P): Components.Item
 		}
 	}
 
-	return copyDeep(removeKeys(data, ...keysToRemove)) as Components.Item<P>["data"];
+	return copyDeep(removeKeys(data, ...keysToRemove)) as Item<P>["data"];
 }
 
 /**
@@ -199,9 +197,9 @@ export function getItemTool(paths: ValidItemPath): N<Tool> {
 export function addItem<P extends ValidItemPath>(
 	entityId: AnyEntity,
 	location: "Hotbar" | "Inventory",
-	itemToAdd: Components.Item<P>,
+	itemToAdd: Item<P>,
 ): void {
-	const component = store.world.get(entityId, Components[location])! as ItemContainer;
+	const component = store.world.get(entityId, getComponent(location))! as ItemContainer;
 
 	for (const item of component.items) {
 		if (!isSameId(item.id, itemToAdd.id)) {
@@ -248,12 +246,12 @@ export function addItem<P extends ValidItemPath>(
  */
 export function createItem<P extends ValidItemPath>(
 	id: P,
-	partialData: Partial<Components.Item<P>["data"]>,
+	partialData: Partial<Item<P>["data"]>,
 	mergeSuper = true,
-): Components.Item<P> {
+): Item<P> {
 	const data = (
 		mergeSuper ? { ...getCompleteItem(id), ...partialData } : partialData
-	) as Components.Item<P>["data"];
+	) as Item<P>["data"];
 
 	return {
 		amount: 1,
@@ -283,7 +281,7 @@ export function getItemDescription(paths: ValidItemPath): string {
  */
 export function getItemFromGUID<P extends ValidItemPath>(
 	guid: string,
-): N<Components.Item<P>> {
+): N<Item<P>> {
 	const itemPointers = store.shared.getState("itemPointers");
 
 	if (itemPointers[guid] === undefined) {
@@ -301,12 +299,12 @@ export function getItemFromGUID<P extends ValidItemPath>(
 	}
 
 	const itemContainer = location
-		? store.world.get(entityId, Components[location])!.items
-		: store.world.get(entityId, Components.Items)!.items;
+		? store.world.get(entityId, getComponent(location))!.items
+		: store.world.get(entityId, getComponent("Items"))!.items;
 
 	for (const item of itemContainer) {
 		if (item.guid === guid) {
-			return item as Components.Item<P>;
+			return item as Item<P>;
 		}
 	}
 
@@ -327,11 +325,11 @@ export function getItemFromId<P extends ValidItemPath>(
 	entityId: AnyEntity,
 	location: "Hotbar" | "Inventory",
 	id: P,
-): N<Components.Item<P>> {
-	const component = store.world.get(entityId, Components[location]) as ItemContainer;
+): N<Item<P>> {
+	const component = store.world.get(entityId, getComponent(location)) as ItemContainer;
 	return component.items.find((item) =>
 		id.every((key, index) => item.id[index] === key),
-	) as Components.Item<P>;
+	) as Item<P>;
 }
 
 /**
@@ -369,14 +367,14 @@ export function getItemName(id: ValidItemPath): string {
 export function getItemWithIdFromGUID<P extends ValidItemPath, U extends N<boolean>>(
 	guid: N<string>,
 	id: P,
-	items: Array<Components.Item>,
+	items: Array<Item>,
 	_excludeParent?: U,
-): N<Components.Item<ItemHierarchyIds<P, U>>> {
+): N<Item<ItemHierarchyIds<P, U>>> {
 	if (guid === undefined || id[0] === undefined) {
 		return undefined;
 	}
 
-	return items.find((item): item is Components.Item<ItemHierarchyIds<P, U>> => {
+	return items.find((item): item is Item<ItemHierarchyIds<P, U>> => {
 		return item.guid === guid && id.every((key, index) => item.id[index] === key);
 	});
 }
@@ -387,7 +385,7 @@ export function getItemWithIdFromGUID<P extends ValidItemPath, U extends N<boole
  * @param ids - An array of item ids to compare.
  * @returns True if all items have the same ID, false otherwise.
  */
-export function isSameId(...ids: Array<Components.Item["id"]>): boolean {
+export function isSameId(...ids: Array<Item["id"]>): boolean {
 	return ids.every(
 		(id) => ids[0]!.size() === id.size() && ids[0]!.every((key, index) => id[index] === key),
 	);
@@ -407,13 +405,13 @@ export function moveItem(
 	guid: string,
 	destination: "Hotbar" | "Inventory",
 ): void {
-	let [inventory, hotbar] = store.world.get(entityId, Components.Inventory, Components.Hotbar);
+	let [inventory, hotbar] = store.world.get(entityId, getComponent("Inventory"), getComponent("Hotbar"));
 
 	// TEST: Jest doesn't support tuples
 	if (_G.__TEST__ ?? false) {
 		[inventory, hotbar] = inventory as never as [
-			Component<Components.Inventory>,
-			Component<Components.Hotbar>,
+			Component<Components["Inventory"]>,
+			Component<Components["Hotbar"]>,
 		];
 	}
 
@@ -423,7 +421,7 @@ export function moveItem(
 	const itemEntityId = tonumber(itemEntityIdStr) as AnyEntity;
 
 	if (itemEntityId !== entityId) {
-		const items = store.world.get(itemEntityId, Components.Items);
+		const items = store.world.get(itemEntityId, getComponent("Items"));
 		const itemContainer = destination === "Inventory" ? inventory : hotbar;
 
 		if (!items) {
@@ -466,7 +464,7 @@ export function moveItem(
  *   amount).
  * @returns The removed item object, or undefined if not found.
  */
-export function removeItem(guid: string, amount?: number): N<Components.Item> {
+export function removeItem(guid: string, amount?: number): N<Item> {
 	const itemPointers = store.shared.getState("itemPointers");
 	const [entityIdStr, location] = itemPointers[guid]!.split("_") as [
 		string,
@@ -474,9 +472,9 @@ export function removeItem(guid: string, amount?: number): N<Components.Item> {
 	];
 	const entityId = tonumber(entityIdStr) as AnyEntity;
 
-	let removedItem: N<Components.Item>;
+	let removedItem: N<Item>;
 
-	const removeItemFromContainer = (component: ItemContainer, targetItem: Components.Item): void => {
+	const removeItemFromContainer = (component: ItemContainer, targetItem: Item): void => {
 		const amountToRemove = amount !== undefined ? math.min(amount, targetItem.amount) : targetItem.amount;
 		let newItems = component.items;
 
@@ -503,14 +501,14 @@ export function removeItem(guid: string, amount?: number): N<Components.Item> {
 	};
 
 	if (location) {
-		const component: ItemContainer = store.world.get(entityId, Components[location])!;
+		const component: ItemContainer = store.world.get(entityId, getComponent(location))!;
 		const targetItem = component.items.find((item) => item.guid === guid);
 
 		if (targetItem) {
 			removeItemFromContainer(component, targetItem);
 		}
 	} else {
-		const component: ItemContainer = store.world.get(entityId, Components.Items)!;
+		const component: ItemContainer = store.world.get(entityId, getComponent("Items"))!;
 		const [targetItem] = component.items;
 
 		if (targetItem) {
@@ -540,12 +538,12 @@ export function removeItem(guid: string, amount?: number): N<Components.Item> {
  * @param data - The new data to set on the item.
  * @returns The updated item.
  */
-export function setItemData<T extends Components.Item>(
+export function setItemData<T extends Item>(
 	entityId: AnyEntity,
 	component: ItemContainer,
 	itemToSet: T,
 	data: Partial<T["data"]>,
-): Components.Item<T["id"]> {
+): Item<T["id"]> {
 	const newItem = {
 		...itemToSet,
 		data: { ...itemToSet.data, ...data },
@@ -574,7 +572,7 @@ export function setItemData<T extends Components.Item>(
  * @returns The entity ID of the spawned item.
  */
 export function spawnItem<P extends ValidItemPath>(
-	item: Components.Item<P>,
+	item: Item<P>,
 	cf: CFrame,
 ): AnyEntity {
 	const model = getItemModel(item.id)?.Clone();
@@ -584,11 +582,11 @@ export function spawnItem<P extends ValidItemPath>(
 	}
 
 	const entityId = store.world.spawn(
-		Components.Items({
+		getComponent("Items")({
 			items: [item],
 			model,
 		}),
-		Components.Stream({
+		getComponent("Stream")({
 			container: Workspace.Items,
 			value: "out",
 		}),
@@ -619,7 +617,7 @@ export function findNearestItem(
 		position: Vector3;
 	} | undefined;
 
-	for (const [entityId, { items, model, moved }] of world.query(Components.Items)) {
+	for (const [entityId, { items, model, moved }] of world.query(getComponent("Items"))) {
 		if (
 			moved === true ||
 			!targetItemId.every((key, index) => items[0]?.id[index] === key) ||
@@ -643,8 +641,8 @@ export function getEquippedItemWithId(
 	world: World,
 	entityId: AnyEntity,
 	id: ReadonlyArray<string>,
-): Components.Item | undefined {
-	const hotbar = world.contains(entityId) ? world.get(entityId, Components.Hotbar) : undefined;
+): Item | undefined {
+	const hotbar = world.contains(entityId) ? world.get(entityId, getComponent("Hotbar")) : undefined;
 
 	const equippedGuid = hotbar?.equipped;
 	if (!equippedGuid) {
@@ -652,6 +650,6 @@ export function getEquippedItemWithId(
 	}
 
 	return hotbar.items.find(
-		(item: Components.Item) => item.guid === equippedGuid && id.every((key, index) => item.id[index] === key),
+		(item: Item) => item.guid === equippedGuid && id.every((key, index) => item.id[index] === key),
 	);
 }

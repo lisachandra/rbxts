@@ -22,7 +22,7 @@ export function Connector() {
     const [state, send] = useMachine(machine);
 
     useEventListener(RunService.Heartbeat, () => {
-        for (const [id, comp] of store.world.query(Components.MyComp)) {
+        for (const [id, comp] of store.world.query(getComponent("MyComp"))) {
             // Update state from ECS data
         }
     });

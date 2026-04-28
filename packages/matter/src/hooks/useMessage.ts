@@ -1,4 +1,3 @@
-import { is } from "@lisachandra/core/out/utils/type";
 import { useHookState } from "@rbxts/matter";
 import { ClientEmitter } from "@rbxts/tether/out/emitters/client-emitter";
 import { ContextualEmitter } from "@rbxts/tether/out/emitters/contextual-emitter";

@@ -3,11 +3,11 @@ import type { SystemStruct, World } from "@rbxts/matter";
 import type { Widgets as DebugWidgets } from "@rbxts/plasma";
 import { useChange } from "../../../hooks";
 import { ServerState } from "@lisachandra/core/out/store";
-import { Components } from "../../../components";
 import { connectAudio } from "../../../utils/sound";
+import { getComponent } from "../../../components";
 
 function system(world: World, _crate: Crate<ServerState>): void {
-	for (const [entityId, profile] of world.query(Components.Profile)) {
+	for (const [entityId, profile] of world.query(getComponent("Profile"))) {
 		if (!useChange([], entityId)) {
 			continue;
 		}

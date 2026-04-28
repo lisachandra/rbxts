@@ -1,10 +1,4 @@
-import type {
-	FunctionComponent,
-	InstanceAttributes,
-	InstanceProps,
-	JSX,
-	ReactNode,
-} from "@rbxts/react";
+import type { FunctionComponent, InstanceAttributes, InstanceProps, JSX, ReactNode, } from "@rbxts/react";
 import React, { useCallback, useState } from "@rbxts/react";
 
 const scrollMiddleImage = "rbxasset://textures/ui/Scroll/scroll-middle.png";
