@@ -4,6 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"prepare": "pnpm run build",
 		"build": "shx rm -rf out && rbxtsc --type 'game' --includePath out/include --noInclude --verbose --allowCommentDirectives",
 		"dev:source": "rbxtsc --type 'game' --includePath out/include --noInclude --watch --allowCommentDirectives",
 		"dev": "pnpm run \"/^dev:.*/\"",
