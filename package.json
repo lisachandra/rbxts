@@ -4,7 +4,6 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"prepare": "pnpm run build",
 		"build": "pnpm -r run build",
 		"dev": "pnpm -r run dev",
 		"serve": "pnpm -r run serve",
