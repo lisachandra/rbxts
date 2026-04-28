@@ -16,7 +16,7 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
-		"@lischandra/core": "workspace:*",
+		"@lisachandra/core": "workspace:*",
 		"@lisachandra/ui": "workspace:*",
 		"@isentinel/jest-roblox": "catalog:",
 		"roblox-ts": "catalog:",
