@@ -106,11 +106,8 @@
 			"import": "./out/test/init.luau",
 			"types": "./out/test/index.d.ts"
 		},
-		"./test/setup": {
-			"source": "./src/test/setup.ts",
-			"import": "./out/test/setup.luau",
-			"types": "./out/test/setup.d.ts"
-		}
+		"./out/*": "./out/*",
+		"./out/test/*": "./out/test/*"
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
