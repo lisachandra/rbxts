@@ -46,19 +46,19 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": ".claude/hooks/run-hook.cmd enforce-pnpm"
+						"command": ".agents/hooks/run-hook.cmd enforce-pnpm"
 					},
 					{
 						"type": "command",
-						"command": ".claude/hooks/run-hook.cmd enforce-pnpm-scripts"
+						"command": ".agents/hooks/run-hook.cmd enforce-pnpm-scripts"
 					},
 					{
 						"type": "command",
-						"command": ".claude/hooks/run-hook.cmd enforce-safe-git"
+						"command": ".agents/hooks/run-hook.cmd enforce-safe-git"
 					},
 					{
 						"type": "command",
-						"command": ".claude/hooks/run-hook.cmd block-destructive-commands"
+						"command": ".agents/hooks/run-hook.cmd block-destructive-commands"
 					}
 				]
 			},
@@ -67,7 +67,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": ".claude/hooks/run-hook.cmd tdd-guard"
+						"command": ".agents/hooks/run-hook.cmd tdd-guard"
 					}
 				]
 			}

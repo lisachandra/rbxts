@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const workspaceRoots = ["packages", "test"];
 const npmrcPath = path.join(rootDir, ".npmrc");
+const verbose = process.env["HOIST_VERBOSE"] === "1";
 
 function pathExists(targetPath) {
 	return fs.existsSync(targetPath);
@@ -85,8 +86,8 @@ function getWorkspaceDirectories() {
 function readDependencyTree(packageName) {
 	const output = execFileSync(
 		"pnpm",
-		["--filter", packageName, "list", "--json", "--depth", "Infinity"],
-		{ cwd: rootDir, encoding: "utf8" },
+		["--reporter", "silent", "--filter", packageName, "list", "--json", "--depth", "Infinity"],
+		{ cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
 	);
 
 	const parsed = JSON.parse(output);
@@ -126,14 +127,18 @@ function ensureScopeDirectory(targetPackagePath) {
 function syncPackageIntoWorkspace(workspacePath, dependencyName) {
 	const sourcePath = path.join(rootDir, "node_modules", dependencyName);
 	if (!pathExists(sourcePath)) {
-		console.warn(`Skipping ${dependencyName} for ${path.relative(rootDir, workspacePath)}: ${sourcePath} is missing`);
-		return;
+		return false;
 	}
 
 	const targetPath = path.join(workspacePath, "node_modules", dependencyName);
 	ensureScopeDirectory(targetPath);
 	ensureLink(sourcePath, targetPath);
-	console.log(`Linked ${path.relative(rootDir, targetPath)} -> ${path.relative(rootDir, sourcePath)}`);
+
+	if (verbose) {
+		console.log(`Linked ${path.relative(rootDir, targetPath)} -> ${path.relative(rootDir, sourcePath)}`);
+	}
+
+	return true;
 }
 
 function main() {
@@ -149,15 +154,24 @@ function main() {
 		return;
 	}
 
+	let totalLinked = 0;
 	for (const { packageName, workspacePath } of workspaces) {
 		ensureDirectory(path.join(workspacePath, "node_modules"));
 		const dependencyTree = readDependencyTree(packageName);
 		const matchingPackages = [...collectMatchingPackages(dependencyTree, patterns)].sort();
 
+		let linkedForWorkspace = 0;
 		for (const dependencyName of matchingPackages) {
-			syncPackageIntoWorkspace(workspacePath, dependencyName);
+			if (syncPackageIntoWorkspace(workspacePath, dependencyName)) {
+				linkedForWorkspace++;
+				totalLinked++;
+			}
 		}
+
+		console.log(`Synced ${linkedForWorkspace} hoisted packages into ${path.relative(rootDir, workspacePath)}`);
 	}
+
+	console.log(`Hoist sync complete: ${totalLinked} package links updated across ${workspaces.length} workspaces.`);
 }
 
 main();

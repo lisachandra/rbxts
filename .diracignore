@@ -1,0 +1,41 @@
+# Allow traversal into node_modules and out directories
+!node_modules/
+!**/node_modules/
+!out/
+!**/out/
+
+# Ignore all contents by default
+node_modules/**
+out/**
+
+# Re-allow subdirectories so deeper globs can match
+!node_modules/**/
+!**/node_modules/**/
+!out/**/
+!**/out/**/
+
+# Allow hoisted public package patterns from .npmrc (except eslint)
+!**/node_modules/@rbxts/
+!**/node_modules/@rbxts/**
+!**/node_modules/@lisachandra/
+!**/node_modules/@lisachandra/**
+!**/node_modules/@flamework/
+!**/node_modules/@flamework/**
+!**/node_modules/@rbxts-js/
+!**/node_modules/@rbxts-js/**
+
+# Allow specific file types inside node_modules
+!**/node_modules/**/*.d.ts
+!**/node_modules/**/*.d.tsx
+!**/node_modules/**/*.luau
+!**/node_modules/**/*.ts
+!**/node_modules/**/*.tsx
+!**/node_modules/**/*.json
+
+# Allow specific file types inside out
+!**/out/**/*.d.ts
+!**/out/**/*.d.tsx
+!**/out/**/*.luau
+!**/out/**/*.ts
+!**/out/**/*.tsx
+!**/out/**/*.json

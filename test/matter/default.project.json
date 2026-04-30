@@ -12,14 +12,17 @@
 				"$className": "Folder",
 				"node_modules": {
 					"$className": "Folder",
-					"@rbxts": {
-						"$path": "node_modules/@rbxts",
+					"@lisachandra": {
+						"$path": "node_modules/@lisachandra",
 						"matter": {
 							"$path": "../../packages/matter/out"
 						}
 					},
 					"@rbxts-js": {
 						"$path": "node_modules/@rbxts-js"
+					},
+					"@rbxts": {
+						"$path": "node_modules/@rbxts"
 					}
 				}
 			}

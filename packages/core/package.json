@@ -106,7 +106,6 @@
 			"import": "./out/test/init.luau",
 			"types": "./out/test/index.d.ts"
 		},
-		"./out/*": "./out/*",
 		"./out/test/*": "./out/test/*"
 	},
 	"main": "out/init.luau",
