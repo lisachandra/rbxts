@@ -3,7 +3,7 @@ import { defineConfig } from "@isentinel/jest-roblox";
 export default defineConfig({
 	backend: "open-cloud",
 	clearMocks: true,
-	collectCoverage: true,
+	collectCoverage: false,
 	coveragePathIgnorePatterns: ["**/test/**", "**/index.ts"],
 	gameOutput: "game-output.log",
 	jestPath: "ReplicatedStorage/rbxts_include/node_modules/@rbxts/jest/src",

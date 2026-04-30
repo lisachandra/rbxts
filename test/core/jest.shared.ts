@@ -6,9 +6,9 @@ export default defineConfig({
 		{
 			test: {
 				displayName: { name: "core", color: "magenta" },
-				include: ["**/*.spec.ts", "**/*.spec.tsx"],
+				include: ["src/**/*.spec.ts", "src/**/*.spec.tsx"],
 				mockDataModel: true,
-				outDir: "out-test",
+				outDir: "out",
 			},
 		},
 	],

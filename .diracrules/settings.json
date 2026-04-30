@@ -1,0 +1,77 @@
+{
+	"includeCoAuthoredBy": true,
+	"permissions": {
+		"allow": [
+			"Bash(gh:*)",
+			"Bash(gh pr:*)",
+			"Bash(gh pr create:*)",
+			"Bash(gh pr view:*)",
+			"Bash(gh run list:*)",
+			"Bash(gh run view:*)",
+			"Glob",
+			"Grep",
+			"LS",
+			"Read",
+			"Read(*)",
+			"TodoWrite",
+			"WebFetch",
+			"WebSearch"
+		],
+		"deny": [],
+		"ask": [],
+		"defaultMode": "plan",
+		"additionalDirectories": []
+	},
+	"enabledPlugins": {
+		"sentinel@isentinel": true
+	},
+	"extraKnownMarketplaces": {
+		"claude-plugins-official": {
+			"source": {
+				"source": "github",
+				"repo": "anthropics/claude-plugins-official"
+			}
+		},
+		"isentinel": {
+			"source": {
+				"source": "github",
+				"repo": "christopher-buss/skills"
+			}
+		}
+	},
+	"hooks": {
+		"PreToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": ".claude/hooks/run-hook.cmd enforce-pnpm"
+					},
+					{
+						"type": "command",
+						"command": ".claude/hooks/run-hook.cmd enforce-pnpm-scripts"
+					},
+					{
+						"type": "command",
+						"command": ".claude/hooks/run-hook.cmd enforce-safe-git"
+					},
+					{
+						"type": "command",
+						"command": ".claude/hooks/run-hook.cmd block-destructive-commands"
+					}
+				]
+			},
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": ".claude/hooks/run-hook.cmd tdd-guard"
+					}
+				]
+			}
+		],
+	},
+	"outputStyle": "sentinel:XP Programmer"
+}

@@ -6,13 +6,15 @@
 	"scripts": {
 		"build": "pnpm -r run build",
 		"dev": "pnpm -r run dev",
+		"test": "pnpm build && COLUMNS=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)} FORCE_COLOR=1 pnpm -r --parallel --stream test",
 		"serve": "pnpm -r run serve",
 		"build:packages": "pnpm --filter \"./packages/**\" build",
 		"build:test": "pnpm --filter \"./test/**\" build",
 		"dev:packages": "pnpm --filter \"./packages/**\" dev",
 		"dev:test": "pnpm --filter \"./test/**\" dev",
 		"release": "pnpm -r publish --access=public && changeset tag",
-		"version": "changeset version"
+		"version": "changeset version",
+		"postinstall": "bash ./scripts/hoist.sh"
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
@@ -26,7 +28,8 @@
 		"husky": "catalog:",
 		"io-serve": "catalog:",
 		"shx": "catalog:",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"jiti": "catalog:"
 	},
 	"packageManager": "pnpm@10.33.0"
 }

@@ -9,7 +9,7 @@
 				"$path": "out"
 			},
 			"rbxts_include": {
-				"$path": "out/include",
+				"$className": "Folder",
 				"node_modules": {
 					"$className": "Folder",
 					"@rbxts": {
