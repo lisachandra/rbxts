@@ -105,6 +105,11 @@
 			"source": "./src/test/index.ts",
 			"import": "./out/test/init.luau",
 			"types": "./out/test/index.d.ts"
+		},
+		"./test/setup": {
+			"source": "./src/test/setup.ts",
+			"import": "./out/test/setup.luau",
+			"types": "./out/test/setup.d.ts"
 		}
 	},
 	"main": "out/init.luau",
