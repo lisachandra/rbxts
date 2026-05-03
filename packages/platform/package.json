@@ -46,22 +46,27 @@
 			"import": "./out/centurion/types/init.luau",
 			"types": "./out/centurion/types/index.d.ts"
 		},
-		"./centurion/presets": {
-			"source": "./src/centurion/presets.ts",
-			"import": "./out/centurion/presets.luau",
-			"types": "./out/centurion/presets.d.ts"
+		"./centurion/utility": {
+			"source": "./src/centurion/utility.ts",
+			"import": "./out/centurion/utility.luau",
+			"types": "./out/centurion/utility.d.ts"
 		},
 		"./teleporter": {
 			"source": "./src/teleporter.ts",
 			"import": "./out/teleporter.luau",
 			"types": "./out/teleporter.d.ts"
+		},
+		"./document": {
+			"source": "./src/document/index.ts",
+			"import": "./out/document/init.luau",
+			"types": "./out/document/index.d.ts"
 		}
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
-		"prepare": "pnpm run build",
+		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "shx rm -rf out && rbxtsc --watch --allowCommentDirectives",
 		"clean": "shx rm -rf out"

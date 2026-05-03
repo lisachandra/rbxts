@@ -26,7 +26,7 @@
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
-		"prepare": "pnpm run build",
+		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "shx rm -rf out && rbxtsc --watch --allowCommentDirectives",
 		"clean": "shx rm -rf out"

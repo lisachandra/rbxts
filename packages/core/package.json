@@ -36,11 +36,6 @@
 			"import": "./out/schemas/init.luau",
 			"types": "./out/schemas/index.d.ts"
 		},
-		"./centurion": {
-			"source": "./src/centurion/utility.ts",
-			"import": "./out/centurion/utility.luau",
-			"types": "./out/centurion/utility.d.ts"
-		},
 		"./utils/asset": {
 			"source": "./src/utils/asset.ts",
 			"import": "./out/utils/asset.luau",
@@ -86,11 +81,6 @@
 			"import": "./out/utils/type.luau",
 			"types": "./out/utils/type.d.ts"
 		},
-		"./utils/validate": {
-			"source": "./src/utils/validate.ts",
-			"import": "./out/utils/validate.luau",
-			"types": "./out/utils/validate.d.ts"
-		},
 		"./utils/vector": {
 			"source": "./src/utils/vector.ts",
 			"import": "./out/utils/vector.luau",
@@ -100,19 +90,13 @@
 			"source": "./src/utils/vfx.ts",
 			"import": "./out/utils/vfx.luau",
 			"types": "./out/utils/vfx.d.ts"
-		},
-		"./test": {
-			"source": "./src/test/index.ts",
-			"import": "./out/test/init.luau",
-			"types": "./out/test/index.d.ts"
-		},
-		"./out/test/*": "./out/test/*"
+		}
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
-		"prepare": "pnpm run build",
+		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "shx rm -rf out && rbxtsc --watch --allowCommentDirectives",
 		"clean": "shx rm -rf out"

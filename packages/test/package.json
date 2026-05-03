@@ -1,8 +1,8 @@
 {
-	"name": "@lisachandra/types",
+	"name": "@lisachandra/test",
 	"version": "0.1.0",
-	"description": "Global types for @lisachandra packages and games",
-	"keywords": ["roblox", "rbxts"],
+	"description": "Test utilities for @lisachandra rbxts packages",
+	"keywords": ["roblox", "rbxts", "test"],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
@@ -15,6 +15,14 @@
 	"author": "lisachandra <lisachandra@proton.me>",
 	"private": false,
 	"type": "module",
+	"exports": {
+		".": {
+			"source": "./src/index.ts",
+			"import": "./out/init.luau",
+			"types": "./out/index.d.ts"
+		},
+		"./out/*": "./out/*"
+	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
@@ -27,17 +35,25 @@
 	"devDependencies": {
 		"roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
-		"type-fest": "catalog:",
-		"@rbxts/types": "catalog:",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/matter": "catalog:",
-		"shx": "catalog:"
+		"@rbxts/luau-polyfill": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/types": "catalog:",
+		"@rbxts/jest": "catalog:",
+		"@rbxts/jest-globals": "catalog:",
+		"type-fest": "catalog:",
+		"shx": "catalog:",
+		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"type-fest": "*",
+		"@lisachandra/types": "*",
+		"@rbxts/luau-polyfill": "*",
+		"@rbxts/services": "*",
+		"@rbxts/jest": "*",
+		"@rbxts/jest-globals": "*",
 		"@rbxts/types": "*",
-		"@rbxts/compiler-types": "*",
-		"@rbxts/matter": "*"
+		"type-fest": "*"
 	},
 	"publishConfig": {
 		"access": "public"

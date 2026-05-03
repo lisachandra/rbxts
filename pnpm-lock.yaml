@@ -114,6 +114,9 @@ catalogs:
     io-serve:
       specifier: 1.1.2
       version: 1.1.2
+    jiti:
+      specifier: 2.6.1
+      version: 2.6.1
     rbxts-transformer-flamework:
       specifier: 1.3.2
       version: 1.3.2
@@ -144,7 +147,7 @@ importers:
         version: 2.31.0
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
@@ -163,6 +166,9 @@ importers:
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
+      jiti:
+        specifier: 'catalog:'
+        version: 2.6.1
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -404,20 +410,7 @@ importers:
         specifier: 'catalog:'
         version: 5.5.3
 
-  packages/preset:
-    dependencies:
-      '@lisachandra/core':
-        specifier: workspace:*
-        version: link:../core
-      '@lisachandra/matter':
-        specifier: workspace:*
-        version: link:../matter
-      '@lisachandra/platform':
-        specifier: workspace:*
-        version: link:../platform
-      '@lisachandra/ui':
-        specifier: workspace:*
-        version: link:../ui
+  packages/test:
     devDependencies:
       '@isentinel/tsconfig':
         specifier: 'catalog:'
@@ -428,15 +421,30 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
+      '@rbxts/jest':
+        specifier: 'catalog:'
+        version: 3.13.3-ts.1
+      '@rbxts/jest-globals':
+        specifier: 'catalog:'
+        version: 3.13.3-ts.1
+      '@rbxts/luau-polyfill':
+        specifier: 'catalog:'
+        version: 1.1.3
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.918
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
       shx:
         specifier: 'catalog:'
         version: 0.4.0
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.6.0
       typescript:
         specifier: 'catalog:'
         version: 5.5.3
@@ -508,7 +516,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
@@ -544,10 +552,16 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@lisachandra/matter':
+        specifier: workspace:*
+        version: link:../../packages/matter
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -580,46 +594,19 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
-      '@lisachandra/types':
+      '@lisachandra/core':
         specifier: workspace:*
-        version: link:../../packages/types
-      '@rbxts/compiler-types':
-        specifier: 'catalog:'
-        version: 3.0.0-types.0
-      '@rbxts/jest':
-        specifier: 'catalog:'
-        version: 3.13.3-ts.1
-      '@rbxts/jest-globals':
-        specifier: 'catalog:'
-        version: 3.13.3-ts.1
-      '@rbxts/types':
-        specifier: 'catalog:'
-        version: 1.0.916
-      io-serve:
-        specifier: 'catalog:'
-        version: 1.1.2
-      roblox-ts:
-        specifier: 'catalog:'
-        version: 3.0.0
-      shx:
-        specifier: 'catalog:'
-        version: 0.4.0
-      typescript:
-        specifier: 'catalog:'
-        version: 5.5.3
-
-  test/preset:
-    devDependencies:
-      '@isentinel/jest-roblox':
-        specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
-      '@isentinel/tsconfig':
-        specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: link:../../packages/core
+      '@lisachandra/matter':
+        specifier: workspace:*
+        version: link:../../packages/matter
+      '@lisachandra/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -652,13 +639,19 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@lisachandra/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
@@ -1260,6 +1253,9 @@ packages:
   '@rbxts/types@1.0.916':
     resolution: {integrity: sha512-Bwy7hkbho4xtDR6ANjrdJWPTNF3bPoJnIfQYjQQv9Lt+xFid5bD1ZYs3Ij1xSfykgI3D8KS0yzWKdNhycZkHCQ==}
 
+  '@rbxts/types@1.0.918':
+    resolution: {integrity: sha512-PNtzv1jitSkr+v5j06A44Xa98NMTTkSxZ1vvUcUzW4q1WZ7A750FeFhZqjyKP2rcR8XMSiQWcycC4svSFV6RJw==}
+
   '@rbxts/validate-tree@2.0.2':
     resolution: {integrity: sha512-OA0E9ZjEeOpPa3XeV5/oC51aro2QFcL5dItufbagYZW8TOsX8C+FDXLx+A/ulMwcF42WcFNcQybxzcWSS/QSrA==}
 
@@ -1809,6 +1805,10 @@ packages:
   istanbul-reports@3.2.0:
     resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
     engines: {node: '>=8'}
+
+  jiti@2.6.1:
+    resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
+    hasBin: true
 
   js-yaml@3.14.2:
     resolution: {integrity: sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg==}
@@ -2658,12 +2658,12 @@ snapshots:
       chardet: 2.1.1
       iconv-lite: 0.7.2
 
-  '@isentinel/jest-roblox@0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)':
+  '@isentinel/jest-roblox@0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@roblox-ts/rojo-resolver': 1.1.0
       arktype: 2.2.0
-      c12: 4.0.0-beta.4(dotenv@8.6.0)
+      c12: 4.0.0-beta.4(dotenv@8.6.0)(jiti@2.6.1)
       confbox: 0.2.4
       defu: 6.1.6
       get-tsconfig: 4.13.7
@@ -3343,6 +3343,8 @@ snapshots:
 
   '@rbxts/types@1.0.916': {}
 
+  '@rbxts/types@1.0.918': {}
+
   '@rbxts/validate-tree@2.0.2': {}
 
   '@roblox-ts/luau-ast@2.0.0': {}
@@ -3452,7 +3454,7 @@ snapshots:
 
   bytes@3.1.2: {}
 
-  c12@4.0.0-beta.4(dotenv@8.6.0):
+  c12@4.0.0-beta.4(dotenv@8.6.0)(jiti@2.6.1):
     dependencies:
       confbox: 0.2.4
       defu: 6.1.6
@@ -3462,6 +3464,7 @@ snapshots:
       rc9: 3.0.1
     optionalDependencies:
       dotenv: 8.6.0
+      jiti: 2.6.1
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
@@ -3906,6 +3909,8 @@ snapshots:
     dependencies:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
+
+  jiti@2.6.1: {}
 
   js-yaml@3.14.2:
     dependencies:

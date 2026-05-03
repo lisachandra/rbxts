@@ -18,8 +18,9 @@ rbxts/
 │   ├── matter/         @lisachandra/matter     — ECS runtime (Matter), hooks, systems, items, replication
 │   ├── ui/             @lisachandra/ui         — React UI components and hooks
 │   ├── platform/       @lisachandra/platform   — Bootstrap, centurion commands, documents, teleporter
-│   └── preset/         @lisachandra/preset     — Composition presets and feature toggles
+│   └── test/           @lisachandra/test       — Test utilities and runtime helpers
 ├── test/               Test helpers and shared Jest config
+├── scripts/            Build and hoisting scripts
 ├── docs/               Additional documentation
 ├── pnpm-workspace.yaml
 ├── tsconfig.json       Base tsconfig extending @isentinel/tsconfig/roblox
@@ -29,8 +30,9 @@ rbxts/
 ### Dependency Graph (simplified)
 
 ```
-types  ←  core  ←  matter  ←  platform  ←  preset
+types  ←  core  ←  matter  ←  platform
               ↖__ ui _____/
+               test _____/
 ```
 
 - **types** has no internal dependencies (leaf package)
@@ -38,7 +40,7 @@ types  ←  core  ←  matter  ←  platform  ←  preset
 - **matter** depends on core + types
 - **ui** depends on core + types
 - **platform** depends on matter + core + types
-- **preset** composes everything (matter, platform, ui, core)
+- **test** depends on types
 
 ---
 
@@ -61,24 +63,22 @@ Core runtime primitives:
 - **`/utils/r6ik`** — R6 inverse kinematics (Luau)
 - **`/utils/string`** — String manipulation
 - **`/utils/type`** — Type guards and type utilities
-- **`/utils/validate`** — Runtime validation
 - **`/utils/vector`** — Vector math
 - **`/utils/vfx`** — Visual effects helpers
 
 ### `@lisachandra/matter`
 The heart of the ECS. Built on top of `@rbxts/matter`:
 - **`/items`** — Item definitions, registry, serialization/deserialization, type descriptions
-- **`/hooks`** — Matter hook wrappers (`useMemo`, `useChange`, `useReducer`, `usePacket`, `useStream`, `useThrottle`)
+- **`/hooks`** — Matter hook wrappers (`useMemo`, `useChange`, `useReducer`, `usePacket`, `useStream`, `useThrottle`, `useDocument`, `useMessage`)
 - **`/packages`** — Package system for composable game features (plugin-like architecture)
 - **`/network`** — Network registry, messaging abstractions, built-in network types (item, forces, node, sound, stream, hotbar, inventory, profile)
-- **`/utils/item`** — Item utility functions (615 lines — core item logic)
-- **`/utils/sound`** — Sound helpers
-- **`/utils/physics`** — Physics utilities
+- **`/utils/item`** — Item utility functions
 - **`/utils/entity`** — Entity lookup and management
+- **`/utils/physics`** — Physics utilities
+- **`/utils/sound`** — Sound helpers
 - **Systems** — Client/server systems for items, sound, network replication, players, world nodes
-- **Replication** — Replication builder and presets for server→client sync
+- **Replication** — Server→client state replication through built-in network types
 - **Pipeline** — Template family registration and processing pipeline
-- **Templates** — Template instantiation and management
 
 ### `@lisachandra/ui`
 React-based UI components and hooks:
@@ -89,15 +89,15 @@ React-based UI components and hooks:
 - **`/components/virtualScroller`** — Virtualized list rendering
 - **Hot Reloader** — Component hot-reloading for development
 
+### `@lisachandra/test`
+Test utilities and runtime helpers for Jest Roblox (`@rbxts/jest`). Provides Luau runtime utilities used by test suites across the monorepo.
+
 ### `@lisachandra/platform`
 Runtime platform glue:
 - **`/bootstrap`** — Client and server startup orchestration
-- **`/centurion`** — Admin commands (give, ban, kick, teleport, announce, document, set, unban) with type-safe argument guards
-- **`/documents`** — Document-based data with validation
+- **`/centurion`** — Admin commands (document, kick, set, teleport) with type-safe argument guards
+- **`/document`** — Document-based data with Lapis persistence and validation
 - **`/teleporter`** — Player teleportation between places/servers
-
-### `@lisachandra/preset`
-High-level compositions that wire multiple packages together with feature toggles. The entry point for a game to consume the full stack.
 
 ---
 
@@ -140,17 +140,29 @@ High-level compositions that wire multiple packages together with feature toggle
 # Install dependencies
 pnpm install
 
-# Build all packages
+# Build all packages and tests
 pnpm build
+
+# Build only packages (not tests)
+pnpm build:packages
+
+# Build only tests
+pnpm build:test
 
 # Build and watch (development)
 pnpm dev
 
-# Build only packages (not test)
-pnpm build:packages
+# Build only packages in watch mode
+pnpm dev:packages
+
+# Build only tests in watch mode
+pnpm dev:test
 
 # Serve with Rojo
 pnpm serve
+
+# Run tests
+pnpm test
 
 # Create a release (versioning + publish)
 pnpm release
@@ -159,7 +171,7 @@ pnpm release
 ### Per-Package Commands
 Each package supports:
 ```bash
-cd packages/matter
+cd packages/<name>
 pnpm build    # Compile TypeScript → Luau (output to out/)
 pnpm dev      # Watch mode
 pnpm clean    # Remove out/
@@ -176,7 +188,7 @@ pnpm clean    # Remove out/
 - Tests use **Jest Roblox** (`@isentinel/jest-roblox`)
 - Test helpers live in `test/`
 - Shared Jest config: `jest.shared.ts`
-- Run with: `pnpm --filter "./test/**" build`
+- Per-package test configs in `test/<name>/jest.config.ts`
 
 ### Versioning & Publishing
 - Uses **Changesets** for versioning
@@ -191,7 +203,7 @@ pnpm clean    # Remove out/
 The `packages/` subsystem in matter provides a plugin-like architecture where game features can be composed as "packages" with dependency resolution. Each package can register components, systems, hooks, and network types.
 
 ### Replication (matter)
-Server→client state replication is handled through a builder pattern (`createReplicationBuilder`) with built-in presets for common payloads (items, inventory, hotbar, sound, profile).
+Server→client state replication is handled through built-in network types (item, forces, node, sound, stream, hotbar, inventory, profile) registered via the network registry.
 
 ### Items (matter)
 Items are the core gameplay entity: they have definitions, a registry, serialization (Serio-based), network synchronization, and both client/server management systems. The item system handles tools, hotbar assignments, and inventory management.
@@ -200,7 +212,7 @@ Items are the core gameplay entity: they have definitions, a registry, serializa
 The bootstrap module provides standardized client/server initialization sequences — registering Flamework, starting Matter systems, and initializing platform services.
 
 ### Documents (platform)
-Document-based data with JSON Schema validation for persisting player/entity data.
+Document-based data with JSON Schema validation for persisting player/entity data via Lapis data stores.
 
 ---
 

@@ -1,3 +1,4 @@
+/// <reference path="./include/RuntimeLib.d.ts" />
 /// <reference path="./types/types.d.ts" />
 /// <reference path="./types/matter.d.ts" />
 /// <reference path="./types/instance.d.ts" />

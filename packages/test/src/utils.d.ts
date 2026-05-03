@@ -14,7 +14,10 @@
 
 import type { jest } from "@rbxts/jest-globals";
 
-import type RuntimeLib from "include/RuntimeLib";
+export interface MockInstance<T extends object> {
+	__instance__: T;
+	__mockSelf__: boolean | Record<keyof T, boolean>;
+}
 
 type MockMethod<T> = (
 	this: void,
@@ -35,11 +38,6 @@ type MockInstanceDeep<T extends object, Original extends object> = MockInstance<
 		? ReturnType<typeof TestRuntimeUtils.createMockInstance<T[K]>> & T[K]
 		: T[K];
 };
-
-interface MockInstance<T extends object> {
-	__instance__: T;
-	__mockSelf__: boolean | Record<keyof T, boolean>;
-}
 
 type MockOnRuntime<T extends object> = MockInstanceDeep<
 	jest.MockedObjectDeep<MockedObjectWithMethodsDeep<T>>,
