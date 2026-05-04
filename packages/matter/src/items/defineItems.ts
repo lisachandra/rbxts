@@ -5,6 +5,17 @@ import { descriptions } from "./descriptions";
 import { serdes } from "./serdes";
 import { createItemRegistry } from "./registry";
 
+/**
+ * Configuration for defining an item type in the item hierarchy.
+ *
+ * @typeParam TData - The type of the item's data payload (default field values).
+ *
+ * @remarks
+ * Items can be organized hierarchically through {@link children}.
+ * Leaves are defined by providing {@link defaultData} and optionally
+ * {@link serdes}, while branches only need {@link children} and optional
+ * metadata like {@link description} and {@link image}.
+ */
 export interface ItemDefinitionConfig<TData extends object = object> {
 	/**
 	 * Serializer/deserializer for the item's data payload.

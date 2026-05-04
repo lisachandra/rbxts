@@ -48,7 +48,6 @@ this codebase.
 
 | Topic            | Description                                     | Reference                                                          |
 | ---------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
-| Godkin Patterns  | XState, React UI, and Matter/ECS testing        | [godkin-patterns](references/godkin-patterns.md)                   |
 | Async Testing    | Promises, done callbacks, .resolves/.rejects    | [feature-async-testing](references/feature-async-testing.md)       |
 | Custom Matchers  | expect.extend(), self parameter, isNever        | [feature-custom-matchers](references/feature-custom-matchers.md)   |
 | Snapshot Testing | toMatchSnapshot, property matchers, serializers | [feature-snapshot-testing](references/feature-snapshot-testing.md) |

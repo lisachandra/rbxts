@@ -8,6 +8,16 @@ import { getComponent } from "../components";
 
 type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
 
+/**
+ * Connects two audio-related Instances using a Wire for audio
+ * routing.
+ *
+ * Creates a `Wire` instance that links the source to the target,
+ * parenting the wire to the source.
+ *
+ * @param source - The source Instance to connect from.
+ * @param target - The target Instance to connect to.
+ */
 export function connectAudio(source: Instance, target: Instance): void {
 	const wire = new Instance("Wire");
 	wire.SourceInstance = source;
@@ -15,6 +25,15 @@ export function connectAudio(source: Instance, target: Instance): void {
 	wire.Parent = source;
 }
 
+/**
+ * Reconnects a chain of audio sources in sequence.
+ *
+ * Destroys all existing Wires on each source and creates new Wires
+ * to chain them together in the order provided (source[i] →
+ * source[i+1]). Does nothing if fewer than 2 sources are provided.
+ *
+ * @param sources - An array of audio Instances to chain together.
+ */
 export function rearrangeAudio(sources: Array<Instance>): void {
 	if (sources.size() < 2) {
 		return;
@@ -81,6 +100,18 @@ function createSoundEmitterCache() {
 	return new ObjectCache(node, 50, Workspace.Caches.Sound);
 }
 
+/**
+ * Finds a free audio node belonging to a character's entity.
+ *
+ * Searches for entities with both `Sound` and `Node` components
+ * that are descendants of the character. Returns an audio node if
+ * one is found where all audio players have finished playing.
+ *
+ * @param world - The Matter world instance to query.
+ * @param entityId - The ID of the entity whose character to search.
+ * @returns A free audio node part, or `undefined` if none is
+ *   available.
+ */
 export function findFreeAudioNode(
 	world: World,
 	entityId: AnyEntity,
@@ -103,8 +134,29 @@ export function findFreeAudioNode(
 	return undefined
 }
 
+/**
+ * A cache of reusable sound emitter parts for efficient audio
+ * playback.
+ *
+ * Each cached part contains an `Attachment` with an `AudioPlayer`,
+ * `AudioEmitter`, and `AudioEffects` (filter and fader). Parts are
+ * reused from `Workspace.Caches.Sound` to minimize instance creation
+ * overhead.
+ */
 export const soundEmitterCache = createSoundEmitterCache();
 
+/**
+ * Places an audio node onto a character for sound playback.
+ *
+ * Retrieves a node from the cache (or uses the provided one),
+ * assigns the sound asset to its `AudioPlayer`, and parents the
+ * node to the character at the character's current pivot.
+ *
+ * @param sound - The Sound object containing the audio asset ID.
+ * @param character - The character to attach the audio node to.
+ * @param node - An optional pre-existing audio node to reuse.
+ * @returns The audio node part placed on the character.
+ */
 export function placeAudioToCharacter(
 	sound: Sound,
 	character: Character,
@@ -119,6 +171,20 @@ export function placeAudioToCharacter(
 	return node0;
 }
 
+/**
+ * Places character audio into the world and registers the necessary
+ * ECS components.
+ *
+ * Creates a sound emitter node on the character, then inserts
+ * `Sound`, `Node`, and (on the server) `ReplicationScope` components
+ * into the entity's component set.
+ *
+ * @param world - The Matter world instance.
+ * @param entityId - The ID of the entity to attach the sound to.
+ * @param sound - The Sound object to play.
+ * @param nodeMarker - An optional marker value for the node type.
+ *   Defaults to 0.
+ */
 export function placeCharacterAudioInWorld(world: World, entityId: AnyEntity, sound: Sound, nodeMarker = 0) {
 	const character = getEntityObject(entityId) as N<Character>;
 	if (!character) {

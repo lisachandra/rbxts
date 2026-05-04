@@ -9,6 +9,15 @@ import { store } from "@lisachandra/core/out/store";
 import { getHumanoid } from "@lisachandra/core/out/utils/main";
 import { iterate } from "@lisachandra/core/out/utils/type";
 
+/**
+ * Checks if an entity is alive in the world by verifying it exists
+ * and has a valid Humanoid.
+ *
+ * @param world - The Matter world instance.
+ * @param entityId - The ID of the entity to check. Defaults to -1.
+ * @returns `true` if the entity exists and has a Humanoid, `false`
+ *   otherwise.
+ */
 export function isAlive(world: World, entityId: AnyEntity = -1 as AnyEntity): boolean {
     return world.contains(entityId)
         ? getHumanoid(getComponentObject(getEntityHumanoidComponent(world, entityId))) !== undefined

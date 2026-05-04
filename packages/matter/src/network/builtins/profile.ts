@@ -5,6 +5,13 @@ import { Components, getComponent } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import createSerializer from "@rbxts/serio";
 
+/**
+ * Payload structure for replicating the {@link Components.Profile} component.
+ *
+ * @remarks
+ * The payload is empty because the player instance is resolved on the client
+ * via the `serverEntityId` attribute.
+ */
 export type ProfilePayload = {}
 
 registry.register<Components["Profile"], ProfilePayload>({

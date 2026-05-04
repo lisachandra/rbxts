@@ -8,6 +8,9 @@ import { iterate } from "./utils/type";
 import Log from "@rbxts/log";
 import { Document } from "@rbxts/lapis";
 
+/**
+ * Represents a single item in an inventory or hotbar.
+ */
 interface ItemData {
 	guid: string;
 	amount: number;
@@ -15,6 +18,12 @@ interface ItemData {
 	id: Array<string>;
 }
 
+/**
+ * Data structure for player collections including hotbar and inventory items.
+ *
+ * @remarks
+ * Each collection maps a discriminator key to its corresponding item data.
+ */
 export interface CollectionData {
 	hotbar: Array<ItemData>;
 	inventory: Array<ItemData>;
@@ -26,6 +35,13 @@ const middleware: Array<{ key: string; middleware: Callback }> = [];
 type ClientEntityId = AnyEntity;
 type ServerEntityId = AnyEntity;
 
+/**
+ * Client-side state managed by the {@link store}.
+ *
+ * @remarks
+ * Contains client-specific state such as debug settings,
+ * entity ID mappings, and item pointer tables.
+ */
 export interface ClientState {
 	debugEnabled: boolean;
 
@@ -39,6 +55,13 @@ export interface ClientState {
 	playerEntityId?: AnyEntity;
 }
 
+/**
+ * Server-side state managed by the {@link store}.
+ *
+ * @remarks
+ * Contains server-specific state including clock synchronization,
+ * item mappings, and player document collections.
+ */
 export interface ServerState {
 	serverStartClock: number;
 	serverStartEpoch: number;
@@ -50,6 +73,23 @@ export interface ServerState {
 	documents: Record<string, CollectionData>;
 }
 
+/**
+ * An action dispatched to mutate the state crate.
+ *
+ * @typeParam S - The state type, either {@link ClientState} or {@link ServerState}.
+ *
+ * @remarks
+ * Actions describe a change to the state. The `type` field identifies
+ * the state key to modify, and `value` provides the new value.
+ *
+ * @example
+ * ```ts
+ * const action: Action<ClientState> = {
+ *   type: "debugEnabled",
+ *   value: true,
+ * };
+ * ```
+ */
 export interface Action<S extends ClientState | ServerState> {
 	type: string | keyof S;
 	key?: string;
@@ -110,6 +150,15 @@ if (RunService.IsServer()) {
 	});
 }
 
+/**
+ * The central application store providing access to state crates,
+ * the Matter world instance, hotbar storage, and document management.
+ *
+ * @remarks
+ * The store is initialized with either {@link ClientState} or {@link ServerState}
+ * depending on the runtime environment. It uses a {@link Crate} for state
+ * management with diff-based change detection via {@link diffSignal}.
+ */
 export const store = {
 	/**
 	 * Client state crate.

@@ -32,10 +32,27 @@ type UseMessage<Emitter, Key> =
 /**
  * Creates an iterable that yields packets received from a Tether emitter.
  *
- * Uses `emitter.on(message, callback)` to subscribe.
+ * @param emitter - The Tether emitter to subscribe to.
+ * @param message - The message key to listen for.
+ * @returns An iterable function yielding message data. On client:
+ *   `[index, data]`. On server: `[index, player, data]`.
  *
- * - On client: callback receives `(data)` → yields `[index, data]`.
- * - On server: callback receives `(player, data)` → yields `[index, player, data]`.
+ * @example
+ * ```ts
+ * // Client-side
+ * for (const [index, data] of useMessage(myEmitter, "UpdateHealth")) {
+ *     updateHealthDisplay(data);
+ * }
+ *
+ * // Server-side
+ * for (const [index, player, data] of useMessage(myEmitter, "RequestHeal")) {
+ *     healPlayer(player, data.amount);
+ * }
+ * ```
+ *
+ * @remarks
+ * Uses `emitter.on(message, callback)` to subscribe. Automatically cleans up
+ * the previous subscription if the message key changes.
  */
 export function useMessage<Emitter, Key extends number>(
 	emitter: Emitter,

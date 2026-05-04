@@ -4,6 +4,9 @@ import createSerializer from "@rbxts/serio";
 import { store } from "@lisachandra/core/out/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 
+/**
+ * Payload structure for replicating the {@link Components.Stream} component.
+ */
 export type StreamPayload = {
 	container: Instance
 };

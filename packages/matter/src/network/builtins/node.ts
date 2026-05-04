@@ -4,6 +4,9 @@ import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import createSerializer, { u8 } from "@rbxts/serio";
 import { Workspace } from "@rbxts/services";
 
+/**
+ * Payload structure for replicating the {@link Components.Node} component.
+ */
 export type NodePayload = {
 	type: u8,
 	model: Instance

@@ -601,6 +601,21 @@ export function spawnItem<P extends ValidItemPath>(
 	return entityId;
 }
 
+/**
+ * Finds the nearest item matching a target item ID within the world.
+ *
+ * Iterates through all entities with an `Items` component and returns
+ * the closest one that matches the target item ID, excluding items
+ * that have been moved or are already known.
+ *
+ * @param world - The Matter world instance to query.
+ * @param targetItemId - The item ID path to search for.
+ * @param gameObject - The model to measure distance from.
+ * @param knownPoints - Optional map of entity IDs to positions that
+ *   should be excluded from the search.
+ * @returns The nearest matching item with its entity ID, magnitude
+ *   (distance), and position, or `undefined` if none found.
+ */
 export function findNearestItem(
 	world: World,
 	targetItemId: ReadonlyArray<string>,
@@ -637,6 +652,16 @@ export function findNearestItem(
 	return nearestItem;
 }
 
+/**
+ * Retrieves the equipped item from an entity's hotbar that matches a
+ * specific item ID.
+ *
+ * @param world - The Matter world instance.
+ * @param entityId - The ID of the entity to query.
+ * @param id - The item ID path to match against the equipped item.
+ * @returns The matching equipped `Item`, or `undefined` if no item
+ *   is equipped or no match is found.
+ */
 export function getEquippedItemWithId(
 	world: World,
 	entityId: AnyEntity,

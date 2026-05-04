@@ -10,6 +10,14 @@ import type { ValidItemPath } from "../../items";
 import { privateDefinitions, serdes } from "../../items";
 import { Item } from "../../components";
 
+/**
+ * Serialized item data sent over the network.
+ *
+ * @remarks
+ * When only a `guid` is present, the item has been removed.
+ * Otherwise, the full item payload is included with amount, numeric id, guid,
+ * and optional serialized blobs/buffer.
+ */
 export type ItemData = { guid: u16 } | {
 	blobs: unknown;
 	buf?: buffer;

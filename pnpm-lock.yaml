@@ -410,6 +410,66 @@ importers:
         specifier: 'catalog:'
         version: 5.5.3
 
+  packages/react-router:
+    devDependencies:
+      '@isentinel/tsconfig':
+        specifier: 'catalog:'
+        version: 1.2.0(typescript@5.9.3)
+      '@lisachandra/types':
+        specifier: workspace:*
+        version: link:../types
+      '@rbxts/compiler-types':
+        specifier: 'catalog:'
+        version: 3.0.0-types.0
+      '@rbxts/lemon-signal':
+        specifier: 'catalog:'
+        version: 1.2.0
+      '@rbxts/react':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
+      '@rbxts/types':
+        specifier: 'catalog:'
+        version: 1.0.918
+      roblox-ts:
+        specifier: 'catalog:'
+        version: 3.0.0
+      shx:
+        specifier: 'catalog:'
+        version: 0.4.0
+
+  packages/react-template:
+    devDependencies:
+      '@isentinel/tsconfig':
+        specifier: 'catalog:'
+        version: 1.2.0(typescript@5.9.3)
+      '@lisachandra/types':
+        specifier: workspace:*
+        version: link:../types
+      '@rbxts/compiler-types':
+        specifier: 'catalog:'
+        version: 3.0.0-types.0
+      '@rbxts/log':
+        specifier: 'catalog:'
+        version: 0.6.3
+      '@rbxts/react':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
+      '@rbxts/types':
+        specifier: 'catalog:'
+        version: 1.0.918
+      roblox-ts:
+        specifier: 'catalog:'
+        version: 3.0.0
+      shx:
+        specifier: 'catalog:'
+        version: 0.4.0
+
   packages/test:
     devDependencies:
       '@isentinel/tsconfig':
@@ -532,6 +592,9 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.13.3-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916
@@ -574,6 +637,9 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.13.3-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916
@@ -619,6 +685,9 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.13.3-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916
@@ -661,6 +730,9 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.13.3-ts.1
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.916

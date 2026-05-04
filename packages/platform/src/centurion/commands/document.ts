@@ -7,6 +7,13 @@ import { catcher, waitForDocument } from "@lisachandra/core/out/utils/main";
 import { formatTable } from "@lisachandra/core/out/utils/string";
 
 @Register()
+/**
+ * Admin command that retrieves document data for a specified player.
+ *
+ * @remarks
+ * On success the player is kicked (data is reloaded on rejoin). If the
+ * player is not in the server the document is closed asynchronously.
+ */
 export class DocumentCommand {
 	@Command({
 		description: "Get document information for a player.",
@@ -20,6 +27,13 @@ export class DocumentCommand {
 		],
 	})
 	@Guard(adminOrDeveloper)
+	/**
+	 * Fetches and displays the document associated with a user ID, then
+	 * kicks the player or closes the document.
+	 *
+	 * @param context - The command context for replying with results.
+	 * @param userId - The Roblox user ID whose document to retrieve.
+	 */
 	public document(context: CommandContext, userId: number): void {
 		waitForDocument(userId)
 			.then(async (document) => {

@@ -5,6 +5,9 @@ import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 import { adminOrDeveloper } from "../guards";
 
 @Register()
+/**
+ * Admin command that kicks one or more players from the server.
+ */
 export class KickCommand {
 	/**
 	 * Kicks the specified players from the server.

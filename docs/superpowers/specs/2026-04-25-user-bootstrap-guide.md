@@ -71,8 +71,7 @@ const npcCodecs: ReadonlyArray<ReplicationCodecRegistration> = [
         mode: "all",
         serializer: (record) => ({ health: record.new!.health }),
         deserializer: (data) => ({ health: (data as { health: number }).health }),
-        serializerMetadata: createSerializer<{ health: u16 }>().metadata,
-    },
+        serdes: createSerializer<{ health: u16 }>(),
     {
         component: NPCAI,
         mode: "owner",
@@ -148,8 +147,6 @@ import {
     configureStreamableEntityLookup,
     getComponent,
 } from "@lisachandra/matter";
-import { Message, messaging } from "@lisachandra/matter";
-
 // -- Entity Lookup --
 configureEntityLookup({
     instanceComponents: ["Profile", "Items", "Node"],
@@ -176,10 +173,8 @@ configureRuntimeAdapters({
             getComponent("Stats")({ level: 1, xp: 0 }),
         ],
         postSpawn: (world, player, entityId) => {
-            messaging.client.emit(player, Message.Time, {
-                startClock: os.clock(),
-                startEpoch: DateTime.now().UnixTimestampMillis,
-            });
+            // Message.Time is already emitted by the default flow before this hook runs.
+            // Use this for game-specific post-spawn setup only.
         },
     },
     hotbarInputAdapter: {

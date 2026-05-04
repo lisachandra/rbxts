@@ -120,6 +120,14 @@ export const Entity = TypeBuilder.create<AnyEntity>("entity")
 	.markForRegistration()
 	.build();
 
+/**
+ * Registered Centurion list type for entity IDs, supporting prefix
+ * syntax (`@me`, `@all`, `@others`, `@query`, `@except`, `@only`).
+ *
+ * @remarks
+ * Prefixes are resolved via `parsePrefix`; bare entity IDs fall through
+ * to the single `Entity` transform.
+ */
 export const Entities = ListTypeBuilder.create<Array<AnyEntity>>("entities")
 	.transform((input, executor) => {
 		let entities: Array<AnyEntity> = [];

@@ -7,6 +7,9 @@ import { store } from "@lisachandra/core/out/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import createSerializer from "@rbxts/serio";
 
+/**
+ * Payload structure for replicating the {@link Components.Items} component.
+ */
 export type ItemsPayload = {
 	items: Array<ItemData>;
 };

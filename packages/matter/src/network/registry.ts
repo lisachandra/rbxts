@@ -4,9 +4,29 @@ import type { AnyEntity, Component } from "@rbxts/matter";
 import type { ChangeRecord } from "../components";
 import { OptionalKeys } from "@rbxts/matter/lib/component";
 
+/**
+ * Extracts the keys common to both a component map and a replication map.
+ *
+ * @remarks
+ * Used to constrain replication registrations to only components that are
+ * present in both the world's component definitions and the replication set.
+ */
 export type ReplicationComponentKey<TComponents, TReplication> =
 	keyof TComponents & keyof TReplication;
 
+/**
+ * Serializes a component change record into a payload for network replication.
+ *
+ * @typeParam TComponent - The component type being serialized.
+ * @typeParam TPayload - The payload type to serialize into.
+ *
+ * @param record - The change record containing old and new component values.
+ * @param playerEntityId - The entity ID of the player receiving the payload.
+ * @param componentEntityId - The entity ID of the component being replicated.
+ * @param isLocalComponent - Whether this component is local to the player.
+ * @param hasReceivedPayload - Whether the client has already received a payload.
+ * @returns The serialized payload, or `void` to skip replication.
+ */
 export type ServerSerializerFn<
 	TComponent extends object = object,
 	TPayload extends object = object
@@ -18,6 +38,17 @@ export type ServerSerializerFn<
 	hasReceivedPayload: boolean,
 ) => void | TPayload;
 
+/**
+ * Deserializes a network payload back into component data on the client.
+ *
+ * @typeParam TComponent - The component type being deserialized.
+ * @typeParam TPayload - The payload type to deserialize from.
+ *
+ * @param data - The payload data received from the server.
+ * @param serverEntityId - The entity ID on the server.
+ * @param clientEntityId - The optional corresponding entity ID on the client.
+ * @returns A partial component with optional keys, to be merged into the existing component.
+ */
 export type ClientDeserializerFn<
 	TComponent extends object = object,
 	TPayload extends object = object
@@ -27,8 +58,21 @@ export type ClientDeserializerFn<
 	clientEntityId?: AnyEntity,
 ) => Partial<OptionalKeys<TComponent>>;
 
+/**
+ * Determines which clients receive replication data for a component.
+ *
+ * @remarks
+ * - `"all"` — Broadcast to every client.
+ * - `"owner"` — Only send to the owning player.
+ */
 export type ReplicationMode = "all" | "owner";
 
+/**
+ * Configuration object for registering a component replication codec.
+ *
+ * @typeParam TComponent - The component type to replicate.
+ * @typeParam TPayload - The serialized payload type.
+ */
 export interface ReplicationCodecRegistration<
 	TComponent extends object = object,
 	TPayload extends object = object
@@ -41,6 +85,16 @@ export interface ReplicationCodecRegistration<
 	unreliable?: boolean;
 }
 
+/**
+ * A fully resolved replication codec with all defaults applied.
+ *
+ * @typeParam TComponent - The component type being replicated.
+ * @typeParam TPayload - The serialized payload type.
+ *
+ * @remarks
+ * Extends {@link ReplicationCodecRegistration} with resolved defaults such as
+ * `componentKey`, `mode`, `payloadSerializer`, and `unreliable`.
+ */
 export interface ReplicationCodec<
 	TComponent extends object = object,
 	TPayload extends object = object
@@ -51,6 +105,9 @@ export interface ReplicationCodec<
 	unreliable: boolean;
 }
 
+/**
+ * A registry that stores and retrieves replication codecs by component key.
+ */
 export interface ReplicationCodecRegistry {
 	entries(): ReadonlyMap<string, ReplicationCodec<any, any>>;
 	get(key: string): ReplicationCodec<any, any> | undefined;
@@ -62,6 +119,11 @@ export interface ReplicationCodecRegistry {
 	): ReplicationCodec<TComponent, TPayload>;
 }
 
+/**
+ * Creates a new empty replication codec registry.
+ *
+ * @returns A fresh {@link ReplicationCodecRegistry} instance.
+ */
 export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 	const codecs = new Map<string, ReplicationCodec<any, any>>();
 
@@ -93,4 +155,10 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 	};
 }
 
+/**
+ * The default singleton replication codec registry.
+ *
+ * @remarks
+ * All built-in component codecs register against this instance.
+ */
 export const registry = createReplicationCodecRegistry();

@@ -8,6 +8,20 @@ import {
 
 import { is } from "@lisachandra/core/out/utils/type";
 
+/**
+ * Creates a {@link ListArgumentType} from a single-value argument type,
+ * enabling comma-separated lists of that type in Centurion commands.
+ *
+ * @param name - The name for the generated list type.
+ * @param userType - The base single-argument type to wrap as a list.
+ * @returns A registered list argument type that transforms and suggests
+ *   multiple values at once.
+ *
+ * @example
+ * ```ts
+ * const PlayersList = makeListableType("players", CenturionType.Player);
+ * ```
+ */
 export function makeListableType<T extends defined>(
 	name: string,
 	userType: SingleArgumentType<T>,
@@ -48,6 +62,19 @@ export function makeListableType<T extends defined>(
 		.build();
 }
 
+/**
+ * Creates a Centurion {@link SingleArgumentType} that accepts only the
+ * provided string enum values.
+ *
+ * @param name - The name for the generated type.
+ * @param enums - The allowed string values.
+ * @returns A registered single-argument type with enum validation.
+ *
+ * @example
+ * ```ts
+ * const TeamType = makeEnumType("team", ["Red", "Blue", "Green"]);
+ * ```
+ */
 export function makeEnumType<T extends string>(
 	name: string,
 	enums: Array<T>,

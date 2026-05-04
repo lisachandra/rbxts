@@ -5,6 +5,14 @@ import { force } from "../utils/type";
 
 import { humanoid } from "./humanoid";
 
+/**
+ * A validated R15 character model instance tree.
+ *
+ * @remarks
+ * Represents the modern Roblox R15 avatar rig with MeshParts
+ * connected via Motor6D joints, including UpperTorso, LowerTorso,
+ * Head, limbs, Humanoid, and controller sensors.
+ */
 export type R15Character = EvaluateInstanceTree<typeof r15Character>;
 
 const upperTorso = freezeDeep({
@@ -49,6 +57,14 @@ const upperTorso = freezeDeep({
 	},
 } as const);
 
+/**
+ * Schema for validating an R15 character model instance tree.
+ *
+ * @remarks
+ * Defines the expected structure of a modern R15 avatar: a Model
+ * containing MeshParts for the torso, head, and limbs, a HumanoidRootPart
+ * with sensors, a Humanoid, ControllerManager, and associated motor joints.
+ */
 export const r15Character = freezeDeep({
 	$className: "Model",
 	tiltPart: force<{ $className: "Part"; BodyPosition: "BodyPosition" }>(),

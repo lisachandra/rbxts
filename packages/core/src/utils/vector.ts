@@ -25,6 +25,17 @@ export function reflect(surfaceNormal: Vector3, bulletNormal: Vector3): Vector3 
 	return bulletNormal.sub(surfaceNormal.mul(bulletNormal.Dot(surfaceNormal)).mul(2));
 }
 
+/**
+ * Calculates the Euclidean distance between two Vector3 positions.
+ *
+ * @param aV - The first Vector3.
+ * @param bV - The second Vector3.
+ * @returns The magnitude of the difference between the two vectors.
+ * @example
+ * ```ts
+ * const dist = distance(new Vector3(0, 0, 0), new Vector3(5, 0, 0)); // 5
+ * ```
+ */
 export function distance(aV: Vector3, bV: Vector3): number {
 	return aV.sub(bV).Magnitude;
 }

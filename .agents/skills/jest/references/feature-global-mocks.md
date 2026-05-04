@@ -2,7 +2,7 @@
 name: Global Mocks
 description: |
     Mocking global Luau functions like print() and math.random() using
-    jest.globalEnv, plus Godkin-specific patterns for mocking services and
+    jest.globalEnv, plus specific patterns for mocking services and
     modules with mockOnRuntime.
 ---
 
@@ -61,7 +61,7 @@ math.random(); // 5 (mocked)
 jest.globalEnv.math.random(); // actual random number (original)
 ```
 
-## Godkin Pattern: Mocking Services
+## Pattern: Mocking Services
 
 **MANDATORY for all test files that use Roblox services.** Use `mockOnRuntime` with `createMockInstance`:
 
@@ -120,7 +120,7 @@ let mockEventQueue: ReturnType<typeof mockOnRuntime<typeof import("client/ui/hoo
 mockEventQueue = mockOnRuntime(jest, createMockInstance(original, false), false);
 ```
 
-## Godkin Pattern: Mocking Store
+## Pattern: Mocking Store
 
 ```ts
 const storeModule = getModuleByTree(...$getModuleTree("shared/store"));

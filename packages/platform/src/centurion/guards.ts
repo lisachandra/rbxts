@@ -25,6 +25,15 @@ export function configureCenturionRoles(roles: Array<string>): void {
 	}
 }
 
+/**
+ * Centurion guard that checks whether the command executor belongs to
+ * the configured group with an authorized role.
+ *
+ * @param context - The command context, providing the executor and error
+ *   reporting.
+ * @returns `true` if the executor has an allowed role; otherwise `false`
+ *   and an error is reported to the context.
+ */
 export function adminOrDeveloper(context: CommandContext): boolean {
 	const role = context.executor.GetRoleInGroup(groupId);
 	for (const allowed of allowedRoles) {

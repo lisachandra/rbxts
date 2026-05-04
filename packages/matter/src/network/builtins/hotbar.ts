@@ -6,6 +6,12 @@ import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 import createSerializer, { u16 } from "@rbxts/serio";
 
+/**
+ * Payload structure for replicating the {@link Components.Hotbar} component.
+ *
+ * @remarks
+ * Includes the hotbar items and an optional equipped item numeric ID.
+ */
 export type HotbarPayload = {
 	items: Array<ItemData>;
 	equipped?: u16;

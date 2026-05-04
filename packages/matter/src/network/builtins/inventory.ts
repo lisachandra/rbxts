@@ -4,6 +4,9 @@ import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 import createSerializer from "@rbxts/serio";
 
+/**
+ * Payload structure for replicating the {@link Components.Inventory} component.
+ */
 export type InventoryPayload = {
 	items: Array<ItemData>;
 };

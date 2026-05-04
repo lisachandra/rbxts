@@ -21,6 +21,7 @@
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/jest": "catalog:",
 		"@rbxts/jest-globals": "catalog:",
+		"@rbxts/services": "catalog:",
 		"@rbxts/types": "catalog:",
 		"io-serve": "catalog:",
 		"shx": "catalog:",

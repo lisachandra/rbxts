@@ -14,6 +14,18 @@ interface TorsoMotorPair {
 	part1: BasePart;
 }
 
+/**
+ * Configuration for ragdoll constraints applied to character joints.
+ *
+ * Maps joint names (e.g., "Left Hip", "Right Hip") to constraint
+ * types and their properties. Also includes a `recovery_time` for
+ * the ragdoll duration.
+ *
+ * @remarks
+ * Each joint entry specifies a `Constraint` type (e.g.,
+ * `BallSocketConstraint`) and a `Properties` table with angle
+ * limits and other constraint settings.
+ */
 export const ragdollConfig = {
 	["Left Hip"]: {
 		Constraint: "BallSocketConstraint",
@@ -466,6 +478,16 @@ export function unRagdoll(character: Character): void {
 	}
 }
 
+/**
+ * Enables collision on a character's torso motor joints for ragdoll
+ * physics.
+ *
+ * Sets the character's `PlatformStand` to `true`, enables collision
+ * on the `RootPart`, disables `AutoRotate`, and enables collision on
+ * all torso motor pair parts.
+ *
+ * @param character - The character to enable joint collision on.
+ */
 export function collideJoints(character: Character): void {
 	const humanoid = character.FindFirstChildOfClass("Humanoid")!;
 	humanoid.PlatformStand = true;
@@ -478,6 +500,16 @@ export function collideJoints(character: Character): void {
 	}
 }
 
+/**
+ * Disables collision on a character's torso motor joints, reversing
+ * the effects of `collideJoints`.
+ *
+ * Sets `PlatformStand` to `false`, disables collision on the
+ * `RootPart`, re-enables `AutoRotate`, and disables collision on
+ * all torso motor pair parts.
+ *
+ * @param character - The character to disable joint collision on.
+ */
 export function unCollideJoints(character: Character): void {
 	const humanoid = character.FindFirstChildOfClass("Humanoid")!;
 	humanoid.PlatformStand = false;

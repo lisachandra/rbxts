@@ -4,6 +4,12 @@ import createSerializer, { u32 } from "@rbxts/serio";
 
 type ReplaceNumbers<T, Replacement> = { [K in keyof T]: T[K] extends number ? Replacement: T[K] }
 
+/**
+ * Payload structure for replicating the {@link Components.Forces} component.
+ *
+ * @remarks
+ * Numeric fields in {@link Force} are replaced with `u32` for serialization.
+ */
 export type ForcesPayload = Omit<Components["Forces"], "forces"> & {
 	forces: Array<{
 		force: ReplaceNumbers<Force, u32>

@@ -3,6 +3,14 @@ import { RunService } from "@rbxts/services";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * Options for configuring the Matter ECS bootstrap process.
+ *
+ * @remarks
+ * Combines pre-resolved systems, auto-collected Flamework barrels,
+ * hot-reload containers, and ad-hoc extensions into a single boundary
+ * passed to the Matter loop.
+ */
 export interface BootstrapOptions {
 	/**
 	 * `"development"` enables Rewire hot reload via the Matter Loop.
@@ -45,12 +53,23 @@ export interface BootstrapOptions {
 	};
 }
 
+/**
+ * Resolved boundary produced from {@link BootstrapOptions}.
+ *
+ * @remarks
+ * This is the normalized input that `start()` receives after
+ * `resolveBoundary` merges all configured sources.
+ */
 export interface BootstrapBoundary {
 	containers: Array<Instance>;
 	mode: "development" | "production";
 	systems: Array<AnySystem>;
 }
 
+/**
+ * Return value of {@link bootstrap}, providing access to the Matter
+ * world, crate, loop, and the resolved boundary used.
+ */
 export interface BootstrapResult {
 	world: ReturnType<typeof start>["world"];
 	crate: ReturnType<typeof start>["crate"];
@@ -69,6 +88,15 @@ function collectSystems(modules: Array<object>): Array<AnySystem> {
 	return systems;
 }
 
+/**
+ * Merges all configured system/module/container sources into a single
+ * {@link BootstrapBoundary} suitable for `start()`.
+ *
+ * @param options - The bootstrap options specifying mode, modules,
+ *   systems, hot-reload containers, and extensions.
+ * @returns A resolved boundary with the final system list, mode, and
+ *   containers.
+ */
 export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBoundary {
 	const mode = options.mode ?? "production";
 	const scope = RunService.IsClient() ? "client" : "server";

@@ -44,7 +44,7 @@ Use factory functions for creating test data (entities, components, state).
 - Easy to customize per-test without conditional hook logic
 
 ### Use Hooks for Module Mocking & Runtime Resets
-In complex projects (like Godkin), use `beforeAll` and `beforeEach` for:
+In complex projects, use `beforeAll` and `beforeEach` for:
 - `jest.mock()` calls to isolate modules.
 - `resetTSRuntime()` to ensure a clean state between tests.
 - `jest.clearAllMocks()` to prevent call-count leakage.

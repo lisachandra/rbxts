@@ -8,6 +8,10 @@ import { catcher } from "@lisachandra/core/out/utils/main";
 
 // ─── Runtime Configuration ──────────────────────────────────────────────────
 
+/**
+ * Configuration for teleport behavior including expiration, retry
+ * attempts, and flood delay.
+ */
 export interface TeleportConfig {
 	/** Teleport data expiration in seconds (default: 300). */
 	expiration?: number;
@@ -54,6 +58,9 @@ const teleportAsync = Promise.promisify(
 	},
 );
 
+/**
+ * Reasons why a teleport may be considered invalid.
+ */
 export enum TeleportReason {
 	TeleportInvalidData,
 	TeleportInvalidHash,
