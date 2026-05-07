@@ -11,6 +11,7 @@
  * directly via `UserInputService`.
  */
 import type { Crate } from "@rbxts/crate";
+import type { DebugWidgets, SystemStruct } from "@rbxts/matter";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
 import { Players, UserInputService } from "@rbxts/services";
@@ -20,6 +21,7 @@ import { Humanoid } from "@lisachandra/core/out/schemas";
 import { ClientState } from "@lisachandra/core/out/store";
 import { getHumanoid } from "@lisachandra/core/out/utils/main";
 import { getHotbarInputAdapter } from "../../../start";
+import { meta as itemManager } from "../item/itemManager";
 
 /**
  * Map of numeric keycodes to their corresponding hotbar slot index.
@@ -172,3 +174,9 @@ function system(world: World, crate: Crate<ClientState>): void {
 		}
 	}
 }
+
+export const meta = {
+	after: [itemManager],
+	phase: "preRender",
+	system,
+} satisfies SystemStruct<[World, Crate<ClientState>, DebugWidgets]>;

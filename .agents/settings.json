@@ -2,12 +2,12 @@
 	"includeCoAuthoredBy": true,
 	"permissions": {
 		"allow": [
-			"Bash(gh:*)",
-			"Bash(gh pr:*)",
-			"Bash(gh pr create:*)",
-			"Bash(gh pr view:*)",
-			"Bash(gh run list:*)",
-			"Bash(gh run view:*)",
+			"execute_command(gh:*)",
+			"execute_command(gh pr:*)",
+			"execute_command(gh pr create:*)",
+			"execute_command(gh pr view:*)",
+			"execute_command(gh run list:*)",
+			"execute_command(gh run view:*)",
 			"Glob",
 			"Grep",
 			"LS",
@@ -42,7 +42,7 @@
 	"hooks": {
 		"PreToolUse": [
 			{
-				"matcher": "Bash",
+				"matcher": "execute_command",
 				"hooks": [
 					{
 						"type": "command",
@@ -63,7 +63,7 @@
 				]
 			},
 			{
-				"matcher": "Edit|Write",
+				"matcher": "edit_file|write_to_file",
 				"hooks": [
 					{
 						"type": "command",
@@ -71,7 +71,7 @@
 					}
 				]
 			}
-		],
+		]
 	},
 	"outputStyle": "sentinel:XP Programmer"
 }

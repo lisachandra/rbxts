@@ -50,6 +50,11 @@
 			"source": "./src/utils/sound.ts",
 			"import": "./out/utils/sound.luau",
 			"types": "./out/utils/sound.d.ts"
+		},
+		"./systems": {
+			"source": "./src/systems/index.ts",
+			"import": "./out/systems/init.luau",
+			"types": "./out/systems/index.d.ts"
 		}
 	},
 	"main": "out/init.luau",

@@ -1,4 +1,6 @@
 import { type AnySystem, findSystems, start } from "@lisachandra/matter";
+import { createPackageRegistry, createPackageRuntime } from "@lisachandra/matter";
+import type { MatterPackageDescriptor } from "@lisachandra/matter/out/packages";
 import { RunService } from "@rbxts/services";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,6 +48,8 @@ export interface BootstrapOptions {
 	 * Ad-hoc user extensions — extra systems, modules, or containers
 	 * merged into the final boundary automatically.
 	 */
+	packages?: Array<MatterPackageDescriptor>;
+
 	extensions?: {
 		containers?: Array<Instance>;
 		modules?: Array<object>;
@@ -139,6 +143,23 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 		}
 	}
 
+	// 4. Package descriptors (builtin or third-party)
+	if (options.packages) {
+		const registry = createPackageRegistry();
+		for (const pkg of options.packages) {
+			registry.register(pkg);
+		}
+		const allIds = new Array<string>();
+		for (const [id] of registry.entries()) {
+			allIds.push(id);
+		}
+		const resolved = registry.resolve(allIds);
+		const runtime = createPackageRuntime(resolved as never);
+		for (const s of runtime.buildSystems()) {
+			allSystems.push(s as AnySystem);
+		}
+	}
+
 	// Build container list
 	const containers = new Array<Instance>();
 	if (mode === "development" && options.hotReload?.containers) {
@@ -168,9 +189,11 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
  * @example
  * ```ts
  * // Auto-collect from Flamework barrels (no pipeline)
+ * // Include builtin matter systems via packages
  * const { world, crate } = bootstrap({
+ *   packages: [builtinPackage],
  *   modules: { server: systems, shared: sharedSystems },
- * });
+
  * ```
  */
 export function bootstrap(options: BootstrapOptions = {}): BootstrapResult {

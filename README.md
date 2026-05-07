@@ -178,7 +178,9 @@ This single call populates the item definitions tree, serdes registry, descripti
 
 ### 4. System Composition
 
-There are two paths to compose systems. Choose one.
+There are three paths to compose systems. Choose one.
+
+**Zero boilerplate:** import `builtinPackage` from `@lisachandra/matter/systems` and drop it into `packages` in `bootstrap()` — all builtin systems are wired automatically.
 
 #### Path A — Direct Systems (simpler)
 
@@ -225,6 +227,27 @@ const { world, crate } = start({ systems });
 ```
 
 > You can also use `createPackageRuntime().installPipeline(builder)` to compose package registrations into a custom pipeline before building.
+
+#### Path C — Builtin Packages via `bootstrap()`
+
+Use `@lisachandra/matter/systems` `builtinPackage` to include all builtin matter systems (player lifecycle, items, replication, sound, world nodes) with a single import:
+
+```ts
+import { bootstrap } from "@lisachandra/platform";
+import { builtinPackage } from "@lisachandra/matter/systems";
+import { npcPackage } from "@my-game/npcs";
+
+bootstrap({
+  mode: "development",
+  packages: [builtinPackage, npcPackage],
+  modules: {
+    server: myServerSystems,
+    shared: mySharedSystems,
+  },
+});
+```
+
+`bootstrap()` internally creates a registry, registers all package descriptors, resolves them by ID, builds the ordered system array, and merges them with systems from `modules` and `extensions`. No manual registry/runtime management required.
 
 ### 5. Creating Custom Components
 
@@ -318,6 +341,7 @@ Systems can declare `after: [otherSystem]` to enforce execution order within a p
 ```ts
 // src/server/main.server.ts
 import { bootstrap } from "@lisachandra/platform";
+import { builtinPackage } from "@lisachandra/matter/systems";
 import { setupLogger } from "@lisachandra/core/logger";
 
 // Side-effect imports: configuration and auto-registration
@@ -336,6 +360,7 @@ const { world, crate, loop, boundary } = bootstrap({
     server: serverSystems,   // Flamework barrel — systems with meta export are auto-collected
     shared: sharedSystems,
   },
+  packages: [builtinPackage], // Include all builtin matter systems
   extensions: {
     systems: [/* any extra systems */],
   },
@@ -349,6 +374,7 @@ print("Server started!");
 ```ts
 // src/client/main.client.ts
 import { bootstrap } from "@lisachandra/platform";
+import { builtinPackage } from "@lisachandra/matter/systems";
 import { setupLogger } from "@lisachandra/core/logger";
 
 import "../shared/config";
@@ -364,6 +390,7 @@ const { world, crate } = bootstrap({
     client: clientSystems,
     shared: sharedSystems,
   },
+  packages: [builtinPackage], // Include all builtin matter systems
 });
 ```
 
