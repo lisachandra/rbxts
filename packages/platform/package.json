@@ -26,6 +26,11 @@
 			"import": "./out/bootstrap.luau",
 			"types": "./out/bootstrap.d.ts"
 		},
+		"./centurion": {
+			"source": "./src/centurion/index.ts",
+			"import": "./out/centurion/init.luau",
+			"types": "./out/centurion/index.d.ts"
+		},
 		"./centurion/type": {
 			"source": "./src/centurion/type.ts",
 			"import": "./out/centurion/type.luau",

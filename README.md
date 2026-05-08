@@ -347,7 +347,7 @@ import { setupLogger } from "@lisachandra/core/logger";
 // Side-effect imports: configuration and auto-registration
 import "../shared/config";
 import "../shared/items";
-import "@lisachandra/platform/centurion/commands";
+import "@lisachandra/platform/centurion";
 
 import * as serverSystems from "./systems";
 import * as sharedSystems from "../shared/systems";
@@ -468,16 +468,41 @@ Pass it via `configureRuntimeAdapters({ document: { collection } })`.
 
 ```ts
 // src/server/commands.ts
-import { configureCenturionGroup, configureCenturionRoles } from "@lisachandra/platform/centurion/guards";
+import "@lisachandra/platform/centurion";                  // Pattern B — registers all commands & types
+import { Centurion } from "@rbxts/centurion";
+import { configureCenturionGroup, configureCenturionRoles } from "@lisachandra/platform";
 
-configureCenturionGroup(1234567);           // Roblox group ID
+configureCenturionGroup(1234567);                           // Roblox group ID
 configureCenturionRoles(["Developer", "Founder"]);
 
-// Importing the commands module auto-registers them with Centurion:
-import "@lisachandra/platform/centurion/commands";
+const server = Centurion.server({ logLevel: CenturionLogLevel.Debug });
+server.start(); // All platform commands and types auto-discovered
 ```
 
 Built-in commands: `teleport` (aliases: `tp`), `kick`, `document`, `set`.
+
+#### Augmenting Centurion Types
+
+The `CenturionUserType` object is the single source of truth for all Centurion argument type keys. External packages and game code extend it via `registerCenturionType()`, paired with a `declare module` augmentation:
+
+```ts
+import { registerCenturionType, CenturionUserType } from "@lisachandra/platform";
+
+// 1. TypeScript: augment the interface (compile-time)
+declare module "@lisachandra/platform/out/centurion/type" {
+    interface CenturionUserTypes {
+        Item: "item";
+        PlayerEntities: "playerEntities";
+    }
+}
+
+// 2. Runtime: adds directly to CenturionUserType
+registerCenturionType("Item", "item");
+registerCenturionType("PlayerEntities", "playerEntities");
+
+// 3. Use directly — no manual spreading needed
+// arguments: [{ type: CenturionUserType.Item, name: "itemId", ... }]
+```
 
 ### 12. Using Items at Runtime
 
