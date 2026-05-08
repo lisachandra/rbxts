@@ -2,6 +2,9 @@ import type { Crate } from "@rbxts/crate";
 
 import type { PipelineBuilder, PipelineRegistration, SystemTemplate } from "../pipeline";
 import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
+import { SystemStruct } from "@rbxts/matter";
+
+type TSystem = SystemStruct<any>
 
 export interface MatterPackageMetadata {
 	description?: string;
@@ -25,47 +28,44 @@ export interface MatterPackageReplication {
 
 export interface MatterPackageDescriptor<
 	TId extends string = string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 > {
 	dependencies?: ReadonlyArray<TId>;
 	id: TId;
 	metadata?: MatterPackageMetadata;
-	pipeline?: ReadonlyArray<PipelineRegistration<TSystem>>;
+	pipeline?: ReadonlyArray<PipelineRegistration>;
 	replication?: MatterPackageReplication;
 	state?: ReadonlyArray<MatterPackageStateSlice<TCrateState, unknown, TStateKey>>;
 }
 
 export interface MatterPackageRegistry<
 	TId extends string = string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 > {
-	discover(predicate?: (pkg: MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>) => boolean): Array<
-		MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>
+	discover(predicate?: (pkg: MatterPackageDescriptor<TId, TCrateState, TStateKey>) => boolean): Array<
+		MatterPackageDescriptor<TId, TCrateState, TStateKey>
 	>;
-	entries(): ReadonlyMap<TId, MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>;
-	get(id: TId): MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey> | undefined;
+	entries(): ReadonlyMap<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>;
+	get(id: TId): MatterPackageDescriptor<TId, TCrateState, TStateKey> | undefined;
 	has(id: TId): boolean;
 	register(
-		pkg: MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>,
-	): MatterPackageRegistry<TId, TSystem, TCrateState, TStateKey>;
+		pkg: MatterPackageDescriptor<TId, TCrateState, TStateKey>,
+	): MatterPackageRegistry<TId, TCrateState, TStateKey>;
 	registerMany(
-		packages: ReadonlyArray<MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>,
-	): MatterPackageRegistry<TId, TSystem, TCrateState, TStateKey>;
-	resolve(requested: ReadonlyArray<TId>): ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey>;
+		packages: ReadonlyArray<MatterPackageDescriptor<TId, TCrateState, TStateKey>>,
+	): MatterPackageRegistry<TId, TCrateState, TStateKey>;
+	resolve(requested: ReadonlyArray<TId>): ResolvedMatterPackageGraph<TId, TCrateState, TStateKey>;
 }
 
 export interface ResolvedMatterPackageGraph<
 	TId extends string = string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 > {
-	index: ReadonlyMap<TId, MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>;
-	order: ReadonlyArray<MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>;
+	index: ReadonlyMap<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>;
+	order: ReadonlyArray<MatterPackageDescriptor<TId, TCrateState, TStateKey>>;
 	requested: ReadonlyArray<TId>;
 }
 
@@ -76,15 +76,14 @@ export interface MatterPackageStateManager<TCrateState extends object = object, 
 
 export interface MatterPackageRuntime<
 	TId extends string = string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 > {
-	buildSystems(builder?: PipelineBuilder<TSystem>): Array<TSystem>;
-	installPipeline(builder: PipelineBuilder<TSystem>): PipelineBuilder<TSystem>;
+	buildSystems(builder?: PipelineBuilder): Array<TSystem>;
+	installPipeline(builder: PipelineBuilder): PipelineBuilder;
 	installCodecs(registry: ReplicationCodecRegistry): void;
-	pipelineRegistrations: ReadonlyArray<PipelineRegistration<TSystem>>;
+	pipelineRegistrations: ReadonlyArray<PipelineRegistration>;
 	replicationComponents: ReadonlyArray<ReplicationCodecRegistration>;
-	resolved: ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey>;
+	resolved: ResolvedMatterPackageGraph<TId, TCrateState, TStateKey>;
 	state: MatterPackageStateManager<TCrateState, TStateKey>;
 }

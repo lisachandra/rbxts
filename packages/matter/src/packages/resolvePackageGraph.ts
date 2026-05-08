@@ -2,17 +2,16 @@ import type { MatterPackageDescriptor, ResolvedMatterPackageGraph } from "./type
 
 export function resolvePackageGraph<
 	TId extends string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 >(
-	packages: ReadonlyMap<TId, MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>,
+	packages: ReadonlyMap<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>,
 	requested: ReadonlyArray<TId>,
-): ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey> {
-	const order = new Array<MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>();
+): ResolvedMatterPackageGraph<TId, TCrateState, TStateKey> {
+	const order = new Array<MatterPackageDescriptor<TId, TCrateState, TStateKey>>();
 	const visiting = new Set<TId>();
 	const visited = new Set<TId>();
-	const index = new Map<TId, MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>();
+	const index = new Map<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>();
 
 	const visit = (id: TId, path = new Array<TId>()): void => {
 		if (visited.has(id)) {

@@ -33,13 +33,12 @@ function createStateManager<TCrateState extends object, TStateKey extends string
 
 export function createPackageRuntime<
 	TId extends string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 >(
-	resolved: ResolvedMatterPackageGraph<TId, TSystem, TCrateState, TStateKey>,
-): MatterPackageRuntime<TId, TSystem, TCrateState, TStateKey> {
-	const pipelineRegistrations = new Array<PipelineRegistration<TSystem>>();
+	resolved: ResolvedMatterPackageGraph<TId, TCrateState, TStateKey>,
+): MatterPackageRuntime<TId, TCrateState, TStateKey> {
+	const pipelineRegistrations = new Array<PipelineRegistration>();
 	const replicationComponents = new Array<ReplicationCodecRegistration>();
 	const stateSlices = new Array<MatterPackageStateSlice<TCrateState, unknown, TStateKey>>();
 
@@ -49,7 +48,7 @@ export function createPackageRuntime<
 		}
 
 		for (const registration of pkg.replication?.templates ?? []) {
-			pipelineRegistrations.push(registration as PipelineRegistration<TSystem>);
+			pipelineRegistrations.push(registration as PipelineRegistration);
 		}
 
 		for (const codec of pkg.replication?.codecs ?? []) {
@@ -65,7 +64,7 @@ export function createPackageRuntime<
 	const state = createStateManager(stateSlices);
 
 	return {
-		buildSystems(builder = createPipeline<TSystem>()) {
+		buildSystems(builder = createPipeline()) {
 			this.installPipeline(builder);
 			return builder.build();
 		},

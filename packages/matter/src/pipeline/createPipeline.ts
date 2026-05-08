@@ -1,6 +1,9 @@
 import type { PipelineBuilder, PipelineExtension, SystemTemplate, TemplateSystem, } from "./types";
+import { SystemStruct } from "@rbxts/matter";
 
-function ensureUniqueKeys<TSystem>(systems: ReadonlyArray<TemplateSystem<TSystem>>, owner: string): void {
+type TSystem = SystemStruct<any>
+
+function ensureUniqueKeys(systems: ReadonlyArray<TemplateSystem>, owner: string): void {
 	const seen = new Set<string>();
 	for (const { key } of systems) {
 		if (seen.has(key)) {
@@ -11,13 +14,13 @@ function ensureUniqueKeys<TSystem>(systems: ReadonlyArray<TemplateSystem<TSystem
 	}
 }
 
-export function createPipeline<TSystem>(): PipelineBuilder<TSystem> {
-	const templates = new Map<string, SystemTemplate<TSystem>>();
-	const extensions = new Array<PipelineExtension<TSystem>>();
+export function createPipeline(): PipelineBuilder {
+	const templates = new Map<string, SystemTemplate>();
+	const extensions = new Array<PipelineExtension>();
 	const overrides = new Map<string, TSystem>();
 
-	const resolveTemplateOrder = (): Array<SystemTemplate<TSystem>> => {
-		const resolved = new Array<SystemTemplate<TSystem>>();
+	const resolveTemplateOrder = (): Array<SystemTemplate> => {
+		const resolved = new Array<SystemTemplate>();
 		const visiting = new Set<string>();
 		const visited = new Set<string>();
 
@@ -55,7 +58,7 @@ export function createPipeline<TSystem>(): PipelineBuilder<TSystem> {
 	return {
 		use(templateOrExtension) {
 			if ("dependencies" in templateOrExtension || "provides" in templateOrExtension) {
-				const template = templateOrExtension as SystemTemplate<TSystem>;
+				const template = templateOrExtension as SystemTemplate;
 				if (templates.has(template.name)) {
 					error(`Template '${template.name}' is already registered`);
 				}
@@ -65,7 +68,7 @@ export function createPipeline<TSystem>(): PipelineBuilder<TSystem> {
 				return this;
 			}
 
-			const extension = templateOrExtension as PipelineExtension<TSystem>;
+			const extension = templateOrExtension as PipelineExtension;
 			ensureUniqueKeys(extension.systems, extension.name);
 			extensions.push(extension);
 			return this;
@@ -78,7 +81,7 @@ export function createPipeline<TSystem>(): PipelineBuilder<TSystem> {
 
 		build() {
 			const ordered = resolveTemplateOrder();
-			const allSystems = new Array<TemplateSystem<TSystem>>();
+			const allSystems = new Array<TemplateSystem>();
 
 			for (const template of ordered) {
 				for (const entry of template.systems) {

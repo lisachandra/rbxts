@@ -3,26 +3,24 @@ import type { MatterPackageDescriptor, MatterPackageRegistry } from "./types";
 
 export function definePackage<
 	TId extends string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 >(
-	descriptor: MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>,
-): MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey> {
+	descriptor: MatterPackageDescriptor<TId, TCrateState, TStateKey>,
+): MatterPackageDescriptor<TId, TCrateState, TStateKey> {
 	return descriptor;
 }
 
 export function createPackageRegistry<
 	TId extends string = string,
-	TSystem = unknown,
 	TCrateState extends object = object,
 	TStateKey extends string = string,
->(): MatterPackageRegistry<TId, TSystem, TCrateState, TStateKey> {
-	const packages = new Map<TId, MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>();
+>(): MatterPackageRegistry<TId, TCrateState, TStateKey> {
+	const packages = new Map<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>();
 
 	return {
 		discover(predicate) {
-			const discovered = new Array<MatterPackageDescriptor<TId, TSystem, TCrateState, TStateKey>>();
+			const discovered = new Array<MatterPackageDescriptor<TId, TCrateState, TStateKey>>();
 			for (const [, pkg] of packages) {
 				if (!predicate || predicate(pkg)) {
 					discovered.push(pkg);
