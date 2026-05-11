@@ -81,6 +81,12 @@ catalogs:
     '@rbxts/react-roblox':
       specifier: 17.3.7-ts.1
       version: 17.3.7-ts.1
+    '@rbxts/react-roblox-fire':
+      specifier: 0.1.4
+      version: 0.1.4
+    '@rbxts/react-testing-library':
+      specifier: 12.1.5-rc.5
+      version: 12.1.5-rc.5
     '@rbxts/regexp':
       specifier: latest
       version: 0.2.1-ts.4
@@ -490,6 +496,15 @@ importers:
       '@rbxts/luau-polyfill':
         specifier: 'catalog:'
         version: 1.1.3
+      '@rbxts/react':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/react-roblox-fire':
+        specifier: 'catalog:'
+        version: 0.1.4
+      '@rbxts/react-testing-library':
+        specifier: 'catalog:'
+        version: 12.1.5-rc.5(@rbxts/dom-testing-library@8.14.0-rc.5(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.1))(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1))(@rbxts/react@17.3.7-ts.1)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -1206,6 +1221,13 @@ packages:
   '@rbxts/destroyable@1.0.9':
     resolution: {integrity: sha512-gVTDDnpyPqbp1u1ak9pqmsPhC2B0NigRCE7UexWpIDKK81SJsqbvC7k8aKmY0Fjn0w8fjBn/ReY3HLinMAsxeg==}
 
+  '@rbxts/dom-testing-library@8.14.0-rc.5':
+    resolution: {integrity: sha512-Hum2PzONC33KIDwS65RZ2b38kJ0W5+2kDIBNsEuLOSq1Tst4Ns3pSwK2yRI0shjOl/8QhlB0n+M1yayXPCg4iQ==}
+    peerDependencies:
+      '@rbxts/jest': ^3.13.3-ts.1
+      '@rbxts/luau-polyfill': '*'
+      '@rbxts/react': ^17.3.7-ts.1
+
   '@rbxts/emittery@3.13.3-ts.1':
     resolution: {integrity: sha512-iEUg8fk1xYO70H5t+a1sO34FkYerP+melGdJYkUV0Jf6fzYms7YQ/5awVjJ7KYJW3vo1bKUODBiBymqz4LHxEA==}
 
@@ -1272,10 +1294,22 @@ packages:
   '@rbxts/rbxts-hashlib@1.0.2':
     resolution: {integrity: sha512-AmczMFYxiVJbpWymYr1M5RemSOFagLg/TLJBY8RjK4Vg1gR0B8vI6E6+iOD5QmuFe849nBnEKHZ+uF/KSc5huA==}
 
+  '@rbxts/react-roblox-fire@0.1.4':
+    resolution: {integrity: sha512-P9QaPMaUilxeg/1HvkDXXNPlicqutjp3w7sOJVfE3jFwCoYC5/GSfwPDXprrGc5JVAm5rjDdfhWR9L+k2lBCHg==}
+
   '@rbxts/react-roblox@17.3.7-ts.1':
     resolution: {integrity: sha512-lsH3lP+X0JUS/6Fg5MJfP8OjMn7bjxapbg3r1ajrpvwZGPGU1WOFcFDS/xMMk/2RK/GNYRmkduNM8pQ9vHw54Q==}
     peerDependencies:
       '@rbxts/react': ^17.3.7-ts.1
+
+  '@rbxts/react-testing-library@12.1.5-rc.5':
+    resolution: {integrity: sha512-yhWaq6r7o/Vn2dCFQBcOVv/VipIf1G+vfNJtD0/H3XVUgYmgyrc5/M/MD2lloM+LErD8cvJEshBsr3bd6hY0zQ==}
+    peerDependencies:
+      '@rbxts/dom-testing-library': ^8.14.0-rc.5
+      '@rbxts/jest': ^3.13.3-ts.1
+      '@rbxts/luau-polyfill': '*'
+      '@rbxts/react': ^17.3.7-ts.1
+      '@rbxts/react-roblox': ^17.3.7-ts.1
 
   '@rbxts/react@17.3.7-ts.1':
     resolution: {integrity: sha512-/jqZ2TvyLSAPwC30h95loUmy4XN2PwPhv6fBARJKtZfyozFx2RuxC9FiQSjpEZ2uOOPzr60It0MBUf94D+tsMg==}
@@ -3293,6 +3327,12 @@ snapshots:
     dependencies:
       '@rbxts/trash': 1.0.8
 
+  '@rbxts/dom-testing-library@8.14.0-rc.5(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.1)':
+    dependencies:
+      '@rbxts/jest': 3.13.3-ts.1
+      '@rbxts/luau-polyfill': 1.1.3
+      '@rbxts/react': 17.3.7-ts.1
+
   '@rbxts/emittery@3.13.3-ts.1':
     dependencies:
       '@rbxts-js/emittery': 3.13.3-ts.3
@@ -3363,10 +3403,24 @@ snapshots:
 
   '@rbxts/rbxts-hashlib@1.0.2': {}
 
+  '@rbxts/react-roblox-fire@0.1.4':
+    dependencies:
+      '@rbxts/react': 17.3.7-ts.1
+      '@rbxts/react-roblox': 17.3.7-ts.1(@rbxts/react@17.3.7-ts.1)
+      '@rbxts/services': 1.6.0
+
   '@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1)':
     dependencies:
       '@rbxts-js/react-roblox': 17.3.7-ts.1
       '@rbxts/react': 17.3.7-ts.1
+
+  '@rbxts/react-testing-library@12.1.5-rc.5(@rbxts/dom-testing-library@8.14.0-rc.5(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.1))(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1))(@rbxts/react@17.3.7-ts.1)':
+    dependencies:
+      '@rbxts/dom-testing-library': 8.14.0-rc.5(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.1)
+      '@rbxts/jest': 3.13.3-ts.1
+      '@rbxts/luau-polyfill': 1.1.3
+      '@rbxts/react': 17.3.7-ts.1
+      '@rbxts/react-roblox': 17.3.7-ts.1(@rbxts/react@17.3.7-ts.1)
 
   '@rbxts/react@17.3.7-ts.1':
     dependencies:

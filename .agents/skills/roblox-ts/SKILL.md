@@ -16,6 +16,12 @@ metadata:
 TypeScript-to-Luau transpiler for Roblox. This is "Roblox with TypeScript
 syntax", not full JavaScript - many JS APIs don't exist.
 
+## Repository Reality Checks
+
+Before relying on a package API in implementation plans or compile-critical code, verify the installed package surface in `node_modules` and not only an upstream/submodule source tree. In this workspace pattern, a package can exist in a submodule with richer source/types while the installed package surface available to the compiler differs.
+
+Also verify existing runtime entrypoints and generation workflows before replacing them. Roblox TS projects often wire discovery through generated files, so code plans must distinguish between files that should be edited directly and files that should be regenerated.
+
 ## Core References
 
 | Topic          | Description                                             | Reference                                                |

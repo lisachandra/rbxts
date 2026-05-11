@@ -23,6 +23,8 @@ catalog:
   "@rbxts/object-cache": 1.4.5
   "@rbxts/react": 17.3.7-ts.1
   "@rbxts/react-roblox": 17.3.7-ts.1
+  "@rbxts/react-roblox-fire": 0.1.4
+  "@rbxts/react-testing-library": 12.1.5-rc.5
   "@rbxts/rewire": 0.3.0
   "@rbxts/serio": 1.2.5
   "@rbxts/services": latest

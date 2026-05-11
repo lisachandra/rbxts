@@ -44,6 +44,7 @@ export const builtinPackage = definePackage({
 		// ── Server: Player lifecycle ──
 		{
 			name: "builtin:player",
+			kind: "template",
 			systems: [
 				{ key: "serverPlayerManager", system: serverPlayerManager },
 				{ key: "serverDocumentManager", system: serverDocumentManager },
@@ -53,6 +54,7 @@ export const builtinPackage = definePackage({
 		// ── Server: Items ──
 		{
 			name: "builtin:items",
+			kind: "template",
 			dependencies: ["builtin:player"],
 			systems: [
 				{ key: "serverItemManager", system: serverItemManager },
@@ -64,6 +66,7 @@ export const builtinPackage = definePackage({
 		// ── Server: Replication (depends on items + hotbar being set up) ──
 		{
 			name: "builtin:replication",
+			kind: "template",
 			dependencies: ["builtin:items"],
 			systems: [{ key: "serverReplicationManager", system: serverReplicationManager }],
 		},
@@ -71,6 +74,7 @@ export const builtinPackage = definePackage({
 		// ── Client: Network ──
 		{
 			name: "builtin:network",
+			kind: "template",
 			dependencies: ["builtin:replication"],
 			systems: [
 				{ key: "clientReplicationManager", system: clientReplicationManager },
@@ -81,6 +85,7 @@ export const builtinPackage = definePackage({
 		// ── Client: Items ──
 		{
 			name: "builtin:clientItems",
+			kind: "template",
 			dependencies: ["builtin:network", "builtin:items"],
 			systems: [
 				{ key: "clientItemManager", system: clientItemManager },
@@ -92,6 +97,7 @@ export const builtinPackage = definePackage({
 		// ── Sound (shared + server + client) ──
 		{
 			name: "builtin:sound",
+			kind: "template",
 			systems: [
 				{ key: "sharedSoundManager", system: sharedSoundManager },
 				{ key: "serverSoundManager", system: serverSoundManager },
@@ -103,6 +109,7 @@ export const builtinPackage = definePackage({
 		// ── World nodes (shared) ──
 		{
 			name: "builtin:world",
+			kind: "template",
 			systems: [{ key: "sharedNodeManager", system: sharedNodeManager }],
 		},
 	],

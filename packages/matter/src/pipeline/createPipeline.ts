@@ -3,6 +3,10 @@ import { SystemStruct } from "@rbxts/matter";
 
 type TSystem = SystemStruct<any>
 
+function isPipelineExtension(registration: PipelineExtension | SystemTemplate): registration is PipelineExtension {
+	return registration.kind === "extension";
+}
+
 function ensureUniqueKeys(systems: ReadonlyArray<TemplateSystem>, owner: string): void {
 	const seen = new Set<string>();
 	for (const { key } of systems) {
@@ -57,20 +61,20 @@ export function createPipeline(): PipelineBuilder {
 
 	return {
 		use(templateOrExtension) {
-			if ("dependencies" in templateOrExtension || "provides" in templateOrExtension) {
-				const template = templateOrExtension as SystemTemplate;
-				if (templates.has(template.name)) {
-					error(`Template '${template.name}' is already registered`);
-				}
-
-				ensureUniqueKeys(template.systems, template.name);
-				templates.set(template.name, template);
+			if (isPipelineExtension(templateOrExtension)) {
+				const extension = templateOrExtension;
+				ensureUniqueKeys(extension.systems, extension.name);
+				extensions.push(extension);
 				return this;
 			}
 
-			const extension = templateOrExtension as PipelineExtension;
-			ensureUniqueKeys(extension.systems, extension.name);
-			extensions.push(extension);
+			const template = templateOrExtension;
+			if (templates.has(template.name)) {
+				error(`Template '${template.name}' is already registered`);
+			}
+
+			ensureUniqueKeys(template.systems, template.name);
+			templates.set(template.name, template);
 			return this;
 		},
 

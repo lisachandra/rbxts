@@ -8,6 +8,7 @@ export interface TemplateSystem {
 }
 
 export interface SystemTemplate {
+	kind?: "template";
 	name: string;
 	systems: ReadonlyArray<TemplateSystem>;
 	dependencies?: ReadonlyArray<string>;
@@ -15,6 +16,7 @@ export interface SystemTemplate {
 }
 
 export interface PipelineExtension {
+	kind?: "extension";
 	name: string;
 	systems: ReadonlyArray<TemplateSystem>;
 }
@@ -27,7 +29,7 @@ export interface PipelineBuilder {
 
 export type PipelineRegistration = SystemTemplate | PipelineExtension;
 
-export interface TemplateFamily<TFamily extends string = string, TSystem = unknown> {
+export interface TemplateFamily<TFamily extends string = string> {
 	name: TFamily;
 	registrations: ReadonlyArray<PipelineRegistration>;
 }
