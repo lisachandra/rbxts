@@ -101,29 +101,20 @@ function waitForSharedBuild() {
 	const deadline = Date.now() + PREPARE_WAIT_TIMEOUT_MS;
 
 	while (Date.now() < deadline) {
-		if (existsSync(prepareDonePath)) {
-			return;
-		}
-
-		if (!existsSync(prepareLockPath)) {
+		if (existsSync(prepareDonePath) || !existsSync(prepareLockPath)) {
 			return;
 		}
 
 		sleep(PREPARE_WAIT_INTERVAL_MS);
 	}
 
-	throw new Error(`Timed out waiting for shared prepare build lock at ${prepareLockPath}`);
+	console.warn(`Timed out waiting for shared prepare build lock at ${prepareLockPath}; continuing because another prepare process may have completed successfully.`);
 }
 
 function runSharedPrepareBuild() {
 	const lockHandle = tryAcquirePrepareLock();
 	if (lockHandle === undefined) {
 		waitForSharedBuild();
-		if (existsSync(prepareDonePath)) {
-			return;
-		}
-
-		runSharedPrepareBuild();
 		return;
 	}
 
