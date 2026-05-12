@@ -2,7 +2,12 @@
 	"name": "@lisachandra/ui",
 	"version": "0.1.0",
 	"description": "Reusable React UI components, hooks, and hot reload helpers for @lisachandra",
-	"keywords": ["roblox", "rbxts", "react", "ui"],
+	"keywords": [
+		"roblox",
+		"rbxts",
+		"react",
+		"ui"
+	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
@@ -24,9 +29,14 @@
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
-	"files": ["out", "README.md", "default.project.json", "!**/*.tsbuildinfo"],
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"scripts": {
-		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
+		"prepare": "node ../../scripts/prepare.mjs",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
 		"clean": "shx rm -rf out"

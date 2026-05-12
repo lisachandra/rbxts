@@ -2,7 +2,12 @@
 	"name": "@lisachandra/matter",
 	"version": "0.1.0",
 	"description": "Matter runtime, hooks, components, and systems composition for @lisachandra",
-	"keywords": ["roblox", "rbxts", "matter", "ecs"],
+	"keywords": [
+		"roblox",
+		"rbxts",
+		"matter",
+		"ecs"
+	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
@@ -59,12 +64,17 @@
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
-	"files": ["out", "README.md", "default.project.json", "!**/*.tsbuildinfo"],
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"scripts": {
-		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
+		"prepare": "node ../../scripts/prepare.mjs",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
-		"clean": "shx rm -rf out"
+		"clean": "shx rm -rf out flamework.build"
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",

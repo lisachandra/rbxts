@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -31,6 +32,24 @@ function getOriginRemoteUrl(configContents) {
 	return urlMatch ? urlMatch[1].trim() : undefined;
 }
 
+function findRepoRoot(startDir) {
+	let currentDir = startDir;
+
+	while (true) {
+		const gitConfigPath = path.join(currentDir, ".git", "config");
+		if (existsSync(gitConfigPath)) {
+			return currentDir;
+		}
+
+		const parentDir = path.dirname(currentDir);
+		if (parentDir === currentDir) {
+			return undefined;
+		}
+
+		currentDir = parentDir;
+	}
+}
+
 function shouldSkipPrepareBuild() {
 	const gitConfigPath = findGitConfig(process.cwd());
 	if (!gitConfigPath) {
@@ -52,4 +71,32 @@ function shouldSkipPrepareBuild() {
 	return originUrl.includes(CANONICAL_REPO_FRAGMENT);
 }
 
-process.exit(shouldSkipPrepareBuild() ? 0 : 1);
+function getCurrentPackageName() {
+	const packageJsonPath = path.join(process.cwd(), "package.json");
+	const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+	if (!packageJson || typeof packageJson.name !== "string" || packageJson.name.length === 0) {
+		throw new Error(`Unable to determine package name from ${packageJsonPath}`);
+	}
+
+	return packageJson.name;
+}
+
+function main() {
+	if (shouldSkipPrepareBuild()) {
+		process.exit(0);
+	}
+
+	const repoRoot = findRepoRoot(process.cwd());
+	if (!repoRoot) {
+		process.exit(0);
+	}
+
+	const packageName = getCurrentPackageName();
+	execFileSync("node", ["./scripts/build.mjs", "--target", packageName], {
+		cwd: repoRoot,
+		stdio: "inherit",
+		env: process.env,
+	});
+}
+
+main();

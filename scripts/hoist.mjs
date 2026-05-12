@@ -58,15 +58,6 @@ function removePath(targetPath) {
 	fs.rmSync(targetPath, { recursive: true, force: true });
 }
 
-function getLinkType(sourcePath) {
-	const stats = fs.statSync(getLinkSourcePath(sourcePath));
-	if (stats.isDirectory()) {
-		return process.platform === "win32" ? "junction" : "dir";
-	}
-
-	return "file";
-}
-
 function ensureLink(sourcePath, targetPath) {
 	ensureDirectory(path.dirname(targetPath));
 
@@ -178,7 +169,6 @@ function getPnpmWorkspacePatterns() {
 
 	return patterns;
 }
-
 
 function getWorkspaceDirectories() {
 	const output = execFileSync("pnpm", ["list", "-r", "--depth", "-1", "--json"], {
@@ -362,10 +352,7 @@ function stageWorkspacePackage({ packageName, workspacePath, packageJson }) {
 	removePath(targetPath);
 	ensureDirectory(targetPath);
 
-	for (const relativePath of pruneNestedStageEntries(
-		workspacePath,
-		getStageEntriesForPackage(packageJson),
-	)) {
+	for (const relativePath of pruneNestedStageEntries(workspacePath, getStageEntriesForPackage(packageJson))) {
 		const sourcePath = path.join(workspacePath, relativePath);
 		if (!pathExists(sourcePath)) continue;
 
@@ -420,6 +407,46 @@ function syncPackageIntoWorkspace(workspacePath, dependencyName, workspaceMap) {
 	return true;
 }
 
+function parseCliArgs(argv) {
+	const options = { stage: [], relink: [] };
+	let mode = undefined;
+
+	for (const argument of argv) {
+		if (argument === "--stage") {
+			mode = "stage";
+			continue;
+		}
+
+		if (argument === "--relink") {
+			mode = "relink";
+			continue;
+		}
+
+		if (argument.startsWith("-")) {
+			continue;
+		}
+
+		if (mode === undefined) {
+			options.stage.push(argument);
+			options.relink.push(argument);
+			continue;
+		}
+
+		options[mode].push(argument);
+	}
+
+	return {
+		stage: [...new Set(options.stage)],
+		relink: [...new Set(options.relink)],
+	};
+}
+
+function filterWorkspacesByName(workspaces, packageNames) {
+	if (packageNames.length === 0) return workspaces;
+	const selectedNames = new Set(packageNames);
+	return workspaces.filter((workspace) => selectedNames.has(workspace.packageName));
+}
+
 function main() {
 	const npmrcPatterns = getPublicHoistPatterns();
 	const workspacePatterns = getPnpmWorkspacePatterns();
@@ -433,17 +460,27 @@ function main() {
 		return;
 	}
 
-	const workspaces = getWorkspaceDirectories();
-	if (workspaces.length === 0) {
+	const { stage: stageNames, relink: relinkNames } = parseCliArgs(process.argv.slice(2));
+	const allWorkspaces = getWorkspaceDirectories();
+	if (allWorkspaces.length === 0) {
 		console.warn("No workspace packages found to sync.");
 		return;
 	}
 
-	const workspaceMap = new Map(workspaces.map((workspace) => [workspace.packageName, workspace]));
-	buildWorkspaceStages(workspaces);
+	const workspacesToStage = filterWorkspacesByName(allWorkspaces, stageNames);
+	const workspacesToRelink = filterWorkspacesByName(allWorkspaces, relinkNames);
+	if (workspacesToStage.length === 0 && workspacesToRelink.length === 0) {
+		console.warn("No matching workspace packages found to sync.");
+		return;
+	}
+
+	const workspaceMap = new Map(allWorkspaces.map((workspace) => [workspace.packageName, workspace]));
+	if (workspacesToStage.length > 0) {
+		buildWorkspaceStages(workspacesToStage);
+	}
 
 	let totalLinked = 0;
-	for (const { packageName, workspacePath, packageJson } of workspaces) {
+	for (const { packageName, workspacePath, packageJson } of workspacesToRelink) {
 		ensureDirectory(path.join(workspacePath, "node_modules"));
 		const dependencyTree = readDependencyTree(packageName);
 		const directDependencyNames = getDirectDependencyNames(packageJson);
@@ -461,7 +498,9 @@ function main() {
 		console.log(`Synced ${linkedForWorkspace} hoisted packages into ${path.relative(rootDir, workspacePath)}`);
 	}
 
-	console.log(`Hoist sync complete: ${totalLinked} package links updated across ${workspaces.length} workspaces.`);
+	console.log(
+		`Hoist sync complete: staged ${workspacesToStage.length} workspace(s), relinked ${workspacesToRelink.length} workspace(s), updated ${totalLinked} package link(s).`,
+	);
 }
 
 main();
