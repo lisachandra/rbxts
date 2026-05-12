@@ -5,9 +5,6 @@ import { fileURLToPath } from "node:url";
 
 const CANONICAL_REPO_FRAGMENT = "lisachandra/rbxts";
 const PREPARE_LOCKFILE = ".prepare-build.lock";
-const PREPARE_DONEFILE = ".prepare-build.done";
-const PREPARE_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
-const PREPARE_WAIT_INTERVAL_MS = 200;
 
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
@@ -64,10 +61,6 @@ function isCanonicalRbxtsRepo() {
 	return originUrl.includes(CANONICAL_REPO_FRAGMENT);
 }
 
-function sleep(milliseconds) {
-	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-}
-
 function runScript(scriptRelativePath, args = []) {
 	execFileSync("node", [scriptRelativePath, ...args], {
 		cwd: repoRoot,
@@ -90,44 +83,14 @@ function tryAcquirePrepareLock() {
 	}
 }
 
-function releasePrepareLock(handle) {
-	closeSync(handle);
-	if (existsSync(prepareLockPath)) {
-		rmSync(prepareLockPath, { force: true });
-	}
-}
-
-function waitForSharedBuild() {
-	const deadline = Date.now() + PREPARE_WAIT_TIMEOUT_MS;
-
-	while (Date.now() < deadline) {
-		if (existsSync(prepareDonePath) || !existsSync(prepareLockPath)) {
-			return;
-		}
-
-		sleep(PREPARE_WAIT_INTERVAL_MS);
-	}
-
-	console.warn(`Timed out waiting for shared prepare build lock at ${prepareLockPath}; continuing because another prepare process may have completed successfully.`);
-}
-
 function runSharedPrepareBuild() {
 	const lockHandle = tryAcquirePrepareLock();
 	if (lockHandle === undefined) {
-		waitForSharedBuild();
+		console.warn("@lisachandra/rbxts: Lock already acquired (built)")
 		return;
 	}
 
-	try {
-		if (existsSync(prepareDonePath)) {
-			rmSync(prepareDonePath, { force: true });
-		}
-
-		runScript("./scripts/build.mjs", ["--scope", "all"]);
-		writeFileSync(prepareDonePath, `${Date.now()}\n`, "utf8");
-	} finally {
-		releasePrepareLock(lockHandle);
-	}
+	runScript("./scripts/build.mjs", ["--scope", "all"]);
 }
 
 function main() {
