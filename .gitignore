@@ -254,6 +254,7 @@ x64/
 Release/
 Debug
 out/
+.workspace-links/
 *.obj
 *.lib
 *.exe

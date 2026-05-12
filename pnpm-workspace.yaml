@@ -62,6 +62,13 @@ saveExact: true
 shellEmulator: true
 trustPolicy: no-downgrade
 
+publicHoistPattern:
+  - "*@rbxts*"
+  - "*@lisachandra*"
+  - "*@flamework*"
+  - "*@rbxts-js*"
+  - "*eslint*"
+
 trustPolicyExclude:
   - eslint-config-prettier@9.1.2
   - semver@5.7.2

@@ -69,7 +69,7 @@
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
-	"files": ["out", "default.project.json", "!**/*.tsbuildinfo"],
+	"files": ["out", "README.md", "default.project.json", "!**/*.tsbuildinfo"],
 	"scripts": {
 		"prepare": "node ../../scripts/prepare.mjs || pnpm run build",
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",

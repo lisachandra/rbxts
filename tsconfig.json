@@ -12,6 +12,7 @@
 			"../@rbxts/compiler-types",
 			"../@lisachandra/types",
 		],
+		"preserveSymlinks": true,
 		"exactOptionalPropertyTypes": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"declaration": true,
