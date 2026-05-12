@@ -70,6 +70,10 @@ function runScript(scriptRelativePath, args = []) {
 
 function tryAcquirePrepareLock() {
 	try {
+		if (existsSync(prepareLockPath)) {
+			return undefined
+		}
+
 		const handle = openSync(prepareLockPath, "wx");
 		writeFileSync(handle, `${process.pid}\n`, "utf8");
 		return handle;
