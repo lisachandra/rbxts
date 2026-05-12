@@ -15,7 +15,7 @@
 		"dev:test": "pnpm --filter --parallel \"./test/**\" dev",
 		"release": "pnpm -r publish --access=public && changeset tag",
 		"version": "changeset version",
-		"postinstall": "node ./scripts/hoist.mjs"
+		"postinstall": "node ./scripts/hoist.mjs && node ./scripts/prepare.mjs"
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",

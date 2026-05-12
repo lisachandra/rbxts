@@ -1,8 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const CANONICAL_REPO_FRAGMENT = "lisachandra/rbxts";
+const scriptPath = fileURLToPath(import.meta.url);
+const scriptDir = path.dirname(scriptPath);
+const repoRoot = path.dirname(scriptDir);
 
 function findGitConfig(startDir) {
 	let currentDir = startDir;
@@ -32,7 +36,7 @@ function getOriginRemoteUrl(configContents) {
 	return urlMatch ? urlMatch[1].trim() : undefined;
 }
 
-function shouldSkipPrepareBuild() {
+function isCanonicalRbxtsRepo() {
 	const gitConfigPath = findGitConfig(process.cwd());
 	if (!gitConfigPath) {
 		return false;
@@ -63,16 +67,30 @@ function getCurrentPackageName() {
 	return packageJson.name;
 }
 
-function main() {
-	if (shouldSkipPrepareBuild()) {
-		process.exit(0);
-	}
+function isRepoRoot(targetPath) {
+	return path.resolve(targetPath) === path.resolve(repoRoot);
+}
 
-	const packageName = getCurrentPackageName();
-	execFileSync("node", ["../../scripts/build.mjs", "--target", packageName], {
+function runScript(scriptRelativePath, args = []) {
+	execFileSync("node", [scriptRelativePath, ...args], {
+		cwd: repoRoot,
 		stdio: "inherit",
 		env: process.env,
 	});
+}
+
+function main() {
+	if (isCanonicalRbxtsRepo()) {
+		return;
+	}
+
+	if (isRepoRoot(process.cwd())) {
+		runScript("./scripts/build.mjs", ["--scope", "all"]);
+		return;
+	}
+
+	const packageName = getCurrentPackageName();
+	runScript("./scripts/build.mjs", ["--target", packageName]);
 }
 
 main();
