@@ -4,6 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"prepare": "node ./scripts/prepare.mjs",
 		"test": "COLUMNS=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)} FORCE_COLOR=1 pnpm -r --parallel --stream test",
 		"dev": "pnpm -r --parallel run dev",
 		"clean": "pnpm --parallel run clean",
@@ -15,7 +16,7 @@
 		"dev:test": "pnpm --filter --parallel \"./test/**\" dev",
 		"release": "pnpm -r publish --access=public && changeset tag",
 		"version": "changeset version",
-		"postinstall": "node ./scripts/hoist.mjs && node ./scripts/prepare.mjs"
+		"postinstall": "node ./scripts/hoist.mjs"
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
