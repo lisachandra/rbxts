@@ -10,7 +10,6 @@ const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
 const repoRoot = path.dirname(scriptDir);
 const prepareLockPath = path.join(repoRoot, PREPARE_LOCKFILE);
-const prepareDonePath = path.join(repoRoot, PREPARE_DONEFILE);
 
 function findGitConfig(startDir) {
 	let currentDir = startDir;
