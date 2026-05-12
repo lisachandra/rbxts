@@ -1,12 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, openSync, readFileSync, rmSync, closeSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CANONICAL_REPO_FRAGMENT = "lisachandra/rbxts";
+const PREPARE_LOCKFILE = ".prepare-build.lock";
+const PREPARE_DONEFILE = ".prepare-build.done";
+const PREPARE_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+const PREPARE_WAIT_INTERVAL_MS = 200;
+
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
 const repoRoot = path.dirname(scriptDir);
+const prepareLockPath = path.join(repoRoot, PREPARE_LOCKFILE);
+const prepareDonePath = path.join(repoRoot, PREPARE_DONEFILE);
 
 function findGitConfig(startDir) {
 	let currentDir = startDir;
@@ -57,18 +64,8 @@ function isCanonicalRbxtsRepo() {
 	return originUrl.includes(CANONICAL_REPO_FRAGMENT);
 }
 
-function getCurrentPackageName() {
-	const packageJsonPath = path.join(process.cwd(), "package.json");
-	const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-	if (!packageJson || typeof packageJson.name !== "string" || packageJson.name.length === 0) {
-		throw new Error(`Unable to determine package name from ${packageJsonPath}`);
-	}
-
-	return packageJson.name;
-}
-
-function isRepoRoot(targetPath) {
-	return path.resolve(targetPath) === path.resolve(repoRoot);
+function sleep(milliseconds) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 function runScript(scriptRelativePath, args = []) {
@@ -79,18 +76,75 @@ function runScript(scriptRelativePath, args = []) {
 	});
 }
 
+function tryAcquirePrepareLock() {
+	try {
+		const handle = openSync(prepareLockPath, "wx");
+		writeFileSync(handle, `${process.pid}\n`, "utf8");
+		return handle;
+	} catch (error) {
+		if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
+function releasePrepareLock(handle) {
+	closeSync(handle);
+	if (existsSync(prepareLockPath)) {
+		rmSync(prepareLockPath, { force: true });
+	}
+}
+
+function waitForSharedBuild() {
+	const deadline = Date.now() + PREPARE_WAIT_TIMEOUT_MS;
+
+	while (Date.now() < deadline) {
+		if (existsSync(prepareDonePath)) {
+			return;
+		}
+
+		if (!existsSync(prepareLockPath)) {
+			return;
+		}
+
+		sleep(PREPARE_WAIT_INTERVAL_MS);
+	}
+
+	throw new Error(`Timed out waiting for shared prepare build lock at ${prepareLockPath}`);
+}
+
+function runSharedPrepareBuild() {
+	const lockHandle = tryAcquirePrepareLock();
+	if (lockHandle === undefined) {
+		waitForSharedBuild();
+		if (existsSync(prepareDonePath)) {
+			return;
+		}
+
+		runSharedPrepareBuild();
+		return;
+	}
+
+	try {
+		if (existsSync(prepareDonePath)) {
+			rmSync(prepareDonePath, { force: true });
+		}
+
+		runScript("./scripts/build.mjs", ["--scope", "all"]);
+		writeFileSync(prepareDonePath, `${Date.now()}\n`, "utf8");
+	} finally {
+		releasePrepareLock(lockHandle);
+	}
+}
+
 function main() {
 	if (isCanonicalRbxtsRepo()) {
-		return;
+		process.exit(0);
 	}
 
-	if (isRepoRoot(process.cwd())) {
-		runScript("./scripts/build.mjs", ["--scope", "all"]);
-		return;
-	}
-
-	const packageName = getCurrentPackageName();
-	runScript("./scripts/build.mjs", ["--target", packageName]);
+	runSharedPrepareBuild();
 }
 
 main();
