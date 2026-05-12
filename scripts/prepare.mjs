@@ -32,24 +32,6 @@ function getOriginRemoteUrl(configContents) {
 	return urlMatch ? urlMatch[1].trim() : undefined;
 }
 
-function findRepoRoot(startDir) {
-	let currentDir = startDir;
-
-	while (true) {
-		const gitConfigPath = path.join(currentDir, ".git", "config");
-		if (existsSync(gitConfigPath)) {
-			return currentDir;
-		}
-
-		const parentDir = path.dirname(currentDir);
-		if (parentDir === currentDir) {
-			return undefined;
-		}
-
-		currentDir = parentDir;
-	}
-}
-
 function shouldSkipPrepareBuild() {
 	const gitConfigPath = findGitConfig(process.cwd());
 	if (!gitConfigPath) {
@@ -86,14 +68,8 @@ function main() {
 		process.exit(0);
 	}
 
-	const repoRoot = findRepoRoot(process.cwd());
-	if (!repoRoot) {
-		process.exit(0);
-	}
-
 	const packageName = getCurrentPackageName();
-	execFileSync("node", ["./scripts/build.mjs", "--target", packageName], {
-		cwd: repoRoot,
+	execFileSync("node", ["../../scripts/build.mjs", "--target", packageName], {
 		stdio: "inherit",
 		env: process.env,
 	});
