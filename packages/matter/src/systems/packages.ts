@@ -46,8 +46,8 @@ export const builtinPackage = definePackage({
 			name: "builtin:player",
 			kind: "template",
 			systems: [
-				{ key: "serverPlayerManager", system: serverPlayerManager },
-				{ key: "serverDocumentManager", system: serverDocumentManager },
+				{ key: "serverPlayerManager", runtime: "server", system: serverPlayerManager },
+				{ key: "serverDocumentManager", runtime: "server", system: serverDocumentManager },
 			],
 		},
 
@@ -57,9 +57,9 @@ export const builtinPackage = definePackage({
 			kind: "template",
 			dependencies: ["builtin:player"],
 			systems: [
-				{ key: "serverItemManager", system: serverItemManager },
-				{ key: "serverToolManager", system: serverToolManager },
-				{ key: "serverHotbarManager", system: serverHotbarManager },
+				{ key: "serverItemManager", runtime: "server", system: serverItemManager },
+				{ key: "serverToolManager", runtime: "server", system: serverToolManager },
+				{ key: "serverHotbarManager", runtime: "server", system: serverHotbarManager },
 			],
 		},
 
@@ -68,7 +68,7 @@ export const builtinPackage = definePackage({
 			name: "builtin:replication",
 			kind: "template",
 			dependencies: ["builtin:items"],
-			systems: [{ key: "serverReplicationManager", system: serverReplicationManager }],
+			systems: [{ key: "serverReplicationManager", runtime: "server", system: serverReplicationManager }],
 		},
 
 		// ── Client: Network ──
@@ -77,8 +77,8 @@ export const builtinPackage = definePackage({
 			kind: "template",
 			dependencies: ["builtin:replication"],
 			systems: [
-				{ key: "clientReplicationManager", system: clientReplicationManager },
-				{ key: "clientStreamer", system: clientStreamer },
+				{ key: "clientReplicationManager", runtime: "client", system: clientReplicationManager },
+				{ key: "clientStreamer", runtime: "client", system: clientStreamer },
 			],
 		},
 
@@ -88,9 +88,9 @@ export const builtinPackage = definePackage({
 			kind: "template",
 			dependencies: ["builtin:network", "builtin:items"],
 			systems: [
-				{ key: "clientItemManager", system: clientItemManager },
-				{ key: "clientToolManager", system: clientToolManager },
-				{ key: "clientHotbarSynchronizer", system: clientHotbarSynchronizer },
+				{ key: "clientItemManager", runtime: "client", system: clientItemManager },
+				{ key: "clientToolManager", runtime: "client", system: clientToolManager },
+				{ key: "clientHotbarSynchronizer", runtime: "client", system: clientHotbarSynchronizer },
 			],
 		},
 
@@ -99,10 +99,10 @@ export const builtinPackage = definePackage({
 			name: "builtin:sound",
 			kind: "template",
 			systems: [
-				{ key: "sharedSoundManager", system: sharedSoundManager },
-				{ key: "serverSoundManager", system: serverSoundManager },
-				{ key: "clientSoundManager", system: clientSoundManager },
-				{ key: "clientSoundRenderer", system: clientSoundRenderer },
+				{ key: "sharedSoundManager", runtime: "shared", system: sharedSoundManager },
+				{ key: "serverSoundManager", runtime: "server", system: serverSoundManager },
+				{ key: "clientSoundManager", runtime: "client", system: clientSoundManager },
+				{ key: "clientSoundRenderer", runtime: "client", system: clientSoundRenderer },
 			],
 		},
 
@@ -110,7 +110,7 @@ export const builtinPackage = definePackage({
 		{
 			name: "builtin:world",
 			kind: "template",
-			systems: [{ key: "sharedNodeManager", system: sharedNodeManager }],
+			systems: [{ key: "sharedNodeManager", runtime: "shared", system: sharedNodeManager }],
 		},
 	],
 });

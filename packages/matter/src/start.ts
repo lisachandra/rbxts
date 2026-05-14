@@ -1,6 +1,6 @@
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, System } from "@rbxts/matter";
-import { Loop, World } from "@rbxts/matter";
+import { Debugger, Loop, World } from "@rbxts/matter";
 import { RunService } from "@rbxts/services";
 
 import type { ClientState, ServerState } from "@lisachandra/core/out/store";
@@ -11,6 +11,7 @@ import { bindSimulationPhaseEvents, customPhases, renderPriorityPhaseEvents } fr
 import { getComponentObject } from "./utils/entity";
 import type { Collection } from "@rbxts/lapis";
 import { Janitor } from "@rbxts/janitor";
+import Plasma from "@rbxts/plasma";
 
 export type AnySystem = System<Array<unknown>>;
 export type SystemContainer = {
@@ -113,14 +114,17 @@ export interface InputAdapter {
 }
 
 export interface RuntimeAdapters {
-	authorize?: (player: Player) => Promise<boolean>;
-	findInstanceFromEntity?: (world: World, entityId: AnyEntity) => N<Instance>;
+	authorize: (player: Player) => Promise<boolean>;
+	findInstanceFromEntity: (entityId: AnyEntity) => N<Instance>;
 	playerLifecycle?: PlayerLifecycleHooks;
 	hotbarInputAdapter?: InputAdapter;
 	document?: DocumentConfig;
 }
 
-const runtimeAdapters: RuntimeAdapters = {};
+const runtimeAdapters: RuntimeAdapters = {
+	authorize: () => Promise.resolve(true),
+	findInstanceFromEntity: (entityId) => undefined,
+};
 
 export function configureRuntimeAdapters(adapters: RuntimeAdapters): void {
 	if (adapters.authorize) {
@@ -169,12 +173,12 @@ export function getDocumentConfig(): N<DocumentConfig> {
 
 
 
-export function findInstanceFromEntity(world: World, entityId: AnyEntity): N<Instance> {
+export function findInstanceFromEntity(entityId: AnyEntity): N<Instance> {
 	if (runtimeAdapters.findInstanceFromEntity) {
-		return runtimeAdapters.findInstanceFromEntity(world, entityId);
+		return runtimeAdapters.findInstanceFromEntity(entityId);
 	}
 
-	return getComponentObject(getEntityInstanceComponent(world, entityId));
+	return getComponentObject(getEntityInstanceComponent(store.world, entityId));
 }
 
 export async function isAuthorized(player: Player): Promise<boolean> {
@@ -222,7 +226,12 @@ export function start(
 	options: StartOptions = {},
 ): { world: World; crate: Crate<ClientState | ServerState>; loop: Loop<any> } {
 	const world = new World();
-	const loop = new Loop(world, store.shared, options.containers ?? []);
+	const worldDebugger = new Debugger(Plasma);
+	const loop = new Loop(world, store.shared, worldDebugger.getWidgets());
+
+	worldDebugger.loopParameterNames = ["World", "Crate", "Widgets"];
+	worldDebugger.findInstanceFromEntity = (entityId) => runtimeAdapters.findInstanceFromEntity(entityId)
+	worldDebugger.authorize = (player) => runtimeAdapters.authorize(player).expect();
 
 	store.world = world;
 	loop.setWorlds({ world });

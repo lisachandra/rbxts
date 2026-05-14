@@ -1,5 +1,6 @@
 import type { PipelineBuilder, PipelineExtension, SystemTemplate, TemplateSystem, } from "./types";
 import { SystemStruct } from "@rbxts/matter";
+import { RunService } from "@rbxts/services";
 
 type TSystem = SystemStruct<any>
 
@@ -17,6 +18,15 @@ function ensureUniqueKeys(systems: ReadonlyArray<TemplateSystem>, owner: string)
 		seen.add(key);
 	}
 }
+
+function runtimeMatches(runtime?: TemplateSystem["runtime"]): boolean {
+	return runtime === undefined || runtime === "shared"
+		? true
+		: runtime === "client"
+			? RunService.IsClient()
+			: RunService.IsServer();
+}
+
 
 export function createPipeline(): PipelineBuilder {
 	const templates = new Map<string, SystemTemplate>();
@@ -89,8 +99,13 @@ export function createPipeline(): PipelineBuilder {
 
 			for (const template of ordered) {
 				for (const entry of template.systems) {
+					if (!runtimeMatches(entry.runtime)) {
+						continue;
+					}
+
 					allSystems.push({
 						key: entry.key,
+						runtime: entry.runtime,
 						system: overrides.get(entry.key) ?? entry.system,
 					});
 				}
@@ -98,8 +113,13 @@ export function createPipeline(): PipelineBuilder {
 
 			for (const extension of extensions) {
 				for (const entry of extension.systems) {
+					if (!runtimeMatches(entry.runtime)) {
+						continue;
+					}
+
 					allSystems.push({
 						key: entry.key,
+						runtime: entry.runtime,
 						system: overrides.get(entry.key) ?? entry.system,
 					});
 				}

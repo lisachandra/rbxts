@@ -2,8 +2,11 @@ import { SystemStruct } from "@rbxts/matter";
 
 type TSystem = SystemStruct<any>
 
+export type PipelineRuntime = "client" | "server" | "shared";
+
 export interface TemplateSystem {
 	key: string;
+	runtime?: PipelineRuntime;
 	system: TSystem;
 }
 
