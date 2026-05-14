@@ -114,17 +114,17 @@ export interface InputAdapter {
 }
 
 export interface RuntimeAdapters {
-	authorize: (player: Player) => Promise<boolean>;
-	findInstanceFromEntity: (entityId: AnyEntity) => N<Instance>;
+	authorize?: (player: Player) => Promise<boolean>;
+	findInstanceFromEntity?: (entityId: AnyEntity) => N<Instance>;
 	playerLifecycle?: PlayerLifecycleHooks;
 	hotbarInputAdapter?: InputAdapter;
 	document?: DocumentConfig;
 }
 
-const runtimeAdapters: RuntimeAdapters = {
+const runtimeAdapters = {
 	authorize: () => Promise.resolve(true),
 	findInstanceFromEntity: (entityId) => undefined,
-};
+} satisfies RuntimeAdapters as RuntimeAdapters;
 
 export function configureRuntimeAdapters(adapters: RuntimeAdapters): void {
 	if (adapters.authorize) {
@@ -230,8 +230,8 @@ export function start(
 	const loop = new Loop(world, store.shared, worldDebugger.getWidgets());
 
 	worldDebugger.loopParameterNames = ["World", "Crate", "Widgets"];
-	worldDebugger.findInstanceFromEntity = (entityId) => runtimeAdapters.findInstanceFromEntity(entityId)
-	worldDebugger.authorize = (player) => runtimeAdapters.authorize(player).expect();
+	worldDebugger.findInstanceFromEntity = (entityId) => runtimeAdapters.findInstanceFromEntity!(entityId)
+	worldDebugger.authorize = (player) => runtimeAdapters.authorize!(player).expect();
 
 	store.world = world;
 	loop.setWorlds({ world });

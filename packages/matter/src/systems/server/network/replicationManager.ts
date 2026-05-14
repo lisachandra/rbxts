@@ -62,14 +62,21 @@ function serializeSingleComponent(
 		return;
 	}
 
-	const [success, serialized] = pcall(
-		codec.serializer,
-		record,
-		viewerEntityId,
-		targetEntityId,
-		mode === "owner",
-		hasReceivedPayload,
-	);
+	const [success, serialized] = pcall(() => {
+		const serialized = codec.serializer(
+			record,
+			viewerEntityId,
+			targetEntityId,
+			mode === "owner",
+			hasReceivedPayload
+		)
+
+		if ((serialized as unknown) === undefined) {
+			return;
+		}
+
+		return codec.payloadSerializer.serialize(serialized);
+	});
 
 	if (!success) {
 		Log.Error(
@@ -79,11 +86,7 @@ function serializeSingleComponent(
 		return;
 	}
 
-	if ((serialized as unknown) === undefined) {
-		return;
-	}
-
-	return codec.payloadSerializer.serialize(serialized);
+	return serialized;
 }
 
 function setComponentPayload(

@@ -10,7 +10,7 @@ type ReplaceNumbers<T, Replacement> = { [K in keyof T]: T[K] extends number ? Re
  * @remarks
  * Numeric fields in {@link Force} are replaced with `u32` for serialization.
  */
-export type ForcesPayload = Omit<Components["Forces"], "forces"> & {
+export type ForcesPayload = Partial<Omit<Components["Forces"], "forces">> & {
 	forces: Array<{
 		force: ReplaceNumbers<Force, u32>
 		time: u32

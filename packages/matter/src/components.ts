@@ -137,5 +137,5 @@ registerComponent("Hotbar", component<Components["Hotbar"]>("Hotbar", { items: [
 registerComponent("Stream", component<Components["Stream"]>("Stream"));
 registerComponent("Sound", component<Components["Sound"]>("Sound"));
 registerComponent("Node", component<Components["Node"]>("Node"));
-registerComponent("Forces", component<Components["Forces"]>("Forces"));
+registerComponent("Forces", component<Components["Forces"]>("Forces", { forces: [] } as never));
 registerComponent("ReplicationScope", component<Components["ReplicationScope"]>("ReplicationScope"));
