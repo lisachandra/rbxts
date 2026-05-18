@@ -171,8 +171,6 @@ export function getDocumentConfig(): N<DocumentConfig> {
 	return runtimeAdapters.document;
 }
 
-
-
 export function findInstanceFromEntity(entityId: AnyEntity): N<Instance> {
 	if (runtimeAdapters.findInstanceFromEntity) {
 		return runtimeAdapters.findInstanceFromEntity(entityId);
@@ -224,7 +222,7 @@ export interface StartOptions {
 
 export function start(
 	options: StartOptions = {},
-): { world: World; crate: Crate<ClientState | ServerState>; loop: Loop<any> } {
+): { world: World; crate: Crate<ClientState | ServerState>; loop: Loop<any>; debugger: InstanceType<typeof Debugger> } {
 	const world = new World();
 	const worldDebugger = new Debugger(Plasma);
 	const loop = new Loop(world, store.shared, worldDebugger.getWidgets());
@@ -234,6 +232,7 @@ export function start(
 	worldDebugger.authorize = (player) => runtimeAdapters.authorize!(player).expect();
 
 	store.world = world;
+	worldDebugger.autoInitialize(loop);
 	loop.setWorlds({ world });
 	loop.scheduleSystems(options.systems ?? []);
 
@@ -259,5 +258,5 @@ export function start(
 
 	loop.begin(phases);
 
-	return { world, crate: store.shared, loop };
+	return { world, crate: store.shared, loop, debugger: worldDebugger };
 }

@@ -21,6 +21,14 @@ import { Message, messaging, registry } from "../../../network";
 
 const hasReceived: Array<Player> = [];
 
+let internalDebugging = false;
+
+function debugPrint(message: string): void {
+	if (internalDebugging) {
+		print(message);
+	}
+}
+
 type Payload = Record<
 	string,
 	{
@@ -73,6 +81,10 @@ function serializeSingleComponent(
 
 		if ((serialized as unknown) === undefined) {
 			return;
+		}
+
+		if (!codec.payloadGuard(serialized)) {
+			throw `Generated invalid replication payload for ${componentKey}`;
 		}
 
 		return codec.payloadSerializer.serialize(serialized);
@@ -168,13 +180,17 @@ function handleInitialReplication(
 	loaded: Array<Player>,
 ): void {
 	for (const [componentEntityId, profile] of world.query(getComponent("Profile"))) {
+		debugPrint(`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))} loaded=${tostring(loaded.includes(profile.player))}`);
 		const playerHasReceived = hasReceived.includes(profile.player);
 
-		if (playerHasReceived && !loaded.includes(profile.player)) {
+		const shouldInitialReplicate = playerHasReceived && !loaded.includes(profile.player);
+		if (!shouldInitialReplicate) {
+			debugPrint(`[server replication] skip initial ${profile.player.Name}`);
 			continue;
 		}
 
 		messaging.client.emit(profile.player, Message.ItemGUIDMap, crate.getState("itemGUIDMap"));
+		debugPrint(`[server replication] initial ${profile.player.Name}`);
 		initialized.push(profile.player);
 
 		if (!playerHasReceived) {
@@ -183,6 +199,7 @@ function handleInitialReplication(
 		}
 
 		for (const [componentKey] of registry.entries()) {
+			debugPrint(`[server replication] iter codec ${profile.player.Name} ${componentKey}`);
 			for (const [targetEntityId] of world) {
 				replicateComponentForPlayer(
 					world,
@@ -216,6 +233,7 @@ function handleComponentChanges(
 					continue;
 				}
 
+				debugPrint(`[server replication] change ${profile.player.Name} ${componentKey} ${targetEntityId}`);
 				setComponentPayload(
 					profile.player,
 					viewerEntityId,
@@ -243,7 +261,7 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 
 	for (const [player, payloadContainer] of payloads) {
 		if (initialized.includes(player)) {
-			Log.Info("sending initial payload to:", player, payloadContainer);
+			print(`sending initial payload to: ${player}`, payloadContainer);
 		}
 
 		for (const [strEntityId, componentMap] of iterate(payloadContainer)) {
@@ -260,8 +278,9 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 					continue;
 				}
 
+				debugPrint(`[server replication] send component ${player.Name} ${componentKey}#${codec.id} ${entityId}`);
 				messaging.client.emit(player, Message.Component, {
-					componentKey: componentKey as string,
+					componentId: codec.id,
 					payload: typeIs(payload?.payload, "buffer") ? {
 						buf: payload.payload
 					} : payload?.payload,
@@ -270,11 +289,14 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 			}
 
 			messaging.client.emit(player, Message.SpawnEntity, entityId);
+			debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
 		}
 	}
 }
 
-function system(world: World, crate: Crate<ServerState>): void {
+function system(world: World, crate: Crate<ServerState>, ui: DebugWidgets): void {
+	internalDebugging = ui.checkbox("Trace server replication internals").checked();
+
 	const payloads = new Map<Player, Payload>();
 	const initialized: Array<Player> = [];
 	const loaded: Array<Player> = [];
@@ -283,11 +305,12 @@ function system(world: World, crate: Crate<ServerState>): void {
 	// On server, we listen via messaging.server to receive from clients.
 	// Tether server callback receives (player, data) -> yields [index, player, data].
 	for (const [_, player] of useMessage(messaging.server, Message.Loaded)) {
-		if (!hasReceived.includes(player!)) {
+		if (!hasReceived.includes(player) || loaded.includes(player!)) {
 			continue;
 		}
 
 		loaded.push(player!);
+		debugPrint(`[server replication] loaded ${player!.Name}`);
 	}
 
 	handleInitialReplication(world, crate, payloads, initialized, loaded);

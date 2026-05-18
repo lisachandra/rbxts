@@ -2,7 +2,6 @@ import { registry } from "../registry";
 import { Components, getComponent, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
-import createSerializer from "@rbxts/serio";
 
 /**
  * Payload structure for replicating the {@link Components.Inventory} component.
@@ -15,7 +14,6 @@ const lastReplicatedItems: Record<string, Array<Item>> = {};
 
 registry.register<Components["Inventory"], InventoryPayload>({
 	component: getComponent("Inventory"),
-	serdes: createSerializer<InventoryPayload>(),
 	mode: "owner",
 	serializer: (record, _playerEntityId, componentEntityId) => {
 		const key = `${componentEntityId}`;

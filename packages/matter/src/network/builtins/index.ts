@@ -1,3 +1,4 @@
+// Ensure builtin codecs execute registration side effects on module load.
 export * from "./item";
 export * from "./profile";
 export * from "./sound";

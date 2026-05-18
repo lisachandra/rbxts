@@ -1,4 +1,5 @@
-import type { Serializer } from "@rbxts/serio";
+import type { Modding } from "@flamework/core";
+import createSerializer, { type Serializer, type SerializerMetadata, type StripMeta } from "@rbxts/serio";
 
 import type { AnyEntity, Component } from "@rbxts/matter";
 import type { ChangeRecord } from "../components";
@@ -15,6 +16,33 @@ export type ReplicationComponentKey<TComponents, TReplication> =
 	keyof TComponents & keyof TReplication;
 
 /**
+ * Represents a runtime type guard.
+ *
+ * @typeParam T - The guarded value type.
+ *
+ * @param value - The value to validate.
+ * @returns Whether the value matches `T`.
+ */
+export type Guard<T = unknown> = (value: unknown) => value is T;
+
+/**
+ * Describes Flamework-generated replication metadata for a codec registration.
+ *
+ * @typeParam TComponent - The replicated component type.
+ * @typeParam TPayload - The serialized payload type.
+ */
+export interface ReplicationCodecMetadata<
+	TComponent extends object = object,
+	TPayload extends object = object,
+> {
+	readonly componentGuard: Modding.Generic<StripMeta<TComponent>, "guard">;
+	readonly payload: {
+		readonly guard: Modding.Generic<StripMeta<TPayload>, "guard">;
+		readonly serializerMetadata: SerializerMetadata<TPayload>;
+	};
+}
+
+/**
  * Serializes a component change record into a payload for network replication.
  *
  * @typeParam TComponent - The component type being serialized.
@@ -29,7 +57,7 @@ export type ReplicationComponentKey<TComponents, TReplication> =
  */
 export type ServerSerializerFn<
 	TComponent extends object = object,
-	TPayload extends object = object
+	TPayload extends object = object,
 > = (
 	record: ChangeRecord<TComponent>,
 	playerEntityId: AnyEntity,
@@ -51,7 +79,7 @@ export type ServerSerializerFn<
  */
 export type ClientDeserializerFn<
 	TComponent extends object = object,
-	TPayload extends object = object
+	TPayload extends object = object,
 > = (
 	data: TPayload,
 	serverEntityId: AnyEntity,
@@ -75,13 +103,12 @@ export type ReplicationMode = "all" | "owner";
  */
 export interface ReplicationCodecRegistration<
 	TComponent extends object = object,
-	TPayload extends object = object
+	TPayload extends object = object,
 > {
-	component: () => Component<TComponent>
+	component: () => Component<TComponent>;
 	deserializer: ClientDeserializerFn<TComponent, TPayload>;
 	mode?: ReplicationMode;
 	serializer: ServerSerializerFn<TComponent, TPayload>;
-	serdes?: Serializer<TPayload>;
 	unreliable?: boolean;
 }
 
@@ -93,14 +120,17 @@ export interface ReplicationCodecRegistration<
  *
  * @remarks
  * Extends {@link ReplicationCodecRegistration} with resolved defaults such as
- * `componentKey`, `mode`, `payloadSerializer`, and `unreliable`.
+ * `componentKey`, `payloadSerializer`, generated guards, and `unreliable`.
  */
 export interface ReplicationCodec<
 	TComponent extends object = object,
-	TPayload extends object = object
+	TPayload extends object = object,
 > extends ReplicationCodecRegistration<TComponent, TPayload> {
+	componentGuard: Guard<TComponent>;
 	componentKey: string;
+	id: number;
 	mode: ReplicationMode;
+	payloadGuard: Guard<TPayload>;
 	payloadSerializer: Serializer<TPayload>;
 	unreliable: boolean;
 }
@@ -111,11 +141,14 @@ export interface ReplicationCodec<
 export interface ReplicationCodecRegistry {
 	entries(): ReadonlyMap<string, ReplicationCodec<any, any>>;
 	get(key: string): ReplicationCodec<any, any> | undefined;
+	getById(id: number): ReplicationCodec<any, any> | undefined;
+	/** @metadata macro */
 	register<
 		TComponent extends object = object,
-		TPayload extends object = object
+		TPayload extends object = object,
 	>(
-		registration: ReplicationCodecRegistration<TComponent, TPayload>
+		registration: ReplicationCodecRegistration<TComponent, TPayload>,
+		meta?: Modding.Many<ReplicationCodecMetadata<TComponent, TPayload>>,
 	): ReplicationCodec<TComponent, TPayload>;
 }
 
@@ -126,6 +159,8 @@ export interface ReplicationCodecRegistry {
  */
 export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 	const codecs = new Map<string, ReplicationCodec<any, any>>();
+	const codecsById = new Map<number, ReplicationCodec<any, any>>();
+	let nextCodecId = 0;
 
 	return {
 		entries() {
@@ -134,23 +169,35 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 		get(key) {
 			return codecs.get(key);
 		},
+		getById(id) {
+			return codecsById.get(id);
+		},
+		/** @metadata macro */
 		register<
 			TComponent extends object = object,
-			TPayload extends object = object
+			TPayload extends object = object,
 		>(
-			registration: ReplicationCodecRegistration<TComponent, TPayload>
+			registration: ReplicationCodecRegistration<TComponent, TPayload>,
+			meta?: Modding.Many<ReplicationCodecMetadata<TComponent, TPayload>>,
 		) {
+			assert(meta !== undefined, "Flamework failed to generate replication codec metadata");
+
 			const componentKey = tostring(registration.component);
 			const codec = {
 				...registration,
+				componentGuard: meta.componentGuard,
 				componentKey,
+				id: nextCodecId,
 				mode: registration.mode ?? "all",
-				payloadSerializer: registration.serdes,
+				payloadGuard: meta.payload.guard,
+				payloadSerializer: createSerializer(meta.payload.serializerMetadata as never),
 				unreliable: registration.unreliable ?? false,
 			} as ReplicationCodec<TComponent, TPayload>;
 
+			nextCodecId += 1;
 			codecs.set(componentKey, codec);
-			return codec
+			codecsById.set(codec.id, codec);
+			return codec;
 		},
 	};
 }

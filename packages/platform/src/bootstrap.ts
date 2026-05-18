@@ -74,10 +74,7 @@ export interface BootstrapBoundary {
  * Return value of {@link bootstrap}, providing access to the Matter
  * world, crate, loop, and the resolved boundary used.
  */
-export interface BootstrapResult {
-	world: ReturnType<typeof start>["world"];
-	crate: ReturnType<typeof start>["crate"];
-	loop: ReturnType<typeof start>["loop"];
+export type BootstrapResult = ReturnType<typeof start> & {
 	/** The resolved boundary used — useful for debugging or reusing. */
 	boundary: BootstrapBoundary;
 }
@@ -208,6 +205,7 @@ export function bootstrap(options: BootstrapOptions = {}): BootstrapResult {
 		world: runtime.world,
 		crate: runtime.crate,
 		loop: runtime.loop,
+		debugger: runtime.debugger,
 		boundary,
 	};
 }

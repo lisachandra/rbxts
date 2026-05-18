@@ -21,15 +21,24 @@ catalogs:
     '@isentinel/tsconfig':
       specifier: 1.2.0
       version: 1.2.0
+    '@lisachandra/constant':
+      specifier: github:lisachandra/constant#path:packages/constant
+      version: 0.1.0
     '@rbxts/centurion':
       specifier: 1.0.1
       version: 1.0.1
+    '@rbxts/centurion-ui':
+      specifier: 1.0.8
+      version: 1.0.8
     '@rbxts/compiler-types':
       specifier: latest
       version: 3.0.0-types.0
     '@rbxts/crate':
       specifier: 1.0.3-rc.1
       version: 1.0.3-rc.1
+    '@rbxts/iris':
+      specifier: 2.3.1-ts.1
+      version: 2.3.1-ts.1
     '@rbxts/janitor':
       specifier: 1.18.3-ts.0
       version: 1.18.3-ts.0
@@ -76,6 +85,12 @@ catalogs:
       specifier: 1.0.2
       version: 1.0.2
     '@rbxts/react':
+      specifier: 17.3.7-ts.1
+      version: 17.3.7-ts.1
+    '@rbxts/react-devtools-core':
+      specifier: 17.3.7-ts.1
+      version: 17.3.7-ts.1
+    '@rbxts/react-globals':
       specifier: 17.3.7-ts.1
       version: 17.3.7-ts.1
     '@rbxts/react-roblox':
@@ -262,6 +277,9 @@ importers:
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.5.3)
+      '@lisachandra/constant':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -626,6 +644,172 @@ importers:
         specifier: 'catalog:'
         version: 5.5.3
 
+  test/demo:
+    dependencies:
+      '@flamework/core':
+        specifier: 'catalog:'
+        version: 1.3.2
+      '@lisachandra/constant':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@lisachandra/matter':
+        specifier: workspace:*
+        version: link:../../packages/matter
+      '@lisachandra/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@lisachandra/react-router':
+        specifier: workspace:*
+        version: link:../../packages/react-router
+      '@lisachandra/react-template':
+        specifier: workspace:*
+        version: link:../../packages/react-template
+      '@lisachandra/test':
+        specifier: workspace:*
+        version: link:../../packages/test
+      '@lisachandra/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@lisachandra/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@rbxts/centurion':
+        specifier: 'catalog:'
+        version: 1.0.1
+      '@rbxts/centurion-ui':
+        specifier: 'catalog:'
+        version: 1.0.8(@rbxts/centurion@1.0.1)
+      '@rbxts/crate':
+        specifier: 'catalog:'
+        version: 1.0.3-rc.1
+      '@rbxts/iris':
+        specifier: 'catalog:'
+        version: 2.3.1-ts.1
+      '@rbxts/janitor':
+        specifier: 'catalog:'
+        version: 1.18.3-ts.0
+      '@rbxts/jest':
+        specifier: 'catalog:'
+        version: 3.13.3-ts.1
+      '@rbxts/jest-globals':
+        specifier: 'catalog:'
+        version: 3.13.3-ts.1
+      '@rbxts/lapis':
+        specifier: 'catalog:'
+        version: 0.3.8(@rbxts/t@3.2.1)
+      '@rbxts/lapis-mockdatastore':
+        specifier: 'catalog:'
+        version: 0.3.7
+      '@rbxts/lemon-signal':
+        specifier: 'catalog:'
+        version: 1.2.0
+      '@rbxts/log':
+        specifier: 'catalog:'
+        version: 0.6.3
+      '@rbxts/luau-polyfill':
+        specifier: 'catalog:'
+        version: 1.1.3
+      '@rbxts/matter':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/matter-ecs/matter-types/tar.gz/d37078ce9b4eb6171f46acbe0c0fca55472a640c
+      '@rbxts/message-templates':
+        specifier: 'catalog:'
+        version: 0.3.2
+      '@rbxts/object-cache':
+        specifier: 'catalog:'
+        version: 1.4.5
+      '@rbxts/object-utils':
+        specifier: 'catalog:'
+        version: 1.0.4
+      '@rbxts/plasma':
+        specifier: 'catalog:'
+        version: 0.4.5
+      '@rbxts/pretty-react-hooks':
+        specifier: 'catalog:'
+        version: 0.6.4(@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1))(@rbxts/react@17.3.7-ts.1)
+      '@rbxts/rbxts-hashlib':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@rbxts/react':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/react-devtools-core':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/react-globals':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1
+      '@rbxts/react-roblox':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.1(@rbxts/react@17.3.7-ts.1)
+      '@rbxts/react-roblox-fire':
+        specifier: 'catalog:'
+        version: 0.1.4
+      '@rbxts/react-testing-library':
+        specifier: 'catalog:'
+        version: 12.1.5-rc.5(@rbxts/dom-testing-library@8.14.0-rc.5(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.1))(@rbxts/jest@3.13.3-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.1))(@rbxts/react@17.3.7-ts.1)
+      '@rbxts/regexp':
+        specifier: 'catalog:'
+        version: 0.2.1-ts.4
+      '@rbxts/rewire':
+        specifier: 'catalog:'
+        version: 0.3.0
+      '@rbxts/serio':
+        specifier: 'catalog:'
+        version: 1.2.5
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
+      '@rbxts/sift':
+        specifier: 'catalog:'
+        version: 0.0.11
+      '@rbxts/t':
+        specifier: 'catalog:'
+        version: 3.2.1
+      '@rbxts/tether':
+        specifier: 'catalog:'
+        version: 1.4.17
+      '@rbxts/validate-tree':
+        specifier: 'catalog:'
+        version: 2.0.2
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.6.0
+    devDependencies:
+      '@isentinel/jest-roblox':
+        specifier: 'catalog:'
+        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+      '@isentinel/tsconfig':
+        specifier: 'catalog:'
+        version: 1.2.0(typescript@5.5.3)
+      '@rbxts/compiler-types':
+        specifier: 'catalog:'
+        version: 3.0.0-types.0
+      '@rbxts/types':
+        specifier: 'catalog:'
+        version: 1.0.920
+      io-serve:
+        specifier: 'catalog:'
+        version: 1.1.2
+      jiti:
+        specifier: 'catalog:'
+        version: 2.6.1
+      rbxts-transformer-flamework:
+        specifier: 'catalog:'
+        version: 1.3.2(typescript@5.5.3)
+      roblox-ts:
+        specifier: 'catalog:'
+        version: 3.0.0
+      shx:
+        specifier: 'catalog:'
+        version: 0.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.5.3
+
   test/matter:
     devDependencies:
       '@isentinel/jest-roblox':
@@ -883,6 +1067,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant':
+    resolution: {path: packages/constant, tarball: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795}
+    version: 0.1.0
+    peerDependencies:
+      '@rbxts/iris': '*'
+      '@rbxts/luau-polyfill': '*'
+      '@rbxts/services': '*'
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -1161,6 +1353,15 @@ packages:
   '@rbxts-js/pretty-format@3.13.3-ts.3':
     resolution: {integrity: sha512-uH6y4fYf7C4GXWBd3wIlR7GzT/sZgyl2yNBpewrBXp4rdI7J9RMhTuGVN1ZqXrzlqv1E0e9+oA5AYVRiJWLwpA==}
 
+  '@rbxts-js/react-debug-tools@17.3.7-ts.1':
+    resolution: {integrity: sha512-R3SHR1aQbRi5I5snCDO194XCRlNP5tVM7vyAPTZ4R275qlW0BtDHdKwaICNH7o3NICcr5GMZ5qkuwF9N3fW2Kw==}
+
+  '@rbxts-js/react-devtools-core@17.3.7-ts.1':
+    resolution: {integrity: sha512-sbYvsKa6lm1AxAQ+f4awHBe+8L+ATjJDP36GgQFa2JLh76wR0/piP3A7yeVS8p1WUnj5dJtKQm9KsObeTI+M+w==}
+
+  '@rbxts-js/react-devtools-shared@17.3.7-ts.1':
+    resolution: {integrity: sha512-IDd3ibHPfMuBmC2tuWdudgeM1dJKC782PP6x5a4w6UKjFvXpcQP5EoZVke2uVP/LUlnx/tT5sh5UycOU+o6OdA==}
+
   '@rbxts-js/react-globals@17.3.7-ts.1':
     resolution: {integrity: sha512-vwMHsc3Oy2MDAw2M212nQJ8A7nEG5O/lyXDyMGzYJp4832awhrf34YCkU4dxBE4sdMDcoWykhmuPjmzwrcS9Eg==}
 
@@ -1172,6 +1373,9 @@ packages:
 
   '@rbxts-js/react-roblox@17.3.7-ts.1':
     resolution: {integrity: sha512-xiJQXmJAho/mStcWYC7AXFqgUqW78whUMacaNeODMimQXgoVqaIfo0sEhLtLtS/N3qZRs1KR64nsNG/0n1r/NQ==}
+
+  '@rbxts-js/react-telemetry@17.3.7-ts.1':
+    resolution: {integrity: sha512-u0WsAgz0X/kmt3czS0la8r1bJcRKkw1HFvSRqV3Sj7Oz7I7ckgYC295fdPcRA5rZTYKBOQsTCJZDVbAM1pF+YA==}
 
   '@rbxts-js/react@17.3.7-ts.1':
     resolution: {integrity: sha512-nRHYoBzk9DSbOvk281jmN5EM3TlmKv2jOzLgSIGtmNMuwZKi9yEjjxdluS1wHmjSvus1YiPHhBUwrKnbu01Obg==}
@@ -1209,6 +1413,11 @@ packages:
   '@rbxts/beacon@2.1.1':
     resolution: {integrity: sha512-QeFMSGj+Iijp+tHcV9eyqVyeKZ/9zp7GqRJ/hecKiHmoTu4yFcyGnUQAaX7OdQKBCgLvWMJ9wK/FXMECjFA2Kg==}
 
+  '@rbxts/centurion-ui@1.0.8':
+    resolution: {integrity: sha512-E8uLASVsKphrf4cgm3TTPB5NornlyUN4JC7x2/+P9ZcJxaoYH3fSEV1sC+bY0xN9bTCkXCIGuULr7mHh9Vh0Nw==}
+    peerDependencies:
+      '@rbxts/centurion': ^1.0.1
+
   '@rbxts/centurion@1.0.1':
     resolution: {integrity: sha512-RFkIvnivn43/jYCg0ue90fXg+aRlhFUUc8OmYP0UWpIPRxTF3PTHpMKp7EZMXoZl7J7XzUngcqYcL1senBnenQ==}
 
@@ -1233,6 +1442,9 @@ packages:
 
   '@rbxts/flamework-meta-utils@1.0.7':
     resolution: {integrity: sha512-JpbYQKKvNvBiCcDyjSYC970muTounA0G5cbQMF/dKGJRnIsemnFuJJ3LWI8EL9fG6PCf8pv+EnluSEvc8chPfQ==}
+
+  '@rbxts/iris@2.3.1-ts.1':
+    resolution: {integrity: sha512-L/lja+ugKNH3ywdz5c8omXUS34L9oGKlul3yVifzTfQVJS4ryePU/hS6IdMaSbIwNda+qEOehXbSxglF9qxa/A==}
 
   '@rbxts/janitor@1.18.3-ts.0':
     resolution: {integrity: sha512-xr6DBJfQ+k0hbkx1pOYteYOBfinYO/otd+NnpiDaVaR78n89cusxBzKrdImNFzBs+GDVG9qnEZb6HbRZyMkz5g==}
@@ -1293,6 +1505,12 @@ packages:
 
   '@rbxts/rbxts-hashlib@1.0.2':
     resolution: {integrity: sha512-AmczMFYxiVJbpWymYr1M5RemSOFagLg/TLJBY8RjK4Vg1gR0B8vI6E6+iOD5QmuFe849nBnEKHZ+uF/KSc5huA==}
+
+  '@rbxts/react-devtools-core@17.3.7-ts.1':
+    resolution: {integrity: sha512-WJ7jdq0S1dMrgitA3HRisjonrxrXUVW+pcUPSfcaxOGRo0Jp9XHZIsCMghJxwdSnQDy41xIZ7h3egyRJYvGp+w==}
+
+  '@rbxts/react-globals@17.3.7-ts.1':
+    resolution: {integrity: sha512-N7ggc2yXwFZxw+q4uk36ypc+WNLve4RULTP7FVSbMN00aIIX934g/a1htvmW/LIJ55hR0brn69OsaMhLlT+yAg==}
 
   '@rbxts/react-roblox-fire@0.1.4':
     resolution: {integrity: sha512-P9QaPMaUilxeg/1HvkDXXNPlicqutjp3w7sOJVfE3jFwCoYC5/GSfwPDXprrGc5JVAm5rjDdfhWR9L+k2lBCHg==}
@@ -1362,8 +1580,14 @@ packages:
   '@rbxts/types@1.0.918':
     resolution: {integrity: sha512-PNtzv1jitSkr+v5j06A44Xa98NMTTkSxZ1vvUcUzW4q1WZ7A750FeFhZqjyKP2rcR8XMSiQWcycC4svSFV6RJw==}
 
+  '@rbxts/types@1.0.920':
+    resolution: {integrity: sha512-rzGBM+AUE2ZTkaWd4Pc0/2i8L6+pMkEvmHyPjXNu0x0YNEYD4Bh9yjOw6QEZHcg50sCmrqgFniYRx6IjWT/x1g==}
+
   '@rbxts/validate-tree@2.0.2':
     resolution: {integrity: sha512-OA0E9ZjEeOpPa3XeV5/oC51aro2QFcL5dItufbagYZW8TOsX8C+FDXLx+A/ulMwcF42WcFNcQybxzcWSS/QSrA==}
+
+  '@rbxts/vide@0.5.7':
+    resolution: {integrity: sha512-Q9R7ybzuHK1phtLicBHgAjQnlJ/dMsXDs2k296PIMLgLqK9aX/f1skOP7F1K/vo7IrSE0jCG3B3XTOtQL1Sb0Q==}
 
   '@roblox-ts/luau-ast@2.0.0':
     resolution: {integrity: sha512-cmMi093IdwBOLVxwuordhM8AmtbyTIyRpsTbB0D/JauidW4SXsQRQowSwWjHo4QP0DRJBXvOIlxtqEQi50uNzQ==}
@@ -2485,6 +2709,7 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   validate-npm-package-license@3.0.4:
@@ -2809,6 +3034,12 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)':
+    dependencies:
+      '@rbxts/iris': 2.3.1-ts.1
+      '@rbxts/luau-polyfill': 1.1.3
+      '@rbxts/services': 1.6.0
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -3226,6 +3457,31 @@ snapshots:
       '@rbxts-js/react-is': 17.3.7-ts.1
       '@rbxts-js/roblox-shared': 3.13.3-ts.3
 
+  '@rbxts-js/react-debug-tools@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/luau-polyfill': 1.2.3-ts.1
+      '@rbxts-js/react-globals': 17.3.7-ts.1
+      '@rbxts-js/react-reconciler': 17.3.7-ts.1
+      '@rbxts-js/shared': 17.3.7-ts.1
+
+  '@rbxts-js/react-devtools-core@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/luau-polyfill': 1.2.3-ts.1
+      '@rbxts-js/react-devtools-shared': 17.3.7-ts.1
+      '@rbxts-js/react-globals': 17.3.7-ts.1
+      '@rbxts-js/react-telemetry': 17.3.7-ts.1
+
+  '@rbxts-js/react-devtools-shared@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/luau-polyfill': 1.2.3-ts.1
+      '@rbxts-js/react': 17.3.7-ts.1
+      '@rbxts-js/react-debug-tools': 17.3.7-ts.1
+      '@rbxts-js/react-globals': 17.3.7-ts.1
+      '@rbxts-js/react-is': 17.3.7-ts.1
+      '@rbxts-js/react-reconciler': 17.3.7-ts.1
+      '@rbxts-js/react-roblox': 17.3.7-ts.1
+      '@rbxts-js/shared': 17.3.7-ts.1
+
   '@rbxts-js/react-globals@17.3.7-ts.1':
     dependencies:
       '@rbxts-js/safe-flags': 17.3.7-ts.1
@@ -3254,6 +3510,12 @@ snapshots:
       '@rbxts-js/react-reconciler': 17.3.7-ts.1
       '@rbxts-js/scheduler': 17.3.7-ts.1
       '@rbxts-js/shared': 17.3.7-ts.1
+
+  '@rbxts-js/react-telemetry@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/luau-polyfill': 1.2.3-ts.1
+      '@rbxts-js/react-globals': 17.3.7-ts.1
+      '@rbxts-js/safe-flags': 17.3.7-ts.1
 
   '@rbxts-js/react@17.3.7-ts.1':
     dependencies:
@@ -3310,6 +3572,13 @@ snapshots:
 
   '@rbxts/beacon@2.1.1': {}
 
+  '@rbxts/centurion-ui@1.0.8(@rbxts/centurion@1.0.1)':
+    dependencies:
+      '@rbxts/centurion': 1.0.1
+      '@rbxts/services': 1.6.0
+      '@rbxts/set-timeout': 1.1.2
+      '@rbxts/vide': 0.5.7
+
   '@rbxts/centurion@1.0.1':
     dependencies:
       '@rbxts/beacon': 2.1.1
@@ -3342,6 +3611,8 @@ snapshots:
       '@flamework/components': 1.3.2(@flamework/core@1.3.2)
       '@flamework/core': 1.3.2
       '@rbxts/t': 3.2.1
+
+  '@rbxts/iris@2.3.1-ts.1': {}
 
   '@rbxts/janitor@1.18.3-ts.0': {}
 
@@ -3402,6 +3673,14 @@ snapshots:
       '@rbxts/set-timeout': 1.1.2
 
   '@rbxts/rbxts-hashlib@1.0.2': {}
+
+  '@rbxts/react-devtools-core@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/react-devtools-core': 17.3.7-ts.1
+
+  '@rbxts/react-globals@17.3.7-ts.1':
+    dependencies:
+      '@rbxts-js/react-globals': 17.3.7-ts.1
 
   '@rbxts/react-roblox-fire@0.1.4':
     dependencies:
@@ -3471,7 +3750,11 @@ snapshots:
 
   '@rbxts/types@1.0.918': {}
 
+  '@rbxts/types@1.0.920': {}
+
   '@rbxts/validate-tree@2.0.2': {}
+
+  '@rbxts/vide@0.5.7': {}
 
   '@roblox-ts/luau-ast@2.0.0': {}
 

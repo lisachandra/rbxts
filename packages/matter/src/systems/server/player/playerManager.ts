@@ -30,10 +30,22 @@ import { Janitor } from "@rbxts/janitor";
 import { useDocument } from "../../../hooks/useDocument";
 import { catcher } from "@lisachandra/core/out/utils/main";
 import { getComponent } from "../../../components";
+import { Constant } from "@lisachandra/constant";
 
 const loadingQueue = new Map<Player, boolean>();
 const eventQueue: Array<Callback> = [];
-const loadTimeout = 60;
+
+let internalDebugging = false;
+
+function debugPrint(message: string): void {
+	if (internalDebugging) {
+		print(message);
+	}
+}
+
+const c = new Constant()
+	.add("LOAD_TIMEOUT", 60)
+	.build();
 
 async function syncWithEventQueue(): Promise<void> {
 	return new Promise<void>((resolve) => {
@@ -50,31 +62,57 @@ async function waitForPlayerLoaded(
 	collection: Collection<any, any>,
 ): Promise<Required<ReturnType<typeof useDocument>>> {
 	return new Promise((resolve, reject) => {
+		debugPrint(`[playerManager] waitForPlayerLoaded start ${player.Name}`);
 		let disconnected = false;
+		let settled = false;
 		let disconnect: Callback = () => {};
 
-		function listener(loadedPlayer: Player): void {
-			if (loadedPlayer !== player || loadingQueue.get(player) === true) {
+		function finalize(callback: Callback): void {
+			if (settled) {
 				return;
 			}
 
-			loadingQueue.set(player, true);
-
-			while (!disconnected) {
-				const data = useDocument(collection, player.UserId, player);
-				if (data.document) {
-					disconnect();
-					resolve({
-						...data,
-						document: data.document,
-					});
-				}
-
-				task.wait(1);
-			}
+			settled = true;
+			disconnect();
+			callback();
 		}
 
-		let disconnectFn: Callback
+		function listener(loadedPlayer: Player): void {
+			if (loadedPlayer !== player || loadingQueue.get(player) === true) {
+				if (loadedPlayer === player) {
+					debugPrint(`[playerManager] duplicate/ignored loaded ${player.Name} queued=${tostring(loadingQueue.get(player))}`);
+				}
+				return;
+			}
+
+			debugPrint(`[playerManager] loaded received ${player.Name}`);
+			loadingQueue.set(player, true);
+			task.spawn(() => {
+				while (!disconnected && !settled) {
+					const data = useDocument(collection, player.UserId, player);
+					debugPrint(`[playerManager] polling document ${player.Name}`);
+					if (data.document) {
+						const document = data.document;
+						debugPrint(`[playerManager] document ready ${player.Name}`);
+						if (!document) {
+							continue;
+						}
+
+						finalize(() => {
+							resolve({
+								...data,
+								document,
+							});
+						});
+						return;
+					}
+
+					task.wait(1);
+				}
+			});
+		}
+
+		let disconnectFn: Callback = () => {};
 		disconnect = () => {
 			if (disconnected) {
 				return;
@@ -85,10 +123,12 @@ async function waitForPlayerLoaded(
 			disconnectFn();
 		};
 
-		disconnectFn = messaging.server.on(Message.Loaded, listener)
-		task.wait(loadTimeout);
-		disconnect();
-		reject();
+		disconnectFn = messaging.server.on(Message.Loaded, listener);
+		debugPrint(`[playerManager] subscribed loaded ${player.Name}`);
+		task.delay(c.LOAD_TIMEOUT, () => finalize(() => {
+			debugPrint(`[playerManager] load timeout ${player.Name}`);
+			reject();
+		}));
 	});
 }
 
@@ -101,14 +141,18 @@ async function waitForPlayerLoaded(
  *   5. Emit `Message.Time` with server clock/epoch
  */
 function defaultPlayerAdded(world: World, player: Player): void {
-	Log.Info("initializing player:", player.Name);
+	Log.Info(`initializing player: ${player.Name}`);
+	debugPrint(`[playerManager] defaultPlayerAdded start ${player.Name}`);
 
 	const hooks = getPlayerLifecycleHooks();
 	const documentConfig = getDocumentConfig();
 	const collection = documentConfig?.collection;
 
+	debugPrint(`[playerManager] queued sync ${player.Name}`);
+
 	syncWithEventQueue()
 		.then(async () => {
+			debugPrint(`[playerManager] sync resumed ${player.Name}`);
 			// preSpawn — validate before spawning
 			if (hooks?.preSpawn) {
 				const result = hooks.preSpawn(player);
@@ -123,24 +167,29 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 			const entityId = world.spawn();
 			player.SetAttribute("serverEntityId", entityId);
+			debugPrint(`[playerManager] spawned server entity ${player.Name} ${entityId}`);
 
 			let playerJanitor: Janitor;
 
 			if (collection !== undefined) {
+				debugPrint(`[playerManager] awaiting loaded ${player.Name}`);
 				const [status, data] = waitForPlayerLoaded(player, collection).await();
 				if (!status) {
+					debugPrint(`[playerManager] await failed ${player.Name}`);
 					player.Kick("Load timeout, please rejoin and try again!");
 					return;
 				}
 
-				Log.Info("spawning player:", player.Name);
+				Log.Info(`spawning player: ${player.Name}`);
+				debugPrint(`[playerManager] document-backed spawn ${player.Name}`);
 
 				playerJanitor = new Janitor();
 				playerJanitor.Add(async () => {
 					data.document.close().await();
 				});
 			} else {
-				Log.Info("spawning player (no document):", player.Name);
+				Log.Info(`spawning player (no document): ${player.Name}`);
+				debugPrint(`[playerManager] no-document spawn ${player.Name}`);
 				playerJanitor = new Janitor();
 			}
 
@@ -154,9 +203,14 @@ function defaultPlayerAdded(world: World, player: Player): void {
 					getComponent("Forces")(),
 				];
 
+			debugPrint(`[playerManager] inserting components ${player.Name} count=${components.size()}`);
+
 			world.insert(entityId, ...components);
+			debugPrint(`[playerManager] inserted components ${player.Name} ${entityId}`);
 			world.commitCommands();
+			debugPrint(`[playerManager] committed components ${player.Name} ${entityId}`);
 			player.SetAttribute("serverEntityId", entityId);
+			debugPrint(`[playerManager] reassigned serverEntityId ${player.Name} ${entityId}`);
 
 			messaging.client.emit(player, Message.Time, {
 				startClock: store.server.getState("serverStartClock"),
@@ -174,7 +228,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
  * the entity.
  */
 function defaultPlayerRemoving(world: World, player: Player): void {
-	Log.Info("removing Player:", player.Name);
+	Log.Info(`removing Player: ${player.Name}`);
 
 	const entityId = player.GetAttribute<AnyEntity>("serverEntityId");
 	if (entityId !== undefined && world.contains(entityId)) {
@@ -183,7 +237,8 @@ function defaultPlayerRemoving(world: World, player: Player): void {
 	}
 }
 
-function system(world: World): void {
+function system(world: World, _crate: Crate<ServerState>, ui: DebugWidgets): void {
+	internalDebugging = ui.checkbox("Trace player bootstrap").checked();
 	for (const func of eventQueue) {
 		func();
 	}

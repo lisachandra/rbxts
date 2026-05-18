@@ -19,7 +19,6 @@ export type ForcesPayload = Partial<Omit<Components["Forces"], "forces">> & {
 
 registry.register<Components["Forces"], ForcesPayload>({
 	component: getComponent("Forces"),
-	serdes: createSerializer<ForcesPayload>(),
 	mode: "all",
 	serializer: (record) => record.new!,
 	deserializer: (data) => data,

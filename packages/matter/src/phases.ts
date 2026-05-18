@@ -48,7 +48,7 @@ if (RunService.IsClient()) {
 }
 
 // @ts-expect-error -- type defs may miss UseFixedSimulation
-if (pcall(() => Workspace.UseFixedSimulation as boolean)[0]) {
+if (pcall(() => Workspace.UseFixedSimulation as boolean)[1]) {
 	for (const [phase, event] of iterate(bindSimulationPhaseEvents)) {
 		RunService.BindToSimulation(() => {
 			const stepSystemsConnection = (event as never as { _head: false | { _fn: Callback } })

@@ -1,6 +1,5 @@
 import { registry } from "../registry";
 import { Components, getComponent } from "../../components";
-import createSerializer from "@rbxts/serio";
 import { store } from "@lisachandra/core/out/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 
@@ -13,7 +12,6 @@ export type StreamPayload = {
 
 registry.register<Components["Stream"], StreamPayload>({
 	component: getComponent("Stream"),
-	serdes: createSerializer<StreamPayload>(),
 	mode: "all",
 	serializer: (record) => ({
 		container: record.new!.container,

@@ -4,7 +4,7 @@ import { registry } from "../registry";
 import { Components, getComponent, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
-import createSerializer, { u16 } from "@rbxts/serio";
+import { u16 } from "@rbxts/serio";
 
 /**
  * Payload structure for replicating the {@link Components.Hotbar} component.
@@ -21,7 +21,6 @@ const lastReplicatedItems: Array<Item> = [];
 
 registry.register<Components["Hotbar"], HotbarPayload>({
 	component: getComponent("Hotbar"),
-	serdes: createSerializer<HotbarPayload>(),
 	mode: "owner",
 	serializer: (record, _playerEntityId, _componentEntityId) => {
 		const [items, newReplicatedItems] = itemsSerializer(

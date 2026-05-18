@@ -24,10 +24,7 @@ interface ItemData {
  * @remarks
  * Each collection maps a discriminator key to its corresponding item data.
  */
-export interface CollectionData {
-	hotbar: Array<ItemData>;
-	inventory: Array<ItemData>;
-}
+export interface CollectionData {}
 
 let initialState: ClientState | ServerState;
 const middleware: Array<{ key: string; middleware: Callback }> = [];

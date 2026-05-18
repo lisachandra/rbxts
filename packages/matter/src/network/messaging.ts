@@ -8,7 +8,7 @@ import { MessageEmitter } from "@rbxts/tether";
  * Uses {@link MessageEmitter} from Tether to provide type-safe message dispatch
  * based on the {@link MessageData} interface.
  */
-export const messaging = MessageEmitter.create<MessageData>();
+export const messaging = MessageEmitter.create<MessageData>({ batchRemotes: false });
 
 /**
  * Enumeration of all supported network message types.
@@ -53,7 +53,7 @@ export interface MessageData {
 		guid: u16;
 	};
 	[Message.Component]: {
-		componentKey: string;
+		componentId: u16;
 		payload?: { blobs?: Array<defined>; buf?: buffer };
 		serverEntityId: u32;
 	};

@@ -3,7 +3,6 @@ import { Players } from "@rbxts/services";
 import { registry } from "../registry";
 import { Components, getComponent } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
-import createSerializer from "@rbxts/serio";
 
 /**
  * Payload structure for replicating the {@link Components.Profile} component.
@@ -16,9 +15,8 @@ export type ProfilePayload = {}
 
 registry.register<Components["Profile"], ProfilePayload>({
 	component: getComponent("Profile"),
-	serdes: createSerializer<ProfilePayload>(),
 	mode: "all",
-	serializer: (_record) => {},
+	serializer: (_record) => ({}),
 	deserializer: (_data, serverEntityId) => {
 		const player = getInstanceWithAttribute(Players.GetPlayers(), "serverEntityId", serverEntityId);
 		assert(player !== undefined, "Replicated player is nil");

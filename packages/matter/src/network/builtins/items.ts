@@ -5,7 +5,6 @@ import { Components, getComponent, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
-import createSerializer from "@rbxts/serio";
 
 /**
  * Payload structure for replicating the {@link Components.Items} component.
@@ -18,7 +17,6 @@ const lastReplicatedItems: Record<string, Array<Item>> = {};
 
 registry.register<Components["Items"], ItemsPayload>({
 	component: getComponent("Items"),
-	serdes: createSerializer<ItemsPayload>(),
 	mode: "all",
 	serializer: (record, _playerEntityId, componentEntityId) => {
 		const key = `${componentEntityId}`;

@@ -5,11 +5,14 @@ packages:
 autoInstallPeers: true
 
 catalog:
+  "@lisachandra/constant": "github:lisachandra/constant#path:packages/constant"
   "@changesets/changelog-github": 0.6.0
   "@changesets/cli": 2.31.0
   "@isentinel/jest-roblox": 0.2.5
   '@isentinel/tsconfig': 1.2.0
   "@rbxts/centurion": 1.0.1
+  "@rbxts/centurion-ui": 1.0.8
+  "@rbxts/iris": 2.3.1-ts.1
   "@rbxts/compiler-types": latest
   "@rbxts/crate": 1.0.3-rc.1
   "@rbxts/jest": 3.13.3-ts.1
@@ -23,6 +26,8 @@ catalog:
   "@rbxts/object-cache": 1.4.5
   "@rbxts/react": 17.3.7-ts.1
   "@rbxts/react-roblox": 17.3.7-ts.1
+  "@rbxts/react-globals": 17.3.7-ts.1
+  "@rbxts/react-devtools-core": 17.3.7-ts.1
   "@rbxts/react-roblox-fire": 0.1.4
   "@rbxts/react-testing-library": 12.1.5-rc.5
   "@rbxts/rewire": 0.3.0
@@ -58,6 +63,7 @@ ignoreWorkspaceRootCheck: true
 
 onlyBuiltDependencies:
   - unrs-resolver
+  - "@lisachandra/constant"
 saveExact: true
 shellEmulator: true
 trustPolicy: no-downgrade

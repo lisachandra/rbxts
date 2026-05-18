@@ -17,10 +17,17 @@ import { ComponentKey, Components, ExtractComponentData, getComponent } from "..
 import { catcher } from "@lisachandra/core/out/utils/main";
 import { useMessage } from "../../../hooks";
 import { Message, messaging, registry } from "../../../network";
-
+import { typeAssertIs } from "@lisachandra/core/out/utils/type";
 
 const batchSpawns: Record<string, Array<Component<object>>> = {};
 let debugging = false;
+let internalDebugging = false;
+
+function debugPrint(message: string): void {
+	if (internalDebugging) {
+		Log.Debug(message);
+	}
+}
 
 function applyComponentUpdate(
 	clientEntityId: N<AnyEntity>,
@@ -78,7 +85,8 @@ function handleSpawn(
 		return;
 	}
 
-	const componentsToInsert = batchSpawns[serverEntityId]!;
+	const componentsToInsert = batchSpawns[serverEntityId] ?? [];
+	debugPrint(`[client replication] spawn ${serverEntityId} (${componentsToInsert.size()} components)`);
 	const clientEntityId: N<AnyEntity> = store.world.spawn(...componentsToInsert);
 
 	const newEntityIdMap = { ...entityIdMap, [serverEntityId]: clientEntityId };
@@ -160,20 +168,22 @@ function didComponentInsert<T extends ComponentKey>(
 }
 
 function deserializeIncomingPackets(entityIdMap: Readonly<ClientState["entityIdMap"]>): void {
-	for (const [_, packet] of useMessage(messaging.client, Message.Component)) {
-		const { componentKey, payload, serverEntityId } = packet as {
-			componentKey: string;
-			payload?: { blobs?: Array<defined>; buf?: buffer };
-			serverEntityId: AnyEntity;
-		};
-		const codec = registry.get(componentKey);
+	for (const [_, { componentId, payload, serverEntityId }] of useMessage(messaging.client, Message.Component)) {
+		typeAssertIs<AnyEntity>(serverEntityId)
+
+		const codec = registry.getById(componentId);
 		if (!codec) {
 			continue;
 		}
 
-		const componentName = componentKey as ComponentKey;
+		const componentName = codec.componentKey as ComponentKey;
+		debugPrint(`[client replication] packet ${componentName}#${componentId} ${serverEntityId}`);
 		const clientEntityId: N<AnyEntity> = entityIdMap[serverEntityId];
 		const data = payload ? codec.payloadSerializer.deserialize(payload) : undefined;
+		if ((data as unknown) !== undefined && !codec.payloadGuard(data)) {
+			Log.Warn(`Skipping replication for ${componentName}; payload failed runtime validation`);
+			continue;
+		}
 
 		if (
 			!didComponentInsert(
@@ -222,17 +232,19 @@ function system(_world: World, crate: Crate<ClientState>, ui: DebugWidgets): voi
 	}
 
 	debugging = ui.checkbox("Log replication").checked();
+	internalDebugging = ui.checkbox("Trace client replication internals").checked();
 	let entityIdMap = store.client.getState("entityIdMap");
 
 	handleItemGUIDMap(crate);
-
 	deserializeIncomingPackets(entityIdMap);
 
 	for (const [_, serverEntityId] of useMessage(messaging.client, Message.DespawnEntity)) {
+		debugPrint(`[client replication] despawn message ${serverEntityId}`);
 		entityIdMap = handleDespawn(entityIdMap, serverEntityId as AnyEntity) ?? entityIdMap;
 	}
 
 	for (const [_, serverEntityId] of useMessage(messaging.client, Message.SpawnEntity)) {
+		debugPrint(`[client replication] spawn message ${serverEntityId}`);
 		entityIdMap = handleSpawn(entityIdMap, serverEntityId as AnyEntity) ?? entityIdMap;
 	}
 }

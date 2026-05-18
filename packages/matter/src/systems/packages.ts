@@ -4,7 +4,6 @@ import { definePackage } from "../packages";
 
 // Server systems
 import { meta as serverPlayerManager } from "./server/player/playerManager";
-import { meta as serverDocumentManager } from "./server/player/documentManager";
 import { meta as serverItemManager } from "./server/item/itemManager";
 import { meta as serverToolManager } from "./server/item/toolManager";
 import { meta as serverHotbarManager } from "./server/item/hotbarManager";
@@ -14,6 +13,7 @@ import { meta as serverReplicationManager } from "./server/network/replicationMa
 // Client systems
 import { meta as clientReplicationManager } from "./client/network/replicationManager";
 import { meta as clientStreamer } from "./client/network/clientStreamer";
+import { meta as clientEntityManager } from "./client/network/entityManager";
 import { meta as clientItemManager } from "./client/item/itemManager";
 import { meta as clientToolManager } from "./client/item/toolManager";
 import { meta as clientHotbarSynchronizer } from "./client/item/hotbarSynchronizer";
@@ -47,7 +47,6 @@ export const builtinPackage = definePackage({
 			kind: "template",
 			systems: [
 				{ key: "serverPlayerManager", runtime: "server", system: serverPlayerManager },
-				{ key: "serverDocumentManager", runtime: "server", system: serverDocumentManager },
 			],
 		},
 
@@ -78,6 +77,7 @@ export const builtinPackage = definePackage({
 			dependencies: ["builtin:replication"],
 			systems: [
 				{ key: "clientReplicationManager", runtime: "client", system: clientReplicationManager },
+				{ key: "clientEntityManager", runtime: "client", system: clientEntityManager },
 				{ key: "clientStreamer", runtime: "client", system: clientStreamer },
 			],
 		},
