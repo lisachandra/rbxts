@@ -156,6 +156,11 @@ catalogs:
 
 pnpmfileChecksum: sha256-ZfwGjIvQgPR9mEJg5iihJauZ5iv1Ogj5lI/dgVj7pgI=
 
+patchedDependencies:
+  '@rbxts/centurion':
+    hash: d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332
+    path: patches/@rbxts__centurion.patch
+
 importers:
 
   .:
@@ -213,7 +218,7 @@ importers:
         version: link:../types
       '@rbxts/centurion':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332)
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
@@ -375,7 +380,7 @@ importers:
         version: link:../types
       '@rbxts/centurion':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332)
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0
@@ -574,6 +579,9 @@ importers:
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
+      '@lisachandra/matter':
+        specifier: workspace:*
+        version: link:../matter
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -678,10 +686,10 @@ importers:
         version: link:../../packages/ui
       '@rbxts/centurion':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332)
       '@rbxts/centurion-ui':
         specifier: 'catalog:'
-        version: 1.0.8(@rbxts/centurion@1.0.1)
+        version: 1.0.8(@rbxts/centurion@1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332))
       '@rbxts/crate':
         specifier: 'catalog:'
         version: 1.0.3-rc.1
@@ -3572,14 +3580,14 @@ snapshots:
 
   '@rbxts/beacon@2.1.1': {}
 
-  '@rbxts/centurion-ui@1.0.8(@rbxts/centurion@1.0.1)':
+  '@rbxts/centurion-ui@1.0.8(@rbxts/centurion@1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332))':
     dependencies:
-      '@rbxts/centurion': 1.0.1
+      '@rbxts/centurion': 1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332)
       '@rbxts/services': 1.6.0
       '@rbxts/set-timeout': 1.1.2
       '@rbxts/vide': 0.5.7
 
-  '@rbxts/centurion@1.0.1':
+  '@rbxts/centurion@1.0.1(patch_hash=d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332)':
     dependencies:
       '@rbxts/beacon': 2.1.1
       '@rbxts/services': 1.6.0

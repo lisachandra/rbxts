@@ -22,7 +22,6 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"source": "./src/index.ts",
 			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
 		}
@@ -43,11 +42,12 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
+		"@lisachandra/core": "workspace:*",
+		"@lisachandra/matter": "workspace:*",
 		"roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",
-		"@lisachandra/core": "workspace:*",
 		"@rbxts/react": "catalog:",
 		"@rbxts/react-roblox": "catalog:",
 		"@rbxts/rewire": "catalog:",
@@ -58,6 +58,7 @@
 	"peerDependencies": {
 		"@lisachandra/types": "*",
 		"@lisachandra/core": "*",
+		"@lisachandra/matter": "*",
 		"@rbxts/pretty-react-hooks": "*",
 		"@rbxts/services": "*",
 		"@rbxts/react": "*",

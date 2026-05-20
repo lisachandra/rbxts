@@ -1,0 +1,13 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"plugins": [
+			{
+				"transform": "rbxts-transformer-flamework",
+				"obfuscation": false
+			}
+		],
+		"baseUrl": "${configDir}/src",
+		"moduleResolution": "node",
+	}
+}

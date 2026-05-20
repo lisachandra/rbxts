@@ -1,0 +1,177 @@
+{
+	"name": "demo",
+	"globIgnorePaths": [
+		"**/package.json",
+		"**/tsconfig.json"
+	],
+	"emitLegacyScripts": false,
+	"tree": {
+		"$className": "DataModel",
+		"Players": {
+			"$properties": {
+				"CharacterAutoLoads": true
+			}
+		},
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"TS": {
+				"$className": "Folder",
+				"client": {
+					"$path": "out/client"
+				},
+				"shared": {
+					"$path": "out/shared"
+				},
+				"rbxts_include": {
+					"$className": "Folder",
+					"node_modules": {
+						"$className": "Folder",
+						"@lisachandra": {
+							"$path": "node_modules/@lisachandra"
+						},
+						"@flamework": {
+							"$path": "node_modules/@flamework"
+						},
+						"@rbxts-js": {
+							"$path": "node_modules/@rbxts-js"
+						},
+						"@rbxts": {
+							"$path": "node_modules/@rbxts"
+						}
+					}
+				}
+			},
+			"Models": {
+				"$className": "Folder",
+				"Items": {
+					"$className": "Folder"
+				}
+			},
+			"UI": {
+				"$className": "Folder"
+			},
+			"Tools": {
+				"$className": "Folder"
+			},
+			"VFX": {
+				"$className": "Folder"
+			},
+			"Animations": {
+				"$className": "Folder",
+				"Tools": {
+					"$className": "Folder"
+				}
+			},
+			"Constant": {
+				"$className": "BindableEvent"
+			},
+			"ConstantEditor": {
+				"$className": "RemoteEvent"
+			},
+			"ConstantReplication": {
+				"$className": "RemoteEvent"
+			},
+			"sendMessage": {
+				"$className": "RemoteEvent"
+			},
+			"sendUnreliableMessage": {
+				"$className": "UnreliableRemoteEvent"
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$properties": {
+				"LoadStringEnabled": true
+			},
+			"TS": {
+				"$className": "Folder",
+				"server": {
+					"$path": "out/server"
+				}
+			}
+		},
+		"TestService": {
+			"$className": "TestService",
+			"$properties": {
+				"AutoRuns": false,
+				"ExecuteWithStudioRun": false
+			},
+			"TS": {
+				"$className": "Folder",
+				"test": {
+					"$path": "out/test"
+				}
+			}
+		},
+		"SoundService": {
+			"$properties": {
+				"RespectFilteringEnabled": true,
+				"VolumetricAudio": "Enabled"
+			},
+			"Sounds": {
+				"$className": "Folder"
+			}
+		},
+		"StarterPlayer": {
+			"StarterCharacterScripts": {
+				"Animate": {
+					"$className": "LocalScript",
+					"$properties": {
+						"Disabled": true
+					}
+				},
+				"Health": {
+					"$className": "Script",
+					"$properties": {
+						"Disabled": true
+					}
+				}
+			},
+			"StarterPlayerScripts": {
+				"RbxCharacterSounds": {
+					"$className": "ModuleScript"
+				}
+			}
+		},
+		"VoiceChatService": {
+			"$properties": {
+				"DefaultDistanceAttenuation": "Inverse",
+				"EnableDefaultVoice": false,
+				"UseAudioApi": "Enabled"
+			}
+		},
+		"Workspace": {
+			"$properties": {
+				"AuthorityMode": "Server",
+				"FilteringEnabled": true,
+				"NextGenerationReplication": {
+					"Enum": 2
+				},
+				"PlayerScriptsUseInputActionSystem": {
+					"Enum": 2
+				},
+				"SignalBehavior": "Deferred",
+				"StreamingEnabled": true,
+				"UseFixedSimulation": {
+					"Enum": 2
+				},
+				"UseNewLuauTypeSolver": "Disabled"
+			},
+			"Maps": {
+				"$className": "Folder"
+			},
+			"Caches": {
+				"$className": "Folder",
+				"Sound": {
+					"$className": "Folder"
+				}
+			},
+			"Characters": {
+				"$className": "Folder"
+			},
+			"Nodes": {
+				"$className": "Folder"
+			}
+		}
+	}
+}

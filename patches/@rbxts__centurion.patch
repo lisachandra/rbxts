@@ -1,0 +1,10 @@
+diff --git a/out/shared/remotes/init.meta.json b/out/shared/remotes/init.meta.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b82f2349e455faf041b3704105a792b6e633b369
+--- /dev/null
++++ b/out/shared/remotes/init.meta.json
+@@ -0,0 +1,4 @@
++{
++	"className": "Folder",
++	"ignoreUnknownInstances": true
++}

@@ -57,6 +57,9 @@ catalog:
 catalogMode: prefer
 cleanupUnusedCatalogs: true
 
+patchedDependencies:
+  '@rbxts/centurion': patches/@rbxts__centurion.patch
+
 configDependencies:
   "@pnpm/plugin-trusted-deps": 0.2.0+sha512-jqiCC8kyrwOERwMWPo2RB1YlDMMS5WsPSA8Uwi3EXAYwyOSNtqKhrB9bs543JGUiz4yaA9h6nE3q98fG14AEyQ==
 ignoreWorkspaceRootCheck: true

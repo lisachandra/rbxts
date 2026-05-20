@@ -102,6 +102,9 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 	const mode = options.mode ?? "production";
 	const scope = RunService.IsClient() ? "client" : "server";
 
+	const deferModuleSystemsToHotReload =
+		mode === "development" && options.hotReload?.containers !== undefined && options.hotReload.containers.size() > 0;
+
 	const allSystems = new Array<AnySystem>();
 
 	// 1. Pre-resolved systems (pipeline / packages output)
@@ -112,7 +115,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 	}
 
 	// 2. Auto-collected systems from Flamework barrel modules
-	if (options.modules) {
+	if (options.modules && !deferModuleSystemsToHotReload) {
 		if (options.modules.shared) {
 			for (const s of findSystems(options.modules.shared)) {
 				allSystems.push(s);

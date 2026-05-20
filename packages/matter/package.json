@@ -22,42 +22,34 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"source": "./src/index.ts",
 			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
 		},
 		"./packages": {
-			"source": "./src/packages/index.ts",
 			"import": "./out/packages/init.luau",
 			"types": "./out/packages/index.d.ts"
 		},
 		"./items": {
-			"source": "./src/items/index.ts",
 			"import": "./out/items/init.luau",
 			"types": "./out/items/index.d.ts"
 		},
 		"./utils/item": {
-			"source": "./src/utils/item.ts",
 			"import": "./out/utils/item.luau",
 			"types": "./out/utils/item.d.ts"
 		},
 		"./utils/entity": {
-			"source": "./src/utils/entity.ts",
 			"import": "./out/utils/entity.luau",
 			"types": "./out/utils/entity.d.ts"
 		},
 		"./utils/physics": {
-			"source": "./src/utils/physics.ts",
 			"import": "./out/utils/physics.luau",
 			"types": "./out/utils/physics.d.ts"
 		},
 		"./utils/sound": {
-			"source": "./src/utils/sound.ts",
 			"import": "./out/utils/sound.luau",
 			"types": "./out/utils/sound.d.ts"
 		},
 		"./systems": {
-			"source": "./src/systems/index.ts",
 			"import": "./out/systems/init.luau",
 			"types": "./out/systems/index.d.ts"
 		}

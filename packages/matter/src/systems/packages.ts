@@ -14,6 +14,7 @@ import { meta as serverReplicationManager } from "./server/network/replicationMa
 import { meta as clientReplicationManager } from "./client/network/replicationManager";
 import { meta as clientStreamer } from "./client/network/clientStreamer";
 import { meta as clientEntityManager } from "./client/network/entityManager";
+import { meta as clientHookConnectorManager } from "./client/network/hookConnectorManager";
 import { meta as clientItemManager } from "./client/item/itemManager";
 import { meta as clientToolManager } from "./client/item/toolManager";
 import { meta as clientHotbarSynchronizer } from "./client/item/hotbarSynchronizer";
@@ -79,6 +80,7 @@ export const builtinPackage = definePackage({
 				{ key: "clientReplicationManager", runtime: "client", system: clientReplicationManager },
 				{ key: "clientEntityManager", runtime: "client", system: clientEntityManager },
 				{ key: "clientStreamer", runtime: "client", system: clientStreamer },
+				{ key: "clientHookConnectorManager", runtime: "client", system: clientHookConnectorManager },
 			],
 		},
 

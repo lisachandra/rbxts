@@ -1,6 +1,8 @@
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, System } from "@rbxts/matter";
 import { Debugger, Loop, World } from "@rbxts/matter";
+import type { Context } from "@rbxts/rewire";
+import { HotReloader } from "@rbxts/rewire";
 import { RunService } from "@rbxts/services";
 
 import type { ClientState, ServerState } from "@lisachandra/core/out/store";
@@ -205,14 +207,41 @@ export function findSystems(barrel: object, systems: Array<AnySystem> = []): Arr
 		if (!(system.placeIds ?? [game.PlaceId]).includes(game.PlaceId)) {
 			continue;
 		}
-
-		if (system.phase !== undefined) {
-			system.event = system.phase;
-		}
-		systems.push(system as never as AnySystem);
+		systems.push(toRuntimeSystem(system));
 	}
 
 	return systems;
+}
+
+function toRuntimeSystem(system: SystemContainer): AnySystem {
+	if (system.phase !== undefined) {
+		system.event = system.phase;
+	}
+
+	return system as never as AnySystem;
+}
+
+function getHotReloadSystem(module: ModuleScript): N<AnySystem> {
+	const [success, result] = pcall(require, module) as LuaTuple<[boolean, unknown]>;
+
+	if (!success) {
+		throw `Failed to hot-reload system module ${module.GetFullName()}: ${tostring(result)}`;
+	}
+
+	if (!typeIs(result, "table")) {
+		return undefined;
+	}
+
+	const system = (result as SystemModule).meta;
+	if (system === undefined) {
+		return undefined;
+	}
+
+	if (!(system.placeIds ?? [game.PlaceId]).includes(game.PlaceId)) {
+		return undefined;
+	}
+
+	return toRuntimeSystem(system);
 }
 
 export interface StartOptions {
@@ -231,16 +260,66 @@ export function start(
 	worldDebugger.findInstanceFromEntity = (entityId) => runtimeAdapters.findInstanceFromEntity!(entityId)
 	worldDebugger.authorize = (player) => runtimeAdapters.authorize!(player).expect();
 
+	const hotReloadSystems = new Array<AnySystem>();
+	const staticSystems = options.systems ?? [];
+	const systemsByModule = new Map<ModuleScript, AnySystem>();
+	let isBootstrappingHotReload = false;
+
+	if (RunService.IsStudio() && options.containers !== undefined && options.containers.size() > 0) {
+		const hotReloader = new HotReloader();
+		isBootstrappingHotReload = true;
+
+		const loadModule = (module: ModuleScript, context: Context): void => {
+			const system = getHotReloadSystem(module);
+			if (system === undefined) {
+				return;
+			}
+
+			const previousSystem = systemsByModule.get(context.originalModule);
+			if (previousSystem !== undefined) {
+				loop.replaceSystem(previousSystem, system);
+				worldDebugger.replaceSystem(previousSystem, system);
+			} else if (isBootstrappingHotReload) {
+				hotReloadSystems.push(system);
+			} else {
+				loop.scheduleSystem(system);
+			}
+
+			systemsByModule.set(context.originalModule, system);
+		};
+
+		const unloadModule = (_module: ModuleScript, context: Context): void => {
+			if (context.isReloading) {
+				return;
+			}
+
+			const scheduledSystem = systemsByModule.get(context.originalModule);
+			if (scheduledSystem === undefined) {
+				return;
+			}
+
+			loop.evictSystem(scheduledSystem);
+			systemsByModule.delete(context.originalModule);
+		};
+
+		for (const container of options.containers) {
+			hotReloader.scan(container, loadModule, unloadModule);
+		}
+
+		isBootstrappingHotReload = false;
+	}
+
 	store.world = world;
 	worldDebugger.autoInitialize(loop);
 	loop.setWorlds({ world });
-	loop.scheduleSystems(options.systems ?? []);
+	loop.scheduleSystems(staticSystems.filter((system) => !hotReloadSystems.includes(system)));
+	loop.scheduleSystems(hotReloadSystems);
 
 	const clientPhases = RunService.IsClient()
 		? {
-				renderStepped: RunService.RenderStepped,
-				...renderPriorityPhaseEvents,
-		  }
+			renderStepped: RunService.RenderStepped,
+			...renderPriorityPhaseEvents,
+		}
 		: ({} as never);
 
 	const phases = {

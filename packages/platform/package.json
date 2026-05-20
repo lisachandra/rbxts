@@ -21,52 +21,42 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"source": "./src/index.ts",
 			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
 		},
 		"./bootstrap": {
-			"source": "./src/bootstrap.ts",
 			"import": "./out/bootstrap.luau",
 			"types": "./out/bootstrap.d.ts"
 		},
 		"./centurion": {
-			"source": "./src/centurion/index.ts",
 			"import": "./out/centurion/init.luau",
 			"types": "./out/centurion/index.d.ts"
 		},
 		"./centurion/type": {
-			"source": "./src/centurion/type.ts",
 			"import": "./out/centurion/type.luau",
 			"types": "./out/centurion/type.d.ts"
 		},
 		"./centurion/guards": {
-			"source": "./src/centurion/guards.ts",
 			"import": "./out/centurion/guards.luau",
 			"types": "./out/centurion/guards.d.ts"
 		},
 		"./centurion/commands": {
-			"source": "./src/centurion/commands/index.ts",
 			"import": "./out/centurion/commands/init.luau",
 			"types": "./out/centurion/commands/index.d.ts"
 		},
 		"./centurion/types": {
-			"source": "./src/centurion/types/index.ts",
 			"import": "./out/centurion/types/init.luau",
 			"types": "./out/centurion/types/index.d.ts"
 		},
 		"./centurion/utility": {
-			"source": "./src/centurion/utility.ts",
 			"import": "./out/centurion/utility.luau",
 			"types": "./out/centurion/utility.d.ts"
 		},
 		"./teleporter": {
-			"source": "./src/teleporter.ts",
 			"import": "./out/teleporter.luau",
 			"types": "./out/teleporter.d.ts"
 		},
 		"./document": {
-			"source": "./src/document/index.ts",
 			"import": "./out/document/init.luau",
 			"types": "./out/document/index.d.ts"
 		}
