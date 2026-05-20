@@ -1,0 +1,5 @@
+export const GARDEN_INTERACTION_RADIUS = 10;
+export const GARDEN_PICKUP_RESPAWN_TIME = 12;
+export const GARDEN_GROWTH_TIME = 15;
+export const GARDEN_DECAY_TIME = 30;
+export const GARDEN_TOTAL_PLOTS = 6;

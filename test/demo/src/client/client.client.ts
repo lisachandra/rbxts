@@ -36,13 +36,8 @@ import { builtinPackage } from "@lisachandra/matter/out/systems";
 import { Message, messaging } from "@lisachandra/matter";
 
 for (const coreGui of [
-	Enum.CoreGuiType.Chat,
 	Enum.CoreGuiType.Health,
 	Enum.CoreGuiType.Backpack,
-	Enum.CoreGuiType.Captures,
-	Enum.CoreGuiType.SelfView,
-	Enum.CoreGuiType.EmotesMenu,
-	Enum.CoreGuiType.PlayerList,
 ]) {
 	StarterGui.SetCoreGuiEnabled(coreGui, false)
 }
@@ -116,5 +111,4 @@ Centurion.client()
 	})
 	.catch(catcher);
 
-Log.Info(`PlaceId: ${game.PlaceId}`);
-Log.Info(`PlaceVersion: ${game.PlaceVersion}`);
+Log.Info(`Client started: @{info}`, { PlaceId: game.PlaceId, PlaceVersion: game.PlaceVersion });

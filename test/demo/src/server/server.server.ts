@@ -32,9 +32,10 @@ import { Centurion } from "@rbxts/centurion";
 import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
 import * as serverSystemsBarrel from "./systems/barrel";
 import { setupLogger } from "@lisachandra/core/out/logger";
-import { bootstrap } from "@lisachandra/platform";
+import { bootstrap, configureCenturionUsers } from "@lisachandra/platform";
 import { builtinPackage } from "@lisachandra/matter/out/systems";
 import { configureRuntimeAdapters, getComponent } from "@lisachandra/matter";
+import Log from "@rbxts/log";
 
 const { shared } = ReplicatedStorage.TS;
 const { server } = ServerScriptService.TS
@@ -50,7 +51,9 @@ configureRuntimeAdapters({
 		}
 	},
 	authorize: Promise.promisify((player) => player.UserId === 133370944)
-})
+});
+
+configureCenturionUsers([133370944]);
 
 setupLogger();
 bootstrap({
@@ -70,3 +73,5 @@ import("shared/centurion").expect();
 import("server/centurion").expect();
 
 Centurion.server().start();
+
+Log.Info(`Server started: @{info}`, { PlaceId: game.PlaceId, PlaceVersion: game.PlaceVersion });
