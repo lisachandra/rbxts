@@ -34,7 +34,7 @@ import * as serverSystemsBarrel from "./systems/barrel";
 import { setupLogger } from "@lisachandra/core/out/logger";
 import { bootstrap, configureCenturionUsers } from "@lisachandra/platform";
 import { builtinPackage } from "@lisachandra/matter/out/systems";
-import { configureRuntimeAdapters, getComponent } from "@lisachandra/matter";
+import { configureRuntimeAdapters } from "@lisachandra/matter";
 import Log from "@rbxts/log";
 
 const { shared } = ReplicatedStorage.TS;
@@ -43,13 +43,6 @@ const { server } = ServerScriptService.TS
 import("server/document").expect()
 
 configureRuntimeAdapters({
-	playerLifecycle: {
-		componentFactory: (player, janitor) => {
-			return [
-				getComponent("Profile")({ janitor, player }),
-			]
-		}
-	},
 	authorize: Promise.promisify((player) => player.UserId === 133370944)
 });
 

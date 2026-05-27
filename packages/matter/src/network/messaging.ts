@@ -1,5 +1,6 @@
 import { u16, u32 } from "@rbxts/serio";
-import { MessageEmitter } from "@rbxts/tether";
+import { RunService } from "@rbxts/services";
+import { BuiltinMiddlewares, MessageEmitter } from "@rbxts/tether";
 
 /**
  * The shared message emitter for network communication between server and client.
@@ -8,7 +9,9 @@ import { MessageEmitter } from "@rbxts/tether";
  * Uses {@link MessageEmitter} from Tether to provide type-safe message dispatch
  * based on the {@link MessageData} interface.
  */
-export const messaging = MessageEmitter.create<MessageData>({ batchRemotes: false });
+export const messaging = MessageEmitter.create<MessageData>({ batchRemotes: !RunService.IsStudio() });
+
+// messaging.middleware.useSharedGlobal((BuiltinMiddlewares.debug as never as Callback)() as never)
 
 /**
  * Enumeration of all supported network message types.

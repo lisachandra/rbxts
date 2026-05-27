@@ -2,6 +2,22 @@ import React, { StrictMode } from "@rbxts/react";
 import { createPortal, createRoot } from "@rbxts/react-roblox";
 import { HotReloader } from "@rbxts/rewire";
 
+const HOT_RELOAD_EXCLUDED_NAME_SUFFIXES = [".story", ".storybook", ".stories", ".test", ".spec"] as const;
+
+function shouldHotReloadModule(module: ModuleScript): boolean {
+	if (module.GetFullName().find(".__tests__.")) {
+		return false;
+	}
+
+	for (const suffix of HOT_RELOAD_EXCLUDED_NAME_SUFFIXES) {
+		if (module.Name.sub(-suffix.size()) === suffix) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 interface AppModule {
 	App: () => React.ReactNode;
 }
@@ -57,6 +73,10 @@ export function createAppHotReloader({
 	};
 
 	const load = (module: ModuleScript): void => {
+		if (!shouldHotReloadModule(module)) {
+			return;
+		}
+
 		if (state.firstRun && module.Name !== entryModuleName) {
 			return;
 		}

@@ -1,4 +1,4 @@
-/* eslint-disable no-restricted-imports -- Testing Utilities*/
+/* eslint-disable no-restricted-imports -- Testing Utilities */
 import { describe } from "@rbxts/jest-globals";
 import * as React from "@rbxts/react";
 import fireEvent from "@rbxts/react-roblox-fire";

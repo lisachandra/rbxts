@@ -9,11 +9,14 @@ import type { ClientState, ServerState } from "@lisachandra/core/out/store";
 import { store } from "@lisachandra/core/out/store";
 
 import { getEntityInstanceComponent } from "./entityLookup";
-import { bindSimulationPhaseEvents, customPhases, renderPriorityPhaseEvents } from "./phases";
+import { customPhases, renderPriorityPhaseEvents } from "./phases";
 import { getComponentObject } from "./utils/entity";
 import type { Collection } from "@rbxts/lapis";
 import { Janitor } from "@rbxts/janitor";
 import Plasma from "@rbxts/plasma";
+import { String } from "@rbxts/luau-polyfill";
+
+const HOT_RELOAD_EXCLUDED_NAME_SUFFIXES = [".story", ".storybook", ".stories", ".test", ".spec"] as const;
 
 export type AnySystem = System<Array<unknown>>;
 export type SystemContainer = {
@@ -213,6 +216,20 @@ export function findSystems(barrel: object, systems: Array<AnySystem> = []): Arr
 	return systems;
 }
 
+function shouldHotReloadModule(module: ModuleScript): boolean {
+	if (String.includes(module.GetFullName(), ".__tests__.")) {
+		return false;
+	}
+
+	for (const suffix of HOT_RELOAD_EXCLUDED_NAME_SUFFIXES) {
+		if (module.Name.sub(-suffix.size()) === suffix) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 function toRuntimeSystem(system: SystemContainer): AnySystem {
 	if (system.phase !== undefined) {
 		system.event = system.phase;
@@ -270,6 +287,10 @@ export function start(
 		isBootstrappingHotReload = true;
 
 		const loadModule = (module: ModuleScript, context: Context): void => {
+			if (!shouldHotReloadModule(module)) {
+				return;
+			}
+
 			const system = getHotReloadSystem(module);
 			if (system === undefined) {
 				return;
@@ -310,10 +331,12 @@ export function start(
 	}
 
 	store.world = world;
-	worldDebugger.autoInitialize(loop);
 	loop.setWorlds({ world });
-	loop.scheduleSystems(staticSystems.filter((system) => !hotReloadSystems.includes(system)));
-	loop.scheduleSystems(hotReloadSystems);
+	loop.scheduleSystems([
+		...staticSystems.filter((system) => !hotReloadSystems.includes(system)),
+		...hotReloadSystems,
+	]);
+	worldDebugger.autoInitialize(loop);
 
 	const clientPhases = RunService.IsClient()
 		? {
@@ -330,7 +353,6 @@ export function start(
 		preRender: RunService.PreRender,
 		preSimulation: RunService.PreSimulation,
 		stepped: RunService.Stepped,
-		...bindSimulationPhaseEvents,
 		...clientPhases,
 		...(customPhases as never as Record<keyof typeof customPhases, RBXScriptSignal>),
 	};

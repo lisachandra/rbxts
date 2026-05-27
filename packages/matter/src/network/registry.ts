@@ -53,7 +53,7 @@ export interface ReplicationCodecMetadata<
  * @param componentEntityId - The entity ID of the component being replicated.
  * @param isLocalComponent - Whether this component is local to the player.
  * @param hasReceivedPayload - Whether the client has already received a payload.
- * @returns The serialized payload, or `void` to skip replication.
+ * @returns The serialized payload, or `false` to skip replication, `undefined` to remove component.
  */
 export type ServerSerializerFn<
 	TComponent extends object = object,
@@ -64,7 +64,7 @@ export type ServerSerializerFn<
 	componentEntityId: AnyEntity,
 	isLocalComponent: boolean,
 	hasReceivedPayload: boolean,
-) => void | TPayload;
+) => undefined | false | TPayload;
 
 /**
  * Deserializes a network payload back into component data on the client.

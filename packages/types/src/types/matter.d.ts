@@ -1,7 +1,6 @@
 import type { SystemFn } from "@rbxts/matter";
 
 declare module "@rbxts/matter" {
-	export type SimulationPhase = Enum.StepFrequency["Name"];
 	export type RenderPriorityPhase =
 		| "renderCamera"
 		| "renderCharacter"
@@ -17,7 +16,6 @@ declare module "@rbxts/matter" {
 		| "preSimulation"
 		| "stepped"
 		| "renderStepped"
-		| SimulationPhase
 		| RenderPriorityPhase
 		| "playerModuleCamera";
 

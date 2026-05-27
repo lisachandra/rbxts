@@ -14,10 +14,10 @@ import { removeValue } from "@rbxts/sift/out/Array";
 import type { ServerState } from "@lisachandra/core/out/store";
 import { iterate } from "@lisachandra/core/out/utils/type";
 import { ChangeRecord, ComponentKey, getComponent } from "../../../components";
-import { useMessage } from "../../../hooks/useMessage";
 import { meta as hotbarManager } from "../item/hotbarManager";
 import { meta as itemManager } from "../item/itemManager";
-import { Message, messaging, registry } from "../../../network";
+import { Message, messaging, registry, ServerSerializerFn } from "../../../network";
+import { SerializedData } from "@rbxts/serio";
 
 const hasReceived: Array<Player> = [];
 
@@ -63,7 +63,7 @@ function serializeSingleComponent(
 	componentKey: string,
 	hasReceivedPayload: boolean,
 	mode: "all" | "owner",
-): { blobs?: Array<defined>; buf?: buffer } | undefined {
+): SerializedData | false | undefined {
 	const codec = registry.get(componentKey);
 	if (!codec) {
 		Log.Warn(`Skipping replication for unregistered component ${componentKey}`);
@@ -77,10 +77,10 @@ function serializeSingleComponent(
 			targetEntityId,
 			mode === "owner",
 			hasReceivedPayload
-		)
+		) as unknown
 
-		if ((serialized as unknown) === undefined) {
-			return;
+		if (serialized === undefined || serialized === false) {
+			return serialized;
 		}
 
 		if (!codec.payloadGuard(serialized)) {
@@ -114,22 +114,23 @@ function setComponentPayload(
 	const hasReceivedPayload = hasReceived.includes(player);
 	const payload = payloads.get(player) ?? ({} as Payload);
 
-	payload[key] ??= {};
-	payload[key][componentKey] =
-		"new" in record
-			? {
-					payload: serializeSingleComponent(
-						viewerEntityId,
-						targetEntityId,
-						record,
-						componentKey,
-						hasReceivedPayload,
-						mode,
-					),
-				}
-			: {};
+	const serializedPayload = serializeSingleComponent(
+		viewerEntityId,
+		targetEntityId,
+		record,
+		componentKey,
+		hasReceivedPayload,
+		mode,
+	)
 
-	payloads.set(player, payload);
+	if (serializedPayload !== false) {
+		payload[key] ??= {};
+		payload[key][componentKey] = {
+			payload: serializedPayload
+		}
+
+		payloads.set(player, payload);
+	}
 }
 
 function replicateComponentForPlayer(
@@ -176,15 +177,13 @@ function handleInitialReplication(
 	world: World,
 	crate: Crate<ServerState>,
 	payloads: Map<Player, Payload>,
-	initialized: Array<Player>,
-	loaded: Array<Player>,
+	initialized: Array<Player>
 ): void {
 	for (const [componentEntityId, profile] of world.query(getComponent("Profile"))) {
-		debugPrint(`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))} loaded=${tostring(loaded.includes(profile.player))}`);
+		debugPrint(`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))}`);
 		const playerHasReceived = hasReceived.includes(profile.player);
 
-		const shouldInitialReplicate = playerHasReceived && !loaded.includes(profile.player);
-		if (!shouldInitialReplicate) {
+		if (playerHasReceived) {
 			debugPrint(`[server replication] skip initial ${profile.player.Name}`);
 			continue;
 		}
@@ -266,6 +265,7 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 
 		for (const [strEntityId, componentMap] of iterate(payloadContainer)) {
 			const entityId = tonumber(strEntityId)! as AnyEntity;
+			let sentComponent = false;
 
 			if (isEmpty(componentMap)) {
 				messaging.client.emit(player, Message.DespawnEntity, entityId);
@@ -279,6 +279,8 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 				}
 
 				debugPrint(`[server replication] send component ${player.Name} ${componentKey}#${codec.id} ${entityId}`);
+				sentComponent = true
+
 				messaging.client.emit(player, Message.Component, {
 					componentId: codec.id,
 					payload: typeIs(payload?.payload, "buffer") ? {
@@ -288,8 +290,10 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 				});
 			}
 
-			messaging.client.emit(player, Message.SpawnEntity, entityId);
-			debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
+			if (sentComponent) {
+				messaging.client.emit(player, Message.SpawnEntity, entityId);
+				debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
+			}
 		}
 	}
 }
@@ -299,21 +303,8 @@ function system(world: World, crate: Crate<ServerState>, ui: DebugWidgets): void
 
 	const payloads = new Map<Player, Payload>();
 	const initialized: Array<Player> = [];
-	const loaded: Array<Player> = [];
 
-	// Track players who have loaded.
-	// On server, we listen via messaging.server to receive from clients.
-	// Tether server callback receives (player, data) -> yields [index, player, data].
-	for (const [_, player] of useMessage(messaging.server, Message.Loaded)) {
-		if (!hasReceived.includes(player) || loaded.includes(player!)) {
-			continue;
-		}
-
-		loaded.push(player!);
-		debugPrint(`[server replication] loaded ${player!.Name}`);
-	}
-
-	handleInitialReplication(world, crate, payloads, initialized, loaded);
+	handleInitialReplication(world, crate, payloads, initialized);
 	handleComponentChanges(world, payloads, initialized);
 	sendPayloads(payloads, initialized);
 }

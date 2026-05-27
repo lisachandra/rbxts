@@ -1,6 +1,7 @@
 import { registry } from "../registry";
 import { Components, Force, getComponent } from "../../components";
 import createSerializer, { u32 } from "@rbxts/serio";
+import { equalsDeep } from "@rbxts/sift/out/Dictionary";
 
 type ReplaceNumbers<T, Replacement> = { [K in keyof T]: T[K] extends number ? Replacement: T[K] }
 
@@ -20,6 +21,6 @@ export type ForcesPayload = Partial<Omit<Components["Forces"], "forces">> & {
 registry.register<Components["Forces"], ForcesPayload>({
 	component: getComponent("Forces"),
 	mode: "all",
-	serializer: (record) => record.new!,
+	serializer: (record) => !equalsDeep(record.old ?? {}, record.new ?? {}) ? record.new : false,
 	deserializer: (data) => data,
 });
