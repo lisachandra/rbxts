@@ -223,19 +223,21 @@ function watchForPropertyChanges<T extends Instance>(
 		// Set up change listener for instance properties
 		const connection = (instance as ChangedSignal & typeof instance).Changed.Connect(
 			(property: string | keyof WritableInstanceProperties<T>) => {
-				if (defaultProps[property as never]) {
-					return;
-				}
+				pcall(() => {
+					if (defaultProps[property as never]) {
+						return;
+					}
 
-				Log.Debug(
-					`${instance.GetFullName().sub("ReplicatedStorage.UI.".size())}.${property as string} = ${instance[property as keyof WritableInstanceProperties<T>]}`,
-				);
+					defaultProps[property as never] = instance[
+						property as keyof WritableInstanceProperties<T>
+					] as never;
 
-				defaultProps[property as never] = instance[
-					property as keyof WritableInstanceProperties<T>
-				] as never;
+					Log.Debug(
+						`${instance.GetFullName().sub("ReplicatedStorage.UI.".size())}.${property as string} = ${instance[property as keyof WritableInstanceProperties<T>]}`,
+					);
 
-				render({});
+					render({});
+				})
 			},
 		);
 

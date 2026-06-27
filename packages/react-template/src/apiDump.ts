@@ -1,5 +1,5 @@
-// TODO: Generate periodically with flamework
-export declare const ApiDump: {
+import { Modding } from "@flamework/core"
+export const ApiDump = Modding.inspect<{
 	Classes: Array<
 		{
 			[K in keyof CreatableInstances]: {
@@ -8,4 +8,4 @@ export declare const ApiDump: {
 			};
 		}[keyof CreatableInstances]
 	>;
-};
+}>();

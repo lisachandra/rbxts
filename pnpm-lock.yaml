@@ -23,7 +23,7 @@ catalogs:
       version: 1.2.0
     '@lisachandra/constant':
       specifier: github:lisachandra/constant#path:packages/constant
-      version: 0.1.0
+      version: 0.2.0
     '@rbxts/centurion':
       specifier: 1.0.1
       version: 1.0.1
@@ -125,7 +125,7 @@ catalogs:
       version: 1.4.17
     '@rbxts/types':
       specifier: latest
-      version: 1.0.916
+      version: 1.0.924
     '@rbxts/validate-tree':
       specifier: 2.0.2
       version: 2.0.2
@@ -185,7 +185,7 @@ importers:
         version: 3.0.0-types.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       husky:
         specifier: 'catalog:'
         version: 9.1.7
@@ -257,7 +257,7 @@ importers:
         version: 3.2.1
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       '@rbxts/validate-tree':
         specifier: 'catalog:'
         version: 2.0.2
@@ -284,7 +284,7 @@ importers:
         version: 1.2.0(typescript@5.5.3)
       '@lisachandra/constant':
         specifier: 'catalog:'
-        version: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+        version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -344,7 +344,7 @@ importers:
         version: 1.4.17
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       rbxts-transformer-flamework:
         specifier: 'catalog:'
         version: 1.3.2(typescript@5.5.3)
@@ -422,7 +422,7 @@ importers:
         version: 3.2.1
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       rbxts-transformer-flamework:
         specifier: 'catalog:'
         version: 1.3.2(typescript@5.5.3)
@@ -461,7 +461,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.918
+        version: 1.0.924
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -471,6 +471,9 @@ importers:
 
   packages/react-template:
     devDependencies:
+      '@flamework/core':
+        specifier: 'catalog:'
+        version: 1.3.2
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.9.3)
@@ -491,7 +494,10 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.918
+        version: 1.0.924
+      rbxts-transformer-flamework:
+        specifier: 'catalog:'
+        version: 1.3.2(typescript@5.9.3)
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -533,7 +539,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.918
+        version: 1.0.924
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -560,7 +566,7 @@ importers:
         version: https://codeload.github.com/matter-ecs/matter-types/tar.gz/d37078ce9b4eb6171f46acbe0c0fca55472a640c
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -605,7 +611,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       roblox-ts:
         specifier: 'catalog:'
         version: 3.0.0
@@ -638,7 +644,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
@@ -659,7 +665,7 @@ importers:
         version: 1.3.2
       '@lisachandra/constant':
         specifier: 'catalog:'
-        version: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+        version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -798,7 +804,7 @@ importers:
         version: 3.0.0-types.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.920
+        version: 1.0.924
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
@@ -849,7 +855,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
@@ -897,7 +903,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
@@ -942,7 +948,7 @@ importers:
         version: 1.6.0
       '@rbxts/types':
         specifier: 'catalog:'
-        version: 1.0.916
+        version: 1.0.924
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2
@@ -1076,9 +1082,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant':
-    resolution: {path: packages/constant, tarball: https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795}
-    version: 0.1.0
+  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant':
+    resolution: {path: packages/constant, tarball: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b}
+    version: 0.2.0
     peerDependencies:
       '@rbxts/iris': '*'
       '@rbxts/luau-polyfill': '*'
@@ -1582,14 +1588,8 @@ packages:
   '@rbxts/trash@1.0.8':
     resolution: {integrity: sha512-YpQHxvctPbEQpMcRzLFoAHr+ab+Li0P6VlrXbBDjFrC92EhByuqEABvwksfK/0s+mate8Q4lnVlTSf6a+6QxKA==}
 
-  '@rbxts/types@1.0.916':
-    resolution: {integrity: sha512-Bwy7hkbho4xtDR6ANjrdJWPTNF3bPoJnIfQYjQQv9Lt+xFid5bD1ZYs3Ij1xSfykgI3D8KS0yzWKdNhycZkHCQ==}
-
-  '@rbxts/types@1.0.918':
-    resolution: {integrity: sha512-PNtzv1jitSkr+v5j06A44Xa98NMTTkSxZ1vvUcUzW4q1WZ7A750FeFhZqjyKP2rcR8XMSiQWcycC4svSFV6RJw==}
-
-  '@rbxts/types@1.0.920':
-    resolution: {integrity: sha512-rzGBM+AUE2ZTkaWd4Pc0/2i8L6+pMkEvmHyPjXNu0x0YNEYD4Bh9yjOw6QEZHcg50sCmrqgFniYRx6IjWT/x1g==}
+  '@rbxts/types@1.0.924':
+    resolution: {integrity: sha512-ez4ymlah37fHqJUH1xFXWLz+ehmcEFHlFVgiGKKrRlzqqXD/8jCOUbg+q0K2hjp/0OdoGovQZGj0vkSfyNvUhQ==}
 
   '@rbxts/validate-tree@2.0.2':
     resolution: {integrity: sha512-OA0E9ZjEeOpPa3XeV5/oC51aro2QFcL5dItufbagYZW8TOsX8C+FDXLx+A/ulMwcF42WcFNcQybxzcWSS/QSrA==}
@@ -3043,7 +3043,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/7a2322420282d9adc00ab36d8e28b3e8d4316795#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)':
+  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)':
     dependencies:
       '@rbxts/iris': 2.3.1-ts.1
       '@rbxts/luau-polyfill': 1.1.3
@@ -3754,11 +3754,7 @@ snapshots:
     dependencies:
       '@rbxts/t': 3.2.1
 
-  '@rbxts/types@1.0.916': {}
-
-  '@rbxts/types@1.0.918': {}
-
-  '@rbxts/types@1.0.920': {}
+  '@rbxts/types@1.0.924': {}
 
   '@rbxts/validate-tree@2.0.2': {}
 
@@ -4612,6 +4608,18 @@ snapshots:
       hashids: 2.3.0
       normalize-package-data: 3.0.3
       typescript: 5.5.3
+      uuid: 8.3.2
+
+  rbxts-transformer-flamework@1.3.2(typescript@5.9.3):
+    dependencies:
+      '@roblox-ts/rojo-resolver': 1.1.0
+      ajv: 8.18.0
+      chalk: 4.1.2
+      fs-extra: 10.1.0
+      glob: 9.3.5
+      hashids: 2.3.0
+      normalize-package-data: 3.0.3
+      typescript: 5.9.3
       uuid: 8.3.2
 
   rc9@3.0.1:
