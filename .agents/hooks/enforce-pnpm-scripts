@@ -13,8 +13,8 @@ RULES=(
   "eslint|pnpm run lint"
   "oxlint|pnpm run lint"
   "prettier|pnpm run lint"
-  "tsc|pnpm run typecheck or pnpm run build"
-  "tsgo|pnpm run typecheck"
+  "tsc|pnpm run build"
+  "tsgo|pnpm run build"
   "rbxtsc|pnpm run build"
 )
 

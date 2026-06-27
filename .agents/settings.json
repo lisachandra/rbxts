@@ -25,20 +25,6 @@
 	"enabledPlugins": {
 		"sentinel@isentinel": true
 	},
-	"extraKnownMarketplaces": {
-		"claude-plugins-official": {
-			"source": {
-				"source": "github",
-				"repo": "anthropics/claude-plugins-official"
-			}
-		},
-		"isentinel": {
-			"source": {
-				"source": "github",
-				"repo": "christopher-buss/skills"
-			}
-		}
-	},
 	"hooks": {
 		"PreToolUse": [
 			{
@@ -59,15 +45,6 @@
 					{
 						"type": "command",
 						"command": ".agents/hooks/run-hook.cmd block-destructive-commands"
-					}
-				]
-			},
-			{
-				"matcher": "edit_file|write_to_file",
-				"hooks": [
-					{
-						"type": "command",
-						"command": ".agents/hooks/run-hook.cmd tdd-guard"
 					}
 				]
 			}
