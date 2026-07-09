@@ -1,5 +1,5 @@
 import { registry } from "../registry";
-import { Components, Force, getComponent } from "../../components";
+import { Components, Force } from "../../components";
 import createSerializer, { u32 } from "@rbxts/serio";
 import { equalsDeep } from "@rbxts/sift/out/Dictionary";
 
@@ -19,7 +19,7 @@ export type ForcesPayload = Partial<Omit<Components["Forces"], "forces">> & {
 }
 
 registry.register<Components["Forces"], ForcesPayload>({
-	component: getComponent("Forces"),
+	component: Components.Forces,
 	mode: "all",
 	serializer: (record) => !equalsDeep(record.old ?? {}, record.new ?? {}) ? record.new : false,
 	deserializer: (data) => data,

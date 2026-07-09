@@ -7,10 +7,10 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { ClientState, ServerState } from "@lisachandra/core/out/store";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 
 function system(world: World): void {
-	for (const [, record] of world.queryChanged(getComponent("Node"))) {
+	for (const [, record] of world.queryChanged(Components.Node)) {
 		if (record.new || !record.old) {
 			continue;
 		}

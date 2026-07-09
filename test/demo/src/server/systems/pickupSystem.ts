@@ -2,14 +2,14 @@ import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type { ServerState } from "@lisachandra/core/out/store";
 import { vector } from "@lisachandra/core";
-import { getComponent, type Components } from "@lisachandra/matter";
+import { Components } from "@lisachandra/matter";
 import { GARDEN_INTERACTION_RADIUS, GARDEN_PICKUP_RESPAWN_TIME } from "shared/game/constants";
 import { applyPickupVisual, getCharacterRoot, pushNotification, setCarryState } from "server/game/helpers";
 
 function system(world: World): void {
 	const now = os.clock();
 
-	for (const [pickupEntity, pickup] of world.query(getComponent("ResourcePickup"))) {
+	for (const [pickupEntity, pickup] of world.query(Components.ResourcePickup)) {
 		if (pickup.amount > 0 || pickup.respawnAt === undefined || pickup.respawnAt > now) {
 			continue;
 		}
@@ -17,7 +17,7 @@ function system(world: World): void {
 		applyPickupVisual(pickup.part, pickup.kind, true);
 		world.insert(
 			pickupEntity,
-			getComponent("ResourcePickup")({
+			Components.ResourcePickup({
 				...pickup,
 				amount: 1,
 				respawnAt: undefined,
@@ -25,15 +25,15 @@ function system(world: World): void {
 		);
 	}
 
-	for (const [entityId, profile] of world.query(getComponent("Profile"))) {
+	for (const [entityId, profile] of world.query(Components.Profile)) {
 		const root = getCharacterRoot(profile.player);
 		if (!root) {
 			continue;
 		}
 
-		let carry = world.get(entityId, getComponent("CarryState"));
+		let carry = world.get(entityId, Components.CarryState);
 		if (!carry) {
-			carry = getComponent("CarryState")({ amount: 0 });
+			carry = Components.CarryState({ amount: 0 });
 			world.insert(entityId, carry);
 		}
 
@@ -45,7 +45,7 @@ function system(world: World): void {
 		let nearestPickup: Components["ResourcePickup"] | undefined;
 		let nearestDistance = math.huge;
 
-		for (const [pickupEntity, pickup] of world.query(getComponent("ResourcePickup"))) {
+		for (const [pickupEntity, pickup] of world.query(Components.ResourcePickup)) {
 			if (pickup.amount <= 0) {
 				continue;
 			}
@@ -68,7 +68,7 @@ function system(world: World): void {
 		setCarryState(world, entityId, nearestPickup.kind, nearestPickup.amount);
 		world.insert(
 			nearestEntity,
-			getComponent("ResourcePickup")({
+			Components.ResourcePickup({
 				...nearestPickup,
 				amount: 0,
 				respawnAt: now + GARDEN_PICKUP_RESPAWN_TIME,

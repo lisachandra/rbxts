@@ -1,4 +1,4 @@
-import { registerComponent, registry, type Components } from "@lisachandra/matter";
+import { registry, Components } from "@lisachandra/matter";
 import { component } from "@rbxts/matter";
 import type { PlotStage, PromptKind, ResourceKind } from "shared/game/types";
 
@@ -65,15 +65,15 @@ const notificationState = component<Components["NotificationState"]>("Notificati
 const waterSource = component<Components["WaterSource"]>("WaterSource");
 const decayState = component<Components["DecayState"]>("DecayState");
 
-registerComponent("GardenPlot", gardenPlot);
-registerComponent("ResourcePickup", resourcePickup);
-registerComponent("Interactable", interactable);
-registerComponent("GardenProgress", gardenProgress);
-registerComponent("CarryState", carryState);
-registerComponent("PromptState", promptState);
-registerComponent("NotificationState", notificationState);
-registerComponent("WaterSource", waterSource);
-registerComponent("DecayState", decayState);
+Components.GardenPlot = gardenPlot;
+Components.ResourcePickup = resourcePickup;
+Components.Interactable = interactable;
+Components.GardenProgress = gardenProgress;
+Components.CarryState = carryState;
+Components.PromptState = promptState;
+Components.NotificationState = notificationState;
+Components.WaterSource = waterSource;
+Components.DecayState = decayState;
 
 registry.register<Components["GardenProgress"], Components["GardenProgress"]>({
 	component: gardenProgress,

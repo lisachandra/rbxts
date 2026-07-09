@@ -1,5 +1,5 @@
 import { AppContext, useComponentRecord, VirtualScroller } from "@lisachandra/ui";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import React, { useContext, useEffect, useState } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
 import { useLocalClientEntityId } from "client/ui/hooks/useDemoEntities";
@@ -7,7 +7,7 @@ import { useLocalClientEntityId } from "client/ui/hooks/useDemoEntities";
 export function GardenNotifications(): JSX.Element {
 	const { px } = useContext(AppContext);
 	const entityId = useLocalClientEntityId();
-	const notificationRecord = useComponentRecord(entityId, getComponent("NotificationState"));
+	const notificationRecord = useComponentRecord(entityId, Components.NotificationState);
 	const notification = notificationRecord?.new ?? notificationRecord?.old;
 	const [messages, setMessages] = useState<Array<string>>(["Welcome to Garden Scraps"]);
 	const [revision, setRevision] = useState(0);

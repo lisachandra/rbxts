@@ -16,7 +16,7 @@ import { meta as replicationManager } from "../network/replicationManager";
 import { useMessage, useThrottle } from "../../../hooks";
 import { catcher, getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import { iterate } from "@lisachandra/core/out/utils/type";
-import { ChangeRecord, Components, getComponent, isComponent, Item } from "../../../components";
+import { ChangeRecord, Components, isComponent, Item } from "../../../components";
 import { Message, messaging } from "../../../network";
 
 
@@ -109,7 +109,7 @@ function updateItemPointersForComponent(
 	newItemPointers: Record<string, string>,
 ): Record<string, string> {
 	let updatedPointers = newItemPointers;
-	for (const [entityId, record] of world.queryChanged(getComponent(name))) {
+	for (const [entityId, record] of world.queryChanged(Components[name])) {
 		if (
 			(record.old || !record.new) &&
 			(!record.new || !record.old || equals(record.new.items, record.old.items))
@@ -149,7 +149,7 @@ function updateToolReferences(
 
 	const component: Component<{ items: Array<Item> }> = world.get(
 		state.playerEntityId!,
-		getComponent(name),
+		Components[name],
 	)!;
 	const backpack = Players.LocalPlayer.FindFirstChildWhichIsA("Backpack")!;
 

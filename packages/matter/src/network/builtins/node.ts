@@ -1,5 +1,5 @@
 import { registry } from "../registry";
-import { Components, getComponent } from "../../components";
+import { Components } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import { u8 } from "@rbxts/serio";
 import { Workspace } from "@rbxts/services";
@@ -14,7 +14,7 @@ export type NodePayload = {
 };
 
 registry.register<Components["Node"], NodePayload>({
-	component: getComponent("Node"),
+	component: Components.Node,
 	mode: "all",
 	serializer: (record) => !equalsDeep(record.old ?? {}, record.new ?? {}) ? record.new : false,
 	deserializer: (data, serverEntityId) => {

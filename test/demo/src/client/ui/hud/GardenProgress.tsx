@@ -1,5 +1,5 @@
 import { AppContext, useComponentRecord } from "@lisachandra/ui";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import React, { useContext } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
 import { useGardenProgressEntityId } from "client/ui/hooks/useDemoEntities";
@@ -7,7 +7,7 @@ import { useGardenProgressEntityId } from "client/ui/hooks/useDemoEntities";
 export function GardenProgress(): JSX.Element {
 	const { px } = useContext(AppContext);
 	const entityId = useGardenProgressEntityId();
-	const progressRecord = useComponentRecord(entityId, getComponent("GardenProgress"));
+	const progressRecord = useComponentRecord(entityId, Components.GardenProgress);
 	const progress = progressRecord?.new ?? progressRecord?.old;
 
 	return (

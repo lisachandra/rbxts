@@ -9,7 +9,7 @@ import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@r
 import { None, useEvent } from "@rbxts/matter";
 
 import { meta as toolManager } from "./toolManager";
-import { Components, getComponent } from "../../../components";
+import { Components } from "../../../components";
 import { getItemFromGUID } from "../../../utils/item";
 import { Character } from "@lisachandra/core/out/schemas";
 import { getEntityHumanoid } from "../../../utils/entity";
@@ -36,7 +36,7 @@ function handleToolEquip(
 
 	const item = getItemFromGUID(tool.GetAttribute<string>("guid")!);
 
-	const hotbar = world.get(entityId, getComponent("Hotbar"));
+	const hotbar = world.get(entityId, Components.Hotbar);
 	if (hotbar) {
 		world.insert(entityId, hotbar.patch({ equipped: item!.guid }));
 	}
@@ -47,7 +47,7 @@ function handleToolUnequip(world: World, entityId: AnyEntity, tool: Instance): v
 		return;
 	}
 
-	const hotbar = world.get(entityId, getComponent("Hotbar"));
+	const hotbar = world.get(entityId, Components.Hotbar);
 	const removedToolGUID = tool.GetAttribute<string>("guid");
 
 	if (hotbar && removedToolGUID !== undefined && hotbar.equipped === removedToolGUID) {
@@ -70,7 +70,7 @@ function didHotbarInitialize(
  * accordingly.
  */
 function system(world: World): void {
-	for (const [entityId, hotbar] of world.query(getComponent("Hotbar"))) {
+	for (const [entityId, hotbar] of world.query(Components.Hotbar)) {
 		didHotbarInitialize(world, entityId, hotbar);
 
 		const humanoid = getEntityHumanoid(entityId);

@@ -29,7 +29,7 @@ import Log from "@rbxts/log";
 import { Janitor } from "@rbxts/janitor";
 import { useDocument } from "../../../hooks/useDocument";
 import { catcher } from "@lisachandra/core/out/utils/main";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 import { Constant } from "@lisachandra/constant";
 
 const loadingQueue = new Map<Player, boolean>();
@@ -197,10 +197,10 @@ function defaultPlayerAdded(world: World, player: Player): void {
 			const components = hooks?.componentFactory
 				? hooks.componentFactory(player, playerJanitor)
 				: [
-					getComponent("Profile")({ janitor: playerJanitor, player }),
-					getComponent("Inventory")(),
-					getComponent("Hotbar")(),
-					getComponent("Forces")(),
+					Components.Profile({ janitor: playerJanitor, player }),
+					Components.Inventory(),
+					Components.Hotbar(),
+					Components.Forces(),
 				];
 
 			debugPrint(`[playerManager] inserting components ${player.Name} count=${components.size()}`);
@@ -232,7 +232,7 @@ function defaultPlayerRemoving(world: World, player: Player): void {
 
 	const entityId = player.GetAttribute<AnyEntity>("serverEntityId");
 	if (entityId !== undefined && world.contains(entityId)) {
-		world.get(entityId, getComponent("Profile"))?.janitor.Destroy();
+		world.get(entityId, Components.Profile)?.janitor.Destroy();
 		world.despawn(entityId);
 	}
 }

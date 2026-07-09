@@ -1,5 +1,5 @@
 import { vector } from "@lisachandra/core";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { Workspace } from "@rbxts/services";
 import type { PlotStage, ResourceKind } from "shared/game/types";
@@ -94,18 +94,18 @@ export function isWithinRadius(position: Vector3, target: BasePart, radius: numb
 }
 
 export function setCarryState(world: World, entityId: AnyEntity, kind: ResourceKind | undefined, amount: number): void {
-	world.insert(entityId, getComponent("CarryState")({ kind, amount }));
+	world.insert(entityId, Components.CarryState({ kind, amount }));
 }
 
 export function setPromptState(world: World, entityId: AnyEntity, text: string): void {
-	world.insert(entityId, getComponent("PromptState")({ text }));
+	world.insert(entityId, Components.PromptState({ text }));
 }
 
 export function pushNotification(world: World, entityId: AnyEntity, latest: string): void {
-	const current = world.get(entityId, getComponent("NotificationState"));
+	const current = world.get(entityId, Components.NotificationState);
 	world.insert(
 		entityId,
-		getComponent("NotificationState")({
+		Components.NotificationState({
 			latest,
 			revision: (current?.revision ?? 0) + 1,
 		}),

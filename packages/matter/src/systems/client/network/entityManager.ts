@@ -12,7 +12,7 @@ import type { AnyComponent, Component } from "@rbxts/matter/lib/component";
 import { Players, Workspace } from "@rbxts/services";
 
 import { meta as replicationManager } from "./replicationManager";
-import { ChangeRecord, ComponentKey, getComponent, isComponent } from "../../../components";
+import { ChangeRecord, Components, ComponentKey, isComponent } from "../../../components";
 import { is } from "@lisachandra/core/out/utils/type";
 import { ClientState } from "@lisachandra/core";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
@@ -55,7 +55,7 @@ function handleComponentChange(
 	componentName: ComponentKey,
 	hasJanitor = false,
 ): void {
-	for (const [entityId, record] of world.queryChanged(getComponent(componentName))) {
+	for (const [entityId, record] of world.queryChanged(Components[componentName])) {
 		if (record.old || !record.new) {
 			handleComponentRemoval(record);
 			continue;

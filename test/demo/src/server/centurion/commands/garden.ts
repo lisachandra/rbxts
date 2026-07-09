@@ -1,5 +1,5 @@
 import { store } from "@lisachandra/core";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import { adminOrDeveloper } from "@lisachandra/platform";
 import type { CommandContext } from "@rbxts/centurion";
 import { Command, Guard, Register } from "@rbxts/centurion";
@@ -11,10 +11,10 @@ export class GardenResetCommand {
 	@Command({ description: "Reset all garden plots.", name: "gardenreset" })
 	@Guard(adminOrDeveloper)
 	public gardenreset(_context: CommandContext): void {
-		for (const [entityId, plot] of store.world.query(getComponent("GardenPlot"))) {
+		for (const [entityId, plot] of store.world.query(Components.GardenPlot)) {
 			applyPlotVisual(plot.part, "Dirty");
-			store.world.insert(entityId, getComponent("GardenPlot")({ ...plot, stage: "Dirty", progress: 0, lastTouchedAt: os.clock() }));
-			store.world.insert(entityId, getComponent("DecayState")({ nextDecayAt: os.clock() + GARDEN_DECAY_TIME }));
+			store.world.insert(entityId, Components.GardenPlot({ ...plot, stage: "Dirty", progress: 0, lastTouchedAt: os.clock() }));
+			store.world.insert(entityId, Components.DecayState({ nextDecayAt: os.clock() + GARDEN_DECAY_TIME }));
 		}
 	}
 }
@@ -24,13 +24,13 @@ export class GardenGrowCommand {
 	@Command({ description: "Force all watered plots to grow.", name: "gardengrow" })
 	@Guard(adminOrDeveloper)
 	public gardengrow(_context: CommandContext): void {
-		for (const [entityId, plot] of store.world.query(getComponent("GardenPlot"))) {
+		for (const [entityId, plot] of store.world.query(Components.GardenPlot)) {
 			if (plot.stage !== "Watered") {
 				continue;
 			}
 
 			applyPlotVisual(plot.part, "Grown");
-			store.world.insert(entityId, getComponent("GardenPlot")({ ...plot, stage: "Grown", progress: 2, lastTouchedAt: os.clock() }));
+			store.world.insert(entityId, Components.GardenPlot({ ...plot, stage: "Grown", progress: 2, lastTouchedAt: os.clock() }));
 		}
 	}
 }
@@ -55,7 +55,7 @@ export class GardenProgressCommand {
 	@Command({ description: "Print current garden progress.", name: "gardenprogress" })
 	@Guard(adminOrDeveloper)
 	public gardenprogress(_context: CommandContext): void {
-		for (const [, progress] of store.world.query(getComponent("GardenProgress"))) {
+		for (const [, progress] of store.world.query(Components.GardenProgress)) {
 			print(
 				`Garden health=${tostring(progress.health)} restored=${tostring(progress.restoredPlots)}/${tostring(progress.totalPlots)} harvested=${tostring(progress.harvested)}`,
 			);

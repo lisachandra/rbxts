@@ -13,7 +13,7 @@ import { ClientState } from "@lisachandra/core/out/store";
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { None } from "@rbxts/matter";
-import { Components, getComponent } from "../../../components";
+import { Components } from "../../../components";
 import { findServerEntityIdFromMap } from "../../../utils/entity";
 import { getEntityStreamableComponent } from "../../../entityLookup";
 import { useStream } from "../../../hooks";
@@ -61,7 +61,7 @@ function system(world: World, _crate: Crate<ClientState>): void {
 
 	// Iterate over all entities with a Stream component.
 	// Any entity that also has a streamable component (with a model key) will be handled.
-	for (const [entityId, stream] of world.query(getComponent("Stream"))) {
+	for (const [entityId, stream] of world.query(Components.Stream)) {
 		const streamableComponent = getEntityStreamableComponent(world, entityId);
 		if (!streamableComponent) {
 			continue;

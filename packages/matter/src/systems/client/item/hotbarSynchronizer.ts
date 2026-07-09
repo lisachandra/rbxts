@@ -10,7 +10,7 @@ import { equals } from "@rbxts/sift/out/Array";
 
 import { meta as itemManager } from "./itemManager";
 import { ClientState } from "@lisachandra/core/out/store";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 
 /*
  * Ensures the hotbar order is consistent and up-to-date by checking item GUIDs.
@@ -25,7 +25,7 @@ function system(world: World, crate: Crate<ClientState>): void {
 
 	const clientEntityId = crate.getState("playerEntityId")! as AnyEntity;
 
-	const hotbar = world.get(clientEntityId, getComponent("Hotbar"))!;
+	const hotbar = world.get(clientEntityId, Components.Hotbar)!;
 	const currentOrder = hotbar.order ?? [];
 	const hotbarGUIDs = hotbar.items.map((item) => item.guid);
 	const newOrder = currentOrder.filter((guid) => hotbarGUIDs.includes(guid));

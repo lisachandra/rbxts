@@ -1,5 +1,5 @@
 import { store } from "@lisachandra/core";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import type { AnyEntity } from "@rbxts/matter";
 import React, { useEffect, useState } from "@rbxts/react";
 import { Players, RunService } from "@rbxts/services";
@@ -25,7 +25,7 @@ export function useGardenProgressEntityId(): AnyEntity | undefined {
 
 	useEffect(() => {
 		const refresh = () => {
-			for (const [nextEntityId] of store.world.query(getComponent("GardenProgress"))) {
+			for (const [nextEntityId] of store.world.query(Components.GardenProgress)) {
 				setEntityId(nextEntityId);
 				return;
 			}

@@ -4,7 +4,7 @@ import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { SoundService, Workspace } from "@rbxts/services";
 import { useChange } from "../../../hooks";
 import { connectAudio } from "../../../utils/sound";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 import { ClientState } from "@lisachandra/core/out/store";
 import { getSoundFromId } from "@lisachandra/core/out/utils/asset";
 
@@ -17,7 +17,7 @@ function system(world: World): void {
 		output.Parent = Workspace.CurrentCamera!;
 	}
 
-	for (const [entityId, record] of world.queryChanged(getComponent("Sound"))) {
+	for (const [entityId, record] of world.queryChanged(Components.Sound)) {
 		const sound = record.new;
 		if (!record.old && sound) {
 			if (sound.local) {

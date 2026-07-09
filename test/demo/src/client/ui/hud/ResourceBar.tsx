@@ -1,5 +1,5 @@
 import { AppContext, useComponentRecord } from "@lisachandra/ui";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import React, { useContext } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
 import { useLocalClientEntityId } from "client/ui/hooks/useDemoEntities";
@@ -7,8 +7,8 @@ import { useLocalClientEntityId } from "client/ui/hooks/useDemoEntities";
 export function ResourceBar(): JSX.Element {
 	const { px } = useContext(AppContext);
 	const entityId = useLocalClientEntityId();
-	const carryRecord = useComponentRecord(entityId, getComponent("CarryState"));
-	const promptRecord = useComponentRecord(entityId, getComponent("PromptState"));
+	const carryRecord = useComponentRecord(entityId, Components.CarryState);
+	const promptRecord = useComponentRecord(entityId, Components.PromptState);
 	const carry = carryRecord?.new ?? carryRecord?.old;
 	const prompt = promptRecord?.new ?? promptRecord?.old;
 

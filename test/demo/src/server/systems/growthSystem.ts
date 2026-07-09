@@ -1,14 +1,14 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type { ServerState } from "@lisachandra/core/out/store";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import { GARDEN_DECAY_TIME, GARDEN_GROWTH_TIME } from "shared/game/constants";
 import { applyPlotVisual } from "server/game/helpers";
 
 function system(world: World): void {
 	const now = os.clock();
 
-	for (const [entityId, plot] of world.query(getComponent("GardenPlot"))) {
+	for (const [entityId, plot] of world.query(Components.GardenPlot)) {
 		if (plot.stage !== "Watered") {
 			continue;
 		}
@@ -18,8 +18,8 @@ function system(world: World): void {
 		}
 
 		applyPlotVisual(plot.part, "Grown");
-		world.insert(entityId, getComponent("GardenPlot")({ ...plot, stage: "Grown", lastTouchedAt: now, progress: 2 }));
-		world.insert(entityId, getComponent("DecayState")({ nextDecayAt: now + GARDEN_DECAY_TIME }));
+		world.insert(entityId, Components.GardenPlot({ ...plot, stage: "Grown", lastTouchedAt: now, progress: 2 }));
+		world.insert(entityId, Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }));
 	}
 
 	world.commitCommands();

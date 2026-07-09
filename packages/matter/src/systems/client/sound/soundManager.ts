@@ -4,17 +4,17 @@ import type ObjectCache from "@rbxts/object-cache";
 import { Workspace } from "@rbxts/services";
 import { placeAudioToModel, soundEmitterCache } from "../../../utils/sound";
 import { ClientState } from "@lisachandra/core/out/store";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 
 type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
 
 function system(world: World): void {
-	for (const [entityId, record] of world.queryChanged(getComponent("Sound"))) {
+	for (const [entityId, record] of world.queryChanged(Components.Sound)) {
 		if (record.old || !record.new || record.new.local) {
 			continue;
 		}
 
-		const node = world.get(entityId, getComponent("Node"))?.model as ReturnType<
+		const node = world.get(entityId, Components.Node)?.model as ReturnType<
 			typeof placeAudioToModel
 		>;
 		if (node === undefined) {
@@ -27,7 +27,7 @@ function system(world: World): void {
 
 		world.insert(
 			entityId,
-			getComponent("Sound")({
+			Components.Sound({
 				effects: effects.GetChildren(),
 				emitter,
 				id: record.new.id,
@@ -36,7 +36,7 @@ function system(world: World): void {
 		);
 	}
 
-	for (const [_entityId, node, _sound] of world.query(getComponent("Node"), getComponent("Sound"))) {
+	for (const [_entityId, node, _sound] of world.query(Components.Node, Components.Sound)) {
 		if (game.IsAncestorOf(node.model)) {
 			node.model.Parent = Workspace.Caches.Sound;
 			soundEmitterCache.ReturnPart(node.model as ObjectCachePart<typeof soundEmitterCache>);

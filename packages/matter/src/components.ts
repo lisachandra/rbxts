@@ -4,6 +4,9 @@ import type { Janitor } from "@rbxts/janitor";
 
 import type { ExcludePascalCaseProperties, ExtractData, Items as ItemDefinitions, ValidItemPath, } from "./items";
 import { ComponentCtor, OptionalKeys } from "@rbxts/matter/lib/component";
+import { typeAssertIs } from "@lisachandra/core/out/utils/type";
+import { set } from "@rbxts/sift/out/Dictionary";
+import Log from "@rbxts/log";
 
 export type ExtractComponentData<T> = T extends (data?: infer D) => Component<object> ? D : never;
 
@@ -101,43 +104,45 @@ export interface Components {
 
 export type ComponentKey = keyof Components;
 
-type ComponentConstructor<T extends object> = (data?: OptionalKeys<T>) => Component<T>
+type ComponentConstructor<T extends object> = {
+	(data?: T): Component<T>
+}
 
 // ──────────────────────────────────────────────
 // Runtime component registry
 // ──────────────────────────────────────────────
-const componentMap = new Map<ComponentKey, ComponentCtor>();
-
-/** Register a component factory so it is discoverable by string key. */
-export function registerComponent(
-	key: ComponentKey,
-	comp: ComponentCtor,
-): ComponentCtor {
-	componentMap.set(key, comp);
-	return comp;
-}
-
-/** Type-safe lookup of a component factory by its string key. */
-export function getComponent<K extends ComponentKey>(key: K): ComponentConstructor<Components[K]> {
-	return componentMap.get(key)! as ComponentConstructor<Components[K]>;
+export const Components = setmetatable({}, {
+	__newindex: (tbl, key, value) => {
+		if (rawget(tbl, key) !== undefined) {
+			Log.Warn(`Component "${key}" is already registered.`);
+			return
+		}
+		rawset(tbl, key, value);
+	},
+    __index: (key) => {
+        Log.Warn(`Component "${key}" is not registered.`);
+    },
+	__metatable: "This metatable is locked"
+}) as never as {
+    [K in keyof Components]: ComponentConstructor<Components[K]>
 }
 
 export function isComponent<T extends ComponentKey>(
 	object: N<Component<object>>,
 	targetComponentKey: T,
 ): object is ReturnType<ComponentConstructor<Components[T]>> {
-	return typeIs(object, "table") && getmetatable(object) === getComponent(targetComponentKey);
+	return typeIs(object, "table") && getmetatable(object) === Components[targetComponentKey];
 }
 
 // ──────────────────────────────────────────────
 // Built-in component factories
 // ──────────────────────────────────────────────
-registerComponent("Profile", component<Components["Profile"]>("Profile"));
-registerComponent("Items", component<Components["Items"]>("Items"));
-registerComponent("Inventory", component<Components["Inventory"]>("Inventory", { items: [] }));
-registerComponent("Hotbar", component<Components["Hotbar"]>("Hotbar", { items: [], order: [], equipped: "" }));
-registerComponent("Stream", component<Components["Stream"]>("Stream"));
-registerComponent("Sound", component<Components["Sound"]>("Sound"));
-registerComponent("Node", component<Components["Node"]>("Node"));
-registerComponent("Forces", component<Components["Forces"]>("Forces", { forces: [] } as never));
-registerComponent("ReplicationScope", component<Components["ReplicationScope"]>("ReplicationScope"));
+Components.Profile = component<Components["Profile"]>("Profile")
+Components.Items = component<Components["Items"]>("Items")
+Components.Inventory = component<Components["Inventory"]>("Inventory", { items: [] })
+Components.Hotbar = component<Components["Hotbar"]>("Hotbar", { items: [], order: [], equipped: "" })
+Components.Stream = component<Components["Stream"]>("Stream")
+Components.Sound = component<Components["Sound"]>("Sound")
+Components.Node = component<Components["Node"]>("Node")
+Components.Forces = component<Components["Forces"]>("Forces", { forces: [] } as never)
+Components.ReplicationScope = component<Components["ReplicationScope"]>("ReplicationScope")

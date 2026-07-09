@@ -13,7 +13,7 @@ import { removeValue } from "@rbxts/sift/out/Array";
 
 import type { ServerState } from "@lisachandra/core/out/store";
 import { iterate } from "@lisachandra/core/out/utils/type";
-import { ChangeRecord, ComponentKey, getComponent } from "../../../components";
+import { ChangeRecord, ComponentKey, Components} from "../../../components";
 import { meta as hotbarManager } from "../item/hotbarManager";
 import { meta as itemManager } from "../item/itemManager";
 import { Message, messaging, registry, ServerSerializerFn } from "../../../network";
@@ -42,7 +42,7 @@ function componentIsWithinScope(
 	componentEntityId: AnyEntity,
 	componentName: ComponentKey,
 ): boolean {
-	const scope = world.get(componentEntityId, getComponent("ReplicationScope"));
+	const scope = world.get(componentEntityId, Components.ReplicationScope);
 	if (!scope) {
 		return true;
 	}
@@ -179,7 +179,7 @@ function handleInitialReplication(
 	payloads: Map<Player, Payload>,
 	initialized: Array<Player>
 ): void {
-	for (const [componentEntityId, profile] of world.query(getComponent("Profile"))) {
+	for (const [componentEntityId, profile] of world.query(Components.Profile)) {
 		debugPrint(`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))}`);
 		const playerHasReceived = hasReceived.includes(profile.player);
 
@@ -223,7 +223,7 @@ function handleComponentChanges(
 		const componentName = codec.componentKey as ComponentKey;
 
 		for (const [targetEntityId, record] of world.queryChanged(codec.component)) {
-			for (const [viewerEntityId, profile] of world.query(getComponent("Profile"))) {
+			for (const [viewerEntityId, profile] of world.query(Components.Profile)) {
 				if (
 					initialized.includes(profile.player) ||
 					(codec.mode === "owner" && targetEntityId !== viewerEntityId) ||

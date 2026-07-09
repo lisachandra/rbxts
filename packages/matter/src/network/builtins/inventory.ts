@@ -1,5 +1,5 @@
 import { registry } from "../registry";
-import { Components, getComponent, Item } from "../../components";
+import { Components, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/out/store";
 
@@ -13,7 +13,7 @@ export type InventoryPayload = {
 const lastReplicatedItems: Record<string, Array<Item>> = {};
 
 registry.register<Components["Inventory"], InventoryPayload>({
-	component: getComponent("Inventory"),
+	component: Components.Inventory,
 	mode: "owner",
 	serializer: (record, _playerEntityId, componentEntityId) => {
 		const key = `${componentEntityId}`;
@@ -27,7 +27,7 @@ registry.register<Components["Inventory"], InventoryPayload>({
 	deserializer: (data, _serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
-			? store.world.get(clientEntityId, getComponent("Inventory"))!.items
+			? store.world.get(clientEntityId, Components.Inventory)!.items
 			: undefined;
 		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems);
 		if (oldItems) {

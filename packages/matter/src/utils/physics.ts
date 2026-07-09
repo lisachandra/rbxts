@@ -7,7 +7,7 @@ import { store } from "@lisachandra/core/out/store";
 import { is, iterate } from "@lisachandra/core/out/utils/type";
 
 import { getEntityHumanoid } from "./entity";
-import { Components, Force, getComponent } from "../components";
+import { Components, Force } from "../components";
 
 interface TorsoMotorPair {
 	part0: BasePart;
@@ -133,7 +133,7 @@ export async function setSpeed(
  *   to apply. If nil, velocity control is disabled.
  */
 export function setVelocity(entityId: AnyEntity, forceDirection?: Vector3): void {
-	const forces = store.world.get(entityId, getComponent("Forces"))!;
+	const forces = store.world.get(entityId, Components.Forces)!;
 	if (forceDirection) {
 		forces.linearVelocity.ForceLimitsEnabled = false;
 		forces.linearVelocity.VectorVelocity = forceDirection;
@@ -157,7 +157,7 @@ export function setVelocity(entityId: AnyEntity, forceDirection?: Vector3): void
  */
 export function lockOrientation(entityId: AnyEntity, lock: boolean, rigid = false): void {
 	const humanoid = getEntityHumanoid(entityId);
-	const forces = store.world.get(entityId, getComponent("Forces"))!;
+	const forces = store.world.get(entityId, Components.Forces)!;
 	if (!humanoid) {
 		return;
 	}
@@ -178,7 +178,7 @@ export function lockOrientation(entityId: AnyEntity, lock: boolean, rigid = fals
  */
 export function applyImpulse(entityId: AnyEntity, impulse: Force): void {
 	const humanoid = getEntityHumanoid(entityId);
-	const forces = store.world.get(entityId, getComponent("Forces"))!;
+	const forces = store.world.get(entityId, Components.Forces)!;
 	if (!humanoid) {
 		return;
 	}
@@ -203,7 +203,7 @@ export function applyImpulse(entityId: AnyEntity, impulse: Force): void {
  */
 export function clearForces(entityId: AnyEntity): void {
 	const humanoid = getEntityHumanoid(entityId);
-	const forces = store.world.get(entityId, getComponent("Forces"))!;
+	const forces = store.world.get(entityId, Components.Forces)!;
 	if (!humanoid) {
 		return;
 	}
@@ -292,7 +292,7 @@ export function computeForces(entityId: AnyEntity, threshold = 20): void {
 	}
 
 	const changes: Partial<Components["Forces"]> = {};
-	const forces = store.world.get(entityId, getComponent("Forces"))!;
+	const forces = store.world.get(entityId, Components.Forces)!;
 	if (forces.linearVelocity === undefined || forces.alignOrientation === undefined) {
 		changes.linearVelocity = humanoid.RootPart?.FindFirstChildOfClass("LinearVelocity")!;
 		changes.alignOrientation = humanoid.RootPart?.FindFirstChildOfClass("AlignOrientation")!;

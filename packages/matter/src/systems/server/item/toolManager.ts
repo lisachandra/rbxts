@@ -9,9 +9,10 @@ import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals as equals } from "@rbxts/sift/out/Array";
 
 import { meta as itemManager } from "./itemManager";
+import { Components } from "../../../components";
 import { getItemTool } from "../../../utils/item";
 import { ServerState, store } from "@lisachandra/core/out/store";
-import { getComponent, Item } from "../../../components";
+import { Item } from "../../../components";
 
 function handleToolCreation(itemsToAdd: Array<Item>, hotbar: Instance): void {
 	for (const item of itemsToAdd) {
@@ -25,7 +26,7 @@ function handleToolCreation(itemsToAdd: Array<Item>, hotbar: Instance): void {
 
 /* Handles synchronization of tools in the hotbar with in-game items. */
 function system(world: World): void {
-	for (const [entityId, record] of world.queryChanged(getComponent("Hotbar"))) {
+	for (const [entityId, record] of world.queryChanged(Components.Hotbar)) {
 		if (
 			(record.old || !record.new) &&
 			(!record.new || !record.old || equals(record.new.items, record.old.items))
@@ -47,7 +48,7 @@ function system(world: World): void {
 					.filter((item) => !itemsToRemove.includes(item))
 			: record.new.items;
 
-		const profile = world.get(entityId, getComponent("Profile"));
+		const profile = world.get(entityId, Components.Profile);
 		const hotbar = profile
 			? profile.player.Backpack!
 			: (store.hotbar.FindFirstChild(`${entityId}`) ?? new Instance("Folder"));

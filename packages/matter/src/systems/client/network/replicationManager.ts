@@ -13,7 +13,7 @@ import { Error } from "@rbxts/luau-polyfill";
 import type { AnyComponent, AnyEntity, Component, DebugWidgets, SystemStruct, World, } from "@rbxts/matter";
 import type { OptionalKeys } from "@rbxts/matter/lib/component";
 import { count, filter, includes } from "@rbxts/sift/out/Dictionary";
-import { ComponentKey, Components, ExtractComponentData, getComponent } from "../../../components";
+import { ComponentKey, ExtractComponentData, Components } from "../../../components";
 import { catcher } from "@lisachandra/core/out/utils/main";
 import { useMessage } from "../../../hooks";
 import { Message, messaging, registry } from "../../../network";
@@ -129,8 +129,8 @@ function deserializeSingleComponent<T extends ComponentKey>(
 
 	const component =
 		(clientEntityId !== undefined && store.world.contains(clientEntityId)
-			? (store.world.get(clientEntityId, getComponent(componentName)) as Component<object>)
-			: undefined) ?? getComponent(componentName)();
+			? (store.world.get(clientEntityId, Components[componentName]) as Component<object>)
+			: undefined) ?? Components[componentName]();
 
 	return component.patch(deserialized);
 }
@@ -194,7 +194,7 @@ function deserializeIncomingPackets(entityIdMap: Readonly<ClientState["entityIdM
 				clientEntityId,
 			)
 		) {
-			store.world.remove(clientEntityId, getComponent(componentName as ComponentKey));
+			store.world.remove(clientEntityId, Components[componentName]);
 			if (debugging) {
 				Log.Info(
 					`Replication> Modify ${clientEntityId}s${serverEntityId} removing ${componentName}`,

@@ -1,7 +1,7 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type { ServerState } from "@lisachandra/core/out/store";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import { GARDEN_DECAY_TIME } from "shared/game/constants";
 import { createGardenSeed } from "server/game/seed";
 import { applyPickupVisual, applyPlotVisual, applyWaterVisual, createGardenPart, ensureGardenFolder } from "server/game/helpers";
@@ -20,7 +20,7 @@ function system(world: World): void {
 	const seed = createGardenSeed();
 
 	world.spawn(
-		getComponent("GardenProgress")({
+		Components.GardenProgress({
 			restoredPlots: 0,
 			totalPlots: seed.plots.size(),
 			harvested: 0,
@@ -32,20 +32,20 @@ function system(world: World): void {
 		const part = createGardenPart(folder, plot.id, plot.position, new Vector3(10, 1, 10), Color3.fromRGB(101, 67, 33));
 		applyPlotVisual(part, "Dirty");
 		world.spawn(
-			getComponent("GardenPlot")({
+			Components.GardenPlot({
 				plotId: plot.id,
 				part,
 				stage: "Dirty",
 				progress: 0,
 				lastTouchedAt: os.clock(),
 			}),
-			getComponent("Interactable")({
+			Components.Interactable({
 				part,
 				prompt: "Needs scrap",
 				radius: 10,
 				kind: "Plot",
 			}),
-			getComponent("DecayState")({ nextDecayAt: os.clock() + GARDEN_DECAY_TIME }),
+			Components.DecayState({ nextDecayAt: os.clock() + GARDEN_DECAY_TIME }),
 		);
 	}
 
@@ -53,12 +53,12 @@ function system(world: World): void {
 		const part = createGardenPart(folder, `${pickup.kind}Pickup`, pickup.position, new Vector3(3, 3, 3), Color3.fromRGB(255, 255, 255));
 		applyPickupVisual(part, pickup.kind, true);
 		world.spawn(
-			getComponent("ResourcePickup")({
+			Components.ResourcePickup({
 				part,
 				kind: pickup.kind,
 				amount: pickup.amount,
 			}),
-			getComponent("Interactable")({
+			Components.Interactable({
 				part,
 				prompt: `Collect ${pickup.kind}`,
 				radius: 9,
@@ -71,8 +71,8 @@ function system(world: World): void {
 		const part = createGardenPart(folder, "WaterSource", water.position, new Vector3(6, 4, 6), Color3.fromRGB(90, 170, 255));
 		applyWaterVisual(part);
 		world.spawn(
-			getComponent("WaterSource")({ part, uses: 9999 }),
-			getComponent("Interactable")({
+			Components.WaterSource({ part, uses: 9999 }),
+			Components.Interactable({
 				part,
 				prompt: "Collect water",
 				radius: 10,

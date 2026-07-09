@@ -1,7 +1,7 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type { ServerState } from "@lisachandra/core/out/store";
-import { getComponent } from "@lisachandra/matter";
+import { Components} from "@lisachandra/matter";
 import { GARDEN_DECAY_TIME } from "shared/game/constants";
 import { regressPlotStage } from "shared/game/helpers";
 import { applyPlotVisual } from "server/game/helpers";
@@ -9,7 +9,7 @@ import { applyPlotVisual } from "server/game/helpers";
 function system(world: World): void {
 	const now = os.clock();
 
-	for (const [entityId, plot, decay] of world.query(getComponent("GardenPlot"), getComponent("DecayState"))) {
+	for (const [entityId, plot, decay] of world.query(Components.GardenPlot, Components.DecayState)) {
 		if (plot.stage === "Dirty" || plot.stage === "Grown" || decay.nextDecayAt > now) {
 			continue;
 		}
@@ -20,8 +20,8 @@ function system(world: World): void {
 		}
 
 		applyPlotVisual(plot.part, regressed);
-		world.insert(entityId, getComponent("GardenPlot")({ ...plot, stage: regressed, lastTouchedAt: now }));
-		world.insert(entityId, getComponent("DecayState")({ nextDecayAt: now + GARDEN_DECAY_TIME }));
+		world.insert(entityId, Components.GardenPlot({ ...plot, stage: regressed, lastTouchedAt: now }));
+		world.insert(entityId, Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }));
 	}
 
 	world.commitCommands();

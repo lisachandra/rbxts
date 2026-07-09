@@ -12,7 +12,7 @@ import { Players } from "@rbxts/services";
 import { includes } from "@lisachandra/core/out/utils/string";
 import { is } from "@lisachandra/core/out/utils/type";
 import { store } from "@lisachandra/core/out/store";
-import { ComponentKey, Components, getComponent } from "@lisachandra/matter";
+import { ComponentKey, Components } from "@lisachandra/matter";
 
 const prefixRegexp = RegExp("^@([^()]+)(?:\\((.*)\\))?$");
 
@@ -63,11 +63,11 @@ function parsePrefix(prefix: string, args: string, executor: Player): N<Array<An
 		const components = args
 			.split(";")
 			.map((key) => {
-				if (!is<ComponentKey>(key) || !getComponent(key)) {
+				if (!is<ComponentKey>(key) || !Components[key]) {
 					return;
 				}
 
-				return getComponent(key);
+				return Components[key];
 			})
 			.filterUndefined();
 

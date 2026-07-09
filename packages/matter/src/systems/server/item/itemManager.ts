@@ -8,7 +8,7 @@ import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals as equals } from "@rbxts/sift/out/Array";
 import { equals as dictionaryEquals, filter, flip, fromArrays, map, values, } from "@rbxts/sift/out/Dictionary";
-import { ChangeRecord, Components, getComponent, isComponent } from "../../../components";
+import { ChangeRecord, Components, isComponent } from "../../../components";
 import { ServerState } from "@lisachandra/core/out/store";
 import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
 import { catcher, getHumanoid } from "@lisachandra/core/out/utils/main";
@@ -27,7 +27,7 @@ function validateItemPickup(
 	itemEntityId: AnyEntity,
 	pickupRange: number,
 ): boolean {
-	const { model } = world.get(itemEntityId, getComponent("Items")) ?? { model: undefined };
+	const { model } = world.get(itemEntityId, Components.Items) ?? { model: undefined };
 	if (!model) {
 		return false;
 	}
@@ -42,7 +42,7 @@ function handleHotbarEquip(
 	guid: string,
 	destination: boolean,
 ): N<ServerState["itemPointers"]> {
-	const hotbar = world.get(entityId, getComponent("Hotbar"))!;
+	const hotbar = world.get(entityId, Components.Hotbar)!;
 	if (hotbar.equipped !== guid) {
 		return;
 	}
@@ -233,7 +233,7 @@ function handleItemChanges(
 }
 
 function handlePlayerToolSync(world: World): void {
-	for (const [_, profile] of world.query(getComponent("Profile"))) {
+	for (const [_, profile] of world.query(Components.Profile)) {
 		const character = profile.player.Character;
 		if (
 			!getHumanoid(profile.player) &&
@@ -296,7 +296,7 @@ function updateItemPointers(
 ): ServerState["itemPointers"] {
 	let updatedItemPointers = newItemPointers;
 	for (const name of ["Inventory", "Hotbar", "Items"] as const) {
-		for (const [entityId, record] of world.queryChanged(getComponent(name))) {
+		for (const [entityId, record] of world.queryChanged(Components[name])) {
 			updatedItemPointers = handleItemChanges(entityId, name, record, updatedItemPointers);
 		}
 	}

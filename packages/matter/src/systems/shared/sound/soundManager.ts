@@ -2,7 +2,7 @@ import type { Crate } from "@rbxts/crate";
 import { type DebugWidgets, type SystemStruct, useHookState, type World } from "@rbxts/matter";
 import { useThrottle } from "../../../hooks";
 import { ClientState, ServerState } from "@lisachandra/core/out/store";
-import { getComponent } from "../../../components";
+import { Components} from "../../../components";
 
 const soundGcInterval = 1;
 
@@ -11,7 +11,7 @@ function system(world: World): void {
 		return;
 	}
 
-	for (const [entityId, sound] of world.query(getComponent("Sound"))) {
+	for (const [entityId, sound] of world.query(Components.Sound)) {
 		if (!sound?.emitter || !sound.players || sound.local) {
 			continue;
 		}

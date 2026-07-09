@@ -15,7 +15,7 @@ import type { DebugWidgets, SystemStruct } from "@rbxts/matter";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
 import { Players, UserInputService } from "@rbxts/services";
-import { Components, getComponent } from "../../../components";
+import { Components } from "../../../components";
 import { getItemFromGUID } from "../../../utils/item";
 import { Humanoid } from "@lisachandra/core/out/schemas";
 import { ClientState } from "@lisachandra/core/out/store";
@@ -153,7 +153,7 @@ function system(world: World, crate: Crate<ClientState>): void {
 	}
 
 	const clientEntityId = crate.getState("playerEntityId")! as AnyEntity;
-	const hotbar = world.get(clientEntityId, getComponent("Hotbar"))!;
+	const hotbar = world.get(clientEntityId, Components.Hotbar)!;
 	const humanoid = getHumanoid(Players.LocalPlayer);
 
 	syncEquippedTool(hotbar, humanoid);

@@ -9,7 +9,7 @@ import type { ValidItemPath } from "../items/definitions";
 import { itemDefinitions } from "../items/definitions";
 import { descriptions } from "../items/descriptions";
 import { itemIds } from "../items/registry";
-import { Components, getComponent, Item } from "../components";
+import { Components, Item } from "../components";
 import { store } from "@lisachandra/core/out/store";
 import { copyDeep, removeKeys } from "@rbxts/sift/out/Dictionary";
 
@@ -199,7 +199,7 @@ export function addItem<P extends ValidItemPath>(
 	location: "Hotbar" | "Inventory",
 	itemToAdd: Item<P>,
 ): void {
-	const component = store.world.get(entityId, getComponent(location))! as ItemContainer;
+	const component = store.world.get(entityId, Components[location])! as ItemContainer;
 
 	for (const item of component.items) {
 		if (!isSameId(item.id, itemToAdd.id)) {
@@ -299,8 +299,8 @@ export function getItemFromGUID<P extends ValidItemPath>(
 	}
 
 	const itemContainer = location
-		? store.world.get(entityId, getComponent(location))!.items
-		: store.world.get(entityId, getComponent("Items"))!.items;
+		? store.world.get(entityId, Components[location])!.items
+		: store.world.get(entityId, Components.Items)!.items;
 
 	for (const item of itemContainer) {
 		if (item.guid === guid) {
@@ -326,7 +326,7 @@ export function getItemFromId<P extends ValidItemPath>(
 	location: "Hotbar" | "Inventory",
 	id: P,
 ): N<Item<P>> {
-	const component = store.world.get(entityId, getComponent(location)) as ItemContainer;
+	const component = store.world.get(entityId, Components[location]) as ItemContainer;
 	return component.items.find((item) =>
 		id.every((key, index) => item.id[index] === key),
 	) as Item<P>;
@@ -405,7 +405,7 @@ export function moveItem(
 	guid: string,
 	destination: "Hotbar" | "Inventory",
 ): void {
-	let [inventory, hotbar] = store.world.get(entityId, getComponent("Inventory"), getComponent("Hotbar"));
+	let [inventory, hotbar] = store.world.get(entityId, Components.Inventory, Components.Hotbar);
 
 	// TEST: Jest doesn't support tuples
 	if (_G.__TEST__ ?? false) {
@@ -421,7 +421,7 @@ export function moveItem(
 	const itemEntityId = tonumber(itemEntityIdStr) as AnyEntity;
 
 	if (itemEntityId !== entityId) {
-		const items = store.world.get(itemEntityId, getComponent("Items"));
+		const items = store.world.get(itemEntityId, Components.Items);
 		const itemContainer = destination === "Inventory" ? inventory : hotbar;
 
 		if (!items) {
@@ -501,14 +501,14 @@ export function removeItem(guid: string, amount?: number): N<Item> {
 	};
 
 	if (location) {
-		const component: ItemContainer = store.world.get(entityId, getComponent(location))!;
+		const component: ItemContainer = store.world.get(entityId, Components[location])!;
 		const targetItem = component.items.find((item) => item.guid === guid);
 
 		if (targetItem) {
 			removeItemFromContainer(component, targetItem);
 		}
 	} else {
-		const component: ItemContainer = store.world.get(entityId, getComponent("Items"))!;
+		const component: ItemContainer = store.world.get(entityId, Components.Items)!;
 		const [targetItem] = component.items;
 
 		if (targetItem) {
@@ -582,11 +582,11 @@ export function spawnItem<P extends ValidItemPath>(
 	}
 
 	const entityId = store.world.spawn(
-		getComponent("Items")({
+		Components.Items({
 			items: [item],
 			model,
 		}),
-		getComponent("Stream")({
+		Components.Stream({
 			container: Workspace.Items,
 			value: "out",
 		}),
@@ -632,7 +632,7 @@ export function findNearestItem(
 		position: Vector3;
 	} | undefined;
 
-	for (const [entityId, { items, model, moved }] of world.query(getComponent("Items"))) {
+	for (const [entityId, { items, model, moved }] of world.query(Components.Items)) {
 		if (
 			moved === true ||
 			!targetItemId.every((key, index) => items[0]?.id[index] === key) ||
@@ -667,7 +667,7 @@ export function getEquippedItemWithId(
 	entityId: AnyEntity,
 	id: ReadonlyArray<string>,
 ): Item | undefined {
-	const hotbar = world.contains(entityId) ? world.get(entityId, getComponent("Hotbar")) : undefined;
+	const hotbar = world.contains(entityId) ? world.get(entityId, Components.Hotbar) : undefined;
 
 	const equippedGuid = hotbar?.equipped;
 	if (!equippedGuid) {

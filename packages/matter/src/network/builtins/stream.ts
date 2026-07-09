@@ -1,5 +1,5 @@
 import { registry } from "../registry";
-import { Components, getComponent } from "../../components";
+import { Components } from "../../components";
 import { store } from "@lisachandra/core/out/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
 import { equalsDeep } from "@rbxts/sift/out/Dictionary";
@@ -12,7 +12,7 @@ export type StreamPayload = {
 };
 
 registry.register<Components["Stream"], StreamPayload>({
-	component: getComponent("Stream"),
+	component: Components.Stream,
 	mode: "all",
 	serializer: (record) => (
 		!equalsDeep(record.old ?? {}, record.new ?? {}) ? {
@@ -22,7 +22,7 @@ registry.register<Components["Stream"], StreamPayload>({
 	deserializer: (data, serverEntityId, clientEntityId) => {
 		const world = store.world.contains(clientEntityId!) ? store.world : undefined;
 		const value =
-			world?.get(clientEntityId!, getComponent("Stream"))?.value ??
+			world?.get(clientEntityId!, Components.Stream)?.value ??
 			(getInstanceWithAttribute(
 				data.container.GetChildren(),
 				"serverEntityId",
