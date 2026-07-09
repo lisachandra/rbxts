@@ -86,12 +86,11 @@ Use the `px` scaling utility (via `AppContext`) to **px-scale** template layouts
 
 | Roblox Property | `px.fetch` form | Reads |
 |---|---|---|
-| `Size`, `Position` | `px.fetch(px.fromUDim2)` | UDim2 from template Instance |
+| `Size`, `Position` `Offset` `Spread` | `px.fetch(px.fromUDim2)` | UDim2 from template Instance |
 | `TextSize` | `px.fetch()` | Number from template |
-| `CornerRadius` | `px.fetch(px.fromUDim)` | UDim from template |
-| `Padding` | `px.fetch(px.fromUDim)` | UDim from template |
+| `CornerRadius` `BlurRadius` | `px.fetch(px.fromUDim)` | UDim from template |
 
-`px(number)` is valid for hardcoded offsets (e.g., `px(15)`). For animations relative to a goal size, retrieve the goal using `px.fromUDim2(templateInstance.Size)` and Lerp.
+`px(number)` is valid for hardcoded offsets (e.g., `px(15)`). For animations relative to a goal size, retrieve the goal using `ReactTemplate.fetch` and Lerp.
 
 **Done when:** Component consumes templates, uses `px.fetch` for layout properties, follows the 5-file structure, and uses `Constant` for grouped constants.
 
