@@ -12,7 +12,7 @@ function system(world: World): void {
 	}
 
 	for (const [entityId, sound] of world.query(getComponent("Sound"))) {
-		if (!sound?.emitter || !sound.players) {
+		if (!sound?.emitter || !sound.players || sound.local) {
 			continue;
 		}
 

@@ -2,7 +2,7 @@ import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type ObjectCache from "@rbxts/object-cache";
 import { Workspace } from "@rbxts/services";
-import { placeAudioToCharacter, soundEmitterCache } from "../../../utils/sound";
+import { placeAudioToModel, soundEmitterCache } from "../../../utils/sound";
 import { ClientState } from "@lisachandra/core/out/store";
 import { getComponent } from "../../../components";
 
@@ -10,12 +10,12 @@ type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
 
 function system(world: World): void {
 	for (const [entityId, record] of world.queryChanged(getComponent("Sound"))) {
-		if (record.old || !record.new) {
+		if (record.old || !record.new || record.new.local) {
 			continue;
 		}
 
 		const node = world.get(entityId, getComponent("Node"))?.model as ReturnType<
-			typeof placeAudioToCharacter
+			typeof placeAudioToModel
 		>;
 		if (node === undefined) {
 			continue;

@@ -153,20 +153,20 @@ export const soundEmitterCache = createSoundEmitterCache();
  * node to the character at the character's current pivot.
  *
  * @param sound - The Sound object containing the audio asset ID.
- * @param character - The character to attach the audio node to.
+ * @param model - The character to attach the audio node to.
  * @param node - An optional pre-existing audio node to reuse.
  * @returns The audio node part placed on the character.
  */
-export function placeAudioToCharacter(
+export function placeAudioToModel(
 	sound: Sound,
-	character: Character,
+	model: Model,
 	node: N<ObjectCachePart<ReturnType<typeof createSoundEmitterCache>>>,
 ): ObjectCachePart<ReturnType<typeof createSoundEmitterCache>> {
 	const node0 = node ?? soundEmitterCache.GetPart();
 	const player = node0.Attachment.AudioPlayer;
 	player.Asset = sound.SoundId;
-	node0.Parent = character;
-	node0.CFrame = character.GetPivot();
+	node0.Parent = model;
+	node0.CFrame = model.GetPivot();
 
 	return node0;
 }
@@ -185,14 +185,14 @@ export function placeAudioToCharacter(
  * @param nodeMarker - An optional marker value for the node type.
  *   Defaults to 0.
  */
-export function placeCharacterAudioInWorld(world: World, entityId: AnyEntity, sound: Sound, nodeMarker = 0) {
+export function placeModelAudioInWorld(world: World, entityId: AnyEntity, sound: Sound, nodeMarker = 0) {
 	const character = getEntityObject(entityId) as N<Character>;
 	if (!character) {
 		return;
 	}
 
 	const soundId = sound.GetAttribute<number>("id")!;
-	const node = placeAudioToCharacter(
+	const node = placeAudioToModel(
 		sound,
 		character,
 		findFreeAudioNode(world, entityId),

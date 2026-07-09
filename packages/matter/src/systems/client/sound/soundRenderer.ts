@@ -1,7 +1,7 @@
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { Workspace } from "@rbxts/services";
+import { SoundService, Workspace } from "@rbxts/services";
 import { useChange } from "../../../hooks";
 import { connectAudio } from "../../../utils/sound";
 import { getComponent } from "../../../components";
@@ -17,12 +17,24 @@ function system(world: World): void {
 		output.Parent = Workspace.CurrentCamera!;
 	}
 
-	for (const [, record] of world.queryChanged(getComponent("Sound"))) {
+	for (const [entityId, record] of world.queryChanged(getComponent("Sound"))) {
 		const sound = record.new;
-		if (!record.old && sound && sound.players) {
-			for (const player of sound.players) {
-				Log.Debug(`Playing sound ${sound.id} (${getSoundFromId(sound.id)?.Name})`);
-				player.Play();
+		if (!record.old && sound) {
+			if (sound.local) {
+				// Non-spatial — flat playback for this player only
+				const soundInstance = getSoundFromId(sound.id);
+				if (soundInstance) {
+					Log.Debug(`Playing local sound ${sound.id} (${soundInstance.Name})`);
+					SoundService.PlayLocalSound(soundInstance);
+				}
+				// Fire-and-forget — despawn immediately
+				world.despawn(entityId);
+			} else if (sound.players) {
+				// Spatial — existing emitter pipeline
+				for (const player of sound.players) {
+					Log.Debug(`Playing sound ${sound.id} (${getSoundFromId(sound.id)?.Name})`);
+					player.Play();
+				}
 			}
 		}
 	}

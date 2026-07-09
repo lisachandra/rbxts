@@ -76,6 +76,8 @@ export interface Components {
 
 	Sound: {
 		id: number,
+		/** Non-spatial — plays via SoundService.PlayLocalSound, skips emitter pipeline. */
+		local?: boolean,
 		/** @client */
 		effects?: Array<Instance>,
 		/** @client */
