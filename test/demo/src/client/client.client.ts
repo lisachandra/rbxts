@@ -26,7 +26,6 @@ import { Centurion } from "@rbxts/centurion";
 import { CenturionUI } from "@rbxts/centurion-ui";
 import Log from "@rbxts/log";
 import { bootstrap } from "@lisachandra/platform"
-import { createAppHotReloader } from "@lisachandra/ui";
 
 import { catcher } from "@lisachandra/core/out/utils/main";
 
@@ -34,6 +33,7 @@ import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
 import * as clientSystemsBarrel from "./systems/barrel";
 import { builtinPackage } from "@lisachandra/matter/out/systems";
 import { Message, messaging } from "@lisachandra/matter";
+import { startAppHotReloader } from "./ui/hotReloader";
 
 for (const coreGui of [
 	Enum.CoreGuiType.Health,
@@ -66,14 +66,6 @@ const heartbeat = task.spawn(() => {
 });
 
 const { client, shared } = ReplicatedStorage.TS;
-const { start: startUi } = createAppHotReloader({
-	target: Players.LocalPlayer.WaitForChild<PlayerGui>("PlayerGui"),
-	moduleRoot: client.ui,
-	entryModuleName: "app",
-	resolveEntryModule: () => client.ui.app,
-	strictMode: true,
-});
-
 const { debugger: worldDebugger } = bootstrap({
 	mode: _G.__PROD__ ? "production" : "development",
 	packages: [builtinPackage],
@@ -99,7 +91,7 @@ while (Players.LocalPlayer.GetAttribute("clientEntityId") === undefined) {
 
 task.cancel(heartbeat)
 
-startUi();
+startAppHotReloader();
 import("@lisachandra/platform/out/centurion").expect()
 import("shared/centurion").expect();
 

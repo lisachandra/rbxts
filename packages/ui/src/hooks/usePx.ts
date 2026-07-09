@@ -1,6 +1,7 @@
 import { useBindingListener } from "@rbxts/pretty-react-hooks";
 import type { Binding } from "@rbxts/react";
 import { useMemo, useState } from "@rbxts/react";
+import ReactTemplate from "@lisachandra/react-template"
 
 import type { PxWithMethods } from "../context";
 
@@ -34,9 +35,8 @@ export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 		const px = {
 			ceil: (value: number) => math.ceil(value * pxScale),
 			even: (value: number) => math.round(value * pxScale * 0.5) * 2,
-			fetch: (func?: (n: number) => number) => {
-				const mapper = func ?? ((value: number) => pxCall(value));
-				return (value: number) => mapper(value);
+			fetch: (func?: Callback, ...args: Array<string>) => {
+				return ReactTemplate.fetch(func ?? ((number: number) => pxCall(number)), ...args);
 			},
 			floor: (value: number) => math.floor(value * pxScale),
 			fromUDim: (
