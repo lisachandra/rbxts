@@ -9,7 +9,7 @@ import type { CollectionData } from "../store";
 import type { Character, Humanoid } from "../schemas";
 import { schemas } from "../schemas";
 
-import { type ConnectionLike, type EventLike } from "./type";
+import { iterate, type ConnectionLike, type EventLike } from "./type";
 
 const CHARACTER_TIMEOUT = 120;
 const DOCUMENT_TIMEOUT = 120;
@@ -281,6 +281,16 @@ export function applyHumanoidDescription(
 		if (shirt) {
 			shirt.ShirtTemplate = `rbxassetid://${description.Shirt}`;
 		}
+}
+
+export function getInstanceByTree<T extends Instance>(root: Instance, parts: Array<string>): T | undefined {
+	let current = root;
+
+	for (const nextPart of parts) {
+		current = current.WaitForChild(nextPart)
+	}
+
+	return current as T;
 }
 
 const trackGcInterval = 5;
