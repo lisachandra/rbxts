@@ -2,7 +2,7 @@ import type { AnyEntity, World } from "@rbxts/matter";
 import ObjectCache from "@rbxts/object-cache";
 import { RunService, Workspace } from "@rbxts/services";
 
-import type { Character } from "@lisachandra/core/out/schemas";
+import type { Character } from "@lisachandra/core/schemas";
 import { getEntityObject } from "./entity";
 import { Components} from "../components";
 

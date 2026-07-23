@@ -52,6 +52,10 @@
 		"./systems": {
 			"import": "./out/systems/init.luau",
 			"types": "./out/systems/index.d.ts"
+		},
+		"./components": {
+			"import": "./out/components.luau",
+			"types": "./out/components.d.ts"
 		}
 	},
 	"main": "out/init.luau",
@@ -81,7 +85,7 @@
 		"@rbxts/matter": "catalog:",
 		"@rbxts/rewire": "catalog:",
 		"@rbxts/tether": "catalog:",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",

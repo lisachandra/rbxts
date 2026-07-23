@@ -1,9 +1,9 @@
 import { registry } from "../registry";
 import { Components } from "../../components";
-import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
 import { u8 } from "@rbxts/serio";
 import { Workspace } from "@rbxts/services";
-import { equalsDeep } from "@rbxts/sift/out/Dictionary";
+import { equalsDeep } from "@rbxts/sift/Dictionary";
 
 /**
  * Payload structure for replicating the {@link Components.Node} component.

@@ -3,8 +3,8 @@ import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 import { Players } from "@rbxts/services";
 
 import { adminOrDeveloper } from "../guards";
-import { catcher, waitForDocument } from "@lisachandra/core/out/utils/main";
-import { formatTable } from "@lisachandra/core/out/utils/string";
+import { catcher, waitForDocument } from "@lisachandra/core/utils/main";
+import { formatTable } from "@lisachandra/core/utils/string";
 
 @Register()
 /**

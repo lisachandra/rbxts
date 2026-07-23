@@ -13,9 +13,9 @@ import { Players, Workspace } from "@rbxts/services";
 
 import { meta as replicationManager } from "./replicationManager";
 import { ChangeRecord, Components, ComponentKey, isComponent } from "../../../components";
-import { is } from "@lisachandra/core/out/utils/type";
+import { is } from "@lisachandra/core/utils/type";
 import { ClientState } from "@lisachandra/core";
-import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
 
 function handleComponentRemoval(record: ChangeRecord<AnyComponent>): void {
 	if (record.old && !record.new && "janitor" in record.old && is<Janitor>(record.old.janitor)) {

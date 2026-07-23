@@ -1,6 +1,6 @@
 import { type AnySystem, findSystems, start } from "@lisachandra/matter";
 import { createPackageRegistry, createPackageRuntime } from "@lisachandra/matter";
-import type { MatterPackageDescriptor } from "@lisachandra/matter/out/packages";
+import type { MatterPackageDescriptor } from "@lisachandra/matter/packages";
 import { RunService } from "@rbxts/services";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -102,8 +102,10 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 	const mode = options.mode ?? "production";
 	const scope = RunService.IsClient() ? "client" : "server";
 
-	const deferModuleSystemsToHotReload =
-		mode === "development" && options.hotReload?.containers !== undefined && options.hotReload.containers.size() > 0;
+	const hotReloadEnabled =
+		RunService.IsStudio() &&
+		mode === "development" &&
+		(options.hotReload?.containers?.size() ?? 0) > 0;
 
 	const allSystems = new Array<AnySystem>();
 
@@ -115,7 +117,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 	}
 
 	// 2. Auto-collected systems from Flamework barrel modules
-	if (options.modules && !deferModuleSystemsToHotReload) {
+	if (options.modules && !hotReloadEnabled) {
 		if (options.modules.shared) {
 			for (const s of findSystems(options.modules.shared)) {
 				allSystems.push(s);

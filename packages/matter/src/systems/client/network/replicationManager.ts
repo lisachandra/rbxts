@@ -6,18 +6,18 @@
  * changes. Debugging information can be logged when enabled via the debug UI
  * checkbox.
  */
-import { ClientState, store } from "@lisachandra/core/out/store";
+import { ClientState, store } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import type { AnyComponent, AnyEntity, Component, DebugWidgets, SystemStruct, World, } from "@rbxts/matter";
 import type { OptionalKeys } from "@rbxts/matter/lib/component";
-import { count, filter, includes } from "@rbxts/sift/out/Dictionary";
+import { count, filter, includes } from "@rbxts/sift/Dictionary";
 import { ComponentKey, ExtractComponentData, Components } from "../../../components";
-import { catcher } from "@lisachandra/core/out/utils/main";
+import { catcher } from "@lisachandra/core/utils/main";
 import { useMessage } from "../../../hooks";
 import { Message, messaging, registry } from "../../../network";
-import { typeAssertIs } from "@lisachandra/core/out/utils/type";
+import { typeAssertIs } from "@lisachandra/core/utils/type";
 
 const batchSpawns: Record<string, Array<Component<object>>> = {};
 let debugging = false;

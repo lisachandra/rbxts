@@ -59,6 +59,10 @@
 		"./document": {
 			"import": "./out/document/init.luau",
 			"types": "./out/document/index.d.ts"
+		},
+		"./document/validate": {
+			"import": "./out/document/validate.luau",
+			"types": "./out/document/validate.d.ts"
 		}
 	},
 	"main": "out/init.luau",
@@ -77,7 +81,7 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",

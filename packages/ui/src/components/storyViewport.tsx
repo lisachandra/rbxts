@@ -3,7 +3,7 @@ pcall(() => {
 	configureConstant("src/client/constants.json", {})
 })
 
-import { getInstanceByTree } from "@lisachandra/core/out/utils/main"
+import { getInstanceByTree } from "@lisachandra/core/utils/main"
 import React, { useEffect } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
 import { Workspace } from "@rbxts/services";

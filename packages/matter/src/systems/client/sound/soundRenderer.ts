@@ -5,8 +5,8 @@ import { SoundService, Workspace } from "@rbxts/services";
 import { useChange } from "../../../hooks";
 import { connectAudio } from "../../../utils/sound";
 import { Components} from "../../../components";
-import { ClientState } from "@lisachandra/core/out/store";
-import { getSoundFromId } from "@lisachandra/core/out/utils/asset";
+import { ClientState } from "@lisachandra/core/store";
+import { getSoundFromId } from "@lisachandra/core/utils/asset";
 
 function system(world: World): void {
 	if (useChange([])) {

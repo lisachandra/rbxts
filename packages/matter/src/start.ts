@@ -5,8 +5,8 @@ import type { Context } from "@rbxts/rewire";
 import { HotReloader } from "@rbxts/rewire";
 import { RunService } from "@rbxts/services";
 
-import type { ClientState, ServerState } from "@lisachandra/core/out/store";
-import { store } from "@lisachandra/core/out/store";
+import type { ClientState, ServerState } from "@lisachandra/core/store";
+import { store } from "@lisachandra/core/store";
 
 import { getEntityInstanceComponent } from "./entityLookup";
 import { customPhases, renderPriorityPhaseEvents } from "./phases";

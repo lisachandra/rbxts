@@ -3,7 +3,7 @@
 //
 // External packages and consumers add entries via declaration merging:
 //
-//   declare module "@lisachandra/platform/out/centurion/type" {
+//   declare module "@lisachandra/platform/centurion/type" {
 //       interface CenturionUserTypes {
 //           Item: "item";
 //           PlayerEntities: "playerEntities";
@@ -67,7 +67,7 @@ export const CenturionUserType: Record<string, string> = {
  *
  * @example
  * ```ts
- * declare module "@lisachandra/platform/out/centurion/type" {
+ * declare module "@lisachandra/platform/centurion/type" {
  *     interface CenturionUserTypes { Item: "item" }
  * }
  * registerCenturionType("Item", "item");

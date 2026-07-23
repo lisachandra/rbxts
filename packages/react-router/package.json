@@ -35,7 +35,7 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",

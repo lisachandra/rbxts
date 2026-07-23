@@ -1,7 +1,7 @@
 import type { Modding } from "@flamework/core";
 import Log from "@rbxts/log";
 import { fromEntries } from "@rbxts/object-utils";
-import type { HasRest, RestType, SplitRest } from "@rbxts/serio/out/metadata/tuples";
+import type { HasRest, RestType, SplitRest } from "@rbxts/serio/metadata/tuples";
 import { t } from "@rbxts/t";
 
 import type { IsLiteral, IsUnion } from "type-fest";

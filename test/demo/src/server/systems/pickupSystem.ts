@@ -1,6 +1,6 @@
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/out/store";
+import type { ServerState } from "@lisachandra/core/store";
 import { vector } from "@lisachandra/core";
 import { Components } from "@lisachandra/matter";
 import { GARDEN_INTERACTION_RADIUS, GARDEN_PICKUP_RESPAWN_TIME } from "shared/game/constants";

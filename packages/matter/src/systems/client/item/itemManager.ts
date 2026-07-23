@@ -4,18 +4,18 @@
  * hotbar. It ensures that item interactions and data remain consistent across
  * the game.
  */
-import { ClientState } from "@lisachandra/core/out/store";
+import { ClientState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import type { Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { Players } from "@rbxts/services";
-import { equals as equals } from "@rbxts/sift/out/Array";
-import { count, equals as dictionaryEquals, fromArrays, removeKeys, } from "@rbxts/sift/out/Dictionary";
+import { equals as equals } from "@rbxts/sift/Array";
+import { count, equals as dictionaryEquals, fromArrays, removeKeys, } from "@rbxts/sift/Dictionary";
 
 import { meta as replicationManager } from "../network/replicationManager";
 import { useMessage, useThrottle } from "../../../hooks";
-import { catcher, getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import { catcher, getInstanceWithAttribute } from "@lisachandra/core/utils/main";
+import { iterate } from "@lisachandra/core/utils/type";
 import { ChangeRecord, Components, isComponent, Item } from "../../../components";
 import { Message, messaging } from "../../../network";
 

@@ -37,7 +37,7 @@
 		"@lisachandra/types": "workspace:*",
 		"rbxts-transformer-flamework": "catalog:",
 		"@flamework/core": "catalog:",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",

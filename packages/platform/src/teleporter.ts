@@ -4,7 +4,7 @@ import HashLib from "@rbxts/rbxts-hashlib";
 import { TeleportService } from "@rbxts/services";
 import { t } from "@rbxts/t";
 
-import { catcher } from "@lisachandra/core/out/utils/main";
+import { catcher } from "@lisachandra/core/utils/main";
 
 // ─── Runtime Configuration ──────────────────────────────────────────────────
 

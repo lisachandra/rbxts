@@ -3,7 +3,7 @@ import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type ObjectCache from "@rbxts/object-cache";
 import { Workspace } from "@rbxts/services";
 import { placeAudioToModel, soundEmitterCache } from "../../../utils/sound";
-import { ClientState } from "@lisachandra/core/out/store";
+import { ClientState } from "@lisachandra/core/store";
 import { Components} from "../../../components";
 
 type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;

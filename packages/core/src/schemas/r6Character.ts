@@ -1,4 +1,4 @@
-import { freezeDeep } from "@rbxts/sift/out/Dictionary";
+import { freezeDeep } from "@rbxts/sift/Dictionary";
 import type { EvaluateInstanceTree } from "@rbxts/validate-tree";
 
 import { force } from "../utils/type";

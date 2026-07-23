@@ -1,5 +1,5 @@
 import Log, { Logger, LogLevel } from "@rbxts/log";
-import type { ILogEventSink, LogEvent } from "@rbxts/log/out/Core";
+import type { ILogEventSink, LogEvent } from "@rbxts/log/Core";
 import { MessageTemplateParser, PlainTextMessageTemplateRenderer } from "@rbxts/message-templates";
 import { RunService } from "@rbxts/services";
 

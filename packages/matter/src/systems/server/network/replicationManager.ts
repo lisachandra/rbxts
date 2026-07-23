@@ -9,10 +9,10 @@ import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import type { AnyComponent, AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { isEmpty } from "@rbxts/object-utils";
-import { removeValue } from "@rbxts/sift/out/Array";
+import { removeValue } from "@rbxts/sift/Array";
 
-import type { ServerState } from "@lisachandra/core/out/store";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import type { ServerState } from "@lisachandra/core/store";
+import { iterate } from "@lisachandra/core/utils/type";
 import { ChangeRecord, ComponentKey, Components} from "../../../components";
 import { meta as hotbarManager } from "../item/hotbarManager";
 import { meta as itemManager } from "../item/itemManager";

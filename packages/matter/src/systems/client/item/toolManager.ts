@@ -17,9 +17,9 @@ import { useEvent } from "@rbxts/matter";
 import { Players, UserInputService } from "@rbxts/services";
 import { Components } from "../../../components";
 import { getItemFromGUID } from "../../../utils/item";
-import { Humanoid } from "@lisachandra/core/out/schemas";
-import { ClientState } from "@lisachandra/core/out/store";
-import { getHumanoid } from "@lisachandra/core/out/utils/main";
+import { Humanoid } from "@lisachandra/core/schemas";
+import { ClientState } from "@lisachandra/core/store";
+import { getHumanoid } from "@lisachandra/core/utils/main";
 import { getHotbarInputAdapter } from "../../../start";
 import { meta as itemManager } from "../item/itemManager";
 

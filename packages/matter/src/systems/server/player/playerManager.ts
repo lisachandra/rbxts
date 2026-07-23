@@ -21,14 +21,14 @@ import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter
 import { useEvent } from "@rbxts/matter";
 import { Players } from "@rbxts/services";
 import { useChange } from "../../../hooks";
-import { ServerState, store } from "@lisachandra/core/out/store";
+import { ServerState, store } from "@lisachandra/core/store";
 import { getDocumentConfig, getPlayerLifecycleHooks } from "../../../start";
 import type { Collection } from "@rbxts/lapis";
 import { Message, messaging } from "../../../network";
 import Log from "@rbxts/log";
 import { Janitor } from "@rbxts/janitor";
 import { useDocument } from "../../../hooks/useDocument";
-import { catcher } from "@lisachandra/core/out/utils/main";
+import { catcher } from "@lisachandra/core/utils/main";
 import { Components} from "../../../components";
 import { Constant } from "@lisachandra/constant";
 

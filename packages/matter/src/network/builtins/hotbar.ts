@@ -1,9 +1,9 @@
-import { flip } from "@rbxts/sift/out/Dictionary";
+import { flip } from "@rbxts/sift/Dictionary";
 
 import { registry } from "../registry";
 import { Components, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
-import { store } from "@lisachandra/core/out/store";
+import { store } from "@lisachandra/core/store";
 import { u16 } from "@rbxts/serio";
 
 /**

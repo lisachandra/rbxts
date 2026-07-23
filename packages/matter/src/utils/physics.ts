@@ -2,9 +2,9 @@ import type { AnyEntity } from "@rbxts/matter";
 import { isEmpty } from "@rbxts/object-utils";
 import { TweenService } from "@rbxts/services";
 
-import type { Character } from "@lisachandra/core/out/schemas";
-import { store } from "@lisachandra/core/out/store";
-import { is, iterate } from "@lisachandra/core/out/utils/type";
+import type { Character } from "@lisachandra/core/schemas";
+import { store } from "@lisachandra/core/store";
+import { is, iterate } from "@lisachandra/core/utils/type";
 
 import { getEntityHumanoid } from "./entity";
 import { Components, Force } from "../components";

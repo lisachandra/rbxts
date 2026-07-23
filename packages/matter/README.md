@@ -78,7 +78,7 @@ const hotbar = world.get(entityId, getComponent("Hotbar"));
 // ── Creating Custom Components ──────────────────────────────────
 // Step 1: Augment the Components interface for type-safety.
 // External packages do this in their index.ts; game code in shared/config.
-declare module "@lisachandra/matter/out/components" {
+declare module "@lisachandra/matter/components" {
   interface Components {
     NPC: { health: number; maxHealth: number; owner?: Player };
     Stats: { level: number; xp: number };

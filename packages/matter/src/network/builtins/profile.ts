@@ -2,7 +2,7 @@ import { Players } from "@rbxts/services";
 
 import { registry } from "../registry";
 import { Components } from "../../components";
-import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
 
 /**
  * Payload structure for replicating the {@link Components.Profile} component.

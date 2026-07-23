@@ -2,7 +2,7 @@ import { registry, Components } from "@lisachandra/matter";
 import { component } from "@rbxts/matter";
 import type { PlotStage, PromptKind, ResourceKind } from "shared/game/types";
 
-declare module "@lisachandra/matter/out/components" {
+declare module "@lisachandra/matter/components" {
 	interface Components {
 		GardenPlot: {
 			plotId: string;

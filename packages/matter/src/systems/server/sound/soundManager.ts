@@ -2,7 +2,7 @@ import type { Crate } from "@rbxts/crate";
 import type { SystemStruct, World } from "@rbxts/matter";
 import type { Widgets as DebugWidgets } from "@rbxts/plasma";
 import { useChange } from "../../../hooks";
-import { ServerState } from "@lisachandra/core/out/store";
+import { ServerState } from "@lisachandra/core/store";
 import { connectAudio } from "../../../utils/sound";
 import { Components} from "../../../components";
 

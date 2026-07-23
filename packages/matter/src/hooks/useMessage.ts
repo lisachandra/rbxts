@@ -1,7 +1,7 @@
 import { useHookState } from "@rbxts/matter";
-import { ClientEmitter } from "@rbxts/tether/out/emitters/client-emitter";
-import { ContextualEmitter } from "@rbxts/tether/out/emitters/contextual-emitter";
-import { ServerEmitter } from "@rbxts/tether/out/emitters/server-emitter";
+import { ClientEmitter } from "@rbxts/tether/emitters/client-emitter";
+import { ContextualEmitter } from "@rbxts/tether/emitters/contextual-emitter";
+import { ServerEmitter } from "@rbxts/tether/emitters/server-emitter";
 
 interface Storage {
 	disconnect?: () => void;

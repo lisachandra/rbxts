@@ -2,7 +2,7 @@ import { defineConfig } from "@isentinel/jest-roblox";
 
 export default defineConfig({
 	extends: "./jest.shared.ts",
-	setupFiles: ["@lisachandra/test/out/setup", "./out/test/setup"],
+	setupFiles: ["@lisachandra/test/setup", "./out/test/setup"],
 	projects: [
 		{
 			test: {

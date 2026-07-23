@@ -46,7 +46,7 @@
 		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/react-template": "workspace:*",
 		"@lisachandra/constant": "catalog:",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",

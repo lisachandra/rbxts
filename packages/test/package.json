@@ -24,7 +24,14 @@
 			"import": "./out/init.luau",
 			"types": "./out/index.d.ts"
 		},
-		"./out/*": "./out/*"
+		"./utils": {
+			"import": "./out/utils.luau",
+			"types": "./out/utils.d.ts"
+		},
+		"./setup": {
+			"import": "./out/setup.luau",
+			"types": "./out/setup.d.ts"
+		}
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
@@ -41,7 +48,7 @@
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",

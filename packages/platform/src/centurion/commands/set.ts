@@ -1,7 +1,7 @@
 import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 
-import { getItemFromGUID } from "@lisachandra/matter/out/utils/item";
+import { getItemFromGUID } from "@lisachandra/matter/utils/item";
 import { adminOrDeveloper } from "../guards";
 
 @Register()

@@ -2,7 +2,7 @@ import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type { ComponentCtor } from "@rbxts/matter/lib/component";
 
-import type { ClientState } from "@lisachandra/core/out/store";
+import type { ClientState } from "@lisachandra/core/store";
 import { HookConnector } from "../../../hookConnector";
 
 function system(world: World, crate: Crate<ClientState>): void {

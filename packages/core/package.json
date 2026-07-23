@@ -97,7 +97,7 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/centurion": "catalog:",
 		"@rbxts/crate": "catalog:",

@@ -6,12 +6,12 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { equals as equals } from "@rbxts/sift/out/Array";
-import { equals as dictionaryEquals, filter, flip, fromArrays, map, values, } from "@rbxts/sift/out/Dictionary";
+import { equals as equals } from "@rbxts/sift/Array";
+import { equals as dictionaryEquals, filter, flip, fromArrays, map, values, } from "@rbxts/sift/Dictionary";
 import { ChangeRecord, Components, isComponent } from "../../../components";
-import { ServerState } from "@lisachandra/core/out/store";
+import { ServerState } from "@lisachandra/core/store";
 import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
-import { catcher, getHumanoid } from "@lisachandra/core/out/utils/main";
+import { catcher, getHumanoid } from "@lisachandra/core/utils/main";
 import { Message, messaging } from "../../../network";
 import { useMessage } from "../../../hooks";
 

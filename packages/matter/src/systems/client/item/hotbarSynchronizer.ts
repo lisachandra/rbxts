@@ -6,10 +6,10 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { equals } from "@rbxts/sift/out/Array";
+import { equals } from "@rbxts/sift/Array";
 
 import { meta as itemManager } from "./itemManager";
-import { ClientState } from "@lisachandra/core/out/store";
+import { ClientState } from "@lisachandra/core/store";
 import { Components} from "../../../components";
 
 /*

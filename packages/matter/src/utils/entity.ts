@@ -3,11 +3,11 @@ import { Players } from "@rbxts/services";
 import { ComponentKey, isComponent } from "../components";
 import { getEntityComponentByName, getEntityHumanoidComponent, getEntityInstanceComponent, } from "../entityLookup";
 
-import type { Humanoid } from "@lisachandra/core/out/schemas";
-import { store } from "@lisachandra/core/out/store";
+import type { Humanoid } from "@lisachandra/core/schemas";
+import { store } from "@lisachandra/core/store";
 
-import { getHumanoid } from "@lisachandra/core/out/utils/main";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import { getHumanoid } from "@lisachandra/core/utils/main";
+import { iterate } from "@lisachandra/core/utils/type";
 
 /**
  * Checks if an entity is alive in the world by verifying it exists

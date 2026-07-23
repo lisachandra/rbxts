@@ -1,6 +1,6 @@
 import type { CommandContext } from "@rbxts/centurion";
 
-import { includes } from "@lisachandra/core/out/utils/string";
+import { includes } from "@lisachandra/core/utils/string";
 
 let groupId = 0;
 const allowedUserIds = new Array<number>();

@@ -1,7 +1,7 @@
 import { registry } from "../registry";
 import { Components, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
-import { store } from "@lisachandra/core/out/store";
+import { store } from "@lisachandra/core/store";
 
 /**
  * Payload structure for replicating the {@link Components.Inventory} component.

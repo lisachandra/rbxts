@@ -2,7 +2,7 @@ import ReactGlobals from "@rbxts/react-globals";
 import { backend } from "@rbxts/react-devtools-core";
 import { Players, ReplicatedStorage, RunService, SoundService, StarterGui, UserInputService } from "@rbxts/services";
 import { configureConstant } from "@lisachandra/constant"
-import { setupLogger } from "@lisachandra/core/out/logger"
+import { setupLogger } from "@lisachandra/core/logger"
 import * as constants from "./constants.json"
 
 const reactMicroProfilerLevel = 10;
@@ -27,11 +27,11 @@ import { CenturionUI } from "@rbxts/centurion-ui";
 import Log from "@rbxts/log";
 import { bootstrap } from "@lisachandra/platform"
 
-import { catcher } from "@lisachandra/core/out/utils/main";
+import { catcher } from "@lisachandra/core/utils/main";
 
 import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
 import * as clientSystemsBarrel from "./systems/barrel";
-import { builtinPackage } from "@lisachandra/matter/out/systems";
+import { builtinPackage } from "@lisachandra/matter/systems";
 import { Message, messaging } from "@lisachandra/matter";
 import { startAppHotReloader } from "./ui/hotReloader";
 
@@ -92,7 +92,7 @@ while (Players.LocalPlayer.GetAttribute("clientEntityId") === undefined) {
 task.cancel(heartbeat)
 
 startAppHotReloader();
-import("@lisachandra/platform/out/centurion").expect()
+import("@lisachandra/platform/centurion").expect()
 import("shared/centurion").expect();
 
 // Start centurion

@@ -31,9 +31,9 @@ import { Centurion } from "@rbxts/centurion";
 
 import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
 import * as serverSystemsBarrel from "./systems/barrel";
-import { setupLogger } from "@lisachandra/core/out/logger";
+import { setupLogger } from "@lisachandra/core/logger";
 import { bootstrap, configureCenturionUsers } from "@lisachandra/platform";
-import { builtinPackage } from "@lisachandra/matter/out/systems";
+import { builtinPackage } from "@lisachandra/matter/systems";
 import { configureRuntimeAdapters } from "@lisachandra/matter";
 import Log from "@rbxts/log";
 
@@ -61,7 +61,7 @@ bootstrap({
 	},
 });
 
-import("@lisachandra/platform/out/centurion").expect()
+import("@lisachandra/platform/centurion").expect()
 import("shared/centurion").expect();
 import("server/centurion").expect();
 

@@ -9,7 +9,7 @@
  * component plus a streamable component (which must have a `model: Instance`
  * key) will be handled by this system.
  */
-import { ClientState } from "@lisachandra/core/out/store";
+import { ClientState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { None } from "@rbxts/matter";

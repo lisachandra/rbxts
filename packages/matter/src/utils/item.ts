@@ -2,7 +2,7 @@ import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { HttpService, ReplicatedStorage, Workspace } from "@rbxts/services";
-import { equals, removeValue } from "@rbxts/sift/out/Array";
+import { equals, removeValue } from "@rbxts/sift/Array";
 
 import type { ExtractData, ItemContainer, ItemHierarchyIds } from "../items/types";
 import type { ValidItemPath } from "../items/definitions";
@@ -10,11 +10,11 @@ import { itemDefinitions } from "../items/definitions";
 import { descriptions } from "../items/descriptions";
 import { itemIds } from "../items/registry";
 import { Components, Item } from "../components";
-import { store } from "@lisachandra/core/out/store";
-import { copyDeep, removeKeys } from "@rbxts/sift/out/Dictionary";
+import { store } from "@lisachandra/core/store";
+import { copyDeep, removeKeys } from "@rbxts/sift/Dictionary";
 
-import { isPascalCase } from "@lisachandra/core/out/utils/string";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import { isPascalCase } from "@lisachandra/core/utils/string";
+import { iterate } from "@lisachandra/core/utils/type";
 
 
 /**

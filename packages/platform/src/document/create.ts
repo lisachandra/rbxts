@@ -1,6 +1,6 @@
 import { createCollection } from "@rbxts/lapis";
 
-import type { CollectionData } from "@lisachandra/core/out/store";
+import type { CollectionData } from "@lisachandra/core/store";
 import { createDataStoreValidator } from "./validate";
 
 /**

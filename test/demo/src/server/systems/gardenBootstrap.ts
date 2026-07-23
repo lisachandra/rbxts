@@ -1,6 +1,6 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/out/store";
+import type { ServerState } from "@lisachandra/core/store";
 import { Components} from "@lisachandra/matter";
 import { GARDEN_DECAY_TIME } from "shared/game/constants";
 import { createGardenSeed } from "server/game/seed";

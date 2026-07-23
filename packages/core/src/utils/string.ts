@@ -166,7 +166,7 @@ export function toPath<T, S extends string>(
 export function includes<A extends string, B extends string>(
 	str: A,
 	stringToCheck: B,
-): StringIncludes<A, B> {
+): boolean {
 	// eslint-disable-next-line no-restricted-syntax -- Inbuilt function
 	return (str.find(stringToCheck)[0] !== undefined) as StringIncludes<A, B>;
 }

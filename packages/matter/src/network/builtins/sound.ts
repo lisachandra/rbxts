@@ -1,7 +1,7 @@
 import { registry } from "../registry";
 import { Components } from "../../components";
 import { u16 } from "@rbxts/serio";
-import { equalsDeep } from "@rbxts/sift/out/Dictionary";
+import { equalsDeep } from "@rbxts/sift/Dictionary";
 
 /**
  * Payload structure for replicating the {@link Components.Sound} component.

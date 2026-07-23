@@ -1,7 +1,7 @@
 import type { RenderPriorityPhase } from "@rbxts/matter";
 import Signal from "@rbxts/lemon-signal";
 import { RunService, Workspace } from "@rbxts/services";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import { iterate } from "@lisachandra/core/utils/type";
 
 export const customPhases = {
 	playerModuleCamera: new Signal(),

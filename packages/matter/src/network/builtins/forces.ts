@@ -1,7 +1,7 @@
 import { registry } from "../registry";
 import { Components, Force } from "../../components";
 import createSerializer, { u32 } from "@rbxts/serio";
-import { equalsDeep } from "@rbxts/sift/out/Dictionary";
+import { equalsDeep } from "@rbxts/sift/Dictionary";
 
 type ReplaceNumbers<T, Replacement> = { [K in keyof T]: T[K] extends number ? Replacement: T[K] }
 

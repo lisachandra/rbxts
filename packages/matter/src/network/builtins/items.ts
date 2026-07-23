@@ -3,8 +3,8 @@ import { Workspace } from "@rbxts/services";
 import { registry } from "../registry";
 import { Components, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
-import { store } from "@lisachandra/core/out/store";
-import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
+import { store } from "@lisachandra/core/store";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
 
 /**
  * Payload structure for replicating the {@link Components.Items} component.

@@ -1,4 +1,4 @@
-import { CollectionData, store } from "@lisachandra/core/out/store";
+import { CollectionData, store } from "@lisachandra/core/store";
 import { Collection, Document } from "@rbxts/lapis";
 import Log from "@rbxts/log";
 import { None } from "@rbxts/sift";

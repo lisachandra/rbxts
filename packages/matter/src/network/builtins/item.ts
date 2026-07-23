@@ -1,9 +1,9 @@
 import Log from "@rbxts/log";
 import { isEmpty } from "@rbxts/object-utils";
 import type { Serializer, u16 } from "@rbxts/serio";
-import { filter, flip } from "@rbxts/sift/out/Dictionary";
-import { store } from "@lisachandra/core/out/store";
-import { required } from "@lisachandra/core/out/utils/type";
+import { filter, flip } from "@rbxts/sift/Dictionary";
+import { store } from "@lisachandra/core/store";
+import { required } from "@lisachandra/core/utils/type";
 
 import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
 import type { ValidItemPath } from "../../items";

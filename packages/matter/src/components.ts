@@ -4,8 +4,8 @@ import type { Janitor } from "@rbxts/janitor";
 
 import type { ExcludePascalCaseProperties, ExtractData, Items as ItemDefinitions, ValidItemPath, } from "./items";
 import { ComponentCtor, OptionalKeys } from "@rbxts/matter/lib/component";
-import { typeAssertIs } from "@lisachandra/core/out/utils/type";
-import { set } from "@rbxts/sift/out/Dictionary";
+import { typeAssertIs } from "@lisachandra/core/utils/type";
+import { set } from "@rbxts/sift/Dictionary";
 import Log from "@rbxts/log";
 
 export type ExtractComponentData<T> = T extends (data?: infer D) => Component<object> ? D : never;
@@ -33,7 +33,7 @@ export interface Item<P extends ValidItemPath = ValidItemPath> {
 // ──────────────────────────────────────────────
 // Augmentable component type map
 // External packages add entries via:
-//   declare module "@lisachandra/matter/out/components" {
+//   declare module "@lisachandra/matter/components" {
 //	     interface Components {
 //	       NPC: { health: number };
 //	   	}

@@ -9,9 +9,9 @@ import { isEmpty } from "@rbxts/object-utils";
 import RegExp from "@rbxts/regexp";
 import { Players } from "@rbxts/services";
 
-import { includes } from "@lisachandra/core/out/utils/string";
-import { is } from "@lisachandra/core/out/utils/type";
-import { store } from "@lisachandra/core/out/store";
+import { includes } from "@lisachandra/core/utils/string";
+import { is } from "@lisachandra/core/utils/type";
+import { store } from "@lisachandra/core/store";
 import { ComponentKey, Components } from "@lisachandra/matter";
 
 const prefixRegexp = RegExp("^@([^()]+)(?:\\((.*)\\))?$");

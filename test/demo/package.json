@@ -19,7 +19,7 @@
 		"io-serve": "catalog:",
 		"jiti": "catalog:",
 		"rbxts-transformer-flamework": "catalog:",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"shx": "catalog:",
 		"typescript": "catalog:"
 	},

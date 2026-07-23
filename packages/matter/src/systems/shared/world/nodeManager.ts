@@ -6,7 +6,7 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { ClientState, ServerState } from "@lisachandra/core/out/store";
+import { ClientState, ServerState } from "@lisachandra/core/store";
 import { Components} from "../../../components";
 
 function system(world: World): void {

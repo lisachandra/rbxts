@@ -6,7 +6,7 @@ import {
     TypeBuilder,
 } from "@rbxts/centurion";
 
-import { is } from "@lisachandra/core/out/utils/type";
+import { is } from "@lisachandra/core/utils/type";
 
 /**
  * Creates a {@link ListArgumentType} from a single-value argument type,

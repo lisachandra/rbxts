@@ -1,8 +1,8 @@
 import { registry } from "../registry";
 import { Components } from "../../components";
-import { store } from "@lisachandra/core/out/store";
-import { getInstanceWithAttribute } from "@lisachandra/core/out/utils/main";
-import { equalsDeep } from "@rbxts/sift/out/Dictionary";
+import { store } from "@lisachandra/core/store";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
+import { equalsDeep } from "@rbxts/sift/Dictionary";
 
 /**
  * Payload structure for replicating the {@link Components.Stream} component.

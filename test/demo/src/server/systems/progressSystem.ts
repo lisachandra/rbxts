@@ -1,6 +1,6 @@
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/out/store";
+import type { ServerState } from "@lisachandra/core/store";
 import { math as tsMath } from "@lisachandra/core";
 import { Components} from "@lisachandra/matter";
 import { computeGardenHealth, isRestoredPlot } from "shared/game/helpers";

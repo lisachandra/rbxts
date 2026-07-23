@@ -1,5 +1,5 @@
-import { isPascalCase } from "@lisachandra/core/out/utils/string";
-import { iterate } from "@lisachandra/core/out/utils/type";
+import { isPascalCase } from "@lisachandra/core/utils/string";
+import { iterate } from "@lisachandra/core/utils/type";
 
 import type { ValidItemPath } from "./definitions";
 

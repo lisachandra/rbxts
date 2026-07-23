@@ -1,9 +1,9 @@
-import type { CollectionData } from "@lisachandra/core/out/store";
-import { createDataStoreValidator } from "@lisachandra/platform/out/document/validate";
+import type { CollectionData } from "@lisachandra/core/store";
+import { createDataStoreValidator } from "@lisachandra/platform/document/validate";
 import { configureRuntimeAdapters } from "@lisachandra/matter";
 import { createCollection } from "@rbxts/lapis";
 
-declare module "@lisachandra/core/out/store" {
+declare module "@lisachandra/core/store" {
 	interface CollectionData {
 		controls: Array<number>;
 		stats: {

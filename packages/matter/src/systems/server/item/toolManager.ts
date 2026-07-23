@@ -6,12 +6,12 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { equals as equals } from "@rbxts/sift/out/Array";
+import { equals as equals } from "@rbxts/sift/Array";
 
 import { meta as itemManager } from "./itemManager";
 import { Components } from "../../../components";
 import { getItemTool } from "../../../utils/item";
-import { ServerState, store } from "@lisachandra/core/out/store";
+import { ServerState, store } from "@lisachandra/core/store";
 import { Item } from "../../../components";
 
 function handleToolCreation(itemsToAdd: Array<Item>, hotbar: Instance): void {

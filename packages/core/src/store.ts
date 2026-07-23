@@ -3,7 +3,7 @@ import { Crate } from "@rbxts/crate";
 import Signal from "@rbxts/lemon-signal";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { RunService, Workspace } from "@rbxts/services";
-import { removeValues, values } from "@rbxts/sift/out/Dictionary";
+import { removeValues, values } from "@rbxts/sift/Dictionary";
 import { iterate } from "./utils/type";
 import Log from "@rbxts/log";
 import { Document } from "@rbxts/lapis";

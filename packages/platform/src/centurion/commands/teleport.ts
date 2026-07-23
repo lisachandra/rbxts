@@ -3,7 +3,7 @@ import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 
 import { adminOrDeveloper } from "../guards";
-import { getHumanoid } from "@lisachandra/core/out/utils/main";
+import { getHumanoid } from "@lisachandra/core/utils/main";
 
 @Register()
 export class TeleportCommand {

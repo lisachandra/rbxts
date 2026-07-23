@@ -11,9 +11,9 @@ import { None, useEvent } from "@rbxts/matter";
 import { meta as toolManager } from "./toolManager";
 import { Components } from "../../../components";
 import { getItemFromGUID } from "../../../utils/item";
-import { Character } from "@lisachandra/core/out/schemas";
+import { Character } from "@lisachandra/core/schemas";
 import { getEntityHumanoid } from "../../../utils/entity";
-import { ServerState } from "@lisachandra/core/out/store";
+import { ServerState } from "@lisachandra/core/store";
 
 function handleToolEquip(
 	world: World,
