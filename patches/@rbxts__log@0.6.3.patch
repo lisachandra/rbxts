@@ -1,0 +1,18 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -1,4 +1,14 @@
+ {
+   "name": "@rbxts/log",
+   "version": "0.6.3",
++  "exports": {
++    ".": {
++      "import": "./out/init.lua",
++      "types": "./out/index.d.ts"
++    },
++    "./Core": {
++      "import": "./out/Core/init.lua",
++      "types": "./out/Core/index.d.ts"
++    }
++  },
+   "description": "Structured logging library for Roblox",

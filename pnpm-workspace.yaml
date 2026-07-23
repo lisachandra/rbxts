@@ -69,6 +69,7 @@ onlyBuiltDependencies:
   - '@lisachandra/constant'
 
 patchedDependencies:
+  '@rbxts/log@0.6.3': patches/@rbxts__log@0.6.3.patch
   '@rbxts/sift@0.0.11': patches/@rbxts__sift@0.0.11.patch
   '@isentinel/roblox-ts@4.0.11': patches/@isentinel__roblox-ts@4.0.11.patch
   '@rbxts-js/emittery@3.16.0-ts.1': patches/@rbxts-js__emittery@3.16.0-ts.1.patch
