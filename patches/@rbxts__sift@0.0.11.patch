@@ -1,0 +1,22 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -1,4 +1,18 @@
+ {
+   "name": "@rbxts/sift",
+   "version": "0.0.11",
++  "exports": {
++    ".": {
++      "import": "./out/init.lua",
++      "types": "./out/index.d.ts"
++    },
++    "./Array": {
++      "import": "./out/Array/init.lua",
++      "types": "./out/Array.d.ts"
++    },
++    "./Dictionary": {
++      "import": "./out/Dictionary/init.lua",
++      "types": "./out/Dictionary.d.ts"
++    }
++  },
+   "description": "Immutable data library for Luau",
