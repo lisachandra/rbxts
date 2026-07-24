@@ -3,6 +3,11 @@
 
 *.env
 .diracrules
+.zcode
+.dirac-cache
+.agents
+.jest-roblox
+coverage
 
 ### Roblox-TS ###
 
