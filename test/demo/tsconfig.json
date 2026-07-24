@@ -7,7 +7,6 @@
 				"obfuscation": false
 			}
 		],
-		"baseUrl": "${configDir}/src",
-		"moduleResolution": "node",
+		"paths": { "*": ["./src/*"] }
 	}
 }

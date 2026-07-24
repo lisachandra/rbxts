@@ -1,15 +1,19 @@
 import { defineConfig } from "@isentinel/jest-roblox";
 
 export default defineConfig({
-	backend: "open-cloud",
-	clearMocks: true,
-	coveragePathIgnorePatterns: ["**/test/**", "**/index.ts"],
+	backend: "studio-cli",
 	gameOutput: "game-output.log",
-	jestPath: "ReplicatedStorage/rbxts_include/node_modules/@rbxts/jest/src",
+	jestPath: "ReplicatedStorage/TS/node_modules/@rbxts/jest/src",
 	outputFile: "jest-output.log",
 	placeFile: "test.rbxl",
-	rojoProject: "default.project.json",
-	setupFiles: ["@lisachandra/test/out/setup"],
-	testTimeout: 5000,
-	timeout: 30000,
+	timeout: 60_000,
+	test: {
+		clearMocks: true,
+		collectCoverage: true,
+		coveragePathIgnorePatterns: ["**/*.spec.ts", "**/*.spec.tsx"],
+		mockDataModel: false,
+		runInBand: true,
+		testTimeout: 30_000,
+		setupFiles: ["@lisachandra/test/setup"],
+	},
 });

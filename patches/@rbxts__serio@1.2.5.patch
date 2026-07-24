@@ -1,0 +1,80 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+
+@@ -39,5 +39,75 @@
+     "rbxts-transformer-flamework": "^1.3.2",
+     "roblox-ts": "^3.0.0",
+     "typescript": "^5.5.3"
++  },
++  "exports": {
++    ".": {
++      "import": "./out/init.luau",
++      "types": "./out/index.d.ts"
++    },
++    "./constants": {
++      "import": "./out/constants.luau",
++      "types": "./out/constants.d.ts"
++    },
++    "./data-types": {
++      "import": "./out/data-types.luau",
++      "types": "./out/data-types.d.ts"
++    },
++    "./deserializer": {
++      "import": "./out/deserializer.luau",
++      "types": "./out/deserializer.d.ts"
++    },
++    "./info-processing": {
++      "import": "./out/info-processing.luau",
++      "types": "./out/info-processing.d.ts"
++    },
++    "./metadata/tuples": {
++      "import": "./out/metadata/tuples.luau",
++      "types": "./out/metadata/tuples.d.ts"
++    },
++    "./metadata/unions": {
++      "import": "./out/metadata/unions.luau",
++      "types": "./out/metadata/unions.d.ts"
++    },
++    "./serializer": {
++      "import": "./out/serializer.luau",
++      "types": "./out/serializer.d.ts"
++    },
++    "./types": {
++      "import": "./out/types.luau",
++      "types": "./out/types.d.ts"
++    },
++    "./utility/f16": {
++      "import": "./out/utility/f16.luau",
++      "types": "./out/utility/f16.d.ts"
++    },
++    "./utility/f24": {
++      "import": "./out/utility/f24.luau",
++      "types": "./out/utility/f24.d.ts"
++    },
++    "./utility/f8": {
++      "import": "./out/utility/f8.luau",
++      "types": "./out/utility/f8.d.ts"
++    },
++    "./utility/fastcalls": {
++      "import": "./out/utility/fastcalls.luau",
++      "types": "./out/utility/fastcalls.d.ts"
++    },
++    "./utility/i12": {
++      "import": "./out/utility/i12.luau",
++      "types": "./out/utility/i12.d.ts"
++    },
++    "./utility/i24": {
++      "import": "./out/utility/i24.luau",
++      "types": "./out/utility/i24.d.ts"
++    },
++    "./utility/u12": {
++      "import": "./out/utility/u12.luau",
++      "types": "./out/utility/u12.d.ts"
++    },
++    "./utility/u24": {
++      "import": "./out/utility/u24.luau",
++      "types": "./out/utility/u24.d.ts"
++    }
+   }
+ }

@@ -23,7 +23,7 @@
 		"@changesets/changelog-github": "catalog:",
 		"@changesets/cli": "catalog:",
 		"@isentinel/jest-roblox": "catalog:",
-		"roblox-ts": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/types": "catalog:",
@@ -32,6 +32,5 @@
 		"shx": "catalog:",
 		"typescript": "catalog:",
 		"jiti": "catalog:"
-	},
-	"packageManager": "pnpm@10.33.0"
+	}
 }

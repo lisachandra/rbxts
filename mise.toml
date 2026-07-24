@@ -1,7 +1,8 @@
 [tools]
 "github:luau-lang/lute" = "1.0.0"
 "github:rojo-rbx/rojo" = "v7.7.0-rc.1"
-node = { version = "lts", postinstall = "corepack enable" }
+pnpm = "11.16.0"
+node = { version = "lts" }
 jq = "latest"
 
 [env]

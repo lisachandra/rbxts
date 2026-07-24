@@ -1,0 +1,44 @@
+{
+	"name": "test",
+	"globIgnorePaths": ["**/package.json", "**/tsconfig.json"],
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"react-template:tests": {
+				"$path": "out"
+			},
+			"rbxts_include": {
+				"$className": "Folder",
+				"node_modules": {
+					"$className": "Folder",
+					"@lisachandra": {
+						"$path": "node_modules/@lisachandra",
+						"react-template": {
+							"$path": "../../packages/react-template/out"
+						}
+					},
+					"@rbxts-js": {
+						"$path": "node_modules/@rbxts-js"
+					},
+					"@rbxts": {
+						"$path": "node_modules/@rbxts"
+					}
+				}
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$properties": {
+				"LoadStringEnabled": true
+			}
+		},
+		"TestService": {
+			"$className": "TestService",
+			"$properties": {
+				"AutoRuns": false,
+				"ExecuteWithStudioRun": false
+			}
+		}
+	}
+}

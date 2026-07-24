@@ -44,7 +44,7 @@
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
-		"clean": "shx rm -rf out",
+		"clean": "shx rm -rf out flamework.build .jest-roblox",
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {

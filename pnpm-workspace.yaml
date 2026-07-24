@@ -8,7 +8,7 @@ catalog:
   '@changesets/changelog-github': 0.6.0
   '@changesets/cli': 2.31.0
   '@flamework/core': 1.3.2
-  '@isentinel/jest-roblox': 0.2.5
+  '@isentinel/jest-roblox': 0.3.10
   '@isentinel/roblox-ts': 4.0.11
   '@isentinel/tsconfig': 1.2.0
   '@lisachandra/constant': github:lisachandra/constant#path:packages/constant
@@ -53,7 +53,7 @@ catalog:
   rbxts-transformer-flamework: 1.3.2
   shx: 0.4.0
   type-fest: 5.6.0
-  typescript: '=5.5.3'
+  typescript: 6.0.3
 
 catalogMode: prefer
 
@@ -69,8 +69,6 @@ onlyBuiltDependencies:
   - '@lisachandra/constant'
 
 patchedDependencies:
-  '@rbxts/log@0.6.3': patches/@rbxts__log@0.6.3.patch
-  '@rbxts/sift@0.0.11': patches/@rbxts__sift@0.0.11.patch
   '@isentinel/roblox-ts@4.0.11': patches/@isentinel__roblox-ts@4.0.11.patch
   '@rbxts-js/emittery@3.16.0-ts.1': patches/@rbxts-js__emittery@3.16.0-ts.1.patch
   '@rbxts-js/expect@3.16.0-ts.1': patches/@rbxts-js__expect@3.16.0-ts.1.patch
@@ -79,6 +77,11 @@ patchedDependencies:
   '@rbxts/centurion': patches/@rbxts__centurion.patch
   '@rbxts/compiler-types': patches/@rbxts__compiler-types@3.0.0-types.0.patch
   '@rbxts/jest-globals@3.16.0-ts.1': patches/@rbxts__jest-globals@3.16.0-ts.1.patch
+  '@rbxts/log@0.6.3': patches/@rbxts__log@0.6.3.patch
+  '@rbxts/serio@1.2.5': patches/@rbxts__serio@1.2.5.patch
+  '@rbxts/tether@1.4.17': patches/@rbxts__tether@1.4.17.patch
+  '@rbxts/sift@0.0.11': patches/@rbxts__sift@0.0.11.patch
+  rbxts-transformer-flamework: patches/rbxts-transformer-flamework.patch
 
 publicHoistPattern:
   - '*@rbxts*'

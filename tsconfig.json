@@ -16,5 +16,55 @@
 		"exactOptionalPropertyTypes": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"declaration": true,
+		"composite": true,
+		"tsBuildInfoFile": "${configDir}/out/tsconfig.tsbuildinfo",
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"sourceMap": true,
+		"downlevelIteration": null,
+		"customConditions": ["source"],
 	},
+	"references": [
+		{
+			"path": "test/core"
+		},
+		{
+			"path": "test/demo"
+		},
+		{
+			"path": "test/matter"
+		},
+		{
+			"path": "test/react-router"
+		},
+		{
+			"path": "test/react-template"
+		},
+		{
+			"path": "test/ui"
+		},
+		{
+			"path": "packages/core"
+		},
+		{
+			"path": "packages/matter"
+		},
+		{
+			"path": "packages/react-router"
+		},
+		{
+			"path": "packages/react-template"
+		},
+		{
+			"path": "packages/test"
+		},
+		{
+			"path": "packages/types"
+		},
+		{
+			"path": "packages/ui"
+		},
+	],
+	"files": [],
+	"include": ["${configDir}/src/**/*.ts", "${configDir}/src/**/*.tsx", "${configDir}/src/**/*.json"]
 }

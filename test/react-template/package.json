@@ -1,5 +1,5 @@
 {
-	"name": "@lisachandra/test-platform",
+	"name": "@lisachandra/test-react-template",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -14,8 +14,7 @@
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
 		"@lisachandra/core": "workspace:*",
-		"@lisachandra/matter": "workspace:*",
-		"@lisachandra/platform": "workspace:*",
+		"@lisachandra/react-template": "workspace:*",
 		"@isentinel/jest-roblox": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
@@ -24,7 +23,6 @@
 		"@rbxts/jest-globals": "catalog:",
 		"@rbxts/services": "catalog:",
 		"@rbxts/types": "catalog:",
-		"rbxts-transformer-flamework": "catalog:",
 		"io-serve": "catalog:",
 		"shx": "catalog:",
 		"typescript": "catalog:"

@@ -22,13 +22,19 @@
 		"defaultMode": "plan",
 		"additionalDirectories": []
 	},
-	"enabledPlugins": {
-		"sentinel@isentinel": true
-	},
 	"hooks": {
 		"PreToolUse": [
 			{
-				"matcher": "execute_command",
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": ".agents/hooks/run-hook.cmd block-unsupported-edits"
+					}
+				]
+			},
+			{
+				"matcher": "execute_command|Bash",
 				"hooks": [
 					{
 						"type": "command",
@@ -48,7 +54,17 @@
 					}
 				]
 			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": ".agents/hooks/run-hook.cmd lint"
+					}
+				]
+			}
 		]
-	},
-	"outputStyle": "sentinel:XP Programmer"
+	}
 }

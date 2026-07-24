@@ -16,7 +16,7 @@ The issue tracker and triage label vocabulary should have been provided to you â
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below. When invoked by `/wayfinder-promote`, return the spec as a draft for the promotion proposal; do not publish it or apply `ready-for-agent` until the promotion review gate is approved. In ordinary direct use, publish it to the project issue tracker and apply `ready-for-agent` only when the user explicitly requests an AFK-ready implementation issue.
 
 <spec-template>
 

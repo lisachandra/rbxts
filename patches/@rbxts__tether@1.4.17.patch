@@ -1,0 +1,60 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+
+@@ -47,5 +47,55 @@
+     "@rbxts/serio": "^1.2.5",
+     "@rbxts/services": "^1.6.0",
+     "@rbxts/trash": "^1.0.8"
++  },
++  "exports": {
++    ".": {
++      "import": "./out/init.luau",
++      "types": "./out/index.d.ts"
++    },
++    "./builtin-middlewares": {
++      "import": "./out/builtin-middlewares.luau",
++      "types": "./out/builtin-middlewares.d.ts"
++    },
++    "./emitters/client-emitter": {
++      "import": "./out/emitters/client-emitter.luau",
++      "types": "./out/emitters/client-emitter.d.ts"
++    },
++    "./emitters/contextual-emitter": {
++      "import": "./out/emitters/contextual-emitter.luau",
++      "types": "./out/emitters/contextual-emitter.d.ts"
++    },
++    "./emitters/message-emitter": {
++      "import": "./out/emitters/message-emitter.luau",
++      "types": "./out/emitters/message-emitter.d.ts"
++    },
++    "./emitters/server-emitter": {
++      "import": "./out/emitters/server-emitter.luau",
++      "types": "./out/emitters/server-emitter.d.ts"
++    },
++    "./logging": {
++      "import": "./out/logging.luau",
++      "types": "./out/logging.d.ts"
++    },
++    "./middleware": {
++      "import": "./out/middleware.luau",
++      "types": "./out/middleware.d.ts"
++    },
++    "./relayer": {
++      "import": "./out/relayer.luau",
++      "types": "./out/relayer.d.ts"
++    },
++    "./serdes": {
++      "import": "./out/serdes.luau",
++      "types": "./out/serdes.d.ts"
++    },
++    "./structs": {
++      "import": "./out/structs.luau",
++      "types": "./out/structs.d.ts"
++    },
++    "./utility": {
++      "import": "./out/utility.luau",
++      "types": "./out/utility.d.ts"
++    }
+   }
+ }

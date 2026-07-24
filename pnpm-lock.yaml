@@ -37,8 +37,8 @@ catalogs:
       specifier: 1.3.2
       version: 1.3.2
     '@isentinel/jest-roblox':
-      specifier: 0.2.5
-      version: 0.2.5
+      specifier: 0.3.10
+      version: 0.3.10
     '@isentinel/roblox-ts':
       specifier: 4.0.11
       version: 4.0.11
@@ -172,8 +172,8 @@ catalogs:
       specifier: 5.6.0
       version: 5.6.0
     typescript:
-      specifier: '=5.5.3'
-      version: 5.5.3
+      specifier: 6.0.3
+      version: 6.0.3
 
 pnpmfileChecksum: sha256-ZfwGjIvQgPR9mEJg5iihJauZ5iv1Ogj5lI/dgVj7pgI=
 
@@ -187,7 +187,10 @@ patchedDependencies:
   '@rbxts/compiler-types': 0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def
   '@rbxts/jest-globals@3.16.0-ts.1': d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0
   '@rbxts/log@0.6.3': bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051
+  '@rbxts/serio@1.2.5': a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5
   '@rbxts/sift@0.0.11': 7b96b6bae29d8b99cfb3e61af05324b11901930a6ca4159d411a19c54d4463a8
+  '@rbxts/tether@1.4.17': 452b4940483a1c3c0006a89a3d7a9c5fba8c336f7a987050f73d38014b87c73f
+  rbxts-transformer-flamework: 3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12
 
 importers:
 
@@ -201,13 +204,13 @@ importers:
         version: 2.31.0
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:packages/types
@@ -231,7 +234,7 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   packages/core:
     devDependencies:
@@ -243,7 +246,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -300,7 +303,7 @@ importers:
         version: 5.6.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   packages/matter:
     devDependencies:
@@ -312,7 +315,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/constant':
         specifier: 'catalog:'
         version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
@@ -360,7 +363,7 @@ importers:
         version: 0.3.0
       '@rbxts/serio':
         specifier: 'catalog:'
-        version: 1.2.5
+        version: 1.2.5(patch_hash=a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -372,13 +375,13 @@ importers:
         version: 3.2.1
       '@rbxts/tether':
         specifier: 'catalog:'
-        version: 1.4.17
+        version: 1.4.17(patch_hash=452b4940483a1c3c0006a89a3d7a9c5fba8c336f7a987050f73d38014b87c73f)
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.925
       rbxts-transformer-flamework:
         specifier: 'catalog:'
-        version: 1.3.2(typescript@5.5.3)
+        version: 1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3)
       shx:
         specifier: 'catalog:'
         version: 0.4.0
@@ -387,7 +390,7 @@ importers:
         version: 5.6.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   packages/platform:
     devDependencies:
@@ -399,7 +402,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -441,7 +444,7 @@ importers:
         version: 0.2.1-ts.4
       '@rbxts/serio':
         specifier: 'catalog:'
-        version: 1.2.5
+        version: 1.2.5(patch_hash=a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -456,7 +459,7 @@ importers:
         version: 1.0.925
       rbxts-transformer-flamework:
         specifier: 'catalog:'
-        version: 1.3.2(typescript@5.5.3)
+        version: 1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3)
       shx:
         specifier: 'catalog:'
         version: 0.4.0
@@ -465,7 +468,7 @@ importers:
         version: 5.6.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   packages/react-router:
     devDependencies:
@@ -474,7 +477,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -507,7 +510,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -528,7 +531,7 @@ importers:
         version: 1.0.925
       rbxts-transformer-flamework:
         specifier: 'catalog:'
-        version: 1.3.2(typescript@5.5.3)
+        version: 1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3)
       shx:
         specifier: 'catalog:'
         version: 0.4.0
@@ -540,7 +543,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../types
@@ -579,7 +582,7 @@ importers:
         version: 5.6.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   packages/types:
     devDependencies:
@@ -588,7 +591,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
@@ -612,7 +615,7 @@ importers:
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/constant':
         specifier: 'catalog:'
         version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
@@ -657,13 +660,13 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -690,7 +693,7 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   test/demo:
     dependencies:
@@ -807,7 +810,7 @@ importers:
         version: 0.3.0
       '@rbxts/serio':
         specifier: 'catalog:'
-        version: 1.2.5
+        version: 1.2.5(patch_hash=a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -819,7 +822,7 @@ importers:
         version: 3.2.1
       '@rbxts/tether':
         specifier: 'catalog:'
-        version: 1.4.17
+        version: 1.4.17(patch_hash=452b4940483a1c3c0006a89a3d7a9c5fba8c336f7a987050f73d38014b87c73f)
       '@rbxts/validate-tree':
         specifier: 'catalog:'
         version: 2.0.2
@@ -829,13 +832,13 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
@@ -850,25 +853,25 @@ importers:
         version: 2.6.1
       rbxts-transformer-flamework:
         specifier: 'catalog:'
-        version: 1.3.2(typescript@5.5.3)
+        version: 1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3)
       shx:
         specifier: 'catalog:'
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   test/matter:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -901,19 +904,19 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
   test/platform:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -949,19 +952,109 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
-  test/ui:
+  test/react-router:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
-        version: 1.2.0(typescript@5.5.3)
+        version: 1.2.0(typescript@6.0.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@lisachandra/react-router':
+        specifier: workspace:*
+        version: link:../../packages/react-router
+      '@lisachandra/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@rbxts/compiler-types':
+        specifier: 'catalog:'
+        version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/jest':
+        specifier: 'catalog:'
+        version: 3.16.0-ts.1
+      '@rbxts/jest-globals':
+        specifier: 'catalog:'
+        version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
+      '@rbxts/types':
+        specifier: 'catalog:'
+        version: 1.0.925
+      io-serve:
+        specifier: 'catalog:'
+        version: 1.1.2(supports-color@7.2.0)
+      shx:
+        specifier: 'catalog:'
+        version: 0.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  test/react-template:
+    devDependencies:
+      '@isentinel/jest-roblox':
+        specifier: 'catalog:'
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+      '@isentinel/roblox-ts':
+        specifier: 'catalog:'
+        version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
+      '@isentinel/tsconfig':
+        specifier: 'catalog:'
+        version: 1.2.0(typescript@6.0.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@lisachandra/react-template':
+        specifier: workspace:*
+        version: link:../../packages/react-template
+      '@lisachandra/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@rbxts/compiler-types':
+        specifier: 'catalog:'
+        version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/jest':
+        specifier: 'catalog:'
+        version: 3.16.0-ts.1
+      '@rbxts/jest-globals':
+        specifier: 'catalog:'
+        version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
+      '@rbxts/services':
+        specifier: 'catalog:'
+        version: 1.6.0
+      '@rbxts/types':
+        specifier: 'catalog:'
+        version: 1.0.925
+      io-serve:
+        specifier: 'catalog:'
+        version: 1.1.2(supports-color@7.2.0)
+      shx:
+        specifier: 'catalog:'
+        version: 0.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  test/ui:
+    devDependencies:
+      '@isentinel/jest-roblox':
+        specifier: 'catalog:'
+        version: 0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)
+      '@isentinel/roblox-ts':
+        specifier: 'catalog:'
+        version: 4.0.11(patch_hash=114e6ec722f8ff85e00c90b00935afe2acf79ff2ed722accf587f562fc58fba0)
+      '@isentinel/tsconfig':
+        specifier: 'catalog:'
+        version: 1.2.0(typescript@6.0.3)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -994,7 +1087,7 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.5.3
+        version: 6.0.3
 
 packages:
 
@@ -1007,6 +1100,10 @@ packages:
   '@babel/runtime@7.29.2':
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
+
+  '@bedrock-rbx/ocale@0.1.0':
+    resolution: {integrity: sha512-ynw1XPkUZOq/MqUZgkCmAKqe1LVc10GJ03vtLLu5eyMYH9HZWJeQJ2pjdHC90bPihxBnzkZmd6D/oETdXm1vNQ==}
+    engines: {bun: '>=1.3.0', node: '>=24.12.0'}
 
   '@changesets/apply-release-plan@7.1.1':
     resolution: {integrity: sha512-9qPCm/rLx/xoOFXIHGB229+4GOL76S4MC+7tyOuTsR6+1jYlfFDQORdvwR5hDA6y4FL2BPt3qpbcQIS+dW85LA==}
@@ -1095,9 +1192,9 @@ packages:
       '@types/node':
         optional: true
 
-  '@isentinel/jest-roblox@0.2.5':
-    resolution: {integrity: sha512-ok/lMS2FXDNIP2h2UtKu5Xn4aPWeoqDlFVNgOVrKndqPmVgIDd9HKOje6lo7n3mdhBoatWqbXEg0095u+HThGg==}
-    engines: {node: '>=24.10.0'}
+  '@isentinel/jest-roblox@0.3.10':
+    resolution: {integrity: sha512-EXliTFmIasPZyvk0Hd1V9N0LqBp9CxZ5SSrmmVI+BR/JHBwvL29FI7ZKIrQoWyKCKZ1Lwe3ll8LbdSBm6LYpSg==}
+    engines: {node: '>=24.12.0'}
     hasBin: true
 
   '@isentinel/roblox-ts@4.0.11':
@@ -1742,8 +1839,8 @@ packages:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
 
-  c12@4.0.0-beta.4:
-    resolution: {integrity: sha512-gcWQAloC/SwGx4U7l3iQdalUQQLLXwYS1d3SqIwFj4UUrTXh8L9yGkBcA00B0gxELMwbxtsrt6VrAxtSgqZZoA==}
+  c12@4.0.0-beta.5:
+    resolution: {integrity: sha512-yWGCPCQGJeFq4R0mFg5HOhC3Rg+B0PCdM+ldXWUhughoGgeeq8/tjRmXh4/lmhKWyhf+KOFxB/JMXf0Yv1Fd5A==}
     peerDependencies:
       chokidar: ^5
       dotenv: '*'
@@ -1864,6 +1961,9 @@ packages:
 
   defu@6.1.6:
     resolution: {integrity: sha512-f8mefEW4WIVg4LckePx3mALjQSPQgFlg9U8yaPdlsbdYcHQyj9n2zL2LJEA52smeYxOvmd/nB7TpMtHGMTHcug==}
+
+  defu@6.1.7:
+    resolution: {integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==}
 
   depd@2.0.0:
     resolution: {integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==}
@@ -2041,8 +2141,8 @@ packages:
     resolution: {integrity: sha512-GMat4EJ5161kIy2HevLlr4luNjBgvmj413KaQA7jt4V8B4RDsfpHk7WQ9GVqfYyyx8OS/L66Kox+rJRNklLK7w==}
     engines: {node: '>=6'}
 
-  get-tsconfig@4.13.7:
-    resolution: {integrity: sha512-7tN6rFgBlMgpBML5j8typ92BKFi2sFQvIdpAqLA2beia5avZDrMs0FLZiM5etShWq5irVyGcGMEA1jcDaK7A/Q==}
+  get-tsconfig@4.14.0:
+    resolution: {integrity: sha512-yTb+8DXzDREzgvYmh6s9vHsSVCHeC0G3PI5bEXNBHtmshPnO+S5O7qgLEOn0I5QvMy6kpZN8K1NKGyilLb93wA==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -2458,8 +2558,8 @@ packages:
     resolution: {integrity: sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==}
     engines: {node: '>=6'}
 
-  pkg-types@2.3.0:
-    resolution: {integrity: sha512-SIqCzDRg0s9npO5XQ3tNZioRY1uK06lA41ynBC1YmFTmnY6FjUjVt6s4LoADmwoig1qqD0oK8h1p/8mlMx8Oig==}
+  pkg-types@2.3.1:
+    resolution: {integrity: sha512-y+ichcgc2LrADuhLNAx8DFjVfgz91pRxfZdI3UDhxHvcVEZsenLO+7XaU5vOp0u/7V/wZ+plyuQxtrDlZJ+yeg==}
 
   prettier@2.8.8:
     resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
@@ -2645,8 +2745,8 @@ packages:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
 
-  std-env@4.0.0:
-    resolution: {integrity: sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ==}
+  std-env@4.1.0:
+    resolution: {integrity: sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ==}
 
   string-width@1.0.2:
     resolution: {integrity: sha512-0XsVpQLnVCXHJfyEs8tC0zpTVIr5PKKsQtkT29IwupnPTjtPmQ3xT/4yCREF9hYkV/3M3kzcUTSAZT6a6h81tw==}
@@ -2730,11 +2830,6 @@ packages:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
     engines: {node: '>= 0.6'}
 
-  typescript@5.5.3:
-    resolution: {integrity: sha512-/hreyEujaB0w76zKo6717l3L0o/qEUtRgdvUBvlkhoWeOVMjMuHNHk0BRBzikzuGDqNmPQbg5ifMEqsHLiIUcQ==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
@@ -2797,8 +2892,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.20.0:
-    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
+  ws@8.20.1:
+    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -2842,6 +2937,8 @@ snapshots:
   '@ark/util@0.56.0': {}
 
   '@babel/runtime@7.29.2': {}
+
+  '@bedrock-rbx/ocale@0.1.0': {}
 
   '@changesets/apply-release-plan@7.1.1':
     dependencies:
@@ -3038,24 +3135,24 @@ snapshots:
       chardet: 2.1.1
       iconv-lite: 0.7.2
 
-  '@isentinel/jest-roblox@0.2.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)':
+  '@isentinel/jest-roblox@0.3.10(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(dotenv@8.6.0)(jiti@2.6.1)':
     dependencies:
+      '@bedrock-rbx/ocale': 0.1.0
       '@jridgewell/trace-mapping': 0.3.31
-      '@roblox-ts/rojo-resolver': 1.1.0
       arktype: 2.2.0
-      c12: 4.0.0-beta.4(dotenv@8.6.0)(jiti@2.6.1)
+      c12: 4.0.0-beta.5(dotenv@8.6.0)(jiti@2.6.1)
       confbox: 0.2.4
-      defu: 6.1.6
-      get-tsconfig: 4.13.7
+      defu: 6.1.7
+      get-tsconfig: 4.14.0
       highlight.js: 11.11.1
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-report: 3.0.1
       istanbul-reports: 3.2.0
       oxc-parser: 0.123.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
       picomatch: 4.0.4
-      std-env: 4.0.0
+      std-env: 4.1.0
       tinyrainbow: 3.1.0
-      ws: 8.20.0
+      ws: 8.20.1
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -3081,9 +3178,9 @@ snapshots:
       typescript: 6.0.3
       yargs: 18.0.0
 
-  '@isentinel/tsconfig@1.2.0(typescript@5.5.3)':
+  '@isentinel/tsconfig@1.2.0(typescript@6.0.3)':
     dependencies:
-      typescript: 5.5.3
+      typescript: 6.0.3
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -3794,7 +3891,7 @@ snapshots:
 
   '@rbxts/ripple@0.9.3': {}
 
-  '@rbxts/serio@1.2.5': {}
+  '@rbxts/serio@1.2.5(patch_hash=a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5)': {}
 
   '@rbxts/services@1.6.0': {}
 
@@ -3812,14 +3909,14 @@ snapshots:
 
   '@rbxts/t@3.2.1': {}
 
-  '@rbxts/tether@1.4.17':
+  '@rbxts/tether@1.4.17(patch_hash=452b4940483a1c3c0006a89a3d7a9c5fba8c336f7a987050f73d38014b87c73f)':
     dependencies:
       '@flamework/core': 1.3.2
       '@rbxts/destroyable': 1.0.9
       '@rbxts/flamework-meta-utils': 1.0.7
       '@rbxts/object-utils': 1.0.4
       '@rbxts/repr': 1.0.3
-      '@rbxts/serio': 1.2.5
+      '@rbxts/serio': 1.2.5(patch_hash=a99304447f32fc933643ee3532fba7e8adaa854cbc267747c60832ceb6fd24e5)
       '@rbxts/services': 1.6.0
       '@rbxts/trash': 1.0.8
 
@@ -3937,13 +4034,13 @@ snapshots:
 
   bytes@3.1.2: {}
 
-  c12@4.0.0-beta.4(dotenv@8.6.0)(jiti@2.6.1):
+  c12@4.0.0-beta.5(dotenv@8.6.0)(jiti@2.6.1):
     dependencies:
       confbox: 0.2.4
-      defu: 6.1.6
+      defu: 6.1.7
       exsolve: 1.0.8
       pathe: 2.0.3
-      pkg-types: 2.3.0
+      pkg-types: 2.3.1
       rc9: 3.0.1
     optionalDependencies:
       dotenv: 8.6.0
@@ -4047,6 +4144,8 @@ snapshots:
   decamelize@1.2.0: {}
 
   defu@6.1.6: {}
+
+  defu@6.1.7: {}
 
   depd@2.0.0: {}
 
@@ -4258,7 +4357,7 @@ snapshots:
     dependencies:
       pump: 3.0.4
 
-  get-tsconfig@4.13.7:
+  get-tsconfig@4.14.0:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
@@ -4626,7 +4725,7 @@ snapshots:
 
   pify@4.0.1: {}
 
-  pkg-types@2.3.0:
+  pkg-types@2.3.1:
     dependencies:
       confbox: 0.2.4
       exsolve: 1.0.8
@@ -4661,7 +4760,7 @@ snapshots:
       iconv-lite: 0.4.24
       unpipe: 1.0.0
 
-  rbxts-transformer-flamework@1.3.2(typescript@5.5.3):
+  rbxts-transformer-flamework@1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3):
     dependencies:
       '@roblox-ts/rojo-resolver': 1.1.0
       ajv: 8.18.0
@@ -4670,7 +4769,7 @@ snapshots:
       glob: 9.3.5
       hashids: 2.3.0
       normalize-package-data: 3.0.3
-      typescript: 5.5.3
+      typescript: 6.0.3
       uuid: 8.3.2
 
   rc9@3.0.1:
@@ -4834,7 +4933,7 @@ snapshots:
 
   statuses@2.0.2: {}
 
-  std-env@4.0.0: {}
+  std-env@4.1.0: {}
 
   string-width@1.0.2:
     dependencies:
@@ -4909,8 +5008,6 @@ snapshots:
       media-typer: 0.3.0
       mime-types: 2.1.35
 
-  typescript@5.5.3: {}
-
   typescript@6.0.3: {}
 
   universalify@0.1.2: {}
@@ -4960,7 +5057,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.20.0: {}
+  ws@8.20.1: {}
 
   y18n@4.0.3: {}
 

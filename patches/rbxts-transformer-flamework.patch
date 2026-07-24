@@ -1,0 +1,117 @@
+diff --git a/out/transformations/transformFile.js b/out/transformations/transformFile.js
+index 1b9ba5e..e8006e6 100644
+--- a/out/transformations/transformFile.js
++++ b/out/transformations/transformFile.js
+@@ -40,23 +40,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
+ };
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.transformFile = transformFile;
+ var typescript_1 = __importDefault(require("typescript"));
+ var diagnostics_1 = require("../classes/diagnostics");
+ var factory_1 = require("../util/factory");
+ var transformStatementList_1 = require("./transformStatementList");
+ function transformFile(state, file) {
+     var e_1, _a;
+     state.buildInfo.invalidateGlobs(state.getFileId(file));
+-    var statements = (0, transformStatementList_1.transformStatementList)(state, file.statements);
++    var transformedStatements = (0, transformStatementList_1.transformStatementList)(state, file.statements);
+     var imports = state.fileImports.get(file.fileName);
++    var statements = transformedStatements;
+     if (imports) {
++        statements = transformedStatements === file.statements ? Array.from(transformedStatements) : transformedStatements;
+         var firstStatement = statements[0];
+         statements.unshift.apply(statements, __spreadArray([], __read(imports.map(function (info) {
+             return factory_1.f.importDeclaration(info.path, info.entries.map(function (x) { return [x.name, x.identifier]; }));
+         })), false));
+         // steal comments from original first statement so that comment directives work properly
+         if (firstStatement && statements[0]) {
+             var original = typescript_1.default.getParseTreeNode(firstStatement);
+             typescript_1.default.moveSyntheticComments(statements[0], firstStatement);
+             if (original) {
+                 typescript_1.default.copyComments(original, statements[0]);
+@@ -70,13 +72,16 @@ function transformFile(state, file) {
+             state.addDiagnostic(diag);
+         }
+     }
+     catch (e_1_1) { e_1 = { error: e_1_1 }; }
+     finally {
+         try {
+             if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+         }
+         finally { if (e_1) throw e_1.error; }
+     }
++    if (statements === file.statements) {
++        return file;
++    }
+     var sourceFile = factory_1.f.update.sourceFile(file, statements);
+     return sourceFile;
+ }
+diff --git a/out/transformations/transformStatementList.js b/out/transformations/transformStatementList.js
+index b4b38d0..61ed97d 100644
+--- a/out/transformations/transformStatementList.js
++++ b/out/transformations/transformStatementList.js
+@@ -35,30 +35,35 @@ var __values = (this && this.__values) || function(o) {
+     };
+     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+ };
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.transformStatementList = transformStatementList;
+ var getNodeList_1 = require("../util/functions/getNodeList");
+ var transformStatement_1 = require("./transformStatement");
+ function transformStatementList(state, statements) {
+     var e_1, _a;
+     var result = new Array();
++    var changed = false;
+     var _loop_1 = function (statement) {
+         var _b = __read(state.capture(function () { return (0, transformStatement_1.transformStatement)(state, statement); }), 2), newStatements = _b[0], prereqs = _b[1];
++        var list = (0, getNodeList_1.getNodeList)(newStatements);
++        if (prereqs.length > 0 || list.length !== 1 || list[0] !== statement) {
++            changed = true;
++        }
+         result.push.apply(result, __spreadArray([], __read(prereqs), false));
+-        result.push.apply(result, __spreadArray([], __read((0, getNodeList_1.getNodeList)(newStatements)), false));
++        result.push.apply(result, __spreadArray([], __read(list), false));
+     };
+     try {
+         for (var statements_1 = __values(statements), statements_1_1 = statements_1.next(); !statements_1_1.done; statements_1_1 = statements_1.next()) {
+             var statement = statements_1_1.value;
+             _loop_1(statement);
+         }
+     }
+     catch (e_1_1) { e_1 = { error: e_1_1 }; }
+     finally {
+         try {
+             if (statements_1_1 && !statements_1_1.done && (_a = statements_1.return)) _a.call(statements_1);
+         }
+         finally { if (e_1) throw e_1.error; }
+     }
+-    return result;
++    return changed ? result : statements;
+ }
+diff --git a/out/transformer.js b/out/transformer.js
+index 30cc4bb..1429586 100644
+--- a/out/transformer.js
++++ b/out/transformer.js
+@@ -30,21 +30,21 @@ function default_1(program, config) {
+         return function (file) {
+             if (!typescript_1.default.isSourceFile(file)) {
+                 (0, emitTypescriptMismatch_1.emitTypescriptMismatch)(state, chalk_1.default.red("Failed to load! TS version mismatch detected"));
+             }
+             if (state.config.noSemanticDiagnostics !== true) {
+                 var originalFile = typescript_1.default.getParseTreeNode(file, typescript_1.default.isSourceFile);
+                 if (originalFile) {
+                     var preEmitDiagnostics = typescript_1.default.getPreEmitDiagnostics(program, originalFile);
+                     if (preEmitDiagnostics.some(function (x) { return x.category === typescript_1.default.DiagnosticCategory.Error; })) {
+                         preEmitDiagnostics
+-                            .filter(typescript_1.default.isDiagnosticWithLocation)
++                            .filter(function (d) { return d.file !== undefined && d.start !== undefined && d.length !== undefined; })
+                             .forEach(function (diag) { return context.addDiagnostic(diag); });
+                         return file;
+                     }
+                 }
+                 else {
+                     var relativeName = path_1.default.relative(state.srcDir, file.fileName);
+                     logger_1.Logger.warn("Failed to validate '".concat(relativeName, "' due to lack of parse tree node."));
+                 }
+             }
+             if (!hasCollectedInformation) {
