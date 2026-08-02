@@ -158,8 +158,12 @@ function didComponentInsert<T extends ComponentKey>(
 	serverEntityId: AnyEntity,
 	clientEntityId?: AnyEntity,
 ): clientEntityId is undefined {
-	if (data === undefined && clientEntityId !== undefined) {
-		return false;
+	if (data === undefined) {
+		// A removal (nil payload) is only meaningful for an entity this client
+		// already spawned. For unknown entities there is nothing to remove, and
+		// deserializing nil can crash deserializers that echo their input
+		// (e.g. Team/PlayerStats/MatchState) via component.patch(nil).
+		return clientEntityId === undefined;
 	}
 
 	const componentToInsert = deserializeSingleComponent(

@@ -263,6 +263,16 @@ function handleComponentChanges(
 					continue;
 				}
 
+				// Never send component removals for entities this client was not
+				// previously told about: the client cannot apply them, and a nil
+				// payload for an unknown entity crashes its deserializer.
+				if (
+					record.new === undefined &&
+					!(replicatedEntities.get(profile.player)?.has(targetEntityId) ?? false)
+				) {
+					continue;
+				}
+
 				debugPrint(`[server replication] change ${profile.player.Name} ${componentKey} ${targetEntityId}`);
 				setComponentPayload(
 					profile.player,
