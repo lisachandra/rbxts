@@ -8,8 +8,7 @@ import { ApiDump } from "./apiDump";
 type Table = Record<number | string | symbol, unknown>;
 
 /**
- * Represents a deferred fetch value that can be resolved later with
- * additional properties.
+ * Represents a deferred fetch value that can be resolved later with additional properties.
  *
  * @typeParam T - The type of the value to resolve.
  */
@@ -21,15 +20,13 @@ export interface FetchValue<T> {
 
 // Extended instance attributes to include fetch values
 /**
- * Maps Roblox instance attributes to fetch values, allowing each
- * attribute to be provided as a deferred {@link FetchValue}.
- *
- * @typeParam T - The Roblox `Instance` subclass.
+ * Maps Roblox instance attributes to fetch values, allowing each attribute to be provided as a
+ * deferred {@link FetchValue}.
  *
  * @remarks
- * Each key that exists in `React.InstanceAttributes<T>` may be assigned
- * either the original attribute type or a `FetchValue` that resolves to
- * that type.
+ *   Each key that exists in `React.InstanceAttributes<T>` may be assigned either the original
+ *   attribute type or a `FetchValue` that resolves to that type.
+ * @typeParam T - The Roblox `Instance` subclass.
  */
 export type ExtendedInstanceAttributes<T extends Instance> = {
 	[P in keyof React.InstanceAttributes<T>]: FetchValue<any> | React.InstanceAttributes<T>[P];
@@ -37,8 +34,8 @@ export type ExtendedInstanceAttributes<T extends Instance> = {
 
 // Extended instance props to include additional properties like key, ref, children, events, and tags
 /**
- * Augments instance attributes with optional React and Roblox metadata
- * (`key`, `ref`, `children`, `Event`, `Change`, `Tag`).
+ * Augments instance attributes with optional React and Roblox metadata (`key`, `ref`, `children`,
+ * `Event`, `Change`, `Tag`).
  *
  * @typeParam T - The Roblox `Instance` subclass.
  */
@@ -54,14 +51,13 @@ export type ExtendedInstanceProps<T extends Instance> = ExtendedInstanceAttribut
 
 // Template props that include children and extended instance props
 /**
- * Template properties that recursively map Roblox instance properties
- * to nested template props when the property type is an `Instance`.
- *
- * @typeParam T - The Roblox `Instance` subclass.
+ * Template properties that recursively map Roblox instance properties to nested template props when
+ * the property type is an `Instance`.
  *
  * @remarks
- * Children declared via the `childrenSymbol` key are also accepted and
- * flattened into the template's render output.
+ *   Children declared via the `childrenSymbol` key are also accepted and flattened into the
+ *   template's render output.
+ * @typeParam T - The Roblox `Instance` subclass.
  */
 export type TemplateProps<T extends Instance> = ExtendedInstanceProps<T> & {
 	[childrenSymbol]?: ExcludeMembers<
@@ -237,7 +233,7 @@ function watchForPropertyChanges<T extends Instance>(
 					);
 
 					render({});
-				})
+				});
 			},
 		);
 
@@ -247,25 +243,19 @@ function watchForPropertyChanges<T extends Instance>(
 	}, []);
 }
 
-/**
- * ReactTemplate object for creating and managing React components from Roblox
- * instances.
- */
+/** ReactTemplate object for creating and managing React components from Roblox instances. */
 const ReactTemplate = {
-	/**
-	 * Unique symbol used to identify fetch-value tables produced by
-	 * {@link ReactTemplate.fetch}.
-	 */
+	/** Unique symbol used to identify fetch-value tables produced by {@link ReactTemplate.fetch}. */
 	_fetch: fetchSymbol,
 	/**
-	 * Internal registry of template display names. Populated in Studio
-	 * to aid debugging and recognition of generated components.
+	 * Internal registry of template display names. Populated in Studio to aid debugging and
+	 * recognition of generated components.
 	 */
 	_templates: [] as Array<string>,
 
 	/**
-	 * Property key (`"templateChildren"`) for declaring named child
-	 * templates inside a template's props.
+	 * Property key (`"templateChildren"`) for declaring named child templates inside a template's
+	 * props.
 	 */
 	children: childrenSymbol,
 
@@ -276,10 +266,10 @@ const ReactTemplate = {
 	 * @param properties - The properties to fetch.
 	 * @returns - The fetch value object.
 	 */
-	fetch: <T>(resolve: (value: T) => unknown, ...properties: Array<string>): FetchValue<T> => {
+	fetch: <T>(resolve: (value: T) => unknown, ...propertyNames: Array<string>): FetchValue<T> => {
 		return {
 			[fetchSymbol]: resolve,
-			properties,
+			properties: propertyNames,
 		};
 	},
 
@@ -311,10 +301,14 @@ const ReactTemplate = {
 			children[key] = createElement(element);
 		}
 
-		function TemplateElement(props: TemplateProps<T>, ref?: React.ForwardedRef<T>): JSX.Element {
-			const propertyChildren = (
-				fragment ? props : (props[childrenSymbol] ?? {})
-			) as Record<string, Table>;
+		function TemplateElement(
+			props: TemplateProps<T>,
+			ref?: React.ForwardedRef<T>,
+		): JSX.Element {
+			const propertyChildren = (fragment ? props : (props[childrenSymbol] ?? {})) as Record<
+				string,
+				Table
+			>;
 
 			let newProps = props;
 			newProps = processChildrenProps(newProps, propertyChildren, defaultChildren);
@@ -342,7 +336,7 @@ const ReactTemplate = {
 			});
 		}
 
-		const template = memo(forwardRef(TemplateElement))
+		const template = memo(forwardRef(TemplateElement));
 		if (RunService.IsStudio()) {
 			ReactTemplate._templates.push(`${template}`);
 		}
@@ -355,7 +349,7 @@ const ReactTemplate = {
 	 *
 	 * @param template - The template to check.
 	 * @returns - True if the template is a React function component, false
-	 *   otherwise.
+	 * otherwise.
 	 */
 	is: (template: unknown): template is React.FunctionComponent<TemplateProps<Instance>> => {
 		return ReactTemplate._templates.includes(`${template}`);
