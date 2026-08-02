@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/ui",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Reusable React UI components, hooks, and hot reload helpers for @lisachandra",
 	"keywords": [
 		"roblox",
@@ -21,10 +21,34 @@
 	"private": false,
 	"type": "module",
 	"exports": {
-		".": {
-			"import": "./out/init.luau",
-			"types": "./out/index.d.ts"
-		}
+			".": {
+				"import": "./out/init.luau",
+				"types": "./out/index.d.ts"
+			},
+			"./hooks/useConstant": {
+				"import": "./out/hooks/useConstant.luau",
+				"types": "./out/hooks/useConstant.d.ts"
+			},
+			"./hooks/useProperty": {
+				"import": "./out/hooks/useProperty.luau",
+				"types": "./out/hooks/useProperty.d.ts"
+			},
+			"./hooks/usePropertyBinding": {
+				"import": "./out/hooks/usePropertyBinding.luau",
+				"types": "./out/hooks/usePropertyBinding.d.ts"
+			},
+			"./hooks/useComponentRecord": {
+				"import": "./out/hooks/useComponentRecord.luau",
+				"types": "./out/hooks/useComponentRecord.d.ts"
+			},
+			"./hooks/usePx": {
+				"import": "./out/hooks/usePx.luau",
+				"types": "./out/hooks/usePx.d.ts"
+			},
+			"./hooks/useWorldToScreen": {
+				"import": "./out/hooks/useWorldToScreen.luau",
+				"types": "./out/hooks/useWorldToScreen.d.ts"
+			}
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
@@ -70,6 +94,7 @@
 		"@rbxts/rewire": "*"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
 	}
 }

@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/react-router",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
@@ -51,6 +51,7 @@
 		"@rbxts/lemon-signal": "*"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
 	}
 }

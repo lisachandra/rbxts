@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/types",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Global types for @lisachandra packages and games",
 	"keywords": [
 		"roblox",
@@ -48,6 +48,7 @@
 		"@rbxts/matter": "*"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
 	}
 }

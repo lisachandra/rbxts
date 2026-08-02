@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/matter",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Matter runtime, hooks, components, and systems composition for @lisachandra",
 	"keywords": [
 		"roblox",
@@ -53,10 +53,42 @@
 			"import": "./out/systems/init.luau",
 			"types": "./out/systems/index.d.ts"
 		},
-		"./components": {
-			"import": "./out/components.luau",
-			"types": "./out/components.d.ts"
-		}
+			"./components": {
+				"import": "./out/components.luau",
+				"types": "./out/components.d.ts"
+			},
+			"./hooks": {
+				"import": "./out/hooks/init.luau",
+				"types": "./out/hooks/index.d.ts"
+			},
+			"./hooks/useChange": {
+				"import": "./out/hooks/useChange.luau",
+				"types": "./out/hooks/useChange.d.ts"
+			},
+			"./hooks/useMemo": {
+				"import": "./out/hooks/useMemo.luau",
+				"types": "./out/hooks/useMemo.d.ts"
+			},
+			"./hooks/useMessage": {
+				"import": "./out/hooks/useMessage.luau",
+				"types": "./out/hooks/useMessage.d.ts"
+			},
+			"./hooks/useReducer": {
+				"import": "./out/hooks/useReducer.luau",
+				"types": "./out/hooks/useReducer.d.ts"
+			},
+			"./hooks/useStream": {
+				"import": "./out/hooks/useStream.luau",
+				"types": "./out/hooks/useStream.d.ts"
+			},
+			"./hooks/useThrottle": {
+				"import": "./out/hooks/useThrottle.luau",
+				"types": "./out/hooks/useThrottle.d.ts"
+			},
+			"./hooks/useDocument": {
+				"import": "./out/hooks/useDocument.luau",
+				"types": "./out/hooks/useDocument.d.ts"
+			}
 	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
@@ -126,6 +158,7 @@
 		"@rbxts/lapis": "*"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
 	}
 }
