@@ -1,0 +1,4 @@
+dist/
+.sandcastle/
+.tmp/
+*.tsbuildinfo

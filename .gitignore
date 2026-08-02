@@ -2,6 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=lua,windows,visualstudiocode,react,jetbrains+all,linux
 
 *.env
+.sandcastle/
+.tmp/
 .diracrules
 .zcode
 .dirac-cache

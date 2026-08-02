@@ -1,0 +1,68 @@
+{
+	"name": "@lisachandra/sandcastle",
+	"version": "0.2.0",
+	"description": "Three-phase agent issue runner (design → implement → review) with persistent worktrees, sequential issues, and integration composition",
+	"keywords": [
+		"sandcastle",
+		"agents",
+		"github",
+		"worktrees",
+		"cli",
+		"roblox-ts"
+	],
+	"homepage": "https://github.com/lisachandra/rbxts",
+	"bugs": {
+		"url": "https://github.com/lisachandra/rbxts/issues"
+	},
+	"repository": {
+		"url": "https://github.com/lisachandra/rbxts",
+		"type": "git"
+	},
+	"license": "MIT",
+	"author": "lisachandra <lisachandra@proton.me>",
+	"type": "module",
+	"bin": {
+		"sandcastle": "dist/main.js"
+	},
+	"main": "dist/main.js",
+	"types": "dist/main.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/main.js",
+			"types": "./dist/main.d.ts"
+		}
+	},
+	"files": [
+		"dist",
+		"prompts",
+		"assets",
+		"README.md",
+		"!**/*.tsbuildinfo"
+	],
+	"engines": {
+		"node": ">=20.12"
+	},
+	"scripts": {
+		"build": "shx rm -rf dist && tsc -p tsconfig.json",
+		"dev": "tsc -p tsconfig.json --watch",
+		"clean": "shx rm -rf dist .sandcastle .tmp",
+		"test": "tsx --test src/main.test.ts",
+		"test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-include=src/main.ts src/main.test.ts",
+		"prepare": "pnpm build"
+	},
+	"dependencies": {
+		"@ai-hero/sandcastle": "catalog:",
+		"jiti": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"shx": "catalog:",
+		"tsx": "catalog:",
+		"typescript": "catalog:"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

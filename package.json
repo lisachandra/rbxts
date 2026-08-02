@@ -4,8 +4,15 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"issues:agent-ready": "gh issue list --state open --label \"ready-for-agent\" --json number,title,labels,url",
+		"issues:audit": "gh issue list --state open --limit 200 --json number,title,labels,url",
+		"issues:labels": "gh label list --limit 200",
 		"prepare": "node ./scripts/prepare.mjs",
+		"sandcastle": "sandcastle",
+		"sandcastle:all": "sandcastle --issue all",
+		"sandcastle:issue": "sandcastle",
 		"test": "COLUMNS=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)} FORCE_COLOR=1 pnpm -r --parallel --stream test",
+		"test:sandcastle": "pnpm --filter @lisachandra/sandcastle test",
 		"dev": "pnpm -r --parallel run dev",
 		"clean": "pnpm --parallel run clean",
 		"serve": "pnpm -r --parallel run serve",
@@ -20,6 +27,7 @@
 	},
 	"devDependencies": {
 		"@lisachandra/types": "workspace:*",
+		"@lisachandra/sandcastle": "workspace:*",
 		"@changesets/changelog-github": "catalog:",
 		"@changesets/cli": "catalog:",
 		"@isentinel/jest-roblox": "catalog:",
