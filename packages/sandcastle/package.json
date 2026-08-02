@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/sandcastle",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Three-phase agent issue runner (design → implement → review) with persistent worktrees, sequential issues, and integration composition",
 	"keywords": [
 		"sandcastle",
