@@ -3,9 +3,12 @@
 
 *.env
 .sandcastle/
+.pnpm-store/
 .tmp/
+
 # Sparse checkout of roblox/creator-docs, junctioned into the repo root
 creator-docs/
+
 .diracrules
 .zcode
 .dirac-cache
