@@ -35,6 +35,16 @@ import { Constant } from "@lisachandra/constant";
 const loadingQueue = new Map<Player, boolean>();
 const eventQueue: Array<Callback> = [];
 
+type PreSpawnResult = boolean | readonly [boolean, string?];
+
+function normalizePreSpawnResult(result: PreSpawnResult): [boolean, string?] {
+	if (typeIs(result, "boolean")) {
+		return [result, undefined];
+	}
+
+	return [result[0], result[1]];
+}
+
 let internalDebugging = false;
 
 function debugPrint(message: string): void {
@@ -153,17 +163,32 @@ function defaultPlayerAdded(world: World, player: Player): void {
 	syncWithEventQueue()
 		.then(async () => {
 			debugPrint(`[playerManager] sync resumed ${player.Name}`);
-			// preSpawn — validate before spawning
-			if (hooks?.preSpawn) {
-				const result = hooks.preSpawn(player);
-				const [allowed, message] = typeIs(result, "boolean")
-					? [result]
-					: await Promise.resolve(result).catch(catcher) ?? [];
-				if (!allowed) {
-					player.Kick(message ?? "Access denied");
+				// preSpawn — validate before spawning
+				if (hooks?.preSpawn) {
+					let result: PreSpawnResult;
+					try {
+						result = await Promise.resolve(hooks.preSpawn(player));
+					} catch (error) {
+						Log.Warn(`[playerManager] preSpawn failed for ${player.Name}: ${tostring(error)}`);
+						if (player.Parent === Players) {
+							player.Kick("Unable to verify access right now. Please rejoin.");
+						}
+						return;
+					}
+
+					const [allowed, message] = normalizePreSpawnResult(result);
+					if (!allowed) {
+						if (player.Parent === Players) {
+							player.Kick(message ?? "Access denied");
+						}
+						return;
+					}
+				}
+
+				if (player.Parent !== Players) {
 					return;
 				}
-			}
+
 
 			const entityId = world.spawn();
 			player.SetAttribute("serverEntityId", entityId);

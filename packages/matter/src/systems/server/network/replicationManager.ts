@@ -20,6 +20,7 @@ import { Message, messaging, registry, ServerSerializerFn } from "../../../netwo
 import { SerializedData } from "@rbxts/serio";
 
 const hasReceived: Array<Player> = [];
+const replicatedEntities = new Map<Player, Set<AnyEntity>>();
 
 let internalDebugging = false;
 
@@ -172,7 +173,23 @@ function replicateComponentForPlayer(
 	);
 }
 
-/* Initial replication for newly connected players. Sends ItemGUIDMap and replicates all relevant components. */
+function getEligibleEntities(world: World, viewerEntityId: AnyEntity): Set<AnyEntity> {
+	const eligible = new Set<AnyEntity>();
+	for (const [targetEntityId] of world) {
+		for (const [componentKey, codec] of registry.entries()) {
+			if (
+				world.get(targetEntityId, codec.component) !== undefined &&
+				(codec.mode !== "owner" || targetEntityId === viewerEntityId) &&
+				componentIsWithinScope(world, viewerEntityId, targetEntityId, componentKey as ComponentKey)
+			) {
+				eligible.add(targetEntityId);
+				break;
+			}
+		}
+	}
+	return eligible;
+}
+
 function handleInitialReplication(
 	world: World,
 	crate: Crate<ServerState>,
@@ -181,7 +198,16 @@ function handleInitialReplication(
 ): void {
 	for (const [componentEntityId, profile] of world.query(Components.Profile)) {
 		debugPrint(`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))}`);
-		const playerHasReceived = hasReceived.includes(profile.player);
+			const playerHasReceived = hasReceived.includes(profile.player);
+			const previous = replicatedEntities.get(profile.player) ?? new Set<AnyEntity>();
+			const eligible = getEligibleEntities(world, componentEntityId);
+			replicatedEntities.set(profile.player, eligible);
+			for (const entityId of previous) {
+				if (!eligible.has(entityId)) {
+					messaging.client.emit(profile.player, Message.DespawnEntity, entityId);
+				}
+			}
+
 
 		if (playerHasReceived) {
 			debugPrint(`[server replication] skip initial ${profile.player.Name}`);
@@ -192,10 +218,15 @@ function handleInitialReplication(
 		debugPrint(`[server replication] initial ${profile.player.Name}`);
 		initialized.push(profile.player);
 
-		if (!playerHasReceived) {
-			hasReceived.push(profile.player);
-			profile.janitor.Add(() => removeValue(hasReceived, profile.player));
-		}
+			if (!playerHasReceived) {
+				hasReceived.push(profile.player);
+				replicatedEntities.set(profile.player, eligible);
+				profile.janitor.Add(() => {
+					removeValue(hasReceived, profile.player);
+					replicatedEntities.delete(profile.player);
+				});
+			}
+
 
 		for (const [componentKey] of registry.entries()) {
 			debugPrint(`[server replication] iter codec ${profile.player.Name} ${componentKey}`);
@@ -279,9 +310,9 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 				}
 
 				debugPrint(`[server replication] send component ${player.Name} ${componentKey}#${codec.id} ${entityId}`);
-				sentComponent = true
+					sentComponent = payload?.payload !== undefined;
 
-				messaging.client.emit(player, Message.Component, {
+					messaging.client.emit(player, Message.Component, {
 					componentId: codec.id,
 					payload: typeIs(payload?.payload, "buffer") ? {
 						buf: payload.payload
@@ -290,10 +321,12 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 				});
 			}
 
-			if (sentComponent) {
-				messaging.client.emit(player, Message.SpawnEntity, entityId);
-				debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
-			}
+				if (sentComponent) {
+					messaging.client.emit(player, Message.SpawnEntity, entityId);
+						replicatedEntities.get(player)?.add(entityId);
+					debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
+				}
+
 		}
 	}
 }

@@ -36,6 +36,12 @@ function applyComponentUpdate(
 	serverEntityId: AnyEntity,
 ): void {
 	if (clientEntityId === undefined) {
+		// A removal can arrive before the corresponding entity has been spawned.
+		// There is no client entity on which to apply it; ignore it safely.
+		if (componentToInsert === undefined) {
+			return;
+		}
+
 		batchSpawns[serverEntityId] ??= [];
 
 		let componentAlreadyExistsAtIndex = batchSpawns[serverEntityId].size();
@@ -66,6 +72,7 @@ function handleDespawn(
 
 		const newEntityIdMap = { ...entityIdMap, [serverEntityId]: undefined };
 		store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher);
+		delete batchSpawns[serverEntityId];
 
 		if (debugging) {
 			Log.Info(`Replication> Despawn ${clientEntityId}s${serverEntityId}`);
@@ -85,9 +92,14 @@ function handleSpawn(
 		return;
 	}
 
-	const componentsToInsert = batchSpawns[serverEntityId] ?? [];
+	const componentsToInsert = batchSpawns[serverEntityId];
+	if (componentsToInsert === undefined || componentsToInsert.size() === 0) {
+		return;
+	}
+
 	debugPrint(`[client replication] spawn ${serverEntityId} (${componentsToInsert.size()} components)`);
 	const clientEntityId: N<AnyEntity> = store.world.spawn(...componentsToInsert);
+	delete batchSpawns[serverEntityId];
 
 	const newEntityIdMap = { ...entityIdMap, [serverEntityId]: clientEntityId };
 	store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher);

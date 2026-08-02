@@ -44,13 +44,17 @@ export interface DocumentConfig {
 
 export interface PlayerLifecycleHooks {
 	/**
-	 * Validate before spawn. Return `false` or a rejected Promise to kick
-	 * the player. Called BEFORE the entity is spawned and the document is
-	 * loaded.
+		 * Validate before spawn. Return `false` (or `[false, message]`) to kick
+		 * the player with the supplied message. A rejected Promise indicates that
+		 * access could not be verified and is handled as an operational failure.
+
 	 *
 	 * @param player - The Player who is joining.
 	 */
-	preSpawn?: (player: Player) => [boolean, string?] | Promise<[boolean, string?]>;
+		preSpawn?: (
+			player: Player,
+		) => boolean | readonly [boolean, string?] | Promise<boolean | readonly [boolean, string?]>;
+
 
 	/**
 	 * Customize which components are inserted into the player entity.
