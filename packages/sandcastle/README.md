@@ -74,6 +74,36 @@ export default config;
 | `agents.models` | `{}` | Default model per backend, used when `--model` is not passed |
 | `effort` | `xhigh` | Default reasoning effort |
 
+### Local docs via `creator-docs`
+
+Repos that need Roblox API documentation for agents keep a local, gitignored copy of the
+[`roblox/creator-docs`](https://github.com/roblox/creator-docs) repository:
+
+1. Sparse-checkout the docs once into a shared location (outside the repo):
+
+   ```bash
+   git clone --filter=blob:none --sparse https://github.com/roblox/creator-docs F:/Acid/creator-docs
+   git -C F:/Acid/creator-docs sparse-checkout set content
+   ```
+
+2. Junction (Windows) or symlink it into the repository root as `creator-docs`:
+
+   ```powershell
+   New-Item -ItemType Junction -Path <repo>/creator-docs -Target F:/Acid/creator-docs
+   ```
+
+3. Ignore it: add `creator-docs/` to the repo's `.gitignore` (or `.git/info/exclude` for a
+   machine-local setup).
+
+4. Reference it in `sandcastle.config.ts` so agents in fresh worktrees can read the docs:
+
+   ```ts
+   symlinks: [{ path: "creator-docs", target: "creator-docs" }],
+   ```
+
+The docs are never committed; each worktree gets a junction to the same sparse checkout, and
+the link is skipped with a warning if the target is missing.
+
 ## Usage
 
 ```bash
