@@ -14,6 +14,13 @@ local function isPlugin(context)
 	return RunService:IsStudio() and context:FindFirstAncestorWhichIsA("Plugin") ~= nil
 end
 
+local function findModule(nodeModulesFolder, scope, moduleName)
+	local scopeFolder = nodeModulesFolder:FindFirstChild(scope)
+	if scopeFolder then
+		return scopeFolder:FindFirstChild(moduleName)
+	end
+end
+
 function TS.getModule(context, scope, moduleName)
 	-- legacy call signature
 	if moduleName == nil then
@@ -30,16 +37,21 @@ function TS.getModule(context, scope, moduleName)
 	repeat
 		local nodeModulesFolder = object:FindFirstChild(NODE_MODULES)
 		if nodeModulesFolder then
-			local scopeFolder = nodeModulesFolder:FindFirstChild(scope)
-			if scopeFolder then
-				local module = scopeFolder:FindFirstChild(moduleName)
-				if module then
-					return module
-				end
+			local module = findModule(nodeModulesFolder, scope, moduleName)
+			if module then
+				return module
 			end
 		end
 		object = object.Parent
 	until object == nil
+
+	local sharedNodeModules = script:FindFirstAncestor(NODE_MODULES)
+	if sharedNodeModules then
+		local module = findModule(sharedNodeModules, scope, moduleName)
+		if module then
+			return module
+		end
+	end
 
 	error(OUTPUT_PREFIX .. "Could not find module: " .. moduleName, 2)
 end
