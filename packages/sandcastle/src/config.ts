@@ -13,9 +13,9 @@ import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 import { z } from "zod";
 
-export type PhaseName = "design" | "implement" | "review";
-export type AgentBackend = "dirac" | "pi";
-export type SandcastleEffort = "low" | "medium" | "high" | "xhigh" | "max";
+import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+
+export type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
 
 export type PromptFileKey = "plan" | "implement" | "review" | "planAll" | "resolveConflicts" | "reviewIntegration";
 

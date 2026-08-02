@@ -141,5 +141,18 @@ warnings; move them into `sandcastle.config.ts` (`agents.default`, `agents.model
 
 ```bash
 pnpm build          # compile TypeScript to dist/
-pnpm test           # node:test suite via tsx
+pnpm test           # typecheck (tsconfig.test.json) + node:test suite via tsx
 ```
+
+The runner is split into focused modules under `src/`, with `main.ts` as the thin CLI entry
+that re-exports the public API:
+
+- `runtime.ts` — repository/config context and the injectable `io` boundary
+- `cli.ts` — argument parsing and help
+- `issue.ts` / `sequential.ts` — single-issue and sequential workflows
+- `integrations.ts` — integration composition and merge-conflict resolution
+- `evaluate.ts` / `state.ts` — phase decisions and persisted issue state
+- `agent.ts` / `worktree.ts` / `git.ts` / `retry.ts` — agent providers, worktrees, git, retries
+
+Each module has a matching `*.test.ts` file; shared test fixtures live in
+`src/test-helpers.ts`.
