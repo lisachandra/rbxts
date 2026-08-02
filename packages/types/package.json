@@ -18,6 +18,16 @@
 	"author": "lisachandra <lisachandra@proton.me>",
 	"private": false,
 	"type": "module",
+	"exports": {
+		".": {
+			"import": "./out/init.luau",
+			"types": "./out/index.d.ts"
+		},
+		"./include/RuntimeLib": {
+			"import": "./out/include/RuntimeLib.luau",
+			"types": "./out/include/RuntimeLib.d.ts"
+		}
+	},
 	"main": "out/init.luau",
 	"types": "out/index.d.ts",
 	"files": [
