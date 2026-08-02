@@ -27,9 +27,9 @@ Create `sandcastle.config.ts` at the repository root. Every field is optional; g
 defaults are used otherwise. The file is loaded with jiti and validated with zod.
 
 ```ts
-import type { SandcastleConfig } from "@lisachandra/sandcastle";
+import type { SandcastleUserConfig } from "@lisachandra/sandcastle";
 
-const config: SandcastleConfig = {
+const config: SandcastleUserConfig = {
 	dir: ".sandcastle",
 	baseBranch: "main",
 	setupCommands: ["scripts/bash/fetch-places.sh && pnpm setup"],
@@ -54,6 +54,10 @@ const config: SandcastleConfig = {
 
 export default config;
 ```
+
+`SandcastleUserConfig` accepts the same partial shapes as the validator (every field
+optional). Programmatic consumers that need the fully-resolved config (all prompt paths
+absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 
 ### Options
 

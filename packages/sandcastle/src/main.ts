@@ -47,6 +47,17 @@ export * from "./status.js";
 export * from "./types.js";
 export * from "./worktree.js";
 export { config, io, normalizedPath, packageRoot, repoRoot } from "./runtime.js";
+export {
+	escapeRegExp,
+	loadConfig,
+	phaseNames,
+	promptFileKeys,
+	sandcastleConfigSchema,
+	type PromptFileKey,
+	type ResolvedSandcastleConfig,
+	type SandcastleConfig,
+	type SandcastleUserConfig,
+} from "./config.js";
 
 const mainModulePath = fileURLToPath(import.meta.url);
 

@@ -141,6 +141,13 @@ export const sandcastleConfigSchema = z
 	})
 	.strict();
 
+/**
+ * Partial config accepted in `sandcastle.config.ts`; every field is optional.
+ * Use this in consumer config files — `SandcastleConfig` is the fully-resolved
+ * shape produced by `loadConfig`.
+ */
+export type SandcastleUserConfig = z.input<typeof sandcastleConfigSchema>;
+
 const defaultConfig: SandcastleConfig = {
 	dir: ".sandcastle",
 	baseBranch: "main",
