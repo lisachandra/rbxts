@@ -21,7 +21,7 @@ import type { Component } from "@rbxts/matter/lib/component";
 // eslint-disable-next-line react/no-unnecessary-use-prefix -- allowed
 export function useComponentRecord<T extends object>(
 	clientEntityId: AnyEntity | undefined,
-	component: () => Component<T>,
+	component: (() => Component<T>) | { (data?: T): Component<T> }
 ): N<ChangeRecord<T>> {
 	const [record, setRecord] = useState<N<ChangeRecord<T>>>();
 
