@@ -49,6 +49,7 @@ function printPhaseEvaluation(eval_: EvaluationResult): void {
 		const icon = decision === "skip" ? "⏭" : decision === "force" ? "🔄" : "▶";
 		console.log(`  ${icon} ${phase}: ${decision.toUpperCase()} — ${eval_.reasons[phase]}`);
 	}
+	console.log("  ℹ Decisions are re-checked against on-disk state before each phase runs.");
 }
 
 function loadIssueContext(issueNumber: string): {
@@ -250,22 +251,41 @@ function syncIssueStateOnResume(params: {
 	writeState(params.state);
 }
 
-async function executeIssuePhases(params: {
+interface ExecuteIssuePhasesParams {
 	agent: ReturnType<typeof createAgent>;
+	attempted: Set<PhaseName>;
 	eval_: EvaluationResult;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
 	maxImplementIterations: number;
-	options?: { baseRef?: string; phase?: PhaseName };
+	options?: { baseRef?: string; force?: true | PhaseName; phase?: PhaseName };
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 		worktreePath: string;
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
-}): Promise<void> {
+}
+
+/**
+ * Re-evaluates a single phase against current on-disk state. Later phases depend on
+ * artifacts produced by earlier ones (plan → commits), so a pre-flight evaluation made
+ * before design runs is not a valid decision for implement/review once design finishes.
+ */
+function reEvaluatePhase(params: ExecuteIssuePhasesParams, phase: PhaseName): PhaseDecision {
+	return evaluatePhases(params.issueNumber, params.state.model, {
+		baseRef: params.options?.baseRef,
+		force: params.options?.force,
+		phase: params.options?.phase,
+		resume: true,
+		worktree: params.sandbox.worktreePath,
+	})[phase];
+}
+
+async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<void> {
 	if (params.eval_.design !== "skip") {
+		params.attempted.add("design");
 		const designOk = await runDesignPhase({
 			agent: params.agent,
 			issueLabels: params.issueLabels,
@@ -282,7 +302,9 @@ async function executeIssuePhases(params: {
 		console.log("\n── Phase 1: Design — SKIPPED ──");
 	}
 
-	if (params.eval_.implement !== "skip") {
+	// Re-evaluate implement after design: a resumed run may have just produced the plan.
+	if (reEvaluatePhase(params, "implement") !== "skip") {
+		params.attempted.add("implement");
 		await runImplementPhase({
 			agent: params.agent,
 			issueLabels: params.issueLabels,
@@ -303,10 +325,13 @@ async function executeIssuePhases(params: {
 			params.state.base?.ref ?? params.options?.baseRef ?? config.baseBranch,
 		) > 0;
 
-	if (params.eval_.review !== "skip") {
+	// Re-evaluate review after implement: a resumed run may have just produced commits.
+	const reviewDecision = reEvaluatePhase(params, "review");
+	if (reviewDecision !== "skip") {
+		params.attempted.add("review");
 		await runReviewPhase({
 			agent: params.agent,
-			evalReview: params.eval_.review,
+			evalReview: reviewDecision,
 			hasCommits,
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
@@ -330,7 +355,22 @@ async function executeIssuePhases(params: {
 	}
 }
 
-function resolveActiveFailedPhase(eval_: EvaluationResult, state: PhaseState): PhaseName {
+function resolveActiveFailedPhase(
+	eval_: EvaluationResult,
+	state: PhaseState,
+	attempted: ReadonlySet<PhaseName>,
+): PhaseName {
+	// Prefer the phases actually attempted this invocation: the first one that did not
+	// finish is the one that failed. This avoids blaming review when implement was the
+	// phase that ran and failed on a resumed run.
+	for (const phase of ["design", "implement", "review"] as const) {
+		if (attempted.has(phase) && state.phases[phase].status !== "done") {
+			return phase;
+		}
+	}
+
+	// Fallback when nothing was attempted (e.g. setup failed before any phase ran):
+	// keep --phase isolation semantics by respecting which phases were in scope.
 	if (eval_.design !== "skip" && state.phases.design.status !== "done") {
 		return "design";
 	}
@@ -413,6 +453,7 @@ export async function runSingleIssue(
 	syncIssueStateOnResume({ effort, model, options, resume, state });
 
 	const sandbox = await createIssueSandbox(branchName, suppliedWorktree, options?.baseRef);
+	const attempted = new Set<PhaseName>();
 	try {
 		if (eval_.design !== "skip" || eval_.implement !== "skip" || eval_.review !== "skip") {
 			prepareIssueWorktree(sandbox.worktreePath, options?.ignoreSetup);
@@ -420,6 +461,7 @@ export async function runSingleIssue(
 
 		await executeIssuePhases({
 			agent,
+			attempted,
 			eval_,
 			issueLabels,
 			issueNumber,
@@ -431,7 +473,7 @@ export async function runSingleIssue(
 			state,
 		});
 	} catch (err) {
-		const activePhase = resolveActiveFailedPhase(eval_, state);
+		const activePhase = resolveActiveFailedPhase(eval_, state, attempted);
 		updatePhase(state, activePhase, "failed", { error: String(err) });
 		state.lastError = String(err);
 		writeState(state);

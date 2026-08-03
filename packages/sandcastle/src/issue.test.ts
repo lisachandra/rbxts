@@ -1,10 +1,11 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
 import { runAll, runSingleIssue } from "./issue.js";
+import { io } from "./runtime.js";
 import { readState, writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
@@ -191,6 +192,157 @@ describe("orchestration with heavy stubs", () => {
 			worktree,
 		});
 		assert.equal(setupCalls, 0);
+
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("runSingleIssue resume without a plan runs design then re-evaluates implement and review", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-resume-fresh-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view") && command.includes("labels")) {
+					return JSON.stringify({ labels: [] });
+				}
+
+				if (command.includes("gh issue view")) {
+					return "Test issue title";
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		let runCalls = 0;
+		io.run = (async () => {
+			runCalls += 1;
+			if (runCalls === 1) {
+				// The real designer writes the plan into the worktree; simulate that.
+				mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, ".sandcastle", "plans", `${issue}.md`),
+					"# Plan\n\nImplement it.",
+					"utf-8",
+				);
+				return { commits: [], stdout: "plan written" };
+			}
+
+			return { commits: [{ sha: "c1" }], stdout: "implemented" };
+		}) as unknown as typeof io.run;
+
+		await runSingleIssue(issue, "model", "low", 5, {
+			agentBackend: "dirac",
+			baseRef: "main",
+			resume: true,
+			worktree,
+		});
+
+		const state = readState(issue);
+		assert.equal(state?.phases.design.status, "done");
+		assert.equal(state?.phases.implement.status, "done");
+		assert.equal(state?.phases.review.status, "done");
+		assert.equal(runCalls, 3);
+
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("runSingleIssue attributes a resumed implement failure to implement, not review", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-attr-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view") && command.includes("labels")) {
+					return JSON.stringify({ labels: [] });
+				}
+
+				if (command.includes("gh issue view")) {
+					return "Test issue title";
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		let runCalls = 0;
+		io.run = (async () => {
+			runCalls += 1;
+			mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+			writeFileSync(join(worktree, ".sandcastle", "plans", `${issue}.md`), "# Plan", "utf-8");
+			if (runCalls === 1) {
+				return { commits: [], stdout: "plan written" };
+			}
+
+			throw new Error("implementer crashed");
+		}) as unknown as typeof io.run;
+
+		await assert.rejects(
+			async () =>
+				runSingleIssue(issue, "model", "low", 5, {
+					agentBackend: "dirac",
+					baseRef: "main",
+					resume: true,
+					worktree,
+				}),
+			/implementer crashed/,
+		);
+
+		const state = readState(issue);
+		assert.equal(state?.phases.design.status, "done");
+		assert.equal(state?.phases.implement.status, "failed");
+		assert.equal(state?.phases.review.status, "skipped");
+		assert.match(state?.lastError ?? "", /implementer crashed/);
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });
