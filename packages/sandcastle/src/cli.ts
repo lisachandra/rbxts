@@ -413,7 +413,7 @@ Integration workflow:
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
 	      --agent <backend>      dirac | pi (default: dirac)
-      --effort <level>       low | medium | high | xhigh | max
+      --effort <level>       low | medium | high | xhigh | max (max → xhigh)
       --allow-unreviewed     Explicitly allow sources whose review is incomplete
       --dry-run              Print resolved config without starting an agent
       --force                 Allow cleanup of a dirty integration worktree

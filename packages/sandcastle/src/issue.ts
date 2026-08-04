@@ -4,10 +4,11 @@
  * dispatches it with bounded concurrency.
  */
 
+import { Output, type SandboxRunOptions, type SandboxRunResult } from "@ai-hero/sandcastle";
+
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
-import { Output, type SandboxRunOptions, type SandboxRunResult } from "@ai-hero/sandcastle";
 import { z } from "zod";
 
 import { createAgent, fetchIssueLabels, issueView, skillsForPrompt } from "./agent.js";
@@ -49,6 +50,7 @@ function printPhaseEvaluation(eval_: EvaluationResult): void {
 		const icon = decision === "skip" ? "⏭" : decision === "force" ? "🔄" : "▶";
 		console.log(`  ${icon} ${phase}: ${decision.toUpperCase()} — ${eval_.reasons[phase]}`);
 	}
+
 	console.log("  ℹ Decisions are re-checked against on-disk state before each phase runs.");
 }
 
@@ -269,9 +271,9 @@ interface ExecuteIssuePhasesParams {
 }
 
 /**
- * Re-evaluates a single phase against current on-disk state. Later phases depend on
- * artifacts produced by earlier ones (plan → commits), so a pre-flight evaluation made
- * before design runs is not a valid decision for implement/review once design finishes.
+ * Re-evaluates a single phase against current on-disk state. Later phases depend on artifacts
+ * produced by earlier ones (plan → commits), so a pre-flight evaluation made before design runs is
+ * not a valid decision for implement/review once design finishes.
  */
 function reEvaluatePhase(params: ExecuteIssuePhasesParams, phase: PhaseName): PhaseDecision {
 	return evaluatePhases(params.issueNumber, params.state.model, {
@@ -360,17 +362,21 @@ function resolveActiveFailedPhase(
 	state: PhaseState,
 	attempted: ReadonlySet<PhaseName>,
 ): PhaseName {
-	// Prefer the phases actually attempted this invocation: the first one that did not
-	// finish is the one that failed. This avoids blaming review when implement was the
-	// phase that ran and failed on a resumed run.
+	/*
+	 * Prefer the phases actually attempted this invocation: the first one that did not
+	 * finish is the one that failed. This avoids blaming review when implement was the
+	 * phase that ran and failed on a resumed run.
+	 */
 	for (const phase of ["design", "implement", "review"] as const) {
 		if (attempted.has(phase) && state.phases[phase].status !== "done") {
 			return phase;
 		}
 	}
 
-	// Fallback when nothing was attempted (e.g. setup failed before any phase ran):
-	// keep --phase isolation semantics by respecting which phases were in scope.
+	/*
+	 * Fallback when nothing was attempted (e.g. setup failed before any phase ran):
+	 * keep --phase isolation semantics by respecting which phases were in scope.
+	 */
 	if (eval_.design !== "skip" && state.phases.design.status !== "done") {
 		return "design";
 	}
@@ -433,7 +439,6 @@ export async function runSingleIssue(
 		ISSUE_NUMBER: issueNumber,
 		ISSUE_TITLE: issueTitle,
 		PLAN_PATH: planPath,
-		READY_LABEL: config.labels.readyForAgent,
 		SKILLS: skillsForPrompt("design", issueLabels),
 	};
 	const agent = createAgent(

@@ -2,7 +2,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { createAgent, diracAgent, fetchIssueLabels, skillsForPrompt, uniqueSkills } from "./agent.js";
+import {
+	createAgent,
+	diracAgent,
+	fetchIssueLabels,
+	skillsForPrompt,
+	uniqueSkills,
+} from "./agent.js";
 import { io } from "./runtime.js";
 import { registerTestHooks, stubExecSync } from "./test-helpers.js";
 
@@ -136,6 +142,16 @@ describe("agents", () => {
 			}),
 		);
 		assert.deepEqual(card, [{ type: "result", result: "plan body" }]);
+	});
+
+	test("diracAgent maps max effort to the highest supported backend effort", () => {
+		const agent = diracAgent("gpt", { completionSignal: "SIG", effort: "max" });
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: false,
+			prompt: "hi",
+		});
+		assert.match(command.command, /--reasoning-effort xhigh/);
+		assert.doesNotMatch(command.command, /--reasoning-effort max/);
 	});
 
 	test("createAgent selects supported backends", () => {

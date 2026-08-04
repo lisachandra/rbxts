@@ -6,7 +6,15 @@
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { config, io, packageRoot, repoRoot } from "./runtime.js";
-import type { AgentBackend, PhaseName } from "./types.js";
+import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+
+/**
+ * Backend effort levels. "max" is accepted as a user-facing alias and maps to "xhigh", which is the
+ * highest level the dirac/pi CLIs support.
+ */
+export function resolveBackendEffort(effort: string): SandcastleEffort {
+	return effort === "max" ? "xhigh" : (effort as SandcastleEffort);
+}
 
 type DiracStreamEvent =
 	| { text: string; type: "text" }
@@ -37,7 +45,7 @@ export function diracAgent(
 	diracCompletionSignal = options?.completionSignal ?? "<promise>COMPLETE</promise>";
 
 	// oxlint-disable-next-line typescript/prefer-optional-chain -- Access with index string for env
-	let provider = (options?.env ?? {})["OPENAI_API_BASE"] ?? "";
+	let provider = (options?.env ?? {}).OPENAI_API_BASE ?? "";
 	provider = provider ? `-p ${provider}` : "";
 
 	return {
@@ -49,7 +57,7 @@ export function diracAgent(
 			const yoloFlag = dangerouslySkipPermissions ? " -y" : "";
 			const effortFlag =
 				options?.effort !== undefined && options.effort !== ""
-					? ` --reasoning-effort ${options.effort}`
+					? ` --reasoning-effort ${resolveBackendEffort(options.effort)}`
 					: "";
 			const wrapperPath = `${packageRoot}/assets/dirac-wrapper.sh`.replaceAll("\\", "/");
 			return {
@@ -150,26 +158,33 @@ export function createAgent(
 	effort: string,
 	completionSignal?: string,
 ): AgentProvider {
+	const resolvedEffort = resolveBackendEffort(effort);
+	if (resolvedEffort !== effort) {
+		console.warn(
+			`  ⚠ Effort "${effort}" is not supported by ${backend}; using "${resolvedEffort}" (highest supported).`,
+		);
+	}
+
 	if (backend === "pi") {
 		return io.pi(model, {
 			captureSessions: false,
-			thinking: effort as "low" | "high" | "xhigh" | "medium",
+			thinking: resolvedEffort as "low" | "high" | "xhigh" | "medium",
 		});
 	}
 
 	return diracAgent(model, {
 		completionSignal,
-		effort,
+		effort: resolvedEffort,
 		env: {
-			OPENAI_API_BASE: process.env["OPENAI_API_BASE"] ?? "https://router.bynara.id/v1",
-			OPENAI_API_KEY: process.env["OPENAI_API_KEY"] ?? "",
+			OPENAI_API_BASE: process.env.OPENAI_API_BASE ?? "https://router.bynara.id/v1",
+			OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
 		},
 	});
 }
 
 const globalPhaseSkills: Record<PhaseName, ReadonlyArray<string>> = config.skills.defaults;
-const issueLabelSkills: Record<string, Partial<Record<PhaseName, ReadonlyArray<string>>>> =
-	config.skills.labels;
+const issueLabelSkills: Record<string, Partial<Record<PhaseName, ReadonlyArray<string>>>> = config
+	.skills.labels;
 
 export const uniqueSkills = (skills: ReadonlyArray<string>): Array<string> => [...new Set(skills)];
 

@@ -6,9 +6,13 @@
  * or more modules lives here.
  */
 
-export type PhaseName = "design" | "implement" | "review";
-export type AgentBackend = "dirac" | "pi";
-export type SandcastleEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export type PhaseName = "design" | "review" | "implement";
+export type AgentBackend = "pi" | "dirac";
+/**
+ * Backend effort levels. "max" is accepted as a user-facing alias and maps to "xhigh" (the highest
+ * level the dirac/pi CLIs support).
+ */
+export type SandcastleEffort = "low" | "max" | "high" | "xhigh" | "medium";
 export type PhaseStatus = "done" | "failed" | "skipped";
 export type PhaseDecision = "skip" | "start" | "force";
 
