@@ -1,6 +1,13 @@
 {
 	"name": "@lisachandra/react-template",
 	"version": "1.0.1",
+	"description": "Instance → React component generator for Roblox",
+	"keywords": [
+		"roblox",
+		"rbxts",
+		"react",
+		"template"
+	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"

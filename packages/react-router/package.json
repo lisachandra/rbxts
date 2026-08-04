@@ -1,6 +1,13 @@
 {
 	"name": "@lisachandra/react-router",
 	"version": "1.0.1",
+	"description": "Client-side router for React Roblox",
+	"keywords": [
+		"roblox",
+		"rbxts",
+		"react",
+		"router"
+	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"

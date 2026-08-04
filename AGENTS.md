@@ -18,8 +18,11 @@ rbxts/
 │   ├── matter/         @lisachandra/matter     — ECS runtime (Matter), hooks, systems, items, replication
 │   ├── ui/             @lisachandra/ui         — React UI components and hooks
 │   ├── platform/       @lisachandra/platform   — Bootstrap, centurion commands, documents, teleporter
-│   └── test/           @lisachandra/test       — Test utilities and runtime helpers
-├── test/               Test helpers and shared Jest config
+│   ├── react-template/ @lisachandra/react-template — Instance → React component generator
+│   ├── react-router/   @lisachandra/react-router   — Client-side router for React Roblox
+│   ├── test/           @lisachandra/test       — Test utilities and runtime helpers
+│   └── sandcastle/     @lisachandra/sandcastle — Agent issue runner (Node dev tooling)
+├── test/               Per-package test suites and shared Jest config (test/<name>/)
 ├── scripts/            Build and hoisting scripts
 ├── docs/               Additional documentation
 ├── pnpm-workspace.yaml
@@ -31,16 +34,23 @@ rbxts/
 
 ```
 types  ←  core  ←  matter  ←  platform
-              ↖__ ui _____/
-               test _____/
+              ↖__ ui _______/
+                   test ____/
+
+react-template  ← types
+react-router    ← types
+sandcastle      (standalone Node tooling, no workspace deps)
 ```
 
 - **types** has no internal dependencies (leaf package)
 - **core** depends on types
 - **matter** depends on core + types
-- **ui** depends on core + types
+- **ui** depends on core + matter + react-template + types
 - **platform** depends on matter + core + types
 - **test** depends on types
+- **react-template** depends on types
+- **react-router** depends on types
+- **sandcastle** has no workspace dependencies (Node-side CLI for the agent issue workflow)
 
 ---
 
@@ -69,7 +79,7 @@ Core runtime primitives:
 ### `@lisachandra/matter`
 The heart of the ECS. Built on top of `@rbxts/matter`:
 - **`/items`** — Item definitions, registry, serialization/deserialization, type descriptions
-- **`/hooks`** — Matter hook wrappers (`useMemo`, `useChange`, `useReducer`, `usePacket`, `useStream`, `useThrottle`, `useDocument`, `useMessage`)
+- **`/hooks`** — Matter hook wrappers (`useMemo`, `useChange`, `useReducer`, `useStream`, `useThrottle`, `useDocument`, `useMessage`)
 - **`/packages`** — Package system for composable game features (plugin-like architecture)
 - **`/network`** — Network registry, messaging abstractions, built-in network types (item, forces, node, sound, stream, hotbar, inventory, profile)
 - **`/utils/item`** — Item utility functions
@@ -92,12 +102,21 @@ React-based UI components and hooks:
 ### `@lisachandra/test`
 Test utilities and runtime helpers for Jest Roblox (`@rbxts/jest`). Provides Luau runtime utilities used by test suites across the monorepo.
 
+### `@lisachandra/react-template`
+Instance → React component generator for Roblox. Turns a `ModuleScript` template (or instance) into a React component, with an `apiDump` utility for describing the template surface.
+
+### `@lisachandra/react-router`
+Client-side router for React Roblox: path matching, history tracking, `Router`/`RouteMatch` React context, and hooks (`useRouter`, `useRouteMatch`).
+
 ### `@lisachandra/platform`
 Runtime platform glue:
 - **`/bootstrap`** — Client and server startup orchestration
 - **`/centurion`** — Admin commands (document, kick, set, teleport) with type-safe argument guards
 - **`/document`** — Document-based data with Lapis persistence and validation
 - **`/teleporter`** — Player teleportation between places/servers
+
+### `@lisachandra/sandcastle`
+Developer tooling (not a Roblox runtime package): a three-phase agent issue runner (design → implement → review) with persistent worktrees, sequential issue processing, and integration composition. Runs outside the game via a Node CLI (`sandcastle`) using `@ai-hero/sandcastle`.
 
 ---
 
@@ -177,12 +196,19 @@ pnpm dev      # Watch mode
 pnpm clean    # Remove out/
 ```
 
+`@lisachandra/sandcastle` is the exception: it is plain Node/TypeScript.
+```bash
+cd packages/sandcastle
+pnpm build    # tsc → dist/ (used by the sandcastle bin)
+pnpm test     # node:test via tsx
+```
+
 ### Adding a New Package
 1. Create `packages/<name>/` with `package.json`, `tsconfig.json`, `default.project.json`
 2. Package name must follow `@lisachandra/<name>`
 3. Add workspace dependency references (`"@lisachandra/types": "workspace:*"`)
 4. Run `pnpm install` from root to link
-5. Export maps in `package.json` should follow the `source`/`import`/`types` convention
+5. Export maps in `package.json` should follow the `import`/`types` convention, pointing at compiled output under `out/` (e.g. `"./utils/x": { "import": "./out/utils/x.luau", "types": "./out/utils/x.d.ts" }`)
 
 ### Testing
 - Tests use **Jest Roblox** (`@isentinel/jest-roblox`)
