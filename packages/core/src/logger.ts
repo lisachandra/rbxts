@@ -9,8 +9,8 @@ import { iterate } from "./utils/type";
  * Configuration options for the logging system.
  *
  * @remarks
- * Controls the log level, production mode, and version tracking
- * for the application's logging infrastructure.
+ *   Controls the log level, production mode, and version tracking for the application's logging
+ *   infrastructure.
  */
 export interface LoggerConfig {
 	defaultVersion: string;
@@ -22,9 +22,8 @@ export interface LoggerConfig {
  * The default logger configuration.
  *
  * @remarks
- * Initialized with debugging log level in non-production mode
- * with version `"0.1.0"`. This configuration can be modified
- * at runtime using {@link configureLogger}.
+ *   Initialized with debugging log level in non-production mode with version `"0.1.0"`. This
+ *   configuration can be modified at runtime using {@link configureLogger}.
  */
 export const loggerConfig: LoggerConfig = {
 	defaultVersion: "0.1.0",
@@ -36,26 +35,25 @@ export const loggerConfig: LoggerConfig = {
  * The current active log level.
  *
  * @remarks
- * This value is derived from {@link loggerConfig} and is updated
- * automatically when {@link configureLogger} is called.
+ *   This value is derived from {@link loggerConfig} and is updated automatically when
+ *   {@link configureLogger} is called.
  */
-export let logLevel: LogLevel = loggerConfig.logLevel;
+// oxlint-disable-next-line import/no-mutable-exports -- log level is reconfigured at runtime
+export let { logLevel } = loggerConfig;
 
 /**
  * Applies partial configuration updates to the logger.
  *
- * @param config - A partial {@link LoggerConfig} object containing the settings to override.
- *
  * @remarks
- * After updating the configuration, the log level is recalculated:
- * if `isProduction` is `true`, the log level is forced to `Information`;
- * otherwise, the explicitly set `logLevel` is used.
- *
+ *   After updating the configuration, the log level is recalculated: if `isProduction` is `true`,
+ *   the log level is forced to `Information`; otherwise, the explicitly set `logLevel` is used.
  * @example
- * ```ts
- * configureLogger({ isProduction: true });
- * configureLogger({ logLevel: LogLevel.Verbose });
- * ```
+ * 	```ts
+ * 	configureLogger({ isProduction: true });
+ * 	configureLogger({ logLevel: LogLevel.Verbose });
+ * 	```;
+ *
+ * @param config - A partial {@link LoggerConfig} object containing the settings to override.
  */
 export function configureLogger(config: Partial<LoggerConfig>): void {
 	for (const [key, value] of iterate(config)) {
@@ -69,18 +67,17 @@ export function configureLogger(config: Partial<LoggerConfig>): void {
  * Stores historical log output batches when the primary buffer overflows.
  *
  * @remarks
- * When {@link logOutput} exceeds the maximum size (128 entries),
- * its contents are cloned and pushed into this array before being cleared.
- * This prevents unbounded memory growth while preserving log history.
+ *   When {@link logOutput} exceeds the maximum size (128 entries), its contents are cloned and
+ *   pushed into this array before being cleared. This prevents unbounded memory growth while
+ *   preserving log history.
  */
 export const fullLogOutputs: Array<Array<[string, string]>> = [];
 /**
  * The current in-memory log output buffer.
  *
  * @remarks
- * Each entry is a tuple of `[timestamp, formattedMessage]`.
- * When this buffer exceeds 128 entries, it is flushed to
- * {@link fullLogOutputs} and cleared.
+ *   Each entry is a tuple of `[timestamp, formattedMessage]`. When this buffer exceeds 128 entries,
+ *   it is flushed to {@link fullLogOutputs} and cleared.
  */
 export const logOutput: Array<[string, string]> = [];
 
@@ -157,15 +154,13 @@ class LogEventSFTOutputSink implements ILogEventSink {
  * Initializes the logging system and sets up the log event sink.
  *
  * @remarks
- * Configures the global {@link Log} instance with the current
- * {@link loggerConfig}, enriching log events with the version
- * property and writing output through the `LogEventSFTOutputSink`.
- *
+ *   Configures the global {@link Log} instance with the current {@link loggerConfig}, enriching log
+ *   events with the version property and writing output through the `LogEventSFTOutputSink`.
  * @example
- * ```ts
- * configureLogger({ isProduction: false, logLevel: LogLevel.Debugging });
- * setupLogger();
- * ```
+ * 	```ts
+ * 	configureLogger({ isProduction: false, logLevel: LogLevel.Debugging });
+ * 	setupLogger();
+ * 	```;
  */
 export function setupLogger(): void {
 	const level = loggerConfig.isProduction ? LogLevel.Information : loggerConfig.logLevel;

@@ -1,20 +1,18 @@
+import ReactTemplate from "@lisachandra/react-template";
 import { useBindingListener } from "@rbxts/pretty-react-hooks";
 import type { Binding } from "@rbxts/react";
 import { useMemo, useState } from "@rbxts/react";
-import ReactTemplate from "@lisachandra/react-template"
 
 import type { PxWithMethods } from "../context";
 
 const base = {
 	dominantAxis: 1,
-	minimumScale: 0.5,
 	horizontalResolution: 1920,
+	minimumScale: 0.5,
 	verticalResolution: 1080,
 };
 
-/**
- * Computes scaling factors for UI elements based on viewport dimensions.
- */
+/** Computes scaling factors for UI elements based on viewport dimensions. */
 export function computePx(viewport: Vector2): number {
 	const width = math.log(viewport.X / base.horizontalResolution, 2);
 	const height = math.log(viewport.Y / base.verticalResolution, 2);
@@ -23,9 +21,7 @@ export function computePx(viewport: Vector2): number {
 	return math.max(2 ** centered, base.minimumScale);
 }
 
-/**
- * A hook to manage `px` scaling with live updates when viewport changes.
- */
+/** A hook to manage `px` scaling with live updates when viewport changes. */
 export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 	const [pxScale, setPxScale] = useState(1);
 
@@ -43,7 +39,7 @@ export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 				udimOrPxFunction?: UDim | ((number: number) => number),
 				pxFunction?: (number: number) => number,
 			) => {
-				let func: ((number: number) => number) | undefined = pxFunction;
+				let func: undefined | ((number: number) => number) = pxFunction;
 
 				if (typeIs(udimOrPxFunction, "function")) {
 					func = udimOrPxFunction;
@@ -62,7 +58,7 @@ export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 				udim2OrPxFunction?: UDim2 | ((number: number) => number),
 				pxFunction?: (number: number) => number,
 			) => {
-				let func: ((number: number) => number) | undefined = pxFunction;
+				let func: undefined | ((number: number) => number) = pxFunction;
 
 				if (typeIs(udim2OrPxFunction, "function")) {
 					func = udim2OrPxFunction;

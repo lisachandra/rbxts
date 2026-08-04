@@ -1,44 +1,27 @@
+import { store } from "@lisachandra/core/store";
+import type { u16 } from "@rbxts/serio";
 import { flip } from "@rbxts/sift/Dictionary";
 
+import type { Item } from "../../components";
+import { Components } from "../../components";
 import { registry } from "../registry";
-import { Components, Item } from "../../components";
 import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
-import { store } from "@lisachandra/core/store";
-import { u16 } from "@rbxts/serio";
 
 /**
  * Payload structure for replicating the {@link Components.Hotbar} component.
  *
  * @remarks
- * Includes the hotbar items and an optional equipped item numeric ID.
+ *   Includes the hotbar items and an optional equipped item numeric ID.
  */
-export type HotbarPayload = {
-	items: Array<ItemData>;
+export interface HotbarPayload {
 	equipped?: u16;
-};
+	items: Array<ItemData>;
+}
 
 const lastReplicatedItems: Array<Item> = [];
 
 registry.register<Components["Hotbar"], HotbarPayload>({
 	component: Components.Hotbar,
-	mode: "owner",
-	serializer: (record, _playerEntityId, _componentEntityId) => {
-		const [items, newReplicatedItems] = itemsSerializer(
-			{ new: record.new!.items, old: record.old?.items },
-			lastReplicatedItems,
-		);
-		lastReplicatedItems.clear();
-		for (const i of newReplicatedItems) {
-			lastReplicatedItems.push(i)
-		}
-		return {
-			items,
-			equipped:
-				store.server.getState("itemGUIDMap")[
-					(record.old?.equipped !== record.new!.equipped ? record.new!.equipped : undefined)!
-				],
-		};
-	},
 	deserializer: (data, _serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
@@ -53,12 +36,34 @@ registry.register<Components["Hotbar"], HotbarPayload>({
 				}
 			}
 		}
+
 		return {
-			items: newItems.filter((item) => !removedGUIDs.includes(item.guid)),
 			equipped:
 				data.equipped !== undefined
 					? flip(store.client.getState("itemGUIDMap"))[data.equipped]!
-					: (undefined as never),
+					: undefined,
+			items: newItems.filter((item) => !removedGUIDs.includes(item.guid)),
+		};
+	},
+	mode: "owner",
+	serializer: (record, _playerEntityId, _componentEntityId) => {
+		const [items, newReplicatedItems] = itemsSerializer(
+			{ new: record.new!.items, old: record.old?.items },
+			lastReplicatedItems,
+		);
+		lastReplicatedItems.clear();
+		for (const i of newReplicatedItems) {
+			lastReplicatedItems.push(i);
+		}
+
+		return {
+			equipped:
+				store.server.getState("itemGUIDMap")[
+					(record.old?.equipped !== record.new!.equipped
+						? record.new!.equipped
+						: undefined)!
+				],
+			items,
 		};
 	},
 });

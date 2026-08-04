@@ -5,8 +5,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { escapeRegExp } from "./config.js";
 import { issueView } from "./agent.js";
+import { escapeRegExp } from "./config.js";
 import { config, io, repoRoot, stateDir } from "./runtime.js";
 import type { PhaseName, PhaseState, PhaseStatus } from "./types.js";
 
@@ -50,7 +50,7 @@ export function isIssueComplete(issueNumber: string): boolean {
 		state?.phases.design.status === "done" &&
 		state.phases.implement.status === "done" &&
 		state.phases.review.status === "done" &&
-		((state.phases.implement.extra?.["commits"] as undefined | Array<string>)?.length ?? 0) > 0
+		((state.phases.implement.extra?.commits as undefined | Array<string>)?.length ?? 0) > 0
 	);
 }
 

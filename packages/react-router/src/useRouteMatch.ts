@@ -9,29 +9,27 @@ import { useRouter } from "./useRouter";
  *
  * Extends {@link PathMatchOptions} with a required `path` pattern.
  *
- * @param path - The path pattern (e.g. `"/users/:id"`) to match
- *   against the current URL.
+ * @param path - The path pattern (e.g. `"/users/:id"`) to match against the current URL.
  */
 export interface RouteMatchOptions extends PathMatchOptions {
 	path: string;
 }
 
 /**
- * Returns named path-parameter captures if the current location
- * matches the provided pattern, or `undefined` otherwise.
- *
- * @param routeMatchOptions - The path pattern and match options.
- *
- * @returns A record of capture-name → value, or `undefined` when
- *   there is no match.
+ * Returns named path-parameter captures if the current location matches the provided pattern, or
+ * `undefined` otherwise.
  *
  * @example
- * ```ts
- * const match = useRouteMatch({ path: "/users/:userId" });
- * if (match) {
- *   print(match.userId);
- * }
- * ```
+ * 	```ts
+ * 	const match = useRouteMatch({ path: "/users/:userId" });
+ * 	if (match) {
+ * 		print(match.userId);
+ * 	}
+ * 	```;
+ *
+ * @param routeMatchOptions - The path pattern and match options.
+ * @returns A record of capture-name → value, or `undefined` when
+ * there is no match.
  */
 export function useRouteMatch(routeMatchOptions: RouteMatchOptions): undefined | PathMatchResults {
 	const options = routeMatchOptions ?? { path: routeMatchOptions };

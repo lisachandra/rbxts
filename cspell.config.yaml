@@ -1,0 +1,66 @@
+# yaml-language-server:
+# $schema=https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+
+version: "0.2"
+language: en
+
+import:
+    - "@isentinel/dict-roblox"
+    - "@isentinel/dict-rbxts"
+
+words:
+    - analysing
+    - Augmentable
+    - deepseek
+    - despawn
+    - despawning
+    - despawns
+    - diracrules
+    - gardenfillwater
+    - gardengrow
+    - gardenprogress
+    - gardenreset
+    - getfenv
+    - getmetatable
+    - gsub
+    - hotbar
+    - Hotbars
+    - indegree
+    - isentinel
+    - kapouer
+    - lerps
+    - lisachandra
+    - lrsh
+    - Mapify
+    - mapify'ied
+    - metamethod
+    - metatables
+    - metatable
+    - MICROPROFILER
+    - mklink
+    - newindex
+    - oxfmt
+    - oxlint
+    - pcall
+    - rawget
+    - rawset
+    - rbxl
+    - rbxasset
+    - rbxassetid
+    - rbxtsc
+    - rojo
+    - serdes
+    - setmetatable
+    - teleporter
+    - tsgolint
+    - tsgo
+    - Unequip
+    - unequipping
+    - unreplicated
+    - unreviewed
+    - uppercased
+    - uppercasing
+    - worktree
+    - worktrees
+    - xhigh
+    - zcode

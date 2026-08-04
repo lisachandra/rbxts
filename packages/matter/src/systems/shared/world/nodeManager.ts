@@ -1,3 +1,4 @@
+import type { ClientState, ServerState } from "@lisachandra/core/store";
 /*
  * This system initializes and manages navigation nodes in the game world. It
  * assigns attributes to nodes and registers them for use in navigation and
@@ -6,8 +7,8 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { ClientState, ServerState } from "@lisachandra/core/store";
-import { Components} from "../../../components";
+
+import { Components } from "../../../components";
 
 function system(world: World): void {
 	for (const [, record] of world.queryChanged(Components.Node)) {

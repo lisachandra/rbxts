@@ -1,12 +1,13 @@
+import type { ClientState } from "@lisachandra/core/store";
+import { getSoundFromId } from "@lisachandra/core/utils/asset";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { SoundService, Workspace } from "@rbxts/services";
+
+import { Components } from "../../../components";
 import { useChange } from "../../../hooks";
 import { connectAudio } from "../../../utils/sound";
-import { Components} from "../../../components";
-import { ClientState } from "@lisachandra/core/store";
-import { getSoundFromId } from "@lisachandra/core/utils/asset";
 
 function system(world: World): void {
 	if (useChange([])) {
@@ -27,6 +28,7 @@ function system(world: World): void {
 					Log.Debug(`Playing local sound ${sound.id} (${soundInstance.Name})`);
 					SoundService.PlayLocalSound(soundInstance);
 				}
+
 				// Fire-and-forget — despawn immediately
 				world.despawn(entityId);
 			} else if (sound.players) {

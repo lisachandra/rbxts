@@ -120,19 +120,19 @@ Testing should focus on behavior rather than implementation details.
 ### Manual verification cases
 
 1. **Local canonical repo clone**
-   - `origin` points to `lisachandra/rbxts`
-   - expected result: `prepare` skips build
+    - `origin` points to `lisachandra/rbxts`
+    - expected result: `prepare` skips build
 
 2. **Different repository or consumer checkout**
-   - `origin` does not point to `lisachandra/rbxts`
-   - expected result: `prepare` runs build
+    - `origin` does not point to `lisachandra/rbxts`
+    - expected result: `prepare` runs build
 
 3. **No Git metadata available**
-   - no `.git/config` found
-   - expected result: `prepare` runs build
+    - no `.git/config` found
+    - expected result: `prepare` runs build
 
 4. **Malformed or unreadable Git config**
-   - expected result: `prepare` runs build
+    - expected result: `prepare` runs build
 
 ### Optional automated tests
 

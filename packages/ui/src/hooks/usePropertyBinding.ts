@@ -4,9 +4,8 @@ import { createBinding, useMemo } from "@rbxts/react";
 import type { InstancePropertyBindings } from "./useProperty";
 
 /**
- * Tracks the state of multiple properties on an Instance and returns property
- * bindings plus a Change object that can be spread into the `Change`
- * property of an element.
+ * Tracks the state of multiple properties on an Instance and returns property bindings plus a
+ * Change object that can be spread into the `Change` property of an element.
  */
 export function usePropertyBinding<
 	T extends CreatableInstances[I],
@@ -24,7 +23,7 @@ export function usePropertyBinding<
 		] as const;
 
 		for (const index of $range(0, propertyNames.size() - 1)) {
-			const [binding, setBinding] = createBinding<unknown>(undefined as never);
+			const [binding, setBinding] = createBinding<unknown>(undefined);
 			accumulator[0][index] = binding;
 			accumulator[1][index] = setBinding;
 		}

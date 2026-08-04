@@ -15,6 +15,7 @@
 This plan replaces the previous package-checklist approach.
 
 The demo should feel like a **tiny real game**:
+
 - players spawn into a dirty garden,
 - collect nearby resources,
 - clear and plant plots,
@@ -24,6 +25,7 @@ The demo should feel like a **tiny real game**:
 - and steadily improve a shared completion meter.
 
 The packages should appear because the game needs them:
+
 - `matter` drives entities, components, systems, replication, items, and interactions,
 - `core` supports math/helpers/logger/schemas/effects,
 - `platform` supports bootstrap, documents, and admin commands,
@@ -36,6 +38,7 @@ The packages should appear because the game needs them:
 ## Verified repository reality
 
 ### Existing integration boundaries to preserve
+
 - `test/demo/src/client/client.client.ts`
 - `test/demo/src/server/server.server.ts`
 - `test/demo/src/client/ui/app.tsx`
@@ -44,22 +47,24 @@ The packages should appear because the game needs them:
 - `test/demo/src/test/setup.ts`
 
 ### Existing demo structure to follow
+
 - `test/demo/src/client/systems/barrel.ts`
 - `test/demo/src/server/systems/barrel.ts`
 - `test/demo/src/shared/matter/systems/barrel.ts`
 
 ### User-imposed file constraints from the previous correction
+
 - **Do not modify**:
-  - `test/demo/src/client/client.client.ts`
-  - `test/demo/src/server/server.server.ts`
-  - `test/demo/default.project.json`
-  - `test/demo/package.json`
-  - `test/demo/jest.shared.ts`
+    - `test/demo/src/client/client.client.ts`
+    - `test/demo/src/server/server.server.ts`
+    - `test/demo/default.project.json`
+    - `test/demo/package.json`
+    - `test/demo/jest.shared.ts`
 - **Can modify**:
-  - `test/demo/src/client/ui/app.tsx`
-  - `test/demo/src/server/document.ts`
-  - `test/demo/src/shared/matter/components.ts`
-  - `test/demo/src/test/setup.ts`
+    - `test/demo/src/client/ui/app.tsx`
+    - `test/demo/src/server/document.ts`
+    - `test/demo/src/shared/matter/components.ts`
+    - `test/demo/src/test/setup.ts`
 
 That means the new game logic must be introduced through additional modules wired into the already-existing barrels and runtime structure, without rewriting the top-level bootstrap entry files.
 
@@ -68,32 +73,35 @@ That means the new game logic must be introduced through additional modules wire
 ## Gameplay design
 
 ### Core loop
+
 1. Player spawns in a compact garden map.
 2. The world contains:
-   - dirty plots,
-   - seed pickups,
-   - water sources,
-   - scrap/junk piles,
-   - harvestable grown plots.
+    - dirty plots,
+    - seed pickups,
+    - water sources,
+    - scrap/junk piles,
+    - harvestable grown plots.
 3. Player performs simple actions:
-   - pick up scrap,
-   - clear a dirty plot,
-   - collect a seed,
-   - plant the plot,
-   - bring or use water,
-   - wait for growth,
-   - harvest the plant.
+    - pick up scrap,
+    - clear a dirty plot,
+    - collect a seed,
+    - plant the plot,
+    - bring or use water,
+    - wait for growth,
+    - harvest the plant.
 4. Garden progress rises as plots are restored.
 5. If neglected, some plots slowly decay backward.
 6. The demo can run continuously rather than as a round-based match.
 
 ### Resource types
+
 - `Scrap` — used to clean/repair plots
 - `Seed` — used to plant cleared plots
 - `Water` — used to water planted plots
 - `Harvest` — produced by grown plots; contributes to score/progress
 
 ### Plot states
+
 - `Dirty`
 - `Cleared`
 - `Planted`
@@ -101,7 +109,9 @@ That means the new game logic must be introduced through additional modules wire
 - `Grown`
 
 ### Success state
+
 Not a hard win/lose loop. Prefer a persistent garden score:
+
 - total plots restored,
 - total harvests collected,
 - best completion percentage,
@@ -114,9 +124,11 @@ This keeps the game simpler and avoids the arena/match framing the user rejected
 ## Package usage by gameplay role
 
 ### `@lisachandra/matter`
+
 Primary runtime system.
 
 Use for:
+
 - custom gameplay components,
 - player profile / entity attachments,
 - garden plot entities,
@@ -127,9 +139,11 @@ Use for:
 - replication of plot state and score-related state.
 
 ### `@lisachandra/core`
+
 Use in real game code only.
 
 Use for:
+
 - logger setup consumption already in bootstrap,
 - `math`, `vector`, `cframe` helpers in range/placement logic,
 - `schemas` when validating characters,
@@ -138,28 +152,35 @@ Use for:
 - `vfx` helpers for planting, watering, harvest sparkle effects.
 
 ### `@lisachandra/platform`
+
 Infrastructure and tooling.
 
 Use for:
+
 - existing `bootstrap` flow,
 - `document.ts` persistence for player garden stats/settings,
 - Centurion commands for spawning pickups, resetting plots, filling water, forcing growth,
 - teleporter only if it naturally fits an admin utility; otherwise do not force it.
 
 ### `@lisachandra/ui`
+
 Actual player UI.
 
 Use for:
+
 - HUD for carried resource, selected tool/item, garden completion,
 - notifications for `plot cleared`, `seed planted`, `needs water`, `harvest ready`,
 - world-space markers over interactables and ready plots,
 - `AppContext`, `usePx`, `useWorldToScreen`, optional `VirtualScroller` for a compact task list or inventory list.
 
 ### `@lisachandra/types`
+
 Implicitly demonstrated through typed services and runtime/global typing.
 
 ### `@lisachandra/test`
+
 Minimal meaningful tests only:
+
 - plot progression,
 - decay rules,
 - harvest scoring,
@@ -170,70 +191,75 @@ Minimal meaningful tests only:
 ## File map
 
 ### Existing files to modify
+
 - Modify: `test/demo/src/client/ui/app.tsx`
-  - Replace placeholder UI with the in-game HUD root.
+    - Replace placeholder UI with the in-game HUD root.
 - Modify: `test/demo/src/server/document.ts`
-  - Expand persistent player data for garden stats/settings.
+    - Expand persistent player data for garden stats/settings.
 - Modify: `test/demo/src/shared/matter/components.ts`
-  - Register the custom ECS components needed by the game.
+    - Register the custom ECS components needed by the game.
 - Modify: `test/demo/src/test/setup.ts`
-  - Install deterministic test setup for gameplay rule specs.
+    - Install deterministic test setup for gameplay rule specs.
 
 ### New shared files
+
 - Create: `test/demo/src/shared/game/constants.ts`
-  - Central gameplay constants: interaction radius, growth times, decay times, score values.
+    - Central gameplay constants: interaction radius, growth times, decay times, score values.
 - Create: `test/demo/src/shared/game/types.ts`
-  - Shared enums/unions like `PlotStage`, `ResourceKind`, `PromptKind`.
+    - Shared enums/unions like `PlotStage`, `ResourceKind`, `PromptKind`.
 - Create: `test/demo/src/shared/game/helpers.ts`
-  - Small pure helpers for plot progression and garden progress.
+    - Small pure helpers for plot progression and garden progress.
 - Create: `test/demo/src/shared/matter/systems/gardenLifecycle.ts`
-  - Shared plot stage progression/decay logic.
+    - Shared plot stage progression/decay logic.
 - Create: `test/demo/src/shared/matter/systems/proximityPrompts.ts`
-  - Shared prompt-selection logic based on nearby interactables.
+    - Shared prompt-selection logic based on nearby interactables.
 
 ### New server files
+
 - Create: `test/demo/src/server/game/seed.ts`
-  - Construct the initial garden world: plots, water nodes, scrap piles, seed piles.
+    - Construct the initial garden world: plots, water nodes, scrap piles, seed piles.
 - Create: `test/demo/src/server/game/helpers.ts`
-  - Server-only helpers for resource spawning and plot mutation.
+    - Server-only helpers for resource spawning and plot mutation.
 - Create: `test/demo/src/server/systems/gardenBootstrap.ts`
-  - Build initial plot/pickup entities.
+    - Build initial plot/pickup entities.
 - Create: `test/demo/src/server/systems/pickupSystem.ts`
-  - Handle collecting world pickups.
+    - Handle collecting world pickups.
 - Create: `test/demo/src/server/systems/plotInteractionSystem.ts`
-  - Handle clear/plant/water/harvest actions.
+    - Handle clear/plant/water/harvest actions.
 - Create: `test/demo/src/server/systems/growthSystem.ts`
-  - Advance planted/watered plots over time.
+    - Advance planted/watered plots over time.
 - Create: `test/demo/src/server/systems/decaySystem.ts`
-  - Regress neglected plots.
+    - Regress neglected plots.
 - Create: `test/demo/src/server/systems/progressSystem.ts`
-  - Maintain garden completion/progress values.
+    - Maintain garden completion/progress values.
 - Create: `test/demo/src/server/centurion/commands/garden.ts`
-  - Admin/debug commands specialized for the demo.
+    - Admin/debug commands specialized for the demo.
 
 ### New client files
+
 - Create: `test/demo/src/client/ui/hud/GardenHud.tsx`
-  - Top-level HUD layout.
+    - Top-level HUD layout.
 - Create: `test/demo/src/client/ui/hud/ResourceBar.tsx`
-  - Show currently carried resources or selected item/tool.
+    - Show currently carried resources or selected item/tool.
 - Create: `test/demo/src/client/ui/hud/GardenProgress.tsx`
-  - Show completion percentage / restored plots.
+    - Show completion percentage / restored plots.
 - Create: `test/demo/src/client/ui/notifications/GardenNotifications.tsx`
-  - Short event feed.
+    - Short event feed.
 - Create: `test/demo/src/client/ui/overlays/WorldMarkers.tsx`
-  - Plot-ready and interactable markers using `useWorldToScreen`.
+    - Plot-ready and interactable markers using `useWorldToScreen`.
 - Create: `test/demo/src/client/systems/gardenPresentation.ts`
-  - Client VFX/audio/presentation response to replicated changes.
+    - Client VFX/audio/presentation response to replicated changes.
 - Create: `test/demo/src/client/systems/promptSystem.ts`
-  - Determine current local interaction prompt display.
+    - Determine current local interaction prompt display.
 
 ### New tests
+
 - Create: `test/demo/src/shared/game/helpers.spec.ts`
-  - Pure rules for stage transitions and garden progress.
+    - Pure rules for stage transitions and garden progress.
 - Create: `test/demo/src/server/document.spec.ts`
-  - Document defaults and validation.
+    - Document defaults and validation.
 - Create: `test/demo/src/client/ui/app.spec.tsx`
-  - HUD renders key gameplay info.
+    - HUD renders key gameplay info.
 
 ---
 
@@ -242,24 +268,26 @@ Minimal meaningful tests only:
 Replace the placeholder/demo-only direction with actual gameplay state.
 
 ### Core gameplay components
+
 - `GardenPlot`
-  - `{ stage: PlotStage; progress: number; lastTouchedAt: number; plotId: string }`
+    - `{ stage: PlotStage; progress: number; lastTouchedAt: number; plotId: string }`
 - `ResourcePickup`
-  - `{ kind: ResourceKind; amount: number }`
+    - `{ kind: ResourceKind; amount: number }`
 - `Interactable`
-  - `{ prompt: string; radius: number; kind: PromptKind }`
+    - `{ prompt: string; radius: number; kind: PromptKind }`
 - `GardenProgress`
-  - `{ restoredPlots: number; totalPlots: number; harvested: number; health: number }`
+    - `{ restoredPlots: number; totalPlots: number; harvested: number; health: number }`
 - `CarryState`
-  - `{ kind?: ResourceKind; amount: number }`
+    - `{ kind?: ResourceKind; amount: number }`
 - `WaterSource`
-  - `{ uses: number }`
+    - `{ uses: number }`
 - `WorldMarker`
-  - `{ label: string; color: Vector3 }` or equivalent simple marker metadata
+    - `{ label: string; color: Vector3 }` or equivalent simple marker metadata
 - `DecayState`
-  - `{ nextDecayAt: number }`
+    - `{ nextDecayAt: number }`
 
 ### Optional polish components
+
 - `HighlightOnReady`
 - `PromptTarget`
 - `GardenSoundCue`
@@ -273,6 +301,7 @@ Only add components that actually power systems in the plan; avoid decorative ov
 The app should stop being a generic shell and become the game HUD root.
 
 ### HUD sections
+
 - top-left: garden completion / restored plots
 - top-right: carried resource and amount
 - bottom-center: interaction prompt
@@ -280,6 +309,7 @@ The app should stop being a generic shell and become the game HUD root.
 - world markers: above ready plots, seeds, water, scrap
 
 ### UI package features to use naturally
+
 - `AppContext` and `usePx` for responsive sizing
 - `useWorldToScreen` for plot/pickup markers
 - `VirtualScroller` only if it helps a compact task/event list
@@ -317,16 +347,17 @@ Keep defaults minimal and deterministic.
 Create a demo-specific command module rather than relying only on generic commands.
 
 ### Useful commands
+
 - `garden reset`
-  - reset all plots to `Dirty`
+    - reset all plots to `Dirty`
 - `garden grow`
-  - force all watered plots to `Grown`
+    - force all watered plots to `Grown`
 - `garden fillwater`
-  - give the caller water resource
+    - give the caller water resource
 - `garden seed`
-  - spawn nearby seed pickups
+    - spawn nearby seed pickups
 - `garden progress`
-  - print current garden stats
+    - print current garden stats
 
 These are meaningful for demoing platform + ECS interaction during development.
 
@@ -337,6 +368,7 @@ These are meaningful for demoing platform + ECS interaction during development.
 ### Task 1: Replace the previous plan direction in code-facing terms
 
 **Files:**
+
 - Verify: `docs/superpowers/plans/2026-05-18-demo-exhaustive-package-showcase.md`
 
 - [ ] **Step 1: Confirm this plan is the new source of truth**
@@ -353,6 +385,7 @@ git commit -m "docs(plan): pivot demo to garden scraps game"
 ### Task 2: Define pure gameplay rules first
 
 **Files:**
+
 - Create: `test/demo/src/shared/game/constants.ts`
 - Create: `test/demo/src/shared/game/types.ts`
 - Create: `test/demo/src/shared/game/helpers.ts`
@@ -418,6 +451,7 @@ git commit -m "feat(demo): add garden gameplay rules"
 ### Task 3: Register gameplay ECS components
 
 **Files:**
+
 - Modify: `test/demo/src/shared/matter/components.ts`
 
 - [ ] **Step 1: Write a failing component registration test**
@@ -445,6 +479,7 @@ Expected: FAIL because the new components do not exist yet.
 - [ ] **Step 3: Add the minimal runtime registrations**
 
 Implement component declarations/registrations for:
+
 - `GardenPlot`
 - `ResourcePickup`
 - `Interactable`
@@ -471,6 +506,7 @@ git commit -m "feat(demo): register garden gameplay components"
 ### Task 4: Seed the world from server systems without editing the entrypoint
 
 **Files:**
+
 - Create: `test/demo/src/server/game/seed.ts`
 - Create: `test/demo/src/server/game/helpers.ts`
 - Create: `test/demo/src/server/systems/gardenBootstrap.ts`
@@ -500,6 +536,7 @@ Expected: FAIL with module-not-found.
 - [ ] **Step 3: Implement the seed and bootstrap system**
 
 Create a compact deterministic layout:
+
 - 6 garden plots
 - 2 water sources
 - 3 scrap pickup nodes
@@ -527,6 +564,7 @@ git commit -m "feat(demo): seed garden world through server systems"
 ### Task 5: Add pickup and plot interaction systems
 
 **Files:**
+
 - Create: `test/demo/src/server/systems/pickupSystem.ts`
 - Create: `test/demo/src/server/systems/plotInteractionSystem.ts`
 - Modify: `test/demo/src/server/systems/barrel.ts`
@@ -552,6 +590,7 @@ Expected: PASS for pure rules, but runtime behavior still absent.
 - [ ] **Step 3: Implement runtime pickup/interaction systems**
 
 Server systems should:
+
 - give players a carried resource when near a pickup,
 - consume the right carried resource on matching plot stages,
 - mutate `GardenPlot.stage`,
@@ -578,6 +617,7 @@ git commit -m "feat(demo): add pickup and plot interaction systems"
 ### Task 6: Add growth, decay, and garden progress systems
 
 **Files:**
+
 - Create: `test/demo/src/shared/matter/systems/gardenLifecycle.ts`
 - Create: `test/demo/src/server/systems/growthSystem.ts`
 - Create: `test/demo/src/server/systems/decaySystem.ts`
@@ -605,6 +645,7 @@ Expected: FAIL because `regressPlotStage` does not exist yet.
 - [ ] **Step 3: Implement the pure helper and runtime systems**
 
 Add:
+
 - `regressPlotStage(stage)` pure helper,
 - shared lifecycle helpers if needed,
 - server growth system to advance watered plots to grown after a timer,
@@ -618,6 +659,7 @@ Ensure bootstrap discovers them without touching `server.server.ts`.
 - [ ] **Step 5: Run the shared test and build**
 
 Run:
+
 - `pnpm --dir test/demo exec jest-roblox ./jest.config.ts --runInBand --selectProjects shared -- garden helpers`
 - `pnpm --dir test/demo build`
 
@@ -633,6 +675,7 @@ git commit -m "feat(demo): add garden growth decay and progress systems"
 ### Task 7: Add persistence for player garden stats
 
 **Files:**
+
 - Modify: `test/demo/src/server/document.ts`
 - Test: `test/demo/src/server/document.spec.ts`
 
@@ -698,6 +741,7 @@ git commit -m "feat(demo): persist garden stats and settings"
 ### Task 8: Add garden-specific admin commands
 
 **Files:**
+
 - Create: `test/demo/src/server/centurion/commands/garden.ts`
 - Modify: `test/demo/src/server/centurion/index.ts`
 
@@ -726,6 +770,7 @@ Expected: FAIL if the new module is referenced but missing.
 - [ ] **Step 3: Implement the command module**
 
 Add a `garden` command group or a few direct commands to:
+
 - reset plots,
 - force growth,
 - grant water,
@@ -753,6 +798,7 @@ git commit -m "feat(demo): add garden admin commands"
 ### Task 9: Build the HUD in `app.tsx`
 
 **Files:**
+
 - Modify: `test/demo/src/client/ui/app.tsx`
 - Create: `test/demo/src/client/ui/hud/GardenHud.tsx`
 - Create: `test/demo/src/client/ui/hud/ResourceBar.tsx`
@@ -787,6 +833,7 @@ Expected: FAIL because `App` currently renders an almost-empty screen GUI.
 - [ ] **Step 3: Implement the HUD components**
 
 The HUD should minimally render:
+
 - `Garden Health`
 - `Restored Plots`
 - `Carrying`
@@ -816,6 +863,7 @@ git commit -m "feat(demo): add garden gameplay hud"
 ### Task 10: Add client presentation systems without touching the entrypoint
 
 **Files:**
+
 - Create: `test/demo/src/client/systems/gardenPresentation.ts`
 - Create: `test/demo/src/client/systems/promptSystem.ts`
 - Modify: `test/demo/src/client/systems/barrel.ts`
@@ -823,11 +871,13 @@ git commit -m "feat(demo): add garden gameplay hud"
 - [ ] **Step 1: Build the systems with minimal responsibilities**
 
 `gardenPresentation.ts`:
+
 - react to replicated plot state changes,
 - trigger lightweight VFX/sound cues,
 - update notification feed state.
 
 `promptSystem.ts`:
+
 - choose the best nearby interactable,
 - update UI-visible prompt state.
 
@@ -851,11 +901,13 @@ git commit -m "feat(demo): add garden client presentation systems"
 ### Task 11: Make test setup deterministic and useful
 
 **Files:**
+
 - Modify: `test/demo/src/test/setup.ts`
 
 - [ ] **Step 1: Add deterministic test runtime setup**
 
 Extend setup to:
+
 - keep existing constant configuration,
 - set `_G.__TEST__ = true`,
 - reset runtime state if needed using `@lisachandra/test` helpers.
@@ -874,6 +926,7 @@ TestRuntimeUtils.resetTSRuntime(false);
 - [ ] **Step 2: Run one shared and one client test**
 
 Run:
+
 - `pnpm --dir test/demo exec jest-roblox ./jest.config.ts --runInBand --selectProjects shared -- garden helpers`
 - `pnpm --dir test/demo exec jest-roblox ./jest.config.ts --runInBand --selectProjects client -- GardenScraps App`
 
@@ -889,6 +942,7 @@ git commit -m "test(demo): stabilize garden demo test setup"
 ### Task 12: Final verification
 
 **Files:**
+
 - Verify only: `test/demo/src/client/client.client.ts`
 - Verify only: `test/demo/src/server/server.server.ts`
 - Verify only: `test/demo/default.project.json`
@@ -935,6 +989,7 @@ git commit -m "feat(demo): complete garden scraps playable demo"
 ## Scope guardrails
 
 Do not let the implementation drift into:
+
 - combat,
 - match/arena rounds,
 - exhaustive package-export testing,
@@ -942,6 +997,7 @@ Do not let the implementation drift into:
 - giant content pipelines.
 
 Keep it as:
+
 - one compact garden map,
 - one continuous co-op maintenance loop,
 - a handful of resource and plot states,
@@ -952,17 +1008,20 @@ Keep it as:
 ## Self-review
 
 ### Requirement coverage
+
 - User wanted a simpler concept: covered by `Garden Scraps`.
 - User wanted a real mini game, not pointless tests: the plan centers gameplay and keeps tests focused.
 - User rejected arena/match inspiration: this plan uses a continuous garden maintenance loop instead.
 - Existing file constraints are respected in the file map and task decomposition.
 
 ### Placeholder scan
+
 - No `TODO`/`TBD` placeholders.
 - Every implementation task names exact files and concrete commands.
 - Tests are limited to meaningful gameplay rules and UI smoke checks.
 
 ### Consistency check
+
 - Concept name is consistently `Garden Scraps`.
 - Shared gameplay states are consistently `Dirty`, `Cleared`, `Planted`, `Watered`, `Grown`.
 - The plan consistently avoids modifying the forbidden top-level runtime files.

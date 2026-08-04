@@ -1,0 +1,46 @@
+# Codex project configuration.
+#
+# Mirrors the PreToolUse enforcement hooks from .agents/settings.json for Codex.
+# The PostToolUse lint hook is intentionally excluded: the codex-lsp plugin
+# covers post-edit formatting/diagnostics instead.
+
+[[hooks.PreToolUse]]
+matcher = "^(apply_patch|Edit|Write)$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash .agents/hooks/run-hook.cmd block-unsupported-edits"
+command_windows = ".agents\\hooks\\run-hook.cmd block-unsupported-edits"
+timeout = 15
+statusMessage = "Checking edit targets"
+
+[[hooks.PreToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash .agents/hooks/run-hook.cmd enforce-pnpm"
+command_windows = ".agents\\hooks\\run-hook.cmd enforce-pnpm"
+timeout = 15
+statusMessage = "Enforcing pnpm"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash .agents/hooks/run-hook.cmd enforce-pnpm-scripts"
+command_windows = ".agents\\hooks\\run-hook.cmd enforce-pnpm-scripts"
+timeout = 15
+statusMessage = "Enforcing pnpm scripts"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash .agents/hooks/run-hook.cmd enforce-safe-git"
+command_windows = ".agents\\hooks\\run-hook.cmd enforce-safe-git"
+timeout = 15
+statusMessage = "Enforcing safe git"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash .agents/hooks/run-hook.cmd block-destructive-commands"
+command_windows = ".agents\\hooks\\run-hook.cmd block-destructive-commands"
+timeout = 15
+statusMessage = "Blocking destructive commands"

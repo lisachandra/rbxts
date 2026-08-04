@@ -3,5 +3,5 @@
 	"compilerOptions": {
 		"typeRoots": ["${configDir}/node_modules/@rbxts"],
 		"types": null
-	},
+	}
 }

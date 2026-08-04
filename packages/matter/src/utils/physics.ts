@@ -1,13 +1,13 @@
+import type { Character } from "@lisachandra/core/schemas";
+import { store } from "@lisachandra/core/store";
+import { is, iterate } from "@lisachandra/core/utils/type";
 import type { AnyEntity } from "@rbxts/matter";
 import { isEmpty } from "@rbxts/object-utils";
 import { TweenService } from "@rbxts/services";
 
-import type { Character } from "@lisachandra/core/schemas";
-import { store } from "@lisachandra/core/store";
-import { is, iterate } from "@lisachandra/core/utils/type";
-
+import type { Force } from "../components";
+import { Components } from "../components";
 import { getEntityHumanoid } from "./entity";
-import { Components, Force } from "../components";
 
 interface TorsoMotorPair {
 	part0: BasePart;
@@ -17,17 +17,15 @@ interface TorsoMotorPair {
 /**
  * Configuration for ragdoll constraints applied to character joints.
  *
- * Maps joint names (e.g., "Left Hip", "Right Hip") to constraint
- * types and their properties. Also includes a `recovery_time` for
- * the ragdoll duration.
+ * Maps joint names (e.g., "Left Hip", "Right Hip") to constraint types and their properties. Also
+ * includes a `recovery_time` for the ragdoll duration.
  *
  * @remarks
- * Each joint entry specifies a `Constraint` type (e.g.,
- * `BallSocketConstraint`) and a `Properties` table with angle
- * limits and other constraint settings.
+ *   Each joint entry specifies a `Constraint` type (e.g., `BallSocketConstraint`) and a
+ *   `Properties` table with angle limits and other constraint settings.
  */
 export const ragdollConfig = {
-	["Left Hip"]: {
+	"Left Hip": {
 		Constraint: "BallSocketConstraint",
 		Properties: {
 			LimitsEnabled: true,
@@ -37,7 +35,8 @@ export const ragdollConfig = {
 			UpperAngle: 45,
 		},
 	},
-	["Right Hip"]: {
+	"recovery_time": 0.7,
+	"Right Hip": {
 		Constraint: "BallSocketConstraint",
 		Properties: {
 			LimitsEnabled: true,
@@ -47,7 +46,6 @@ export const ragdollConfig = {
 			UpperAngle: 45,
 		},
 	},
-	recovery_time: 0.7,
 };
 
 const torsoMotorPairsByCharacter = new Map<Model, Array<TorsoMotorPair>>();
@@ -123,14 +121,13 @@ export async function setSpeed(
 }
 
 /**
- * Sets the velocity of an entity using a LinearVelocity constraint. If
- * forceDirection is provided, it applies a directional velocity. If
- * forceDirection is nil, it disables the LinearVelocity constraint,
- * effectively stopping external velocity influence.
+ * Sets the velocity of an entity using a LinearVelocity constraint. If forceDirection is provided,
+ * it applies a directional velocity. If forceDirection is nil, it disables the LinearVelocity
+ * constraint, effectively stopping external velocity influence.
  *
  * @param entityId - The ID of the entity.
- * @param forceDirection - Optional direction and magnitude of the velocity
- *   to apply. If nil, velocity control is disabled.
+ * @param forceDirection - Optional direction and magnitude of the velocity to apply. If nil,
+ *   velocity control is disabled.
  */
 export function setVelocity(entityId: AnyEntity, forceDirection?: Vector3): void {
 	const forces = store.world.get(entityId, Components.Forces)!;
@@ -145,15 +142,14 @@ export function setVelocity(entityId: AnyEntity, forceDirection?: Vector3): void
 }
 
 /**
- * Locks or unlocks the orientation of an entity's humanoid. When locked,
- * the humanoid's rotation is controlled externally, preventing automatic
- * rotation. Optionally, for rigid locking, it enables an AlignOrientation
- * constraint.
+ * Locks or unlocks the orientation of an entity's humanoid. When locked, the humanoid's rotation is
+ * controlled externally, preventing automatic rotation. Optionally, for rigid locking, it enables
+ * an AlignOrientation constraint.
  *
  * @param entityId - The ID of the entity.
  * @param lock - If true, locks the orientation; if false, unlocks it.
- * @param rigid - If true and `lock` is true, uses AlignOrientation for
- *   rigid locking. Defaults to false.
+ * @param rigid - If true and `lock` is true, uses AlignOrientation for rigid locking. Defaults to
+ *   false.
  */
 export function lockOrientation(entityId: AnyEntity, lock: boolean, rigid = false): void {
 	const humanoid = getEntityHumanoid(entityId);
@@ -168,13 +164,11 @@ export function lockOrientation(entityId: AnyEntity, lock: boolean, rigid = fals
 }
 
 /**
- * Applies an impulse force to an entity. Impulses are short bursts of
- * force. The force is added to a list of active forces and managed by the
- * physics system.
+ * Applies an impulse force to an entity. Impulses are short bursts of force. The force is added to
+ * a list of active forces and managed by the physics system.
  *
  * @param entityId - The ID of the entity.
- * @param impulse - The impulse force to apply, including direction and
- *   maximum torque.
+ * @param impulse - The impulse force to apply, including direction and maximum torque.
  */
 export function applyImpulse(entityId: AnyEntity, impulse: Force): void {
 	const humanoid = getEntityHumanoid(entityId);
@@ -193,11 +187,10 @@ export function applyImpulse(entityId: AnyEntity, impulse: Force): void {
 }
 
 /**
- * Clears all applied forces on an entity, effectively stopping any external
- * motion or velocity. Resets velocity constraints and clears the list of
- * active forces. Additionally, it sets the AssemblyLinearVelocity of all
- * BaseParts in the character model to Vector3.zero to halt any residual
- * motion.
+ * Clears all applied forces on an entity, effectively stopping any external motion or velocity.
+ * Resets velocity constraints and clears the list of active forces. Additionally, it sets the
+ * AssemblyLinearVelocity of all BaseParts in the character model to Vector3.zero to halt any
+ * residual motion.
  *
  * @param entityId - The ID of the entity.
  */
@@ -219,8 +212,7 @@ export function clearForces(entityId: AnyEntity): void {
 }
 
 /**
- * Pivots the entity's RootPart to a target CFrame using a tween animation
- * for smooth transition.
+ * Pivots the entity's RootPart to a target CFrame using a tween animation for smooth transition.
  *
  * @param entityId - The ID of the entity.
  * @param targetCF - The target CFrame to pivot to.
@@ -247,13 +239,13 @@ export async function pivotTo(
 }
 
 /**
- * Creates a WeldConstraint between two BaseParts. Part1 will be welded to
- * Part0. The weld constraint itself will be parented to Part1.
+ * Creates a WeldConstraint between two BaseParts. Part1 will be welded to Part0. The weld
+ * constraint itself will be parented to Part1.
  *
- * @param part1 - The BasePart that will be moved/attached to part0 (Part1).
- *   This is considered the child part in the weld.
- * @param part0 - The BasePart that part1 will be welded to (Part0). This is
- *   considered the parent part in the weld.
+ * @param part1 - The BasePart that will be moved/attached to part0 (Part1). This is considered the
+ *   child part in the weld.
+ * @param part0 - The BasePart that part1 will be welded to (Part0). This is considered the parent
+ *   part in the weld.
  * @returns The created WeldConstraint instance.
  */
 export function weldTo(part1: BasePart, part0: BasePart): WeldConstraint {
@@ -268,22 +260,18 @@ export function weldTo(part1: BasePart, part0: BasePart): WeldConstraint {
 /**
  * Computes and applies forces to an entity based on a decaying force model.
  *
- * This function calculates the net force acting on an entity by iterating
- * through a collection of decaying forces. Each force's magnitude
- * diminishes over time until it falls below a minimum threshold, at which
- * point the force is removed. The resulting net force is then applied as a
+ * This function calculates the net force acting on an entity by iterating through a collection of
+ * decaying forces. Each force's magnitude diminishes over time until it falls below a minimum
+ * threshold, at which point the force is removed. The resulting net force is then applied as a
  * linear velocity to the entity.
  *
  * @remarks
- * This function relies on the entity having a `Humanoid` and a `Forces`
- * component. It early-exits if either is missing.
- *
- * The `forces.forces` array is iterated in reverse to allow for safe
- * removal of elements during iteration.
+ *   This function relies on the entity having a `Humanoid` and a `Forces` component. It early-exits
+ *   if either is missing. The `forces.forces` array is iterated in reverse to allow for safe
+ *   removal of elements during iteration.
  * @param entityId - The ID of the entity to compute forces for.
- * @param threshold - The minimum magnitude threshold for the linear
- *   velocity. Forces with a magnitude below this threshold will be
- *   disabled. Defaults to 20.
+ * @param threshold - The minimum magnitude threshold for the linear velocity. Forces with a
+ *   magnitude below this threshold will be disabled. Defaults to 20.
  */
 export function computeForces(entityId: AnyEntity, threshold = 20): void {
 	const humanoid = getEntityHumanoid(entityId);
@@ -307,7 +295,8 @@ export function computeForces(entityId: AnyEntity, threshold = 20): void {
 	let direction = new Vector3();
 	for (const index of $range(forces.forces.size() - 1, 0, -1)) {
 		const { force, time } = forces.forces[index]!;
-		const magnitude = force.magnitude - (force.magnitude * (os.clock() - time)) / force.decayTime;
+		const magnitude =
+			force.magnitude - (force.magnitude * (os.clock() - time)) / force.decayTime;
 
 		if (magnitude < 1) {
 			changes.forces ??= [...forces.forces];
@@ -326,8 +315,7 @@ export function computeForces(entityId: AnyEntity, threshold = 20): void {
 }
 
 /**
- * Calculates the total mass of a model by summing the AssemblyMass of all
- * its BasePart descendants.
+ * Calculates the total mass of a model by summing the AssemblyMass of all its BasePart descendants.
  *
  * @param model - The Model to calculate the mass of.
  * @returns The total mass of the model in kilograms.
@@ -344,22 +332,17 @@ export function getModelMass(model: Model): number {
 /**
  * Applies a backwards impulse to a BasePart using a LinearVelocity object.
  *
- * This function creates a LinearVelocity object and applies a backwards
- * force relative to the part's LookVector. The LinearVelocity is configured
- * to operate in world space and is immediately enabled.
+ * This function creates a LinearVelocity object and applies a backwards force relative to the
+ * part's LookVector. The LinearVelocity is configured to operate in world space and is immediately
+ * enabled.
  *
  * @param part - The BasePart to apply the impulse to.
  * @param magnitude - The magnitude of the impulse force.
- * @param yOffset - A vertical offset applied to the direction of the
- *   impulse. Defaults to 0.6.
+ * @param yOffset - A vertical offset applied to the direction of the impulse. Defaults to 0.6.
  * @returns The LinearVelocity object that was created and applied to the
- *   part.
+ * part.
  */
-export function impulseBackwards(
-	part: BasePart,
-	magnitude: number,
-	yOffset = 0.6,
-): LinearVelocity {
+export function impulseBackwards(part: BasePart, magnitude: number, yOffset = 0.6): LinearVelocity {
 	const att0 = new Instance("Attachment");
 	const vector = new Instance("LinearVelocity");
 	att0.Parent = part;
@@ -368,28 +351,27 @@ export function impulseBackwards(
 	vector.Attachment0 = att0;
 	vector.MaxForce = 25000;
 	vector.RelativeTo = Enum.ActuatorRelativeTo.World;
-	vector.VectorVelocity = part.CFrame.LookVector.Unit.add(new Vector3(0, -yOffset, 0)).mul(-magnitude);
+	vector.VectorVelocity = part.CFrame.LookVector.Unit.add(new Vector3(0, -yOffset, 0)).mul(
+		-magnitude,
+	);
 	vector.Enabled = true;
 	return vector;
 }
 
 /**
- * Asynchronously applies a backwards impulse to a BasePart and then
- * destroys the LinearVelocity.
+ * Asynchronously applies a backwards impulse to a BasePart and then destroys the LinearVelocity.
  *
- * This function calls `impulseBackwards` to create and apply the
- * LinearVelocity. It then waits for a specified decay time before
- * destroying the LinearVelocity object, effectively applying a short-lived
- * impulse.
+ * This function calls `impulseBackwards` to create and apply the LinearVelocity. It then waits for
+ * a specified decay time before destroying the LinearVelocity object, effectively applying a
+ * short-lived impulse.
  *
  * @param part - The BasePart to apply the impulse to.
  * @param magnitude - The magnitude of the impulse force.
- * @param yOffset - A vertical offset applied to the direction of the
- *   impulse. Defaults to 0.0.
- * @param decayTime - The amount of time (in seconds) to wait before
- *   destroying the LinearVelocity. Defaults to 0.25.
- * @returns A Promise that resolves when the decay time has elapsed and the
- *   LinearVelocity has been destroyed.
+ * @param yOffset - A vertical offset applied to the direction of the impulse. Defaults to 0.0.
+ * @param decayTime - The amount of time (in seconds) to wait before destroying the LinearVelocity.
+ *   Defaults to 0.25.
+ * @returns A Promise that resolves when the decay time has elapsed and the LinearVelocity has been
+ *   destroyed.
  */
 export async function impulseBackwardsAsync(
 	part: BasePart,
@@ -403,8 +385,7 @@ export async function impulseBackwardsAsync(
 }
 
 /**
- * Ragdoll a character by disabling motor joints and creating physics
- * constraints.
+ * Ragdoll a character by disabling motor joints and creating physics constraints.
  *
  * @param character - The character to ragdoll.
  */
@@ -414,7 +395,10 @@ export function ragdoll(character: Character): void {
 	collideJoints(character);
 
 	for (const motor of character.GetDescendants()) {
-		if (!motor.IsA("Motor6D") || !is<keyof Omit<typeof ragdollConfig, "recovery_time">>(motor.Name)) {
+		if (
+			!motor.IsA("Motor6D") ||
+			!is<keyof Omit<typeof ragdollConfig, "recovery_time">>(motor.Name)
+		) {
 			continue;
 		}
 
@@ -448,8 +432,7 @@ export function ragdoll(character: Character): void {
 }
 
 /**
- * Un-ragdoll's a character by enabling its motor joints and removing
- * ragdoll constraints.
+ * Un-ragdoll's a character by enabling its motor joints and removing ragdoll constraints.
  *
  * @param character - The character to un-ragdoll.
  */
@@ -459,7 +442,10 @@ export function unRagdoll(character: Character): void {
 	unCollideJoints(character);
 
 	for (const motor of character.GetDescendants()) {
-		if (!motor.IsA("Motor6D") || !is<keyof Omit<typeof ragdollConfig, "recovery_time">>(motor.Name)) {
+		if (
+			!motor.IsA("Motor6D") ||
+			!is<keyof Omit<typeof ragdollConfig, "recovery_time">>(motor.Name)
+		) {
 			continue;
 		}
 
@@ -479,12 +465,10 @@ export function unRagdoll(character: Character): void {
 }
 
 /**
- * Enables collision on a character's torso motor joints for ragdoll
- * physics.
+ * Enables collision on a character's torso motor joints for ragdoll physics.
  *
- * Sets the character's `PlatformStand` to `true`, enables collision
- * on the `RootPart`, disables `AutoRotate`, and enables collision on
- * all torso motor pair parts.
+ * Sets the character's `PlatformStand` to `true`, enables collision on the `RootPart`, disables
+ * `AutoRotate`, and enables collision on all torso motor pair parts.
  *
  * @param character - The character to enable joint collision on.
  */
@@ -501,12 +485,10 @@ export function collideJoints(character: Character): void {
 }
 
 /**
- * Disables collision on a character's torso motor joints, reversing
- * the effects of `collideJoints`.
+ * Disables collision on a character's torso motor joints, reversing the effects of `collideJoints`.
  *
- * Sets `PlatformStand` to `false`, disables collision on the
- * `RootPart`, re-enables `AutoRotate`, and disables collision on
- * all torso motor pair parts.
+ * Sets `PlatformStand` to `false`, disables collision on the `RootPart`, re-enables `AutoRotate`,
+ * and disables collision on all torso motor pair parts.
  *
  * @param character - The character to disable joint collision on.
  */

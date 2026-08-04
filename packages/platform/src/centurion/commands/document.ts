@@ -1,23 +1,21 @@
+import { catcher, waitForDocument } from "@lisachandra/core/utils/main";
+import { formatTable } from "@lisachandra/core/utils/string";
 import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 import { Players } from "@rbxts/services";
 
 import { adminOrDeveloper } from "../guards";
-import { catcher, waitForDocument } from "@lisachandra/core/utils/main";
-import { formatTable } from "@lisachandra/core/utils/string";
 
 @Register()
 /**
  * Admin command that retrieves document data for a specified player.
  *
  * @remarks
- * On success the player is kicked (data is reloaded on rejoin). If the
- * player is not in the server the document is closed asynchronously.
+ *   On success the player is kicked (data is reloaded on rejoin). If the player is not in the
+ *   server the document is closed asynchronously.
  */
 export class DocumentCommand {
 	@Command({
-		description: "Get document information for a player.",
-		name: "document",
 		arguments: [
 			{
 				type: CenturionType.Number,
@@ -25,11 +23,13 @@ export class DocumentCommand {
 				name: "user",
 			},
 		],
+		description: "Get document information for a player.",
+		name: "document",
 	})
 	@Guard(adminOrDeveloper)
 	/**
-	 * Fetches and displays the document associated with a user ID, then
-	 * kicks the player or closes the document.
+	 * Fetches and displays the document associated with a user ID, then kicks the player or closes
+	 * the document.
 	 *
 	 * @param context - The command context for replying with results.
 	 * @param userId - The Roblox user ID whose document to retrieve.

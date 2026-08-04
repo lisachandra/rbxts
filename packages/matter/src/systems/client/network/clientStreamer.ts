@@ -9,14 +9,15 @@
  * component plus a streamable component (which must have a `model: Instance`
  * key) will be handled by this system.
  */
-import { ClientState } from "@lisachandra/core/store";
+import type { ClientState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { None } from "@rbxts/matter";
+
 import { Components } from "../../../components";
-import { findServerEntityIdFromMap } from "../../../utils/entity";
 import { getEntityStreamableComponent } from "../../../entityLookup";
 import { useStream } from "../../../hooks";
+import { findServerEntityIdFromMap } from "../../../utils/entity";
 
 /*
  * Manages entity streaming for optimizing client-server synchronization.
@@ -59,8 +60,10 @@ function system(world: World, _crate: Crate<ClientState>): void {
 		}
 	};
 
-	// Iterate over all entities with a Stream component.
-	// Any entity that also has a streamable component (with a model key) will be handled.
+	/*
+	 * Iterate over all entities with a Stream component.
+	 * Any entity that also has a streamable component (with a model key) will be handled.
+	 */
 	for (const [entityId, stream] of world.query(Components.Stream)) {
 		const streamableComponent = getEntityStreamableComponent(world, entityId);
 		if (!streamableComponent) {

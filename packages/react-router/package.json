@@ -1,39 +1,43 @@
 {
 	"name": "@lisachandra/react-router",
 	"version": "1.0.1",
+	"private": false,
 	"description": "Client-side router for React Roblox",
 	"keywords": [
-		"roblox",
 		"rbxts",
 		"react",
+		"roblox",
 		"router"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
-	"type": "module",
-	"exports": {
-		".": {
-			"import": "./out/init.luau",
-			"types": "./out/index.d.ts"
-		}
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
 	"files": [
 		"out",
 		"README.md",
 		"default.project.json",
 		"!**/*.tsbuildinfo"
 	],
+	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./out/init.luau",
+			"types": "./out/index.d.ts"
+		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -41,24 +45,20 @@
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/types": "catalog:",
-		"@rbxts/react": "catalog:",
 		"@rbxts/lemon-signal": "catalog:",
+		"@rbxts/react": "catalog:",
 		"@rbxts/services": "catalog:",
+		"@rbxts/types": "catalog:",
 		"shx": "catalog:"
 	},
 	"peerDependencies": {
 		"@lisachandra/types": "*",
-		"@rbxts/services": "*",
+		"@rbxts/lemon-signal": "*",
 		"@rbxts/react": "*",
-		"@rbxts/lemon-signal": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
+		"@rbxts/services": "*"
 	}
 }

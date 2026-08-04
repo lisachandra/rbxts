@@ -1,10 +1,16 @@
+import { vector } from "@lisachandra/core";
+import type { ServerState } from "@lisachandra/core/store";
+import { Components } from "@lisachandra/matter";
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/store";
-import { vector } from "@lisachandra/core";
-import { Components } from "@lisachandra/matter";
+
+import {
+	applyPickupVisual,
+	getCharacterRoot,
+	pushNotification,
+	setCarryState,
+} from "server/game/helpers";
 import { GARDEN_INTERACTION_RADIUS, GARDEN_PICKUP_RESPAWN_TIME } from "shared/game/constants";
-import { applyPickupVisual, getCharacterRoot, pushNotification, setCarryState } from "server/game/helpers";
 
 function system(world: World): void {
 	const now = os.clock();
@@ -42,7 +48,7 @@ function system(world: World): void {
 		}
 
 		let nearestEntity: AnyEntity | undefined;
-		let nearestPickup: Components["ResourcePickup"] | undefined;
+		let nearestPickup: undefined | Components["ResourcePickup"];
 		let nearestDistance = math.huge;
 
 		for (const [pickupEntity, pickup] of world.query(Components.ResourcePickup)) {

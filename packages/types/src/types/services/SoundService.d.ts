@@ -1,4 +1,4 @@
 interface SoundService extends Instance {
-	Sounds: Folder
-	Master: SoundGroup
+	Master: SoundGroup;
+	Sounds: Folder;
 }

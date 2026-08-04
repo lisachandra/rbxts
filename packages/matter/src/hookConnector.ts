@@ -42,7 +42,7 @@ export const HookConnector = {
 
 		HookConnector.componentRecordRequests[requestId] = {
 			callback: callback as never,
-			component: component as never,
+			component,
 			entityId,
 		};
 

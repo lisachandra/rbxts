@@ -3,7 +3,6 @@ import { Error } from "@rbxts/luau-polyfill";
 import { Debris, Workspace } from "@rbxts/services";
 
 import type { Character } from "../schemas";
-
 import { catcher } from "./main";
 
 type VFXAnimationMarkerParameters<VFX extends Part> =
@@ -11,13 +10,13 @@ type VFXAnimationMarkerParameters<VFX extends Part> =
 	| [Exclude<keyof VFX, keyof Part>, "Enable", `${number}`];
 
 /**
- * Creates a WeldConstraint between two BaseParts. Part1 will be welded to
- * Part0. The weld constraint itself will be parented to Part1.
+ * Creates a WeldConstraint between two BaseParts. Part1 will be welded to Part0. The weld
+ * constraint itself will be parented to Part1.
  *
- * @param part1 - The BasePart that will be moved/attached to part0 (Part1).
- *   This is considered the child part in the weld.
- * @param part0 - The BasePart that part1 will be welded to (Part0). This is
- *   considered the parent part in the weld.
+ * @param part1 - The BasePart that will be moved/attached to part0 (Part1). This is considered the
+ *   child part in the weld.
+ * @param part0 - The BasePart that part1 will be welded to (Part0). This is considered the parent
+ *   part in the weld.
  * @returns The created WeldConstraint instance.
  */
 export function weldTo(part1: BasePart, part0: BasePart): WeldConstraint {
@@ -30,14 +29,11 @@ export function weldTo(part1: BasePart, part0: BasePart): WeldConstraint {
 }
 
 /**
- * Creates and manages visual effects (VFX) with particle emitters using
- * predefined attributes. This function is suited for simple,
- * attribute-driven VFX playback. For more complex scenarios or animation
- * integration, consider using EmitAllDescendants, ToggleAllDescendants, or
- * AnimatedVFX.
+ * Creates and manages visual effects (VFX) with particle emitters using predefined attributes. This
+ * function is suited for simple, attribute-driven VFX playback. For more complex scenarios or
+ * animation integration, consider using EmitAllDescendants, ToggleAllDescendants, or AnimatedVFX.
  *
- * @param vfx - The VFX instance (BasePart with attributes) to clone and
- *   manage.
+ * @param vfx - The VFX instance (BasePart with attributes) to clone and manage.
  * @param cf - The CFrame to position the VFX.
  * @param weld - Optional part to weld the VFX to.
  * @returns The cloned VFX instance.
@@ -101,12 +97,10 @@ export function playVFX(vfx: BasePart, cf: CFrame, weld?: BasePart): BasePart {
 }
 
 /**
- * Emits particles from all ParticleEmitter descendants of a given instance.
- * Optionally waits, sets position, parents to Workspace, and sets a
- * lifetime.
+ * Emits particles from all ParticleEmitter descendants of a given instance. Optionally waits, sets
+ * position, parents to Workspace, and sets a lifetime.
  *
- * @param clone - The instance (Model, BasePart, Attachment) containing
- *   ParticleEmitters.
+ * @param clone - The instance (Model, BasePart, Attachment) containing ParticleEmitters.
  * @param at - CFrame.
  * @param delay - How much to wait.
  * @param lifetime - The lifetime of the emitter.
@@ -136,12 +130,10 @@ export async function emitAllDescendants(
 }
 
 /**
- * For (const Child of clone.GetDescendants()) if
- * (Child.IsA("ParticleEmitter") or Child.IsA("Highlight")) Child.Enabled =
- * bool;
+ * For (const Child of clone.GetDescendants()) if (Child.IsA("ParticleEmitter") or
+ * Child.IsA("Highlight")) Child.Enabled = bool;
  *
- * If (clone.IsA("ParticleEmitter") || clone.IsA("Highlight")) clone.Enabled
- * = state;.
+ * If (clone.IsA("ParticleEmitter") || clone.IsA("Highlight")) clone.Enabled = state;.
  *
  * @param model - A .Clone() of the vfx asset.
  * @param state - .Enabled = true or false.
@@ -161,12 +153,10 @@ export function toggleAllDescendants(model: Instance, state: boolean): void {
 }
 
 /**
- * ```
  * If (!clone.Parent) clone.Parent = Workspace;
- * ```
  *
- * ToggleAllDescendants(clone, true); while (check(clone)) task.wait();
- * ToggleAllDescendants(clone, false);.
+ * ToggleAllDescendants(clone, true); while (check(clone)) task.wait(); ToggleAllDescendants(clone,
+ * false);.
  *
  * @param clone - .Clone() of the vfx asset.
  * @param check - Boolean while condition.
@@ -202,10 +192,9 @@ export async function enableWhile<T extends Model | Trail | BasePart | Highlight
 }
 
 /**
- * Handles an animation marker event specifically for triggering VFX. Parses
- * the marker parameters to determine which VFX attachment to use and how
- * (Emit or Enable). Expected parameter format: "AttachmentName,Emit" or
- * "AttachmentName,Enable,DurationSeconds".
+ * Handles an animation marker event specifically for triggering VFX. Parses the marker parameters
+ * to determine which VFX attachment to use and how (Emit or Enable). Expected parameter format:
+ * "AttachmentName,Emit" or "AttachmentName,Enable,DurationSeconds".
  *
  * @param vfx - The parent Part containing VFX Attachments.
  * @param track - The AnimationTrack that fired the marker.
@@ -217,11 +206,13 @@ export function vfxAnimationMarkerReached(
 	parameters?: string,
 ): void {
 	if (parameters === undefined) {
-		throw new Error(Log.Error(`Missing VFX parameters for animation: ${track.Animation?.AnimationId}`));
+		throw new Error(
+			Log.Error(`Missing VFX parameters for animation: ${track.Animation?.AnimationId}`),
+		);
 	}
 
 	const [name, emitType, duration] = parameters.split(",") as VFXAnimationMarkerParameters<Part>;
-	const vfxAttachment = vfx.FindFirstChild<Attachment>(name as string);
+	const vfxAttachment = vfx.FindFirstChild<Attachment>(name);
 	if (!vfxAttachment) {
 		throw new Error(
 			Log.Error(
@@ -243,17 +234,18 @@ export function vfxAnimationMarkerReached(
 		}
 		default: {
 			throw new Error(
-				Log.Error(`Invalid VFX type for animation: ${track.Animation?.AnimationId} (${emitType})`),
+				Log.Error(
+					`Invalid VFX type for animation: ${track.Animation?.AnimationId} (${emitType})`,
+				),
 			);
 		}
 	}
 }
 
 /**
- * Creates and manages VFX linked to a specific animation track. Clones the
- * VFX, attaches it to the character's HumanoidRootPart, and connects to the
- * "VFX" marker signal on the provided animation track. Cleans up the VFX
- * and connections when the animation stops.
+ * Creates and manages VFX linked to a specific animation track. Clones the VFX, attaches it to the
+ * character's HumanoidRootPart, and connects to the "VFX" marker signal on the provided animation
+ * track. Cleans up the VFX and connections when the animation stops.
  *
  * @param character - The character.
  * @param track - The animation track of the VFX.

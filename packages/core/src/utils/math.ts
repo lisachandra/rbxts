@@ -88,8 +88,7 @@ export function smoothstep(a: number, b: number, x: number): number {
 /**
  * Selects a random index from an array based on weighted probabilities.
  *
- * @param selections - An array of numbers representing the weight of each
- *   index.
+ * @param selections - An array of numbers representing the weight of each index.
  * @returns A randomly selected index based on the provided weights.
  */
 export function weightRandom(...selections: Array<number>): number {
@@ -102,7 +101,7 @@ export function weightRandom(...selections: Array<number>): number {
 		if (number < accumulated) {
 			return index;
 		}
- 	}
+	}
 
 	return selections.size() - 1;
 }

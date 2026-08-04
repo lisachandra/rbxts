@@ -1,9 +1,28 @@
-import ReactGlobals from "@rbxts/react-globals";
+import { configureConstant } from "@lisachandra/constant";
+import { setupLogger } from "@lisachandra/core/logger";
+import { catcher } from "@lisachandra/core/utils/main";
+import { Message, messaging } from "@lisachandra/matter";
+import { builtinPackage } from "@lisachandra/matter/systems";
+import { bootstrap } from "@lisachandra/platform";
+import { Centurion } from "@rbxts/centurion";
+import { CenturionUI } from "@rbxts/centurion-ui";
+import Log from "@rbxts/log";
 import { backend } from "@rbxts/react-devtools-core";
-import { Players, ReplicatedStorage, RunService, SoundService, StarterGui, UserInputService } from "@rbxts/services";
-import { configureConstant } from "@lisachandra/constant"
-import { setupLogger } from "@lisachandra/core/logger"
-import * as constants from "./constants.json"
+import ReactGlobals from "@rbxts/react-globals";
+import {
+	Players,
+	ReplicatedStorage,
+	RunService,
+	SoundService,
+	StarterGui,
+	UserInputService,
+} from "@rbxts/services";
+
+import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
+
+import * as constants from "./constants.json";
+import * as clientSystemsBarrel from "./systems/barrel";
+import { startAppHotReloader } from "./ui/hotReloader";
 
 const reactMicroProfilerLevel = 10;
 
@@ -19,27 +38,14 @@ if (_G.__DEV__) {
 	backend.connectToDevtools();
 }
 
-configureConstant("src/client/constants.json", constants, { keyCode: Enum.KeyCode.F8, title: "Constants" });
+configureConstant("src/client/constants.json", constants, {
+	keyCode: Enum.KeyCode.F8,
+	title: "Constants",
+});
 setupLogger();
 
-import { Centurion } from "@rbxts/centurion";
-import { CenturionUI } from "@rbxts/centurion-ui";
-import Log from "@rbxts/log";
-import { bootstrap } from "@lisachandra/platform"
-
-import { catcher } from "@lisachandra/core/utils/main";
-
-import * as sharedSystemsBarrel from "shared/matter/systems/barrel";
-import * as clientSystemsBarrel from "./systems/barrel";
-import { builtinPackage } from "@lisachandra/matter/systems";
-import { Message, messaging } from "@lisachandra/matter";
-import { startAppHotReloader } from "./ui/hotReloader";
-
-for (const coreGui of [
-	Enum.CoreGuiType.Health,
-	Enum.CoreGuiType.Backpack,
-]) {
-	StarterGui.SetCoreGuiEnabled(coreGui, false)
+for (const coreGui of [Enum.CoreGuiType.Health, Enum.CoreGuiType.Backpack]) {
+	StarterGui.SetCoreGuiEnabled(coreGui, false);
 }
 
 // Wait for necessary folders to be loaded in ReplicatedStorage
@@ -67,32 +73,32 @@ const heartbeat = task.spawn(() => {
 
 const { client, shared } = ReplicatedStorage.TS;
 const { debugger: worldDebugger } = bootstrap({
+	hotReload: {
+		containers: [client.systems, shared.matter.systems],
+	},
 	mode: _G.__PROD__ ? "production" : "development",
-	packages: [builtinPackage],
 	modules: {
 		client: clientSystemsBarrel,
 		shared: sharedSystemsBarrel,
 	},
-	hotReload: {
-		containers: [client.systems, shared.matter.systems],
-	},
+	packages: [builtinPackage],
 });
 
 UserInputService.InputBegan.Connect((input) => {
 	if (input.KeyCode === Enum.KeyCode.F4) {
 		worldDebugger.toggle();
 	}
-})
+});
 
 // Wait for the client to assign a client entity ID to the player
 while (Players.LocalPlayer.GetAttribute("clientEntityId") === undefined) {
 	task.wait(1);
 }
 
-task.cancel(heartbeat)
+task.cancel(heartbeat);
 
 startAppHotReloader();
-import("@lisachandra/platform/centurion").expect()
+import("@lisachandra/platform/centurion").expect();
 import("shared/centurion").expect();
 
 // Start centurion
@@ -103,4 +109,4 @@ Centurion.client()
 	})
 	.catch(catcher);
 
-Log.Info(`Client started: @{info}`, { PlaceId: game.PlaceId, PlaceVersion: game.PlaceVersion });
+Log.Info("Client started: @{info}", { PlaceId: game.PlaceId, PlaceVersion: game.PlaceVersion });

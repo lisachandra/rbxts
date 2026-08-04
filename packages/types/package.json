@@ -1,23 +1,31 @@
 {
 	"name": "@lisachandra/types",
 	"version": "0.1.1",
+	"private": false,
 	"description": "Global types for @lisachandra packages and games",
 	"keywords": [
-		"roblox",
-		"rbxts"
+		"rbxts",
+		"roblox"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
+	},
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
 	"exports": {
 		".": {
 			"import": "./out/init.luau",
@@ -28,14 +36,10 @@
 			"types": "./out/include/RuntimeLib.d.ts"
 		}
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
-	"files": [
-		"out",
-		"README.md",
-		"default.project.json",
-		"!**/*.tsbuildinfo"
-	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -45,20 +49,16 @@
 	"devDependencies": {
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
-		"type-fest": "catalog:",
-		"@rbxts/types": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/matter": "catalog:",
-		"shx": "catalog:"
+		"@rbxts/types": "catalog:",
+		"shx": "catalog:",
+		"type-fest": "catalog:"
 	},
 	"peerDependencies": {
-		"type-fest": "*",
-		"@rbxts/types": "*",
 		"@rbxts/compiler-types": "*",
-		"@rbxts/matter": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
+		"@rbxts/matter": "*",
+		"@rbxts/types": "*",
+		"type-fest": "*"
 	}
 }

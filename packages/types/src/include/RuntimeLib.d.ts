@@ -5,7 +5,7 @@ interface RuntimeLib {
 	TRY_RETURN: 1;
 
 	async: <T extends Array<unknown>, U>(callback: (...args: T) => U) => (...args: T) => Promise<U>;
-	await: <T>(promise: Promise<T> | T) => T;
+	await: <T>(promise: T | Promise<T>) => T;
 	bit_lrsh: (a: number, b: number) => number;
 	generator: <T extends Array<unknown>, U>(
 		callback: (...args: T) => Generator<U>,
@@ -15,9 +15,9 @@ interface RuntimeLib {
 	instanceof: (obj: unknown, theClass: unknown) => boolean;
 	reset: () => void;
 	try: <T extends Array<unknown>, U, V, W>(
-		tryFn: () => [number, ...T] | U,
-		catchFn?: (error: unknown) => [number, ...T] | V,
-		finallyFn?: () => [number, ...T] | W,
+		tryFn: () => U | [number, ...T],
+		catchFn?: (error: unknown) => V | [number, ...T],
+		finallyFn?: () => W | [number, ...T],
 	) => LuaTuple<[number?, ...T]>;
 }
 

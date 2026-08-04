@@ -1,5 +1,5 @@
 import Log from "@rbxts/log";
-import type { ReactNode, JSX } from "@rbxts/react";
+import type { JSX, ReactNode } from "@rbxts/react";
 import React, { createElement, forwardRef, memo, useEffect, useState } from "@rbxts/react";
 import { RunService } from "@rbxts/services";
 
@@ -89,7 +89,7 @@ function merge<A, B, C>(into: A, from: B, none?: C): Exclude<UnionToIntersection
 	return newTable as unknown as Exclude<UnionToIntersection<A & B>, C>;
 }
 
-function is<T>(typed: unknown): typed is T {
+function is<T>(_typed: unknown): _typed is T {
 	return true;
 }
 
@@ -263,7 +263,7 @@ const ReactTemplate = {
 	 * Creates a fetch value object.
 	 *
 	 * @param resolve - The resolve function.
-	 * @param properties - The properties to fetch.
+	 * @param propertyNames - The properties to fetch.
 	 * @returns - The fetch value object.
 	 */
 	fetch: <T>(resolve: (value: T) => unknown, ...propertyNames: Array<string>): FetchValue<T> => {

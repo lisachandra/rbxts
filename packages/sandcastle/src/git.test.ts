@@ -4,7 +4,13 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
-import { checkoutBranch, commitExists, countNewCommits, registeredWorktrees, resolveCommit } from "./git.js";
+import {
+	checkoutBranch,
+	commitExists,
+	countNewCommits,
+	registeredWorktrees,
+	resolveCommit,
+} from "./git.js";
 import { io } from "./runtime.js";
 import { gitStub, registerTestHooks, stubExecSync, tmpRoot } from "./test-helpers.js";
 

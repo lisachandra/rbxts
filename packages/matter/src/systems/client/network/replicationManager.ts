@@ -6,18 +6,28 @@
  * changes. Debugging information can be logged when enabled via the debug UI
  * checkbox.
  */
-import { ClientState, store } from "@lisachandra/core/store";
+import type { ClientState } from "@lisachandra/core/store";
+import { store } from "@lisachandra/core/store";
+import { catcher } from "@lisachandra/core/utils/main";
+import { typeAssertIs } from "@lisachandra/core/utils/type";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
-import type { AnyComponent, AnyEntity, Component, DebugWidgets, SystemStruct, World, } from "@rbxts/matter";
+import type {
+	AnyComponent,
+	AnyEntity,
+	Component,
+	DebugWidgets,
+	SystemStruct,
+	World,
+} from "@rbxts/matter";
 import type { OptionalKeys } from "@rbxts/matter/lib/component";
 import { count, filter, includes } from "@rbxts/sift/Dictionary";
-import { ComponentKey, ExtractComponentData, Components } from "../../../components";
-import { catcher } from "@lisachandra/core/utils/main";
+
+import type { ComponentKey, ExtractComponentData } from "../../../components";
+import { Components } from "../../../components";
 import { useMessage } from "../../../hooks";
 import { Message, messaging, registry } from "../../../network";
-import { typeAssertIs } from "@lisachandra/core/utils/type";
 
 const batchSpawns: Record<string, Array<Component<object>>> = {};
 let debugging = false;
@@ -36,8 +46,10 @@ function applyComponentUpdate(
 	serverEntityId: AnyEntity,
 ): void {
 	if (clientEntityId === undefined) {
-		// A removal can arrive before the corresponding entity has been spawned.
-		// There is no client entity on which to apply it; ignore it safely.
+		/*
+		 * A removal can arrive before the corresponding entity has been spawned.
+		 * There is no client entity on which to apply it; ignore it safely.
+		 */
 		if (componentToInsert === undefined) {
 			return;
 		}
@@ -81,7 +93,7 @@ function handleDespawn(
 		return newEntityIdMap;
 	}
 
-	return undefined
+	return undefined;
 }
 
 function handleSpawn(
@@ -97,7 +109,9 @@ function handleSpawn(
 		return;
 	}
 
-	debugPrint(`[client replication] spawn ${serverEntityId} (${componentsToInsert.size()} components)`);
+	debugPrint(
+		`[client replication] spawn ${serverEntityId} (${componentsToInsert.size()} components)`,
+	);
 	const clientEntityId: N<AnyEntity> = store.world.spawn(...componentsToInsert);
 	delete batchSpawns[serverEntityId];
 
@@ -123,7 +137,7 @@ function deserializeSingleComponent<T extends ComponentKey>(
 		data: unknown,
 		serverEntityId: AnyEntity,
 		clientEntityId?: AnyEntity,
-	) => OptionalKeys<Partial<ExtractComponentData<(Components)[T]>>>,
+	) => OptionalKeys<Partial<ExtractComponentData<Components[T]>>>,
 	serverEntityId: AnyEntity,
 	clientEntityId?: AnyEntity,
 ): N<AnyComponent> {
@@ -154,15 +168,17 @@ function didComponentInsert<T extends ComponentKey>(
 		data: unknown,
 		serverEntityId: AnyEntity,
 		clientEntityId?: AnyEntity,
-	) => OptionalKeys<Partial<ExtractComponentData<(Components)[T]>>>,
+	) => OptionalKeys<Partial<ExtractComponentData<Components[T]>>>,
 	serverEntityId: AnyEntity,
 	clientEntityId?: AnyEntity,
 ): clientEntityId is undefined {
 	if (data === undefined) {
-		// A removal (nil payload) is only meaningful for an entity this client
-		// already spawned. For unknown entities there is nothing to remove, and
-		// deserializing nil can crash deserializers that echo their input
-		// (e.g. Team/PlayerStats/MatchState) via component.patch(nil).
+		/*
+		 * A removal (nil payload) is only meaningful for an entity this client
+		 * already spawned. For unknown entities there is nothing to remove, and
+		 * deserializing nil can crash deserializers that echo their input
+		 * (e.g. Team/PlayerStats/MatchState) via component.patch(nil).
+		 */
 		return clientEntityId === undefined;
 	}
 
@@ -184,8 +200,11 @@ function didComponentInsert<T extends ComponentKey>(
 }
 
 function deserializeIncomingPackets(entityIdMap: Readonly<ClientState["entityIdMap"]>): void {
-	for (const [_, { componentId, payload, serverEntityId }] of useMessage(messaging.client, Message.Component)) {
-		typeAssertIs<AnyEntity>(serverEntityId)
+	for (const [_, { componentId, payload, serverEntityId }] of useMessage(
+		messaging.client,
+		Message.Component,
+	)) {
+		typeAssertIs<AnyEntity>(serverEntityId);
 
 		const codec = registry.getById(componentId);
 		if (!codec) {
@@ -197,7 +216,9 @@ function deserializeIncomingPackets(entityIdMap: Readonly<ClientState["entityIdM
 		const clientEntityId: N<AnyEntity> = entityIdMap[serverEntityId];
 		const data = payload ? codec.payloadSerializer.deserialize(payload) : undefined;
 		if ((data as unknown) !== undefined && !codec.payloadGuard(data)) {
-			Log.Warn(`Skipping replication for ${componentName}; payload failed runtime validation`);
+			Log.Warn(
+				`Skipping replication for ${componentName}; payload failed runtime validation`,
+			);
 			continue;
 		}
 

@@ -10,7 +10,7 @@
 			"../@rbxts/types",
 			"../@rbxts/services",
 			"../@rbxts/compiler-types",
-			"../@lisachandra/types",
+			"../@lisachandra/types"
 		],
 		"preserveSymlinks": true,
 		"exactOptionalPropertyTypes": false,
@@ -22,9 +22,12 @@
 		"moduleResolution": "bundler",
 		"sourceMap": true,
 		"downlevelIteration": null,
-		"customConditions": ["source"],
+		"customConditions": ["source"]
 	},
 	"references": [
+		{
+			"path": "tsconfig.node.json"
+		},
 		{
 			"path": "test/core"
 		},
@@ -50,6 +53,9 @@
 			"path": "packages/matter"
 		},
 		{
+			"path": "packages/platform"
+		},
+		{
 			"path": "packages/react-router"
 		},
 		{
@@ -63,8 +69,12 @@
 		},
 		{
 			"path": "packages/ui"
-		},
+		}
 	],
 	"files": [],
-	"include": ["${configDir}/src/**/*.ts", "${configDir}/src/**/*.tsx", "${configDir}/src/**/*.json"]
+	"include": [
+		"${configDir}/src/**/*.ts",
+		"${configDir}/src/**/*.tsx",
+		"${configDir}/src/**/*.json"
+	]
 }

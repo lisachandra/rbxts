@@ -1,7 +1,7 @@
 /**
- * Iteratively interpolates across an array of Color3 values. Starts with
- * the first color, then lerps the result with the second, then the result
- * with the third, and so on, using the same t value each time.
+ * Iteratively interpolates across an array of Color3 values. Starts with the first color, then
+ * lerps the result with the second, then the result with the third, and so on, using the same t
+ * value each time.
  *
  * @param colors - An array of Color3 objects.
  * @param t - The interpolation factor (0 to 1) applied at each step.

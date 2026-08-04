@@ -1,4 +1,4 @@
-type Nominal = boolean | number | string;
+type Nominal = number | string | boolean;
 
 type ToString<T extends Nominal> = `${T}`;
 declare function tonumber(value: ToString<number>, base?: number): number;

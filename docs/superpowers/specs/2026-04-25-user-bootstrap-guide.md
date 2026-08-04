@@ -128,6 +128,7 @@ const { world, crate } = start({ systems });
 ```
 
 This works because the packages system (`packages/`) handles:
+
 - **Topological sort** (`resolvePackageGraph.ts`) — ensures dependencies load in order
 - **Pipeline registration** — each package's `pipeline` entries become runnable systems
 - **Replication wiring** — each package's `replication.codecs` is registered into the replication codec registry
@@ -142,56 +143,56 @@ This works because the packages system (`packages/`) handles:
 ```ts
 // ============ game/src/shared/config.ts ============
 import {
-    configureRuntimeAdapters,
-    configureEntityLookup,
-    configureStreamableEntityLookup,
-    getComponent,
+	configureRuntimeAdapters,
+	configureEntityLookup,
+	configureStreamableEntityLookup,
+	getComponent,
 } from "@lisachandra/matter";
 // -- Entity Lookup --
 configureEntityLookup({
-    instanceComponents: ["Profile", "Items", "Node"],
-    humanoidComponents: ["Profile"],
+	instanceComponents: ["Profile", "Items", "Node"],
+	humanoidComponents: ["Profile"],
 });
 
 // -- Streamable Entity Lookup --
 configureStreamableEntityLookup({
-    components: ["Items", "NPC", "Vehicle"],
+	components: ["Items", "NPC", "Vehicle"],
 });
 
 // -- Player Lifecycle (fine-grained hooks) --
 configureRuntimeAdapters({
-    authorize: async (player) => player.UserId > 0,
-    playerLifecycle: {
-        preSpawn: async (player) => {
-            return [!myBanService.isBanned(player.UserId)];
-        },
-        componentFactory: (player, janitor) => [
-            getComponent("Profile")({ janitor, player }),
-            getComponent("Inventory")(),
-            getComponent("Hotbar")(),
-            getComponent("Forces")(),
-            getComponent("Stats")({ level: 1, xp: 0 }),
-        ],
-        postSpawn: (world, player, entityId) => {
-            // Message.Time is already emitted by the default flow before this hook runs.
-            // Use this for game-specific post-spawn setup only.
-        },
-    },
-    hotbarInputAdapter: {
-        getHeldKeys: () => myInputSystem.getHeldKeys(),
-        onKeyPressed: (cb) => myInputSystem.onKeyPressed(cb),
-    },
-    findInstanceFromEntity: (world, entityId) => {
-        return undefined;
-    },
-    document: {
-        collection,
-        persistedComponents: {
-            Hotbar: "hotbar",
-            Inventory: "inventory",
-            Stats: "stats",
-        },
-    },
+	authorize: async (player) => player.UserId > 0,
+	playerLifecycle: {
+		preSpawn: async (player) => {
+			return [!myBanService.isBanned(player.UserId)];
+		},
+		componentFactory: (player, janitor) => [
+			getComponent("Profile")({ janitor, player }),
+			getComponent("Inventory")(),
+			getComponent("Hotbar")(),
+			getComponent("Forces")(),
+			getComponent("Stats")({ level: 1, xp: 0 }),
+		],
+		postSpawn: (world, player, entityId) => {
+			// Message.Time is already emitted by the default flow before this hook runs.
+			// Use this for game-specific post-spawn setup only.
+		},
+	},
+	hotbarInputAdapter: {
+		getHeldKeys: () => myInputSystem.getHeldKeys(),
+		onKeyPressed: (cb) => myInputSystem.onKeyPressed(cb),
+	},
+	findInstanceFromEntity: (world, entityId) => {
+		return undefined;
+	},
+	document: {
+		collection,
+		persistedComponents: {
+			Hotbar: "hotbar",
+			Inventory: "inventory",
+			Stats: "stats",
+		},
+	},
 });
 ```
 
@@ -203,32 +204,32 @@ import { defineItems } from "@lisachandra/matter/items";
 import createSerializer, { u16 } from "@rbxts/serio";
 
 defineItems({
-    Weapon: {
-        description: "Weapons category",
-        image: "rbxassetid://123",
-        children: {
-            Sword: {
-                serdes: createSerializer<{ damage: u16; durability: u16 }>(),
-                defaultData: { damage: 10, durability: 100 },
-                description: "A sharp blade",
-                image: "rbxassetid://456",
-                privateKeys: ["durability"],
-            },
-            Bow: {
-                serdes: createSerializer<{ damage: u16; range: u16 }>(),
-                defaultData: { damage: 5, range: 50 },
-            },
-        },
-    },
-    Consumable: {
-        children: {
-            Potion: {
-                serdes: createSerializer<{ healAmount: u16 }>(),
-                defaultData: { healAmount: 25 },
-                description: "Restores health",
-            },
-        },
-    },
+	Weapon: {
+		description: "Weapons category",
+		image: "rbxassetid://123",
+		children: {
+			Sword: {
+				serdes: createSerializer<{ damage: u16; durability: u16 }>(),
+				defaultData: { damage: 10, durability: 100 },
+				description: "A sharp blade",
+				image: "rbxassetid://456",
+				privateKeys: ["durability"],
+			},
+			Bow: {
+				serdes: createSerializer<{ damage: u16; range: u16 }>(),
+				defaultData: { damage: 5, range: 50 },
+			},
+		},
+	},
+	Consumable: {
+		children: {
+			Potion: {
+				serdes: createSerializer<{ healAmount: u16 }>(),
+				defaultData: { healAmount: 25 },
+				description: "Restores health",
+			},
+		},
+	},
 });
 ```
 
@@ -244,10 +245,10 @@ Use this when you already have a flat system list or are relying on `@lisachandr
 import { start } from "@lisachandra/matter";
 
 const systems = [
-    playerManagerSystem,
-    documentManagerSystem,
-    replicationManagerSystem,
-    itemManagerSystem,
+	playerManagerSystem,
+	documentManagerSystem,
+	replicationManagerSystem,
+	itemManagerSystem,
 ];
 
 const { world, crate, loop } = start({ systems });
@@ -258,12 +259,7 @@ const { world, crate, loop } = start({ systems });
 Use this when you want dependency ordering, package composition, and package-provided codecs.
 
 ```ts
-import {
-    createPackageRegistry,
-    createPackageRuntime,
-    registry,
-    start,
-} from "@lisachandra/matter";
+import { createPackageRegistry, createPackageRuntime, registry, start } from "@lisachandra/matter";
 import { npcPackage } from "@my-game/npcs";
 import { questPackage } from "@my-game/quests";
 
@@ -296,18 +292,18 @@ export const meta = {
 
 `start()` binds these to Roblox events:
 
-| Phase | Roblox Event |
-|---|---|
-| `"default"`, `"heartbeat"` | `RunService.Heartbeat` |
-| `"preSimulation"` | `RunService.PreSimulation` |
-| `"postSimulation"` | `RunService.PostSimulation` |
-| `"preAnimation"` | `RunService.PreAnimation` |
-| `"preRender"` | `RunService.PreRender` |
-| `"stepped"` | `RunService.Stepped` |
-| `"renderStepped"` | `RunService.RenderStepped` (client) |
+| Phase                                                                                   | Roblox Event                                         |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `"default"`, `"heartbeat"`                                                              | `RunService.Heartbeat`                               |
+| `"preSimulation"`                                                                       | `RunService.PreSimulation`                           |
+| `"postSimulation"`                                                                      | `RunService.PostSimulation`                          |
+| `"preAnimation"`                                                                        | `RunService.PreAnimation`                            |
+| `"preRender"`                                                                           | `RunService.PreRender`                               |
+| `"stepped"`                                                                             | `RunService.Stepped`                                 |
+| `"renderStepped"`                                                                       | `RunService.RenderStepped` (client)                  |
 | `"renderCamera"`, `"renderCharacter"`, `"renderFirst"`, `"renderInput"`, `"renderLast"` | `RunService.BindToRenderStep` with matching priority |
-| `"Hz1"` – `"Hz60"` | `RunService.BindToSimulation` |
-| `"playerModuleCamera"` | Custom `LemonSignal` |
+| `"Hz1"` – `"Hz60"`                                                                      | `RunService.BindToSimulation`                        |
+| `"playerModuleCamera"`                                                                  | Custom `LemonSignal`                                 |
 
 Systems can also declare `after: [otherSystem]` to enforce execution order within a phase.
 
@@ -338,20 +334,20 @@ In **development mode**, the bootstrap passes hot-reload container `Instance`s i
 import { bootstrap } from "@lisachandra/platform";
 
 bootstrap({
-    mode: "development",
-    modules: {
-        client: clientSystemsModule,
-        shared: sharedSystemsModule,
-    },
-    hotReload: {
-        containers: [
-            script.Parent!.WaitForChild("client") as Instance,
-            script.Parent!.WaitForChild("shared") as Instance,
-        ],
-    },
-    extensions: {
-        systems: runtime.buildSystems(),
-    },
+	mode: "development",
+	modules: {
+		client: clientSystemsModule,
+		shared: sharedSystemsModule,
+	},
+	hotReload: {
+		containers: [
+			script.Parent!.WaitForChild("client") as Instance,
+			script.Parent!.WaitForChild("shared") as Instance,
+		],
+	},
+	extensions: {
+		systems: runtime.buildSystems(),
+	},
 });
 ```
 
@@ -364,11 +360,11 @@ import { createAppHotReloader } from "@lisachandra/ui";
 import React from "@rbxts/react";
 
 const { hotReloader, load, render, start, unload } = createAppHotReloader({
-    target: playerGui,
-    moduleRoot: uiContainer,
-    entryModuleName: "app",
-    resolveEntryModule: () => uiContainer.FindFirstChild("app") as ModuleScript,
-    strictMode: true,
+	target: playerGui,
+	moduleRoot: uiContainer,
+	entryModuleName: "app",
+	resolveEntryModule: () => uiContainer.FindFirstChild("app") as ModuleScript,
+	strictMode: true,
 });
 
 start();
@@ -412,20 +408,20 @@ import { createDataStoreValidator } from "@lisachandra/platform";
 import type { CollectionData } from "@lisachandra/core/store";
 
 declare module "@lisachandra/core/store" {
-    interface CollectionData {
-        stats: { level: number; xp: number };
-        gold: number;
-    }
+	interface CollectionData {
+		stats: { level: number; xp: number };
+		gold: number;
+	}
 }
 
 export const collection = createCollection<CollectionData>("PlayerData", {
-    defaultData: {
-        hotbar: [],
-        inventory: [],
-        stats: { level: 1, xp: 0 },
-        gold: 0,
-    },
-    validate: createDataStoreValidator<CollectionData>(),
+	defaultData: {
+		hotbar: [],
+		inventory: [],
+		stats: { level: 1, xp: 0 },
+		gold: 0,
+	},
+	validate: createDataStoreValidator<CollectionData>(),
 });
 ```
 

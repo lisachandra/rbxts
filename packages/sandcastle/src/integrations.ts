@@ -18,7 +18,7 @@ import {
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
-import { config, io, integrationsDir, logsDir } from "./runtime.js";
+import { config, integrationsDir, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,

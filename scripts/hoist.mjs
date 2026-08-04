@@ -279,6 +279,21 @@ function normalizePackageRelativePath(value) {
 	return normalized;
 }
 
+function getHoistConfig(packageJson) {
+	if (packageJson.hoist === false) {
+		return { enabled: false, mode: "all" };
+	}
+
+	if (packageJson.hoist && typeof packageJson.hoist === "object") {
+		const mode = packageJson.hoist.mode;
+		if (mode === "dependencies" || mode === "devDependencies") {
+			return { enabled: true, mode };
+		}
+	}
+
+	return { enabled: true, mode: "all" };
+}
+
 function collectStringLeafPaths(value, output) {
 	if (typeof value === "string") {
 		const normalized = normalizePackageRelativePath(value);
@@ -363,14 +378,21 @@ function pruneNestedStageEntries(workspacePath, relativePaths) {
 	return prunedEntries;
 }
 
-function getDirectDependencyNames(packageJson) {
+function getDirectDependencyNames(packageJson, mode = "all") {
 	const names = new Set();
-	const sections = [
-		packageJson.dependencies,
-		packageJson.devDependencies,
-		packageJson.peerDependencies,
-		packageJson.optionalDependencies,
-	];
+	const sections = [];
+
+	if (mode === "all" || mode === "dependencies") {
+		sections.push(
+			packageJson.dependencies,
+			packageJson.peerDependencies,
+			packageJson.optionalDependencies,
+		);
+	}
+
+	if (mode === "all" || mode === "devDependencies") {
+		sections.push(packageJson.devDependencies);
+	}
 
 	for (const dependencies of sections) {
 		if (!dependencies || typeof dependencies !== "object") {
@@ -396,28 +418,40 @@ function readDependencyTree(packageName) {
 	return Array.isArray(parsed) ? parsed[0] : undefined;
 }
 
-function collectAllDependencyNames(node, output = new Set(), isRoot = true) {
+function collectAllDependencyNames(node, output = new Set(), isRoot = true, mode = "all") {
 	if (!node || typeof node !== "object") {
 		return output;
 	}
 
-	const dependencySections = isRoot
-		? [
-				node.dependencies,
-				node.devDependencies,
-				node.optionalDependencies,
-				node.peerDependencies,
-			]
-		: [node.dependencies, node.optionalDependencies, node.peerDependencies];
+	const dependencySections = [];
+	if (isRoot) {
+		if (mode === "all" || mode === "dependencies") {
+			dependencySections.push(
+				{ deps: node.dependencies, key: "dependencies" },
+				{ deps: node.optionalDependencies, key: "optionalDependencies" },
+				{ deps: node.peerDependencies, key: "peerDependencies" },
+			);
+		}
 
-	for (const dependencies of dependencySections) {
+		if (mode === "all" || mode === "devDependencies") {
+			dependencySections.push({ deps: node.devDependencies, key: "devDependencies" });
+		}
+	} else {
+		dependencySections.push(
+			{ deps: node.dependencies, key: "dependencies" },
+			{ deps: node.optionalDependencies, key: "optionalDependencies" },
+			{ deps: node.peerDependencies, key: "peerDependencies" },
+		);
+	}
+
+	for (const { deps: dependencies } of dependencySections) {
 		if (!dependencies || typeof dependencies !== "object") {
 			continue;
 		}
 
 		for (const [dependencyName, dependencyNode] of Object.entries(dependencies)) {
 			output.add(dependencyName);
-			collectAllDependencyNames(dependencyNode, output, false);
+			collectAllDependencyNames(dependencyNode, output, false, mode);
 		}
 	}
 
@@ -694,10 +728,22 @@ function main() {
 
 	let totalLinked = 0;
 	for (const { packageJson, packageName, workspacePath } of workspacesToRelink) {
+		const hoistConfig = getHoistConfig(packageJson);
+		if (!hoistConfig.enabled) {
+			if (verbose) {
+				console.log(`Skipped hoist for ${packageName} (disabled in package.json)`);
+			}
+
+			continue;
+		}
+
+		const mode = hoistConfig.mode;
 		ensureDirectory(path.join(workspacePath, "node_modules"));
 		const dependencyTree = readDependencyTree(packageName);
-		const directDependencyNames = getDirectDependencyNames(packageJson);
-		const matchingPackages = [...collectAllDependencyNames(dependencyTree)]
+		const directDependencyNames = getDirectDependencyNames(packageJson, mode);
+		const matchingPackages = [
+			...collectAllDependencyNames(dependencyTree, new Set(), true, mode),
+		]
 			.filter(
 				(dependencyName) =>
 					patterns.length === 0 ||

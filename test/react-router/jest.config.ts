@@ -6,7 +6,7 @@ export default defineConfig({
 		projects: [
 			{
 				test: {
-					displayName: { name: "react-router", color: "blue" },
+					displayName: { color: "blue", name: "react-router" },
 					include: ["src/**/*.spec.ts", "src/**/*.spec.tsx"],
 					mockDataModel: false,
 					outDir: "out",

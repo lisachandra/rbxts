@@ -115,7 +115,17 @@ export function makeState(
 		model: string;
 		review: PhaseStatus;
 	}> = {},
-) {
+): {
+	branch: string;
+	effort: "xhigh";
+	issue: string;
+	model: string;
+	phases: {
+		design: { status: PhaseStatus; timestamp: string };
+		implement: { extra?: { commits: Array<string> }; status: PhaseStatus; timestamp: string };
+		review: { status: PhaseStatus; timestamp: string };
+	};
+} {
 	return {
 		branch: `sandcastle/issue-${issue}`,
 		effort: "xhigh",
@@ -151,9 +161,13 @@ export function gitStub(handlers: {
 	file?: (args: ReadonlyArray<string>, cwd?: string) => string | undefined;
 	sync?: (command: string, cwd?: string) => string | undefined;
 }): void {
-	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>, options?: {
-		cwd?: string;
-	}) => {
+	io.execFileSync = ((
+		command: string,
+		args?: string | ReadonlyArray<string>,
+		options?: {
+			cwd?: string;
+		},
+	) => {
 		if (command !== "git") {
 			throw new Error(`unexpected execFileSync command: ${command}`);
 		}

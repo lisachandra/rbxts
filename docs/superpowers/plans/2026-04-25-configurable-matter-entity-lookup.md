@@ -24,6 +24,7 @@
 ### Task 1: Add shared entity lookup runtime config
 
 **Files:**
+
 - Create: `packages/matter/src/entityLookup.ts`
 
 - [ ] **Step 1: Write the shared lookup module**
@@ -33,10 +34,7 @@ import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { Components } from "./components";
 
 export type EntityLookupComponent =
-	| Components["Profile"]
-	| Components["Items"]
-	| Components["Node"]
-	| Components["NPC"];
+	Components["Profile"] | Components["Items"] | Components["Node"] | Components["NPC"];
 
 export interface EntityLookupConfig {
 	components: ReadonlyArray<EntityLookupComponent>;
@@ -82,6 +80,7 @@ Expected: build completes or reports precise type errors in `entityLookup.ts`
 ### Task 2: Refactor package entity helpers to use shared lookup
 
 **Files:**
+
 - Modify: `packages/matter/src/utils/entity.ts`
 
 - [ ] **Step 1: Replace hardcoded entity fallback chains with the shared resolver**
@@ -91,12 +90,16 @@ import { getEntityComponent } from "../entityLookup";
 
 export function getEntityObject(entityId: AnyEntity = -1 as AnyEntity): N<PVInstance> {
 	const world = store.world.contains(entityId) ? store.world : undefined;
-	return world !== undefined ? getComponentObject(getEntityComponent(world, entityId)) : undefined;
+	return world !== undefined
+		? getComponentObject(getEntityComponent(world, entityId))
+		: undefined;
 }
 
 export function getEntityPosition(entityId: AnyEntity = -1 as AnyEntity): N<Vector3> {
 	const world = store.world.contains(entityId) ? store.world : undefined;
-	return world !== undefined ? getComponentPosition(getEntityComponent(world, entityId)) : undefined;
+	return world !== undefined
+		? getComponentPosition(getEntityComponent(world, entityId))
+		: undefined;
 }
 ```
 
@@ -108,6 +111,7 @@ Expected: build completes or reports only real integration errors
 ### Task 3: Refactor runtime instance lookup and export the API
 
 **Files:**
+
 - Modify: `packages/matter/src/start.ts`
 - Modify: `packages/matter/src/index.ts`
 

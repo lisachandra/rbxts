@@ -30,42 +30,42 @@ import {
 	runNewIntegration,
 } from "./integrations.js";
 import { runAll, runSingleIssue } from "./issue.js";
-import { runSequentialIssues } from "./sequential.js";
 import { io, normalizedPath } from "./runtime.js";
+import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
 
 export * from "./agent.js";
 export * from "./cli.js";
+export {
+	escapeRegExp,
+	loadConfig,
+	phaseNames,
+	type PromptFileKey,
+	promptFileKeys,
+	type ResolvedSandcastleConfig,
+	type SandcastleConfig,
+	sandcastleConfigSchema,
+	type SandcastleUserConfig,
+} from "./config.js";
 export * from "./evaluate.js";
 export * from "./git.js";
 export * from "./integrations.js";
 export * from "./issue.js";
 export * from "./retry.js";
+export { config, io, normalizedPath, packageRoot, repoRoot } from "./runtime.js";
 export * from "./sequential.js";
 export * from "./state.js";
 export * from "./status.js";
 export * from "./types.js";
 export * from "./worktree.js";
-export { config, io, normalizedPath, packageRoot, repoRoot } from "./runtime.js";
-export {
-	escapeRegExp,
-	loadConfig,
-	phaseNames,
-	promptFileKeys,
-	sandcastleConfigSchema,
-	type PromptFileKey,
-	type ResolvedSandcastleConfig,
-	type SandcastleConfig,
-	type SandcastleUserConfig,
-} from "./config.js";
 
 const mainModulePath = fileURLToPath(import.meta.url);
 
 let deprecationWarningsShown = false;
 
 /**
- * Warns about legacy environment variables that moved into `sandcastle.config.ts`.
- * Only API keys (OPENAI_API_KEY, OPENAI_API_BASE, GH_TOKEN) remain environment-driven.
+ * Warns about legacy environment variables that moved into `sandcastle.config.ts`. Only API keys
+ * (OPENAI_API_KEY, OPENAI_API_BASE, GH_TOKEN) remain environment-driven.
  */
 function warnDeprecatedEnv(): void {
 	if (deprecationWarningsShown) {
@@ -74,25 +74,29 @@ function warnDeprecatedEnv(): void {
 
 	deprecationWarningsShown = true;
 	const warnings: Array<string> = [];
-	if (process.env["SANDCASTLE_AGENT"] !== undefined) {
+	if (process.env.SANDCASTLE_AGENT !== undefined) {
 		warnings.push("SANDCASTLE_AGENT is deprecated; set agents.default in sandcastle.config.ts");
 	}
-	if (process.env["SANDCASTLE_EFFORT"] !== undefined) {
+
+	if (process.env.SANDCASTLE_EFFORT !== undefined) {
 		warnings.push("SANDCASTLE_EFFORT is deprecated; set effort in sandcastle.config.ts");
 	}
+
 	for (const key of ["DIRAC_SANDCASTLE_MODEL", "PI_SANDCASTLE_MODEL"] as const) {
-		if (process.env[key] !== undefined) {
-			const backend = key === "DIRAC_SANDCASTLE_MODEL" ? "dirac" : "pi";
-			warnings.push(
-				`${key} is deprecated; set agents.models.${backend} in sandcastle.config.ts`,
-			);
+		if (process.env[key] === undefined) {
+			continue;
 		}
+
+		const backend = key === "DIRAC_SANDCASTLE_MODEL" ? "dirac" : "pi";
+		warnings.push(`${key} is deprecated; set agents.models.${backend} in sandcastle.config.ts`);
 	}
-	if (process.env["SANDCASTLE_MODEL"] !== undefined) {
+
+	if (process.env.SANDCASTLE_MODEL !== undefined) {
 		warnings.push(
 			"SANDCASTLE_MODEL is not read; set agents.models.<backend> in sandcastle.config.ts",
 		);
 	}
+
 	for (const warning of warnings) {
 		console.warn(`  ⚠ ${warning}`);
 	}
@@ -268,9 +272,7 @@ function isDirectRun(): boolean {
 	}
 
 	try {
-		return (
-			normalizedPath(realpathSync(entry)) === normalizedPath(realpathSync(mainModulePath))
-		);
+		return normalizedPath(realpathSync(entry)) === normalizedPath(realpathSync(mainModulePath));
 	} catch {
 		return false;
 	}

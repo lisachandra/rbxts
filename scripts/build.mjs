@@ -10,10 +10,10 @@ const rootDir = path.resolve(__dirname, "..");
 
 function parseArgs(argv) {
 	const options = {
+		dryRun: false,
 		scope: "all",
 		target: undefined,
-		dryRun: false,
-		verbose: process.env["BUILD_VERBOSE"] === "1",
+		verbose: process.env.BUILD_VERBOSE === "1",
 	};
 
 	for (let index = 0; index < argv.length; index++) {
@@ -51,21 +51,21 @@ function runCommand(command, args, options = {}) {
 		console.log(`> ${command} ${args.join(" ")}`);
 	}
 
-	if (options.dryRun) return;
+	if (options.dryRun) {return;}
 
 	execFileSync(command, args, {
 		cwd: rootDir,
-		stdio: "inherit",
 		env: process.env,
+		stdio: "inherit",
 	});
 }
 
 function runCommandForOutput(command, args) {
 	return execFileSync(command, args, {
 		cwd: rootDir,
-		stdio: ["ignore", "pipe", "pipe"],
 		encoding: "utf8",
 		env: process.env,
+		stdio: ["ignore", "pipe", "pipe"],
 	});
 }
 
@@ -83,7 +83,7 @@ function collectDependencyNames(packageJson) {
 	const dependencyNames = new Set();
 
 	for (const section of sections) {
-		if (!section || typeof section !== "object") continue;
+		if (!section || typeof section !== "object") {continue;}
 		for (const dependencyName of Object.keys(section)) {
 			dependencyNames.add(dependencyName);
 		}
@@ -95,26 +95,34 @@ function collectDependencyNames(packageJson) {
 function getWorkspaces() {
 	const output = runCommandForOutput("pnpm", ["list", "-r", "--depth", "-1", "--json"]);
 	const parsed = JSON.parse(output);
-	if (!Array.isArray(parsed)) return [];
+	if (!Array.isArray(parsed)) {return [];}
 
 	return parsed
-		.filter((entry) => entry && typeof entry === "object" && typeof entry.name === "string" && typeof entry.path === "string")
+		.filter(
+			(entry) =>
+				entry &&
+				typeof entry === "object" &&
+				typeof entry.name === "string" &&
+				typeof entry.path === "string",
+		)
 		.map((entry) => {
 			const packageJsonPath = path.join(entry.path, "package.json");
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 			return {
 				name: entry.name,
+				packageJson,
 				path: entry.path,
 				relativePath: normalizePath(entry.path),
-				packageJson,
 			};
 		});
 }
 
 function filterWorkspacesByScope(workspaces, scope) {
 	if (scope === "all") {
-		return workspaces.filter((workspace) =>
-			workspace.relativePath.startsWith("packages/") || workspace.relativePath.startsWith("test/"),
+		return workspaces.filter(
+			(workspace) =>
+				workspace.relativePath.startsWith("packages/") ||
+				workspace.relativePath.startsWith("test/"),
 		);
 	}
 
@@ -142,10 +150,10 @@ function expandDependencyClosure(rootTargets, workspaceMap) {
 
 	while (queue.length > 0) {
 		const packageName = queue.shift();
-		if (!packageName || selected.has(packageName)) continue;
+		if (!packageName || selected.has(packageName)) {continue;}
 
 		const workspace = workspaceMap.get(packageName);
-		if (!workspace) continue;
+		if (!workspace) {continue;}
 
 		selected.add(packageName);
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
@@ -166,10 +174,10 @@ function buildDependentsMap(selectedNames, workspaceMap) {
 
 	for (const packageName of selectedNames) {
 		const workspace = workspaceMap.get(packageName);
-		if (!workspace) continue;
+		if (!workspace) {continue;}
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
-			if (!selectedNames.has(dependencyName)) continue;
+			if (!selectedNames.has(dependencyName)) {continue;}
 			dependentsMap.get(dependencyName)?.add(packageName);
 		}
 	}
@@ -187,15 +195,17 @@ function buildLayers(selectedNames, workspaceMap) {
 
 	for (const packageName of selectedNames) {
 		const workspace = workspaceMap.get(packageName);
-		if (!workspace) continue;
+		if (!workspace) {continue;}
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
-			if (!selectedNames.has(dependencyName)) continue;
+			if (!selectedNames.has(dependencyName)) {continue;}
 			indegree.set(packageName, (indegree.get(packageName) ?? 0) + 1);
 		}
 	}
 
-	const ready = [...selectedNames].filter((packageName) => (indegree.get(packageName) ?? 0) === 0).sort();
+	const ready = [...selectedNames]
+		.filter((packageName) => (indegree.get(packageName) ?? 0) === 0)
+		.sort();
 	const layers = [];
 	let processedCount = 0;
 
@@ -220,7 +230,7 @@ function buildLayers(selectedNames, workspaceMap) {
 		throw new Error("Workspace dependency cycle detected while building selected packages.");
 	}
 
-	return { layers, dependents };
+	return { dependents, layers };
 }
 
 function formatPackageList(packageNames) {
@@ -240,7 +250,7 @@ function collectRelinkTargets(changedPackages, dependentsMap, selectedNames) {
 	return [...targets].sort();
 }
 
-function runHoist({ stage = [], relink = [] }, options) {
+function runHoist({ relink = [], stage = [] }, options) {
 	if (stage.length === 0 && relink.length === 0) {
 		return;
 	}
@@ -249,11 +259,14 @@ function runHoist({ stage = [], relink = [] }, options) {
 	if (stage.length > 0) {
 		args.push("--stage", ...stage);
 	}
+
 	if (relink.length > 0) {
 		args.push("--relink", ...relink);
 	}
 
-	console.log(`Refreshing workspace links: stage=${formatPackageList(stage)} relink=${formatPackageList(relink)}`);
+	console.log(
+		`Refreshing workspace links: stage=${formatPackageList(stage)} relink=${formatPackageList(relink)}`,
+	);
 	runCommand("node", args, options);
 }
 
@@ -264,18 +277,24 @@ function runBuildForPackage(packageName, options) {
 
 function printBuildPlan(rootTargets, selectedNames, layers, dependentsMap) {
 	console.log(`Root targets: ${formatPackageList(rootTargets)}`);
-	console.log(`Selected packages (${selectedNames.size}): ${formatPackageList([...selectedNames].sort())}`);
+	console.log(
+		`Selected packages (${selectedNames.size}): ${formatPackageList([...selectedNames].sort())}`,
+	);
 	if (layers.length > 0) {
 		console.log(`Pre-build hoist: stage=(none) relink=${formatPackageList(layers[0])}`);
 	}
+
 	for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
 		const layer = layers[layerIndex];
 		console.log(`Layer ${layerIndex + 1}/${layers.length}: ${formatPackageList(layer)}`);
 		const relinkTargets = collectRelinkTargets(layer, dependentsMap, selectedNames);
 		if (layerIndex < layers.length - 1) {
-			console.log(`  post-build hoist: stage=${formatPackageList(layer)} relink=${formatPackageList(relinkTargets)}`);
+			console.log(
+				`  post-build hoist: stage=${formatPackageList(layer)} relink=${formatPackageList(relinkTargets)}`,
+			);
 		}
 	}
+
 	if (layers.length > 0) {
 		console.log("No final hoist after the last layer.");
 	}
@@ -293,14 +312,16 @@ function main() {
 	}
 
 	const selectedNames = expandDependencyClosure(rootTargets, workspaceMap);
-	const { layers, dependents } = buildLayers(selectedNames, workspaceMap);
+	const { dependents, layers } = buildLayers(selectedNames, workspaceMap);
 
-	console.log(`Selected ${selectedNames.size} workspace package(s) across ${layers.length} build layer(s).`);
+	console.log(
+		`Selected ${selectedNames.size} workspace package(s) across ${layers.length} build layer(s).`,
+	);
 	if (options.dryRun) {
 		printBuildPlan(rootTargets, selectedNames, layers, dependents);
 	}
 
-	if (layers.length === 0) return;
+	if (layers.length === 0) {return;}
 
 	runHoist({ relink: layers[0] }, options);
 
@@ -313,10 +334,13 @@ function main() {
 
 		const nextLayer = layers[layerIndex + 1];
 		if (nextLayer) {
-			runHoist({
-				stage: layer,
-				relink: collectRelinkTargets(layer, dependents, selectedNames),
-			}, options);
+			runHoist(
+				{
+					relink: collectRelinkTargets(layer, dependents, selectedNames),
+					stage: layer,
+				},
+				options,
+			);
 		}
 	}
 

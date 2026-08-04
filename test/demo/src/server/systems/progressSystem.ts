@@ -1,8 +1,9 @@
+import { math as tsMath } from "@lisachandra/core";
+import type { ServerState } from "@lisachandra/core/store";
+import { Components } from "@lisachandra/matter";
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/store";
-import { math as tsMath } from "@lisachandra/core";
-import { Components} from "@lisachandra/matter";
+
 import { computeGardenHealth, isRestoredPlot } from "shared/game/helpers";
 
 function system(world: World): void {
@@ -22,9 +23,9 @@ function system(world: World): void {
 			entityId,
 			Components.GardenProgress({
 				...progress,
+				health,
 				restoredPlots,
 				totalPlots,
-				health,
 			}),
 		);
 	}

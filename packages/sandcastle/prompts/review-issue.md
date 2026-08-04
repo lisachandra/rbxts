@@ -17,7 +17,7 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 1. Read `AGENTS.md` and relevant files.
 2. Fetch the issue with `gh issue view {{ISSUE_NUMBER}} --comments`.
 3. Read the designer's plan at `{{PLAN_PATH}}`.
- 4. Inspect the diff: `git diff {{BASE_REF}}...HEAD`
+4. Inspect the diff: `git diff {{BASE_REF}}...HEAD`
 
 ## Review checklist
 

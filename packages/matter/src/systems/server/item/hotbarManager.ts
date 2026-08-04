@@ -1,3 +1,5 @@
+import type { Character } from "@lisachandra/core/schemas";
+import type { ServerState } from "@lisachandra/core/store";
 /*
  * This system handles the synchronization of player and NPC hotbar's with their
  * equipped tools. It ensures the correct tool is equipped and manages tool
@@ -8,12 +10,10 @@ import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { None, useEvent } from "@rbxts/matter";
 
-import { meta as toolManager } from "./toolManager";
 import { Components } from "../../../components";
-import { getItemFromGUID } from "../../../utils/item";
-import { Character } from "@lisachandra/core/schemas";
 import { getEntityHumanoid } from "../../../utils/entity";
-import { ServerState } from "@lisachandra/core/store";
+import { getItemFromGUID } from "../../../utils/item";
+import { meta as toolManager } from "./toolManager";
 
 function handleToolEquip(
 	world: World,

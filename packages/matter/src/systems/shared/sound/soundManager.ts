@@ -1,8 +1,9 @@
+import type { ClientState, ServerState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import { type DebugWidgets, type SystemStruct, useHookState, type World } from "@rbxts/matter";
+
+import { Components } from "../../../components";
 import { useThrottle } from "../../../hooks";
-import { ClientState, ServerState } from "@lisachandra/core/store";
-import { Components} from "../../../components";
 
 const soundGcInterval = 1;
 

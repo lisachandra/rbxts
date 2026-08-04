@@ -1,17 +1,19 @@
-import { CollectionData, store } from "@lisachandra/core/store";
-import { Collection, Document } from "@rbxts/lapis";
+import type { CollectionData } from "@lisachandra/core/store";
+import { store } from "@lisachandra/core/store";
+import type { Collection, Document } from "@rbxts/lapis";
 import Log from "@rbxts/log";
 import { None } from "@rbxts/sift";
 
 /**
- * A hook that retrieves a Lapis Document for a given player. Handles loading
- * and caching of documents.
+ * A hook that retrieves a Lapis Document for a given player. Handles loading and caching of
+ * documents.
  *
+ * @param collection - The Lapis collection to load documents from.
  * @param userId - The userId of the player.
- * @param player - The Player instance (optional). If provided, used for name
- *   logging and kicking in case of document load failure.
- * @returns An object containing the document (if loaded) and the discriminator
- *   string used to identify the document.
+ * @param player - The Player instance (optional). If provided, used for name logging and kicking in
+ *   case of document load failure.
+ * @returns An object containing the document (if loaded) and the discriminator string used to
+ *   identify the document.
  * @server
  */
 export function useDocument(
@@ -56,7 +58,9 @@ export function useDocument(
 	}
 
 	const document =
-		store.documents[discriminator] === (None as never) ? undefined : store.documents[discriminator];
+		store.documents[discriminator] === (None as never)
+			? undefined
+			: store.documents[discriminator];
 
 	return {
 		discriminator,

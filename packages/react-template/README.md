@@ -24,8 +24,8 @@ const MyScreen = ReactTemplate.fromInstance(screen);
 
 // Use like any React component
 <MyScreen>
-  <MyScreen.MyButton />
-</MyScreen>
+	<MyScreen.MyButton />
+</MyScreen>;
 ```
 
 ### `ReactTemplate.fetch`
@@ -36,11 +36,11 @@ Create computed property values that react to instance changes:
 import ReactTemplate from "@lisachandra/react-template";
 
 <MyFrame
-  BackgroundColor3={ReactTemplate.fetch(
-    (color) => color.Lerp(Color3.fromRGB(255, 0, 0), 0.5),
-    "BackgroundColor3"
-  )}
-/>
+	BackgroundColor3={ReactTemplate.fetch(
+		(color) => color.Lerp(Color3.fromRGB(255, 0, 0), 0.5),
+		"BackgroundColor3",
+	)}
+/>;
 ```
 
 ### `ReactTemplate.is`
@@ -49,7 +49,7 @@ Check if a value is a React template component:
 
 ```ts
 if (ReactTemplate.is(someComponent)) {
-  // someComponent is a valid template
+	// someComponent is a valid template
 }
 ```
 
@@ -79,9 +79,7 @@ Peer dependencies: `@lisachandra/types`, `@rbxts/react`, `@rbxts/lemon-signal`, 
 ```tsx
 import { Router } from "@lisachandra/react-router";
 
-<Router>
-  {/* Route-aware children */}
-</Router>
+<Router>{/* Route-aware children */}</Router>;
 ```
 
 Or with a custom History:
@@ -99,9 +97,9 @@ Access the current location and history from any component:
 import { useRouter } from "@lisachandra/react-router";
 
 function MyComponent() {
-  const { location, history } = useRouter();
-  // location.path, location.state
-  // history.push("/new-path")
+	const { location, history } = useRouter();
+	// location.path, location.state
+	// history.push("/new-path")
 }
 ```
 
@@ -114,7 +112,7 @@ import { useRouteMatch } from "@lisachandra/react-router";
 
 const match = useRouteMatch({ path: "/players/:playerId" });
 if (match) {
-  const playerId = match.playerId; // captured from URL
+	const playerId = match.playerId; // captured from URL
 }
 ```
 

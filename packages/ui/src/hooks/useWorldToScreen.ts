@@ -11,14 +11,12 @@ export interface WorldToScreenResult {
 	size: UDim2;
 }
 
-/**
- * Projects a world position to screen space with scaling.
- */
+/** Projects a world position to screen space with scaling. */
 export function projectWorldToScreen(
 	worldPosition: Vector3,
 	baseSize: Vector2,
 	px: (n: number) => number,
-): WorldToScreenResult | undefined {
+): undefined | WorldToScreenResult {
 	const camera = Workspace.CurrentCamera;
 	if (!camera) {
 		return;
@@ -45,9 +43,7 @@ export function projectWorldToScreen(
 	};
 }
 
-/**
- * Hook to project a world position to screen space with distance scaling.
- */
+/** Hook to project a world position to screen space with distance scaling. */
 export function useWorldToScreen(
 	worldPosition: Binding<Vector3>,
 	size: Binding<Vector2>,

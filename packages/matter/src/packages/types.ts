@@ -1,10 +1,10 @@
 import type { Crate } from "@rbxts/crate";
+import type { SystemStruct } from "@rbxts/matter";
 
-import type { PipelineBuilder, PipelineRegistration, SystemTemplate } from "../pipeline";
 import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
-import { SystemStruct } from "@rbxts/matter";
+import type { PipelineBuilder, PipelineRegistration, SystemTemplate } from "../pipeline";
 
-type TSystem = SystemStruct<any>
+type TSystem = SystemStruct<any>;
 
 export interface MatterPackageMetadata {
 	description?: string;
@@ -44,11 +44,11 @@ export interface MatterPackageRegistry<
 	TCrateState extends object = object,
 	TStateKey extends string = string,
 > {
-	discover(predicate?: (pkg: MatterPackageDescriptor<TId, TCrateState, TStateKey>) => boolean): Array<
-		MatterPackageDescriptor<TId, TCrateState, TStateKey>
-	>;
+	discover(
+		predicate?: (pkg: MatterPackageDescriptor<TId, TCrateState, TStateKey>) => boolean,
+	): Array<MatterPackageDescriptor<TId, TCrateState, TStateKey>>;
 	entries(): ReadonlyMap<TId, MatterPackageDescriptor<TId, TCrateState, TStateKey>>;
-	get(id: TId): MatterPackageDescriptor<TId, TCrateState, TStateKey> | undefined;
+	get(id: TId): undefined | MatterPackageDescriptor<TId, TCrateState, TStateKey>;
 	has(id: TId): boolean;
 	register(
 		pkg: MatterPackageDescriptor<TId, TCrateState, TStateKey>,
@@ -69,7 +69,10 @@ export interface ResolvedMatterPackageGraph<
 	requested: ReadonlyArray<TId>;
 }
 
-export interface MatterPackageStateManager<TCrateState extends object = object, TStateKey extends string = string> {
+export interface MatterPackageStateManager<
+	TCrateState extends object = object,
+	TStateKey extends string = string,
+> {
 	collect(crate: Crate<TCrateState>): Record<TStateKey, unknown>;
 	entries(): ReadonlyArray<MatterPackageStateSlice<TCrateState, unknown, TStateKey>>;
 }
@@ -80,8 +83,8 @@ export interface MatterPackageRuntime<
 	TStateKey extends string = string,
 > {
 	buildSystems(builder?: PipelineBuilder): Array<TSystem>;
-	installPipeline(builder: PipelineBuilder): PipelineBuilder;
 	installCodecs(registry: ReplicationCodecRegistry): void;
+	installPipeline(builder: PipelineBuilder): PipelineBuilder;
 	pipelineRegistrations: ReadonlyArray<PipelineRegistration>;
 	replicationComponents: ReadonlyArray<ReplicationCodecRegistration>;
 	resolved: ResolvedMatterPackageGraph<TId, TCrateState, TStateKey>;

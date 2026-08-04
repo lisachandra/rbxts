@@ -1,10 +1,13 @@
-import type { PipelineBuilder, PipelineExtension, SystemTemplate, TemplateSystem, } from "./types";
-import { SystemStruct } from "@rbxts/matter";
+import type { SystemStruct } from "@rbxts/matter";
 import { RunService } from "@rbxts/services";
 
-type TSystem = SystemStruct<any>
+import type { PipelineBuilder, PipelineExtension, SystemTemplate, TemplateSystem } from "./types";
 
-function isPipelineExtension(registration: PipelineExtension | SystemTemplate): registration is PipelineExtension {
+type TSystem = SystemStruct<any>;
+
+function isPipelineExtension(
+	registration: SystemTemplate | PipelineExtension,
+): registration is PipelineExtension {
 	return registration.kind === "extension";
 }
 
@@ -26,7 +29,6 @@ function runtimeMatches(runtime?: TemplateSystem["runtime"]): boolean {
 			? RunService.IsClient()
 			: RunService.IsServer();
 }
-
 
 export function createPipeline(): PipelineBuilder {
 	const templates = new Map<string, SystemTemplate>();

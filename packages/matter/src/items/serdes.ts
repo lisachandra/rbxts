@@ -15,12 +15,10 @@ type Serdes<T> = T extends object
 
 // Serdes definitions for different item types.
 /**
- * Stores serialization/deserialization functions for each item type in the
- * hierarchy.
+ * Stores serialization/deserialization functions for each item type in the hierarchy.
  *
  * @remarks
- * Populated by `defineItems`. Each entry maps to an object containing a
- * `serdes` property — a Serio serializer/deserializer that defines which
- * data fields are replicated over the network.
+ *   Populated by `defineItems`. Each entry maps to an object containing a `serdes` property — a
+ *   Serio serializer/deserializer that defines which data fields are replicated over the network.
  */
 export const serdes = {} satisfies Partial<Serdes<Items>>;

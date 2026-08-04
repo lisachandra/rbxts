@@ -1,50 +1,21 @@
 {
-	"js/ts.tsdk.path": "./node_modules/typescript/lib",
+	"js/ts.experimental.useTsgo": true,
+	"js/ts.tsdk.path": "./node_modules/@typescript/native-preview",
 	"js/ts.tsdk.promptToUseWorkspaceVersion": true,
+	"files.eol": "\n",
 	"roblox-ts.command.npm.useNpmScripts": true,
 	"roblox-ts.command.npm.watchScript": "dev",
-	"eslint.run": "onType",
-	"eslint.format.enable": true,
-	// Enable the ESlint flat config support
-	"eslint.useFlatConfig": true,
-	"eslint.validate": [
-		"github-actions-workflow",
-		"javascript",
-		"json",
-		"json",
-		"jsonc",
-		"luau",
-		"markdown",
-		"toml",
-		"typescript",
-		"typescriptreact",
-		"yaml"
-	],
-	// Silent the stylistic rules in you IDE, but still auto fix them
-	"eslint.rules.customizations": [
-		{ "rule": "style/*", "severity": "off", "fixable": true },
-		{ "rule": "format/*", "severity": "off", "fixable": true },
-		{ "rule": "*-indent", "severity": "off", "fixable": true },
-		{ "rule": "*-spacing", "severity": "off", "fixable": true },
-		{ "rule": "*-spaces", "severity": "off", "fixable": true },
-		{ "rule": "*-order", "severity": "off", "fixable": true },
-		{ "rule": "*-dangle", "severity": "off", "fixable": true },
-		{ "rule": "*-newline", "severity": "off", "fixable": true },
-		{ "rule": "*quotes", "severity": "off", "fixable": true },
-		{ "rule": "*semi", "severity": "off", "fixable": true }
-	],
-	// Auto fix
+	"oxc.typeAware": true,
+	"oxc.tsConfigPath": "${workspaceFolder}\\tsconfig.json",
+	"editor.defaultFormatter": "oxc.oxc-vscode",
 	"editor.codeActionsOnSave": {
-		"source.fixAll.eslint": "always",
-		"source.organizeImports": "never"
+		"source.fixAll.oxc": "always"
 	},
-	// npm
-	"npm.exclude": "**/rojo-sync/**",
+	"oxc.enable": true,
 	"npm.packageManager": "pnpm",
-	// Mise Tools settings
 	"mise.configureExtensionsUseSymLinks": true,
-	"debug.javascript.defaultRuntimeExecutable": {
-		"pwa-node": "${workspaceFolder}\\.vscode\\mise-tools\\node"
+	"search.exclude": {
+		"**/.jest-roblox": true
 	},
 	"files.exclude": {
 		"**/.git": true,
@@ -52,10 +23,15 @@
 		"**/.hg": true,
 		"**/.DS_Store": true,
 		"**/Thumbs.db": true,
-		"**/workspace-links": true,
-		"**/.workspace-links": true,
-		"!**/node_modules/@rbxts": true,
-		"!**/node_modules/@rbxts-js": true,
-		"**/.env*": true
+		"**/out": false,
+		"**/node_modules/@lisachandra": false,
+		"!**/out": true,
+		"!**/node_modules/@lisachandra": true
 	},
+	"chat.hookFilesLocations": {
+		"./.agents/settings.json": true
+	},
+	"debug.javascript.defaultRuntimeExecutable": {
+		"pwa-node": "${workspaceFolder}\\.vscode\\mise-tools\\node"
+	}
 }

@@ -37,6 +37,7 @@
 ### Task 1: Add the shared prepare-skip helper
 
 **Files:**
+
 - Create: [`scripts/should-skip-prepare-build.mjs`](scripts/should-skip-prepare-build.mjs)
 
 - [ ] **Step 1: Write the helper that finds `.git/config`, parses `origin`, and exits by decision**
@@ -102,6 +103,7 @@ process.exit(shouldSkipPrepareBuild() ? 0 : 1);
 - [ ] **Step 2: Inspect the helper file for spec coverage before wiring it in**
 
 Checklist:
+
 - walks upward from `process.cwd()`
 - looks specifically for [`.git/config`](.git/config)
 - reads only the `origin` remote section
@@ -113,6 +115,7 @@ Expected: all five checks are visibly satisfied in [`scripts/should-skip-prepare
 ### Task 2: Update all package `prepare` scripts to use the helper
 
 **Files:**
+
 - Modify: [`packages/types/package.json`](packages/types/package.json)
 - Modify: [`packages/test/package.json`](packages/test/package.json)
 - Modify: [`packages/core/package.json`](packages/core/package.json)
@@ -150,6 +153,7 @@ Expected: no matches returned.
 ### Task 3: Verify skip/build behavior from the workspace
 
 **Files:**
+
 - Test: [`scripts/should-skip-prepare-build.mjs`](scripts/should-skip-prepare-build.mjs)
 - Test: [`packages/core/package.json`](packages/core/package.json)
 
@@ -174,6 +178,7 @@ Expected: the command completes without starting [`rbxtsc`](packages/core/packag
 ### Task 4: Verify conservative fallback behavior
 
 **Files:**
+
 - Test: [`scripts/should-skip-prepare-build.mjs`](scripts/should-skip-prepare-build.mjs)
 
 - [ ] **Step 1: Run the helper from outside the repository tree to force fallback**
@@ -191,6 +196,7 @@ Expected: `EXIT:1`
 - [ ] **Step 3: Review the helper logic against all approved failure cases**
 
 Checklist:
+
 - missing [`.git/config`](.git/config) returns `false`
 - unreadable config returns `false`
 - missing `origin` returns `false`
@@ -202,6 +208,7 @@ Expected: every failure case from the approved spec is explicitly handled in [`s
 ### Task 5: Final diff review and commit
 
 **Files:**
+
 - Create: [`scripts/should-skip-prepare-build.mjs`](scripts/should-skip-prepare-build.mjs)
 - Modify: [`packages/types/package.json`](packages/types/package.json)
 - Modify: [`packages/test/package.json`](packages/test/package.json)

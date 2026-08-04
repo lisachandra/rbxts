@@ -1,5 +1,10 @@
-import { type AnySystem, findSystems, start } from "@lisachandra/matter";
-import { createPackageRegistry, createPackageRuntime } from "@lisachandra/matter";
+import {
+	type AnySystem,
+	createPackageRegistry,
+	createPackageRuntime,
+	findSystems,
+	start,
+} from "@lisachandra/matter";
 import type { MatterPackageDescriptor } from "@lisachandra/matter/packages";
 import { RunService } from "@rbxts/services";
 
@@ -9,20 +14,16 @@ import { RunService } from "@rbxts/services";
  * Options for configuring the Matter ECS bootstrap process.
  *
  * @remarks
- * Combines pre-resolved systems, auto-collected Flamework barrels,
- * hot-reload containers, and ad-hoc extensions into a single boundary
- * passed to the Matter loop.
+ *   Combines pre-resolved systems, auto-collected Flamework barrels, hot-reload containers, and
+ *   ad-hoc extensions into a single boundary passed to the Matter loop.
  */
 export interface BootstrapOptions {
-	/**
-	 * `"development"` enables Rewire hot reload via the Matter Loop.
-	 * Defaults to `"production"`.
-	 */
-	mode?: "development" | "production";
+	/** `"development"` enables Rewire hot reload via the Matter Loop. Defaults to `"production"`. */
+	mode?: "production" | "development";
 
 	/**
-	 * Barrel modules (Flamework namespaces) whose `@meta`-annotated
-	 * systems are auto-collected via `findSystems()`.
+	 * Barrel modules (Flamework namespaces) whose `@meta`-annotated systems are auto-collected via
+	 * `findSystems()`.
 	 */
 	modules?: {
 		client?: object;
@@ -31,22 +32,22 @@ export interface BootstrapOptions {
 	};
 
 	/**
-	 * Pre-resolved systems from the pipeline or package registry
-	 * (Paths A / B / C in the bootstrap chain).
+	 * Pre-resolved systems from the pipeline or package registry (Paths A / B / C in the bootstrap
+	 * chain).
 	 */
 	systems?: Array<AnySystem>;
 
 	/**
-	 * Hot reload containers (Rewire `Folder` instances).
-	 * Only meaningful when `mode === "development"`.
+	 * Hot reload containers (Rewire `Folder` instances). Only meaningful when `mode ===
+	 * "development"`.
 	 */
 	hotReload?: {
 		containers?: Array<Instance>;
 	};
 
 	/**
-	 * Ad-hoc user extensions — extra systems, modules, or containers
-	 * merged into the final boundary automatically.
+	 * Ad-hoc user extensions — extra systems, modules, or containers merged into the final boundary
+	 * automatically.
 	 */
 	packages?: Array<MatterPackageDescriptor>;
 
@@ -61,23 +62,23 @@ export interface BootstrapOptions {
  * Resolved boundary produced from {@link BootstrapOptions}.
  *
  * @remarks
- * This is the normalized input that `start()` receives after
- * `resolveBoundary` merges all configured sources.
+ *   This is the normalized input that `start()` receives after `resolveBoundary` merges all
+ *   configured sources.
  */
 export interface BootstrapBoundary {
 	containers: Array<Instance>;
-	mode: "development" | "production";
+	mode: "production" | "development";
 	systems: Array<AnySystem>;
 }
 
 /**
- * Return value of {@link bootstrap}, providing access to the Matter
- * world, crate, loop, and the resolved boundary used.
+ * Return value of {@link bootstrap}, providing access to the Matter world, crate, loop, and the
+ * resolved boundary used.
  */
-export type BootstrapResult = ReturnType<typeof start> & {
+export type BootstrapResult = {
 	/** The resolved boundary used — useful for debugging or reusing. */
 	boundary: BootstrapBoundary;
-}
+} & ReturnType<typeof start>;
 
 function collectSystems(modules: Array<object>): Array<AnySystem> {
 	const systems = new Array<AnySystem>();
@@ -86,17 +87,18 @@ function collectSystems(modules: Array<object>): Array<AnySystem> {
 			systems.push(s);
 		}
 	}
+
 	return systems;
 }
 
 /**
- * Merges all configured system/module/container sources into a single
- * {@link BootstrapBoundary} suitable for `start()`.
+ * Merges all configured system/module/container sources into a single {@link BootstrapBoundary}
+ * suitable for `start()`.
  *
- * @param options - The bootstrap options specifying mode, modules,
- *   systems, hot-reload containers, and extensions.
+ * @param options - The bootstrap options specifying mode, modules, systems, hot-reload containers,
+ *   and extensions.
  * @returns A resolved boundary with the final system list, mode, and
- *   containers.
+ * containers.
  */
 export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBoundary {
 	const mode = options.mode ?? "production";
@@ -123,6 +125,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 				allSystems.push(s);
 			}
 		}
+
 		const scopeModule = options.modules[scope];
 		if (scopeModule) {
 			for (const s of findSystems(scopeModule)) {
@@ -138,6 +141,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 				allSystems.push(s);
 			}
 		}
+
 		if (options.extensions.systems) {
 			for (const s of options.extensions.systems) {
 				allSystems.push(s);
@@ -151,10 +155,12 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 		for (const pkg of options.packages) {
 			registry.register(pkg);
 		}
+
 		const allIds = new Array<string>();
 		for (const [id] of registry.entries()) {
 			allIds.push(id);
 		}
+
 		const resolved = registry.resolve(allIds);
 		const runtime = createPackageRuntime(resolved as never);
 		for (const s of runtime.buildSystems()) {
@@ -169,6 +175,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 			containers.push(c);
 		}
 	}
+
 	if (options.extensions?.containers) {
 		for (const c of options.extensions.containers) {
 			containers.push(c);
@@ -182,35 +189,34 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
  * Single bootstrap entry point — works on both client and server.
  *
  * @example
- * ```ts
- * // Full pipeline path
- * const systems = createPipeline().use(families).build();
- * const { world, crate, loop } = bootstrap({ mode: "development", systems });
- * ```
+ * 	```ts
+ * 	// Full pipeline path
+ * 	const systems = createPipeline().use(families).build();
+ * 	const { world, crate, loop } = bootstrap({ mode: "development", systems });
+ * 	```;
  *
  * @example
- * ```ts
- * // Auto-collect from Flamework barrels (no pipeline)
- * // Include builtin matter systems via packages
- * const { world, crate } = bootstrap({
- *   packages: [builtinPackage],
- *   modules: { server: systems, shared: sharedSystems },
-
- * ```
+ * 	```ts
+ * 	// Auto-collect from Flamework barrels (no pipeline)
+ * 	// Include builtin matter systems via packages
+ * 	const { world, crate } = bootstrap({
+ * 	packages: [builtinPackage],
+ * 	modules: { server: systems, shared: sharedSystems },
+ * 	```;
  */
 export function bootstrap(options: BootstrapOptions = {}): BootstrapResult {
 	const boundary = resolveBoundary(options);
 
 	const runtime = start({
-		systems: boundary.systems,
 		containers: boundary.containers,
+		systems: boundary.systems,
 	});
 
 	return {
-		world: runtime.world,
-		crate: runtime.crate,
-		loop: runtime.loop,
-		debugger: runtime.debugger,
 		boundary,
+		crate: runtime.crate,
+		debugger: runtime.debugger,
+		loop: runtime.loop,
+		world: runtime.world,
 	};
 }

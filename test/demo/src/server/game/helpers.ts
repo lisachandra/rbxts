@@ -1,7 +1,8 @@
 import { vector } from "@lisachandra/core";
-import { Components} from "@lisachandra/matter";
+import { Components } from "@lisachandra/matter";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { Workspace } from "@rbxts/services";
+
 import type { PlotStage, ResourceKind } from "shared/game/types";
 
 export function ensureGardenFolder(): Folder {
@@ -37,24 +38,40 @@ export function createGardenPart(
 
 export function applyPlotVisual(part: BasePart, stage: PlotStage): void {
 	part.SetAttribute("gardenStage", stage);
-	part.SetAttribute("markerLabel", stage === "Grown" ? "Harvest ready" : stage === "Dirty" ? "Needs scrap" : stage === "Cleared" ? "Needs seed" : stage === "Planted" ? "Needs water" : "Growing");
+	part.SetAttribute(
+		"markerLabel",
+		stage === "Grown"
+			? "Harvest ready"
+			: stage === "Dirty"
+				? "Needs scrap"
+				: stage === "Cleared"
+					? "Needs seed"
+					: stage === "Planted"
+						? "Needs water"
+						: "Growing",
+	);
 
 	switch (stage) {
-		case "Dirty":
-			part.Color = Color3.fromRGB(101, 67, 33);
-			break;
-		case "Cleared":
+		case "Cleared": {
 			part.Color = Color3.fromRGB(145, 110, 70);
 			break;
-		case "Planted":
-			part.Color = Color3.fromRGB(86, 125, 70);
+		}
+		case "Dirty": {
+			part.Color = Color3.fromRGB(101, 67, 33);
 			break;
-		case "Watered":
-			part.Color = Color3.fromRGB(64, 110, 191);
-			break;
-		case "Grown":
+		}
+		case "Grown": {
 			part.Color = Color3.fromRGB(83, 185, 98);
 			break;
+		}
+		case "Planted": {
+			part.Color = Color3.fromRGB(86, 125, 70);
+			break;
+		}
+		case "Watered": {
+			part.Color = Color3.fromRGB(64, 110, 191);
+			break;
+		}
 	}
 }
 
@@ -65,18 +82,22 @@ export function applyPickupVisual(part: BasePart, kind: ResourceKind, active: bo
 	part.CanCollide = active;
 
 	switch (kind) {
-		case "Scrap":
-			part.Color = Color3.fromRGB(163, 162, 165);
-			break;
-		case "Seed":
-			part.Color = Color3.fromRGB(217, 180, 72);
-			break;
-		case "Water":
-			part.Color = Color3.fromRGB(90, 170, 255);
-			break;
-		case "Harvest":
+		case "Harvest": {
 			part.Color = Color3.fromRGB(95, 213, 64);
 			break;
+		}
+		case "Scrap": {
+			part.Color = Color3.fromRGB(163, 162, 165);
+			break;
+		}
+		case "Seed": {
+			part.Color = Color3.fromRGB(217, 180, 72);
+			break;
+		}
+		case "Water": {
+			part.Color = Color3.fromRGB(90, 170, 255);
+			break;
+		}
 	}
 }
 
@@ -93,8 +114,13 @@ export function isWithinRadius(position: Vector3, target: BasePart, radius: numb
 	return vector.distance(position, target.Position) <= radius;
 }
 
-export function setCarryState(world: World, entityId: AnyEntity, kind: ResourceKind | undefined, amount: number): void {
-	world.insert(entityId, Components.CarryState({ kind, amount }));
+export function setCarryState(
+	world: World,
+	entityId: AnyEntity,
+	kind: undefined | ResourceKind,
+	amount: number,
+): void {
+	world.insert(entityId, Components.CarryState({ amount, kind }));
 }
 
 export function setPromptState(world: World, entityId: AnyEntity, text: string): void {

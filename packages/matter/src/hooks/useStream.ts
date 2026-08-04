@@ -1,9 +1,7 @@
 import { useHookState } from "@rbxts/matter";
 import { Workspace } from "@rbxts/services";
 
-/**
- * Represents an event for an instance being added to the stream.
- */
+/** Represents an event for an instance being added to the stream. */
 export interface StreamInEvent {
 	adding: true;
 	descendant: boolean;
@@ -11,9 +9,7 @@ export interface StreamInEvent {
 	removing: false;
 }
 
-/**
- * Represents an event for an instance being removed from the stream.
- */
+/** Represents an event for an instance being removed from the stream. */
 export interface StreamOutEvent {
 	adding: false;
 	descendant: boolean;
@@ -21,17 +17,13 @@ export interface StreamOutEvent {
 	removing: true;
 }
 
-/**
- * Configuration options for the stream hook.
- */
+/** Configuration options for the stream hook. */
 export interface StreamOptions {
 	attribute?: string;
 	descendants?: boolean;
 }
 
-/**
- * A union type for stream add and remove events.
- */
+/** A union type for stream add and remove events. */
 export type StreamEvent = StreamInEvent | StreamOutEvent;
 
 interface Storage {
@@ -75,26 +67,24 @@ function cleanup(storage: PartialStorage): void {
 }
 
 /**
- * Creates an iterable that yields events when instances with a matching
- * attribute are added to or removed from the workspace.
+ * Creates an iterable that yields events when instances with a matching attribute are added to or
+ * removed from the workspace.
+ *
+ * @remarks
+ *   Tracks descendants of matched instances when `options.descendants` is `true`. Uses
+ *   `Workspace.DescendantAdded` and `Workspace.DescendantRemoving` signals.
+ * @example
+ * 	```ts
+ * 	for (const [index, event] of useStream(entityId)) {
+ * 	if (event.adding) {
+ * 	print(`Instance added: ${event.instance.Name}`);
+ * 	}
+ * 	}
+ * 	```
  *
  * @param id - The attribute value to match against instances.
  * @param options - Configuration options for the stream.
  * @returns An iterable function yielding `[index, StreamEvent]` tuples.
- *
- * @example
- * ```ts
- * for (const [index, event] of useStream(entityId)) {
- *     if (event.adding) {
- *         print(`Instance added: ${event.instance.Name}`);
- *     }
- * }
- * ```
- *
- * @remarks
- * Tracks descendants of matched instances when `options.descendants` is
- * `true`. Uses `Workspace.DescendantAdded` and
- * `Workspace.DescendantRemoving` signals.
  */
 export function useStream(
 	id: unknown,
@@ -157,7 +147,7 @@ export function useStream(
 	let index = 0;
 	return (() => {
 		index++;
-		const queue = storage.queue;
+		const { queue } = storage;
 		if (!queue) {
 			return undefined;
 		}

@@ -12,22 +12,22 @@ Peer dependencies: `@lisachandra/types`, `@flamework/core`, `@rbxts/crate`, `@rb
 
 ## Submodule Exports
 
-| Import | Purpose |
-|---|---|
-| `@lisachandra/core/logger` | Structured logging |
-| `@lisachandra/core/store` | Reactive state crate |
-| `@lisachandra/core/schemas` | Character validation schemas |
-| `@lisachandra/core/utils/asset` | Asset ID resolution |
-| `@lisachandra/core/utils/cframe` | CFrame utilities |
-| `@lisachandra/core/utils/color` | Color manipulation |
-| `@lisachandra/core/utils/formatTable` | Table formatting (Luau) |
-| `@lisachandra/core/utils/main` | General-purpose utilities |
-| `@lisachandra/core/utils/math` | Math helpers |
-| `@lisachandra/core/utils/r6ik` | R6 inverse kinematics (Luau) |
-| `@lisachandra/core/utils/string` | String manipulation |
-| `@lisachandra/core/utils/type` | Type guards and utilities |
-| `@lisachandra/core/utils/vector` | Vector math |
-| `@lisachandra/core/utils/vfx` | Visual effects helpers |
+| Import                                | Purpose                      |
+| ------------------------------------- | ---------------------------- |
+| `@lisachandra/core/logger`            | Structured logging           |
+| `@lisachandra/core/store`             | Reactive state crate         |
+| `@lisachandra/core/schemas`           | Character validation schemas |
+| `@lisachandra/core/utils/asset`       | Asset ID resolution          |
+| `@lisachandra/core/utils/cframe`      | CFrame utilities             |
+| `@lisachandra/core/utils/color`       | Color manipulation           |
+| `@lisachandra/core/utils/formatTable` | Table formatting (Luau)      |
+| `@lisachandra/core/utils/main`        | General-purpose utilities    |
+| `@lisachandra/core/utils/math`        | Math helpers                 |
+| `@lisachandra/core/utils/r6ik`        | R6 inverse kinematics (Luau) |
+| `@lisachandra/core/utils/string`      | String manipulation          |
+| `@lisachandra/core/utils/type`        | Type guards and utilities    |
+| `@lisachandra/core/utils/vector`      | Vector math                  |
+| `@lisachandra/core/utils/vfx`         | Visual effects helpers       |
 
 ---
 
@@ -40,9 +40,9 @@ import { configureLogger, setupLogger, logOutput } from "@lisachandra/core/logge
 
 // Configure before calling setupLogger
 configureLogger({
-  defaultVersion: "1.2.3",
-  isProduction: false,
-  logLevel: LogLevel.Debugging,
+	defaultVersion: "1.2.3",
+	isProduction: false,
+	logLevel: LogLevel.Debugging,
 });
 
 // Initialize the logger (call once at startup)
@@ -50,21 +50,21 @@ setupLogger();
 
 // Read in-memory log buffer (last 128 entries as [time, message] pairs)
 for (const [time, msg] of logOutput) {
-  print(time, msg);
+	print(time, msg);
 }
 ```
 
 ### API
 
-| Export | Description |
-|---|---|
-| `LoggerConfig` | Configuration shape for the logger |
-| `loggerConfig` | Mutable config object (defaults: version `"0.1.0"`, non-production, Debugging) |
-| `logLevel` | Current active log level |
-| `configureLogger(config)` | Applies partial config updates |
-| `fullLogOutputs` | Full historical log batches (when buffer overflows) |
-| `logOutput` | Current in-memory log buffer (max 128 entries) |
-| `setupLogger()` | Installs the logger sink |
+| Export                    | Description                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `LoggerConfig`            | Configuration shape for the logger                                             |
+| `loggerConfig`            | Mutable config object (defaults: version `"0.1.0"`, non-production, Debugging) |
+| `logLevel`                | Current active log level                                                       |
+| `configureLogger(config)` | Applies partial config updates                                                 |
+| `fullLogOutputs`          | Full historical log batches (when buffer overflows)                            |
+| `logOutput`               | Current in-memory log buffer (max 128 entries)                                 |
+| `setupLogger()`           | Installs the logger sink                                                       |
 
 ---
 
@@ -76,53 +76,55 @@ A reactive state primitive built on `@rbxts/crate` with client/server state sepa
 import { store } from "@lisachandra/core/store";
 
 // Client-side state
-store.client.getState().debugEnabled;       // boolean
-store.client.getState("entityIdMap");       // Record<number, number>
-store.client.getState("playerEntityId");    // AnyEntity | undefined
+store.client.getState().debugEnabled; // boolean
+store.client.getState("entityIdMap"); // Record<number, number>
+store.client.getState("playerEntityId"); // AnyEntity | undefined
 
 // Server-side state
-store.server.getState("documents");         // Record<string, CollectionData>
-store.server.getState("itemGUIDMap");       // Record<string, number>
+store.server.getState("documents"); // Record<string, CollectionData>
+store.server.getState("itemGUIDMap"); // Record<string, number>
 
 // Shared access (works on both sides)
-store.shared.getState("itemPointers");      // Record<string, string>
+store.shared.getState("itemPointers"); // Record<string, string>
 
 // The Matter World instance
-store.world;  // World
+store.world; // World
 
 // Diff signal (fires on state changes)
-store.diffSignal;  // Signal<CrateDiff<...>>
+store.diffSignal; // Signal<CrateDiff<...>>
 
 // Server-only: hotbar storage
-store.hotbar;  // Instance (Folder)
+store.hotbar; // Instance (Folder)
 
 // Server-only: loaded player documents
-store.documents;  // Partial<Record<string, Document<CollectionData>>>
+store.documents; // Partial<Record<string, Document<CollectionData>>>
 ```
 
 ### State Shapes
 
 **`ClientState`:**
+
 ```ts
 interface ClientState {
-  debugEnabled: boolean;
-  entityIdMap: Record<ServerEntityId, ClientEntityId>;
-  itemGUIDMap: Record<string, number>;
-  itemPointers: Record<string, string>;
-  playerEntityId?: AnyEntity;
-  serverStartClock: number;
-  serverStartEpoch: number;
+	debugEnabled: boolean;
+	entityIdMap: Record<ServerEntityId, ClientEntityId>;
+	itemGUIDMap: Record<string, number>;
+	itemPointers: Record<string, string>;
+	playerEntityId?: AnyEntity;
+	serverStartClock: number;
+	serverStartEpoch: number;
 }
 ```
 
 **`ServerState`:**
+
 ```ts
 interface ServerState {
-  serverStartClock: number;
-  serverStartEpoch: number;
-  itemGUIDMap: Record<string, number>;
-  itemPointers: Record<string, string>;
-  documents: Record<string, CollectionData>;
+	serverStartClock: number;
+	serverStartEpoch: number;
+	itemGUIDMap: Record<string, number>;
+	itemPointers: Record<string, string>;
+	documents: Record<string, CollectionData>;
 }
 ```
 
@@ -140,9 +142,9 @@ const character = waitForCharacter(model);
 // character is typed as Character (R6Character)
 
 // Schema objects
-schemas.humanoid;    // Humanoid validation schema
+schemas.humanoid; // Humanoid validation schema
 schemas.r6Character; // R6 body schema
-schemas.r15Character;// R15 body schema
+schemas.r15Character; // R15 body schema
 ```
 
 ---
@@ -152,11 +154,20 @@ schemas.r15Character;// R15 body schema
 ### `utils/math`
 
 ```ts
-import { average, closest, farthest, percentage, round, smoothstep, weightRandom, getServerClock } from "@lisachandra/core/utils/math";
+import {
+	average,
+	closest,
+	farthest,
+	percentage,
+	round,
+	smoothstep,
+	weightRandom,
+	getServerClock,
+} from "@lisachandra/core/utils/math";
 
-getServerClock();  // Synced server time (works client-side)
+getServerClock(); // Synced server time (works client-side)
 round(3.14159, 2); // 3.14
-smoothstep(0, 1, 0.5);  // 0.5
+smoothstep(0, 1, 0.5); // 0.5
 weightRandom(10, 20, 70); // Random weighted index
 ```
 
@@ -188,7 +199,11 @@ const blended = iterativeLerpColorArray([red, green, blue], 0.5);
 ### `utils/asset`
 
 ```ts
-import { getSoundFromId, getAnimationFromId, getSoundGroupFromId } from "@lisachandra/core/utils/asset";
+import {
+	getSoundFromId,
+	getAnimationFromId,
+	getSoundGroupFromId,
+} from "@lisachandra/core/utils/asset";
 
 const sound = getSoundFromId(42);
 const anim = getAnimationFromId(100);
@@ -206,17 +221,28 @@ formatTable(myData, "Long"); // Formatted string
 ### `utils/type`
 
 ```ts
-import { is, iterate, force, flow, required, getMember, inspect } from "@lisachandra/core/utils/type";
+import {
+	is,
+	iterate,
+	force,
+	flow,
+	required,
+	getMember,
+	inspect,
+} from "@lisachandra/core/utils/type";
 
 // Iterate with type-safe key/value pairs
-for (const [key, value] of iterate(myTable)) { }
+for (const [key, value] of iterate(myTable)) {
+}
 
 // Type narrowing guard
-if (is<string>(value)) { /* value is string */ }
+if (is<string>(value)) {
+	/* value is string */
+}
 
 // Conditional flow control
 for (const _ of flow(shouldRun)) {
-  // Only executes when shouldRun is true
+	// Only executes when shouldRun is true
 }
 ```
 
@@ -224,9 +250,15 @@ for (const _ of flow(shouldRun)) {
 
 ```ts
 import {
-  waitForCharacter, waitForDocument, loadAnimation,
-  lazyConnect, lazyDisconnect, tween, catcher,
-  getHumanoid, applyHumanoidDescription
+	waitForCharacter,
+	waitForDocument,
+	loadAnimation,
+	lazyConnect,
+	lazyDisconnect,
+	tween,
+	catcher,
+	getHumanoid,
+	applyHumanoidDescription,
 } from "@lisachandra/core/utils/main";
 
 // Validate and wait for a character model
@@ -237,7 +269,7 @@ const { track, cached } = await loadAnimation(humanoid, animation);
 
 // Tween helper
 await tween(RunService.Heartbeat, tweenInfo, (progress) => {
-  // progress goes 0..1
+	// progress goes 0..1
 });
 
 // Catch errors safely

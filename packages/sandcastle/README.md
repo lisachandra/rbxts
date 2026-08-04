@@ -61,22 +61,22 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 
 ### Options
 
-| Option | Default | Purpose |
-| --- | --- | --- |
-| `dir` | `.sandcastle` | State, plans, logs, worktrees, and integrations directory |
-| `baseBranch` | `main` | Diff base for implementation and review |
-| `setupCommands` | `[]` | Shell commands run in a fresh worktree before phase agents |
-| `symlinks` | `[]` | Repository directories linked into fresh worktrees |
-| `prompts` | package defaults | Per-phase prompt file paths (repo-relative) |
-| `skills.defaults` | phase defaults | Skills injected into each phase prompt |
-| `skills.labels` | `{}` | Extra skills per issue label (e.g. `ecs`, `security`, `ui`) |
-| `labels.readyForAgent` | `ready-for-agent` | Issue label that marks AFK-ready issues |
-| `reviewMarker` | `Sandcastle-Review` | Comment marker prefix (`<marker>: APPROVED|BLOCKED`) |
-| `issueCommand` | `gh issue view {issue}` | Command template used to fetch issue data |
-| `agents.enabled` | `["dirac", "pi"]` | Allowed agent backends |
-| `agents.default` | `dirac` | Backend used when `--agent` is not passed |
-| `agents.models` | `{}` | Default model per backend, used when `--model` is not passed |
-| `effort` | `xhigh` | Default reasoning effort |
+| Option                 | Default                 | Purpose                                                      |
+| ---------------------- | ----------------------- | ------------------------------------------------------------ |
+| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory    |
+| `baseBranch`           | `main`                  | Diff base for implementation and review                      |
+| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents   |
+| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees           |
+| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                  |
+| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                       |
+| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)  |
+| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                      |
+| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                   | BLOCKED`) |
+| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                    |
+| `agents.enabled`       | `["dirac", "pi"]`       | Allowed agent backends                                       |
+| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                    |
+| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed |
+| `effort`               | `xhigh`                 | Default reasoning effort                                     |
 
 ### Local docs via `creator-docs`
 
@@ -85,25 +85,25 @@ Repos that need Roblox API documentation for agents keep a local, gitignored cop
 
 1. Sparse-checkout the docs once into a shared location (outside the repo):
 
-   ```bash
-   git clone --filter=blob:none --sparse https://github.com/roblox/creator-docs F:/Acid/creator-docs
-   git -C F:/Acid/creator-docs sparse-checkout set content
-   ```
+    ```bash
+    git clone --filter=blob:none --sparse https://github.com/roblox/creator-docs F:/Acid/creator-docs
+    git -C F:/Acid/creator-docs sparse-checkout set content
+    ```
 
 2. Junction (Windows) or symlink it into the repository root as `creator-docs`:
 
-   ```powershell
-   New-Item -ItemType Junction -Path <repo>/creator-docs -Target F:/Acid/creator-docs
-   ```
+    ```powershell
+    New-Item -ItemType Junction -Path <repo>/creator-docs -Target F:/Acid/creator-docs
+    ```
 
 3. Ignore it: add `creator-docs/` to the repo's `.gitignore` (or `.git/info/exclude` for a
    machine-local setup).
 
 4. Reference it in `sandcastle.config.ts` so agents in fresh worktrees can read the docs:
 
-   ```ts
-   symlinks: [{ path: "creator-docs", target: "creator-docs" }],
-   ```
+    ```ts
+    symlinks: [{ path: "creator-docs", target: "creator-docs" }],
+    ```
 
 The docs are never committed; each worktree gets a junction to the same sparse checkout, and
 the link is skipped with a warning if the target is missing.

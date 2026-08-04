@@ -1,7 +1,6 @@
+import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
 import type { PipelineRegistration } from "../pipeline";
 import { createPipeline } from "../pipeline";
-import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
-
 import type {
 	MatterPackageRuntime,
 	MatterPackageStateManager,
@@ -48,13 +47,12 @@ export function createPackageRuntime<
 		}
 
 		for (const registration of pkg.replication?.templates ?? []) {
-			pipelineRegistrations.push(registration as PipelineRegistration);
+			pipelineRegistrations.push(registration);
 		}
 
 		for (const codec of pkg.replication?.codecs ?? []) {
 			replicationComponents.push(codec);
 		}
-
 
 		for (const state of pkg.state ?? []) {
 			stateSlices.push(state);
@@ -68,17 +66,17 @@ export function createPackageRuntime<
 			this.installPipeline(builder);
 			return builder.build();
 		},
+		installCodecs(r: ReplicationCodecRegistry) {
+			for (const codecRegistration of replicationComponents) {
+				r.register(codecRegistration);
+			}
+		},
 		installPipeline(builder) {
 			for (const registration of pipelineRegistrations) {
 				builder.use(registration);
 			}
 
 			return builder;
-		},
-		installCodecs(r: ReplicationCodecRegistry) {
-			for (const codecRegistration of replicationComponents) {
-				r.register(codecRegistration);
-			}
 		},
 		pipelineRegistrations,
 		replicationComponents,

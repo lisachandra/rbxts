@@ -3,11 +3,10 @@ import { defineConfig } from "@isentinel/jest-roblox";
 export default defineConfig({
 	extends: "../../jest.shared.ts",
 	test: {
-		setupFiles: ["@lisachandra/test/setup", "./out/test/setup"],
 		projects: [
 			{
 				test: {
-					displayName: { name: "shared", color: "green" },
+					displayName: { color: "green", name: "shared" },
 					include: ["src/shared/**/*.spec.ts", "src/shared/**/*.spec.tsx"],
 					mockDataModel: false,
 					outDir: "out/shared",
@@ -15,7 +14,7 @@ export default defineConfig({
 			},
 			{
 				test: {
-					displayName: { name: "client", color: "blue" },
+					displayName: { color: "blue", name: "client" },
 					include: ["src/client/**/*.spec.ts", "src/client/**/*.spec.tsx"],
 					mockDataModel: false,
 					outDir: "out/client",
@@ -23,12 +22,13 @@ export default defineConfig({
 			},
 			{
 				test: {
-					displayName: { name: "server", color: "magenta" },
+					displayName: { color: "magenta", name: "server" },
 					include: ["src/server/**/*.spec.ts", "src/server/**/*.spec.tsx"],
 					mockDataModel: false,
 					outDir: "out/server",
 				},
 			},
 		],
-	}
+		setupFiles: ["@lisachandra/test/setup", "./out/test/setup"],
+	},
 });

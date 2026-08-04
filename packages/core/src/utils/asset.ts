@@ -19,26 +19,29 @@ for (const instance of SoundService.GetDescendants()) {
 }
 
 for (const instance of ReplicatedStorage.Animations.GetDescendants()) {
-	if (instance.IsA("Animation")) {
-		const id = instance.GetAttribute<number>("id");
-		if (id !== undefined) {
-			animations.set(id, instance);
-		}
+	if (!instance.IsA("Animation")) {
+		continue;
+	}
+
+	const id = instance.GetAttribute<number>("id");
+	if (id !== undefined) {
+		animations.set(id, instance);
 	}
 }
 
 /**
  * Retrieves a SoundGroup instance by its numeric ID.
  *
+ * @remarks
+ *   SoundGroups are indexed at module load time from all descendants of SoundService that have an
+ *   "id" attribute.
+ * @example
+ * 	```ts
+ * 	const soundGroup = getSoundGroupFromId(12345);
+ * 	```;
+ *
  * @param id - The numeric ID of the SoundGroup.
  * @returns The SoundGroup instance, or `undefined` if not found.
- * @example
- * ```ts
- * const soundGroup = getSoundGroupFromId(12345);
- * ```
- * @remarks
- * SoundGroups are indexed at module load time from all descendants of
- * SoundService that have an "id" attribute.
  */
 export function getSoundGroupFromId(id: number): N<SoundGroup> {
 	return soundGroups.get(id);
@@ -47,15 +50,16 @@ export function getSoundGroupFromId(id: number): N<SoundGroup> {
 /**
  * Retrieves a Sound instance by its numeric ID.
  *
+ * @remarks
+ *   Sounds are indexed at module load time from all descendants of SoundService that have an "id"
+ *   attribute.
+ * @example
+ * 	```ts
+ * 	const sound = getSoundFromId(12345);
+ * 	```;
+ *
  * @param id - The numeric ID of the Sound.
  * @returns The Sound instance, or `undefined` if not found.
- * @example
- * ```ts
- * const sound = getSoundFromId(12345);
- * ```
- * @remarks
- * Sounds are indexed at module load time from all descendants of
- * SoundService that have an "id" attribute.
  */
 export function getSoundFromId(id: number): N<Sound> {
 	return sounds.get(id);
@@ -64,15 +68,16 @@ export function getSoundFromId(id: number): N<Sound> {
 /**
  * Retrieves an Animation instance by its numeric ID.
  *
+ * @remarks
+ *   Animations are indexed at module load time from all descendants of ReplicatedStorage.Animations
+ *   that have an "id" attribute.
+ * @example
+ * 	```ts
+ * 	const animation = getAnimationFromId(12345);
+ * 	```;
+ *
  * @param id - The numeric ID of the Animation.
  * @returns The Animation instance, or `undefined` if not found.
- * @example
- * ```ts
- * const animation = getAnimationFromId(12345);
- * ```
- * @remarks
- * Animations are indexed at module load time from all descendants of
- * ReplicatedStorage.Animations that have an "id" attribute.
  */
 export function getAnimationFromId(id: number): N<Animation> {
 	return animations.get(id);

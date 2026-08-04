@@ -1,22 +1,19 @@
-import { registry } from "../registry";
-import { Components } from "../../components";
 import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
-import { u8 } from "@rbxts/serio";
+import type { u8 } from "@rbxts/serio";
 import { Workspace } from "@rbxts/services";
 import { equalsDeep } from "@rbxts/sift/Dictionary";
 
-/**
- * Payload structure for replicating the {@link Components.Node} component.
- */
-export type NodePayload = {
-	type: u8,
-	model: Instance
-};
+import { Components } from "../../components";
+import { registry } from "../registry";
+
+/** Payload structure for replicating the {@link Components.Node} component. */
+export interface NodePayload {
+	type: u8;
+	model: Instance;
+}
 
 registry.register<Components["Node"], NodePayload>({
 	component: Components.Node,
-	mode: "all",
-	serializer: (record) => !equalsDeep(record.old ?? {}, record.new ?? {}) ? record.new : false,
 	deserializer: (data, serverEntityId) => {
 		return {
 			type: data.type,
@@ -25,6 +22,8 @@ registry.register<Components["Node"], NodePayload>({
 				"serverEntityId",
 				serverEntityId,
 			) as Part,
-		}
+		};
 	},
+	mode: "all",
+	serializer: (record) => (!equalsDeep(record.old ?? {}, record.new ?? {}) ? record.new : false),
 });

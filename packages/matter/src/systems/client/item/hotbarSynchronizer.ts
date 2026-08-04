@@ -1,3 +1,4 @@
+import type { ClientState } from "@lisachandra/core/store";
 /*
  * This system ensures the player's hotbar order is consistent with their
  * equipped items. It synchronizes item positions in the hotbar and
@@ -8,9 +9,8 @@ import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals } from "@rbxts/sift/Array";
 
+import { Components } from "../../../components";
 import { meta as itemManager } from "./itemManager";
-import { ClientState } from "@lisachandra/core/store";
-import { Components} from "../../../components";
 
 /*
  * Ensures the hotbar order is consistent and up-to-date by checking item GUIDs.
@@ -27,8 +27,8 @@ function system(world: World, crate: Crate<ClientState>): void {
 
 	const hotbar = world.get(clientEntityId, Components.Hotbar)!;
 	const currentOrder = hotbar.order ?? [];
-	const hotbarGUIDs = hotbar.items.map((item) => item.guid);
-	const newOrder = currentOrder.filter((guid) => hotbarGUIDs.includes(guid));
+	const hotbarGUIDs = new Set(hotbar.items.map((item) => item.guid));
+	const newOrder = currentOrder.filter((guid) => hotbarGUIDs.has(guid));
 
 	for (const item of hotbar.items) {
 		if (!newOrder.includes(item.guid)) {

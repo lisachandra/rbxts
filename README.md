@@ -18,16 +18,16 @@
 
 ## Packages
 
-| Package | Version | Description |
-| --- | --- | --- |
-| [`@lisachandra/types`](packages/types) | [![npm](https://img.shields.io/npm/v/@lisachandra/types)](https://www.npmjs.com/package/@lisachandra/types) | Global type augments for Roblox services |
-| [`@lisachandra/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@lisachandra/core)](https://www.npmjs.com/package/@lisachandra/core) | Logger, store, schemas, 13 utility modules |
-| [`@lisachandra/matter`](packages/matter) | [![npm](https://img.shields.io/npm/v/@lisachandra/matter)](https://www.npmjs.com/package/@lisachandra/matter) | ECS: components, hooks, items, networking, packages, pipeline |
-| [`@lisachandra/ui`](packages/ui) | [![npm](https://img.shields.io/npm/v/@lisachandra/ui)](https://www.npmjs.com/package/@lisachandra/ui) | React UI components and hooks |
-| [`@lisachandra/platform`](packages/platform) | [![npm](https://img.shields.io/npm/v/@lisachandra/platform)](https://www.npmjs.com/package/@lisachandra/platform) | Bootstrap, centurion commands, documents, teleporter |
-| [`@lisachandra/test`](packages/test) | [![npm](https://img.shields.io/npm/v/@lisachandra/test)](https://www.npmjs.com/package/@lisachandra/test) | Test utilities for Jest Roblox |
-| [`@lisachandra/react-template`](packages/react-template) | — | Instance → React component generator |
-| [`@lisachandra/react-router`](packages/react-router) | — | Client-side router for React Roblox |
+| Package                                                  | Version                                                                                                           | Description                                                   |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| [`@lisachandra/types`](packages/types)                   | [![npm](https://img.shields.io/npm/v/@lisachandra/types)](https://www.npmjs.com/package/@lisachandra/types)       | Global type augments for Roblox services                      |
+| [`@lisachandra/core`](packages/core)                     | [![npm](https://img.shields.io/npm/v/@lisachandra/core)](https://www.npmjs.com/package/@lisachandra/core)         | Logger, store, schemas, 13 utility modules                    |
+| [`@lisachandra/matter`](packages/matter)                 | [![npm](https://img.shields.io/npm/v/@lisachandra/matter)](https://www.npmjs.com/package/@lisachandra/matter)     | ECS: components, hooks, items, networking, packages, pipeline |
+| [`@lisachandra/ui`](packages/ui)                         | [![npm](https://img.shields.io/npm/v/@lisachandra/ui)](https://www.npmjs.com/package/@lisachandra/ui)             | React UI components and hooks                                 |
+| [`@lisachandra/platform`](packages/platform)             | [![npm](https://img.shields.io/npm/v/@lisachandra/platform)](https://www.npmjs.com/package/@lisachandra/platform) | Bootstrap, centurion commands, documents, teleporter          |
+| [`@lisachandra/test`](packages/test)                     | [![npm](https://img.shields.io/npm/v/@lisachandra/test)](https://www.npmjs.com/package/@lisachandra/test)         | Test utilities for Jest Roblox                                |
+| [`@lisachandra/react-template`](packages/react-template) | —                                                                                                                 | Instance → React component generator                          |
+| [`@lisachandra/react-router`](packages/react-router)     | —                                                                                                                 | Client-side router for React Roblox                           |
 
 ```
 types  ←  core  ←  matter  ←  platform
@@ -55,85 +55,85 @@ All packages are published with **public access**. Peer dependencies must be ins
 ```ts
 // src/shared/config.ts
 import {
-  configureRuntimeAdapters,
-  configureEntityLookup,
-  configureStreamableEntityLookup,
-  getComponent,
+	configureRuntimeAdapters,
+	configureEntityLookup,
+	configureStreamableEntityLookup,
+	getComponent,
 } from "@lisachandra/matter";
 import { configureLogger } from "@lisachandra/core/logger";
 import { LogLevel } from "@rbxts/log";
 import { collection } from "./documents/playerData";
 
 configureLogger({
-  defaultVersion: "0.1.0",
-  isProduction: false,
-  logLevel: LogLevel.Debugging,
+	defaultVersion: "0.1.0",
+	isProduction: false,
+	logLevel: LogLevel.Debugging,
 });
 
 // Which components identify an entity for instance/humanoid lookups
 configureEntityLookup({
-  instanceComponents: ["Profile", "Items", "Node"],
-  humanoidComponents: ["Profile"],
+	instanceComponents: ["Profile", "Items", "Node"],
+	humanoidComponents: ["Profile"],
 });
 
 // Which components make an entity eligible for workspace streaming
 configureStreamableEntityLookup({
-  components: ["Items"],
+	components: ["Items"],
 });
 
 // Full runtime adapters
 configureRuntimeAdapters({
-  // Optional: custom authorization (default allows UserId > 0)
-  authorize: async (player) => player.UserId > 0,
+	// Optional: custom authorization (default allows UserId > 0)
+	authorize: async (player) => player.UserId > 0,
 
-  // Player lifecycle hooks
-  playerLifecycle: {
-    // Validate before spawning — return [false, "reason"] to kick
-    preSpawn: async (player) => [!myBanService.isBanned(player.UserId)],
+	// Player lifecycle hooks
+	playerLifecycle: {
+		// Validate before spawning — return [false, "reason"] to kick
+		preSpawn: async (player) => [!myBanService.isBanned(player.UserId)],
 
-    // Customize which components are inserted into the player entity.
-    // Called AFTER the entity is spawned and document is loaded.
-    // Must include Profile with the scoped Janitor.
-    componentFactory: (player, janitor) => [
-      getComponent("Profile")({ janitor, player }),
-      getComponent("Inventory")(),
-      getComponent("Hotbar")(),
-      getComponent("Forces")(),
-    ],
+		// Customize which components are inserted into the player entity.
+		// Called AFTER the entity is spawned and document is loaded.
+		// Must include Profile with the scoped Janitor.
+		componentFactory: (player, janitor) => [
+			getComponent("Profile")({ janitor, player }),
+			getComponent("Inventory")(),
+			getComponent("Hotbar")(),
+			getComponent("Forces")(),
+		],
 
-    // Called AFTER spawn, component insertion, and Message.Time emit.
-    // Message.Time is already sent by the default flow — do NOT re-emit it here.
-    postSpawn: (world, player, entityId) => {
-      print(`Player ${player.Name} spawned as entity ${entityId}`);
-    },
+		// Called AFTER spawn, component insertion, and Message.Time emit.
+		// Message.Time is already sent by the default flow — do NOT re-emit it here.
+		postSpawn: (world, player, entityId) => {
+			print(`Player ${player.Name} spawned as entity ${entityId}`);
+		},
 
-    // Completely replaces the default playerAdded logic if provided.
-    // Your implementation owns: spawn entity, load documents, insert components, emit Message.Time, etc.
-    // onPlayerAdded: (world, player) => { /* full custom lifecycle */ },
+		// Completely replaces the default playerAdded logic if provided.
+		// Your implementation owns: spawn entity, load documents, insert components, emit Message.Time, etc.
+		// onPlayerAdded: (world, player) => { /* full custom lifecycle */ },
 
-    // Called BEFORE default cleanup (janitor destroy + entity despawn)
-    onPlayerRemoving: (world, player) => {
-      print(`Player ${player.Name} leaving`);
-    },
-  },
+		// Called BEFORE default cleanup (janitor destroy + entity despawn)
+		onPlayerRemoving: (world, player) => {
+			print(`Player ${player.Name} leaving`);
+		},
+	},
 
-  // Optional: decouples toolManager from a specific input library
-  hotbarInputAdapter: {
-    getHeldKeys: () => myInputSystem.getHeldKeys(),
-    onKeyPressed: (cb) => myInputSystem.onKeyPressed(cb),
-  },
+	// Optional: decouples toolManager from a specific input library
+	hotbarInputAdapter: {
+		getHeldKeys: () => myInputSystem.getHeldKeys(),
+		onKeyPressed: (cb) => myInputSystem.onKeyPressed(cb),
+	},
 
-  // Optional: custom instance-from-entity lookup
-  // findInstanceFromEntity: (world, entityId) => { /* custom lookup */ },
+	// Optional: custom instance-from-entity lookup
+	// findInstanceFromEntity: (world, entityId) => { /* custom lookup */ },
 
-  // Document persistence config
-  document: {
-    collection,
-    persistedComponents: {
-      Hotbar: "hotbar",
-      Inventory: "inventory",
-    },
-  },
+	// Document persistence config
+	document: {
+		collection,
+		persistedComponents: {
+			Hotbar: "hotbar",
+			Inventory: "inventory",
+		},
+	},
 });
 ```
 
@@ -145,32 +145,32 @@ import { defineItems } from "@lisachandra/matter/items";
 import createSerializer, { u16 } from "@rbxts/serio";
 
 defineItems({
-  Weapon: {
-    description: "Weapons category",
-    image: "rbxassetid://123",
-    children: {
-      Sword: {
-        serdes: createSerializer<{ damage: u16; durability: u16 }>(),
-        defaultData: { damage: 10, durability: 100 },
-        description: "A sharp blade",
-        image: "rbxassetid://456",
-        privateKeys: ["durability"], // never replicated to clients
-      },
-      Bow: {
-        serdes: createSerializer<{ damage: u16; range: u16 }>(),
-        defaultData: { damage: 5, range: 50 },
-      },
-    },
-  },
-  Consumable: {
-    children: {
-      Potion: {
-        serdes: createSerializer<{ healAmount: u16 }>(),
-        defaultData: { healAmount: 25 },
-        description: "Restores health",
-      },
-    },
-  },
+	Weapon: {
+		description: "Weapons category",
+		image: "rbxassetid://123",
+		children: {
+			Sword: {
+				serdes: createSerializer<{ damage: u16; durability: u16 }>(),
+				defaultData: { damage: 10, durability: 100 },
+				description: "A sharp blade",
+				image: "rbxassetid://456",
+				privateKeys: ["durability"], // never replicated to clients
+			},
+			Bow: {
+				serdes: createSerializer<{ damage: u16; range: u16 }>(),
+				defaultData: { damage: 5, range: 50 },
+			},
+		},
+	},
+	Consumable: {
+		children: {
+			Potion: {
+				serdes: createSerializer<{ healAmount: u16 }>(),
+				defaultData: { healAmount: 25 },
+				description: "Restores health",
+			},
+		},
+	},
 });
 ```
 
@@ -190,11 +190,7 @@ Use when you have a flat list of systems or rely on `@lisachandra/platform` to a
 import { start } from "@lisachandra/matter";
 
 const { world, crate, loop } = start({
-  systems: [
-    healthRegenSystem,
-    playerManagerSystem,
-    itemManagerSystem,
-  ],
+	systems: [healthRegenSystem, playerManagerSystem, itemManagerSystem],
 });
 ```
 
@@ -203,12 +199,7 @@ const { world, crate, loop } = start({
 Use when you want dependency ordering, package composition, and package-provided replication codecs. External npm packages can ship systems, components, and replication codecs together:
 
 ```ts
-import {
-  createPackageRegistry,
-  createPackageRuntime,
-  registry,
-  start,
-} from "@lisachandra/matter";
+import { createPackageRegistry, createPackageRuntime, registry, start } from "@lisachandra/matter";
 import { npcPackage } from "@my-game/npcs";
 import { questPackage } from "@my-game/quests";
 
@@ -238,12 +229,12 @@ import { builtinPackage } from "@lisachandra/matter/systems";
 import { npcPackage } from "@my-game/npcs";
 
 bootstrap({
-  mode: "development",
-  packages: [builtinPackage, npcPackage],
-  modules: {
-    server: myServerSystems,
-    shared: mySharedSystems,
-  },
+	mode: "development",
+	packages: [builtinPackage, npcPackage],
+	modules: {
+		server: myServerSystems,
+		shared: mySharedSystems,
+	},
 });
 ```
 
@@ -261,30 +252,24 @@ import { component } from "@rbxts/matter";
 // Step 1: Augment the Components interface to teach TypeScript about your component.
 // External packages do this in their own index.ts, game code does it in shared/config.
 declare module "@lisachandra/matter/out/components" {
-  interface Components {
-    NPC: {
-      health: number;
-      maxHealth: number;
-      owner?: Player;
-    };
-    Stats: {
-      level: number;
-      xp: number;
-    };
-  }
+	interface Components {
+		NPC: {
+			health: number;
+			maxHealth: number;
+			owner?: Player;
+		};
+		Stats: {
+			level: number;
+			xp: number;
+		};
+	}
 }
 
 // Step 2: Register runtime component constructors so the ECS can create them by key.
 // Do this ONCE at import time (top-level), before start() is called.
-registerComponent(
-  "NPC",
-  component<Components["NPC"]>("NPC"),
-);
+registerComponent("NPC", component<Components["NPC"]>("NPC"));
 
-registerComponent(
-  "Stats",
-  component<Components["Stats"]>("Stats", { level: 1, xp: 0 }),
-);
+registerComponent("Stats", component<Components["Stats"]>("Stats", { level: 1, xp: 0 }));
 
 // Now getComponent("NPC") is fully typed and world.query(getComponent("NPC")) works.
 // In systems, access fields type-safely: npc.health, npc.maxHealth, npc.owner
@@ -321,18 +306,18 @@ export const meta = {
 } satisfies SystemStruct<[World, Crate<ServerState>]>;
 ```
 
-| Phase | Roblox Event |
-|---|---|
-| `"default"`, `"heartbeat"` | `RunService.Heartbeat` |
-| `"preSimulation"` | `RunService.PreSimulation` |
-| `"postSimulation"` | `RunService.PostSimulation` |
-| `"preAnimation"` | `RunService.PreAnimation` |
-| `"preRender"` | `RunService.PreRender` |
-| `"stepped"` | `RunService.Stepped` |
-| `"renderStepped"` | `RunService.RenderStepped` (client only) |
+| Phase                                                                                   | Roblox Event                                                       |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `"default"`, `"heartbeat"`                                                              | `RunService.Heartbeat`                                             |
+| `"preSimulation"`                                                                       | `RunService.PreSimulation`                                         |
+| `"postSimulation"`                                                                      | `RunService.PostSimulation`                                        |
+| `"preAnimation"`                                                                        | `RunService.PreAnimation`                                          |
+| `"preRender"`                                                                           | `RunService.PreRender`                                             |
+| `"stepped"`                                                                             | `RunService.Stepped`                                               |
+| `"renderStepped"`                                                                       | `RunService.RenderStepped` (client only)                           |
 | `"renderCamera"`, `"renderCharacter"`, `"renderFirst"`, `"renderInput"`, `"renderLast"` | `RunService.BindToRenderStep` with matching priority (client only) |
-| `"Hz1"` – `"Hz60"` | `RunService.BindToSimulation` |
-| `"playerModuleCamera"` | Custom `LemonSignal` (client only) |
+| `"Hz1"` – `"Hz60"`                                                                      | `RunService.BindToSimulation`                                      |
+| `"playerModuleCamera"`                                                                  | Custom `LemonSignal` (client only)                                 |
 
 Systems can declare `after: [otherSystem]` to enforce execution order within a phase.
 
@@ -355,15 +340,15 @@ import * as sharedSystems from "../shared/systems";
 setupLogger();
 
 const { world, crate, loop, boundary } = bootstrap({
-  mode: "development",       // "production" disables Rewire hot reload
-  modules: {
-    server: serverSystems,   // Flamework barrel — systems with meta export are auto-collected
-    shared: sharedSystems,
-  },
-  packages: [builtinPackage], // Include all builtin matter systems
-  extensions: {
-    systems: [/* any extra systems */],
-  },
+	mode: "development", // "production" disables Rewire hot reload
+	modules: {
+		server: serverSystems, // Flamework barrel — systems with meta export are auto-collected
+		shared: sharedSystems,
+	},
+	packages: [builtinPackage], // Include all builtin matter systems
+	extensions: {
+		systems: [/* any extra systems */],
+	},
 });
 
 print("Server started!");
@@ -386,11 +371,11 @@ import * as sharedSystems from "../shared/systems";
 setupLogger();
 
 const { world, crate } = bootstrap({
-  modules: {
-    client: clientSystems,
-    shared: sharedSystems,
-  },
-  packages: [builtinPackage], // Include all builtin matter systems
+	modules: {
+		client: clientSystems,
+		shared: sharedSystems,
+	},
+	packages: [builtinPackage], // Include all builtin matter systems
 });
 ```
 
@@ -400,20 +385,20 @@ In **development mode**, the bootstrap passes hot-reload container `Instance`s i
 
 ```ts
 bootstrap({
-  mode: "development",
-  modules: {
-    client: clientSystemsModule,
-    shared: sharedSystemsModule,
-  },
-  hotReload: {
-    containers: [
-      script.Parent!.WaitForChild("client") as Instance,
-      script.Parent!.WaitForChild("shared") as Instance,
-    ],
-  },
-  extensions: {
-    systems: runtime.buildSystems(),
-  },
+	mode: "development",
+	modules: {
+		client: clientSystemsModule,
+		shared: sharedSystemsModule,
+	},
+	hotReload: {
+		containers: [
+			script.Parent!.WaitForChild("client") as Instance,
+			script.Parent!.WaitForChild("shared") as Instance,
+		],
+	},
+	extensions: {
+		systems: runtime.buildSystems(),
+	},
 });
 ```
 
@@ -423,11 +408,11 @@ For **React UI** hot reloading, use `@lisachandra/ui`:
 import { createAppHotReloader } from "@lisachandra/ui";
 
 const { start } = createAppHotReloader({
-  target: playerGui,
-  moduleRoot: uiContainer,
-  entryModuleName: "app",
-  resolveEntryModule: () => uiContainer.FindFirstChild("app") as ModuleScript,
-  strictMode: true,
+	target: playerGui,
+	moduleRoot: uiContainer,
+	entryModuleName: "app",
+	resolveEntryModule: () => uiContainer.FindFirstChild("app") as ModuleScript,
+	strictMode: true,
 });
 
 start();
@@ -445,20 +430,20 @@ import type { CollectionData } from "@lisachandra/core/store";
 
 // Optionally augment CollectionData for custom fields
 declare module "@lisachandra/core/store" {
-  interface CollectionData {
-    gold: number;
-    stats: { level: number; xp: number };
-  }
+	interface CollectionData {
+		gold: number;
+		stats: { level: number; xp: number };
+	}
 }
 
 export const collection = createCollection<CollectionData>("PlayerData", {
-  defaultData: {
-    hotbar: [],
-    inventory: [],
-    gold: 0,
-    stats: { level: 1, xp: 0 },
-  },
-  validate: createDataStoreValidator<CollectionData>(),
+	defaultData: {
+		hotbar: [],
+		inventory: [],
+		gold: 0,
+		stats: { level: 1, xp: 0 },
+	},
+	validate: createDataStoreValidator<CollectionData>(),
 });
 ```
 
@@ -468,11 +453,11 @@ Pass it via `configureRuntimeAdapters({ document: { collection } })`.
 
 ```ts
 // src/server/commands.ts
-import "@lisachandra/platform/centurion";                  // Pattern B — registers all commands & types
+import "@lisachandra/platform/centurion"; // Pattern B — registers all commands & types
 import { Centurion } from "@rbxts/centurion";
 import { configureCenturionGroup, configureCenturionRoles } from "@lisachandra/platform";
 
-configureCenturionGroup(1234567);                           // Roblox group ID
+configureCenturionGroup(1234567); // Roblox group ID
 configureCenturionRoles(["Developer", "Founder"]);
 
 const server = Centurion.server({ logLevel: CenturionLogLevel.Debug });
@@ -490,10 +475,10 @@ import { registerCenturionType, CenturionUserType } from "@lisachandra/platform"
 
 // 1. TypeScript: augment the interface (compile-time)
 declare module "@lisachandra/platform/out/centurion/type" {
-    interface CenturionUserTypes {
-        Item: "item";
-        PlayerEntities: "playerEntities";
-    }
+	interface CenturionUserTypes {
+		Item: "item";
+		PlayerEntities: "playerEntities";
+	}
 }
 
 // 2. Runtime: adds directly to CenturionUserType
@@ -507,7 +492,14 @@ registerCenturionType("PlayerEntities", "playerEntities");
 ### 12. Using Items at Runtime
 
 ```ts
-import { createItem, spawnItem, addItem, moveItem, removeItem, getItemFromGUID } from "@lisachandra/matter/utils/item";
+import {
+	createItem,
+	spawnItem,
+	addItem,
+	moveItem,
+	removeItem,
+	getItemFromGUID,
+} from "@lisachandra/matter/utils/item";
 
 // Create and spawn a sword in the world
 const sword = createItem(["Weapon", "Sword"], { damage: 15 });
@@ -583,15 +575,15 @@ User code:
 
 Per-package reference with examples:
 
-| Package | Docs |
-|---|---|
-| `@lisachandra/types` | [docs/types.md](docs/types.md) |
-| `@lisachandra/core` | [docs/core.md](docs/core.md) |
-| `@lisachandra/matter` | [docs/matter.md](docs/matter.md) |
-| `@lisachandra/ui` | [docs/ui.md](docs/ui.md) |
+| Package                 | Docs                                 |
+| ----------------------- | ------------------------------------ |
+| `@lisachandra/types`    | [docs/types.md](docs/types.md)       |
+| `@lisachandra/core`     | [docs/core.md](docs/core.md)         |
+| `@lisachandra/matter`   | [docs/matter.md](docs/matter.md)     |
+| `@lisachandra/ui`       | [docs/ui.md](docs/ui.md)             |
 | `@lisachandra/platform` | [docs/platform.md](docs/platform.md) |
-| `@lisachandra/test` | [docs/test.md](docs/test.md) |
-| React packages | [docs/react.md](docs/react.md) |
+| `@lisachandra/test`     | [docs/test.md](docs/test.md)         |
+| React packages          | [docs/react.md](docs/react.md)       |
 
 ## Development
 

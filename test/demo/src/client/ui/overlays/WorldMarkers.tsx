@@ -4,26 +4,26 @@ import React, { useBinding, useContext, useEffect, useMemo, useState } from "@rb
 import type { JSX } from "@rbxts/react";
 import { RunService, Workspace } from "@rbxts/services";
 
-function GardenMarker(props: { index: number; part: BasePart }): JSX.Element {
+function GardenMarker({ part }: { index: number; part: BasePart }): JSX.Element {
 	const { px } = useContext(AppContext);
 	const camera = useCamera();
 
-	const [position, setPosition] = useBinding(props.part.Position.add(new Vector3(0, 4, 0)));
+	const [position, setPosition] = useBinding(part.Position.add(new Vector3(0, 4, 0)));
 	const [size] = useBinding(new Vector2(2, 2));
 	const screen = useWorldToScreen(position, size);
 
-	const [label, setLabel] = useState(props.part.GetAttribute<string>("markerLabel") ?? "");
+	const [label, setLabel] = useState(part.GetAttribute<string>("markerLabel") ?? "");
 
 	const refresh = useMemo(
 		() => () => {
-			if (!props.part.Parent) {
+			if (!part.Parent) {
 				return;
 			}
 
-			setPosition(props.part.Position.add(new Vector3(0, 4, 0)));
-			setLabel(props.part.GetAttribute<string>("markerLabel") ?? "");
+			setPosition(part.Position.add(new Vector3(0, 4, 0)));
+			setLabel(part.GetAttribute<string>("markerLabel") ?? "");
 		},
-		[props.part],
+		[part],
 	);
 
 	useEffect(() => {
@@ -32,8 +32,8 @@ function GardenMarker(props: { index: number; part: BasePart }): JSX.Element {
 
 	useEventListener(camera?.GetPropertyChangedSignal("CFrame"), refresh);
 	useEventListener(camera?.GetPropertyChangedSignal("ViewportSize"), refresh);
-	useEventListener(props.part.GetPropertyChangedSignal("Position"), refresh);
-	useEventListener(props.part.GetAttributeChangedSignal("markerLabel"), refresh);
+	useEventListener(part.GetPropertyChangedSignal("Position"), refresh);
+	useEventListener(part.GetAttributeChangedSignal("markerLabel"), refresh);
 
 	return (
 		<textlabel
@@ -42,14 +42,12 @@ function GardenMarker(props: { index: number; part: BasePart }): JSX.Element {
 			BackgroundTransparency={0.25}
 			BorderSizePixel={0}
 			Font={Enum.Font.GothamMedium}
-			Position={screen.map(({ position }) => position)}
+			Position={screen.map(({ position: screenPosition }) => screenPosition)}
 			Size={UDim2.fromOffset(px(120), px(24))}
 			Text={label}
 			TextColor3={Color3.fromRGB(255, 255, 255)}
 			TextSize={px(13)}
-			Visible={
-				screen.map(({ onScreen }) => onScreen && label.size() > 0)
-			}
+			Visible={screen.map(({ onScreen }) => onScreen && label.size() > 0)}
 		/>
 	);
 }
@@ -89,7 +87,9 @@ export function WorldMarkers(): JSX.Element {
 			setParts(nextParts);
 		});
 
-		return () => connection.Disconnect();
+		return () => {
+			connection.Disconnect();
+		};
 	}, []);
 
 	return (

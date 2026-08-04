@@ -1,32 +1,21 @@
-import { Workspace } from "@rbxts/services";
-
-import { registry } from "../registry";
-import { Components, Item } from "../../components";
-import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/store";
 import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
+import { Workspace } from "@rbxts/services";
 
-/**
- * Payload structure for replicating the {@link Components.Items} component.
- */
-export type ItemsPayload = {
+import type { Item } from "../../components";
+import { Components } from "../../components";
+import { registry } from "../registry";
+import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
+
+/** Payload structure for replicating the {@link Components.Items} component. */
+export interface ItemsPayload {
 	items: Array<ItemData>;
-};
+}
 
 const lastReplicatedItems: Record<string, Array<Item>> = {};
 
 registry.register<Components["Items"], ItemsPayload>({
 	component: Components.Items,
-	mode: "all",
-	serializer: (record, _playerEntityId, componentEntityId) => {
-		const key = `${componentEntityId}`;
-		const [items, newReplicatedItems] = itemsSerializer(
-			{ new: record.new!.items, old: record.old?.items },
-			lastReplicatedItems[key] ?? [],
-		);
-		lastReplicatedItems[key] = newReplicatedItems;
-		return { items };
-	},
 	deserializer: (data, serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
@@ -41,6 +30,7 @@ registry.register<Components["Items"], ItemsPayload>({
 				}
 			}
 		}
+
 		return {
 			items: newItems.filter((item) => !removedGUIDs.includes(item.guid)),
 			model: getInstanceWithAttribute(
@@ -49,5 +39,15 @@ registry.register<Components["Items"], ItemsPayload>({
 				serverEntityId,
 			) as Model,
 		};
+	},
+	mode: "all",
+	serializer: (record, _playerEntityId, componentEntityId) => {
+		const key = `${componentEntityId}`;
+		const [items, newReplicatedItems] = itemsSerializer(
+			{ new: record.new!.items, old: record.old?.items },
+			lastReplicatedItems[key] ?? [],
+		);
+		lastReplicatedItems[key] = newReplicatedItems;
+		return { items };
 	},
 });

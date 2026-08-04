@@ -1,10 +1,12 @@
+import type { ClientState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import type ObjectCache from "@rbxts/object-cache";
 import { Workspace } from "@rbxts/services";
-import { placeAudioToModel, soundEmitterCache } from "../../../utils/sound";
-import { ClientState } from "@lisachandra/core/store";
-import { Components} from "../../../components";
+
+import { Components } from "../../../components";
+import type { placeAudioToModel } from "../../../utils/sound";
+import { soundEmitterCache } from "../../../utils/sound";
 
 type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
 
@@ -37,10 +39,12 @@ function system(world: World): void {
 	}
 
 	for (const [_entityId, node, _sound] of world.query(Components.Node, Components.Sound)) {
-		if (game.IsAncestorOf(node.model)) {
-			node.model.Parent = Workspace.Caches.Sound;
-			soundEmitterCache.ReturnPart(node.model as ObjectCachePart<typeof soundEmitterCache>);
+		if (!game.IsAncestorOf(node.model)) {
+			continue;
 		}
+
+		node.model.Parent = Workspace.Caches.Sound;
+		soundEmitterCache.ReturnPart(node.model as ObjectCachePart<typeof soundEmitterCache>);
 	}
 }
 

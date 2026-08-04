@@ -1,21 +1,20 @@
+import { store } from "@lisachandra/core/store";
+import { isPascalCase } from "@lisachandra/core/utils/string";
+import { iterate } from "@lisachandra/core/utils/type";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { HttpService, ReplicatedStorage, Workspace } from "@rbxts/services";
 import { equals, removeValue } from "@rbxts/sift/Array";
+import { copyDeep, removeKeys } from "@rbxts/sift/Dictionary";
 
-import type { ExtractData, ItemContainer, ItemHierarchyIds } from "../items/types";
+import type { Item } from "../components";
+import { Components } from "../components";
 import type { ValidItemPath } from "../items/definitions";
 import { itemDefinitions } from "../items/definitions";
 import { descriptions } from "../items/descriptions";
 import { itemIds } from "../items/registry";
-import { Components, Item } from "../components";
-import { store } from "@lisachandra/core/store";
-import { copyDeep, removeKeys } from "@rbxts/sift/Dictionary";
-
-import { isPascalCase } from "@lisachandra/core/utils/string";
-import { iterate } from "@lisachandra/core/utils/type";
-
+import type { ExtractData, ItemContainer, ItemHierarchyIds } from "../items/types";
 
 /**
  * Retrieves a value from a nested table using a path of keys.
@@ -37,13 +36,11 @@ function getValueFromPaths<T extends Table>(root: T) {
 }
 
 /**
- * Retrieves an instance from a nested hierarchy of instances using a path of
- * names.
+ * Retrieves an instance from a nested hierarchy of instances using a path of names.
  *
  * @template T
  * @param root - The root instance.
- * @param strict - If true, returns undefined if any part of the path is not
- *   found.
+ * @param strict - If true, returns undefined if any part of the path is not found.
  * @returns A function that takes a path and returns the instance at that path.
  */
 function getInstanceFromPaths<T extends Instance>(root: T, strict = false) {
@@ -77,7 +74,7 @@ const itemConfig = getValueFromPaths(itemDefinitions);
  * @returns The item data.
  */
 export function getCompleteItem<P extends ValidItemPath>(id: P): Item<P>["data"] {
-	let data: Table = itemDefinitions as never;
+	let data: Table = itemDefinitions;
 
 	for (const path of id) {
 		data = { ...data, ...(data[path] as Table) };
@@ -185,13 +182,12 @@ export function getItemTool(paths: ValidItemPath): N<Tool> {
 }
 
 /**
- * Adds an item to either the hotbar or inventory. If an item with the same
- * ID exists, it increments the amount.
+ * Adds an item to either the hotbar or inventory. If an item with the same ID exists, it increments
+ * the amount.
  *
  * @template P
  * @param entityId - The ID of the entity in the world.
- * @param location - The location to add the item to ("Hotbar" or
- *   "Inventory").
+ * @param location - The location to add the item to ("Hotbar" or "Inventory").
  * @param itemToAdd - The item to add.
  */
 export function addItem<P extends ValidItemPath>(
@@ -215,7 +211,7 @@ export function addItem<P extends ValidItemPath>(
 							? {
 									...existingItem,
 									amount: existingItem.amount + itemToAdd.amount,
-							  }
+								}
 							: existingItem;
 					}),
 				],
@@ -240,8 +236,7 @@ export function addItem<P extends ValidItemPath>(
  * @template P
  * @param id - The item's ID path.
  * @param partialData - Partial data to override default item data.
- * @param mergeSuper - If false, will not merge with default data from
- *   `getCompleteItem`.
+ * @param mergeSuper - If false, will not merge with default data from `getCompleteItem`.
  * @returns The newly created item object.
  */
 export function createItem<P extends ValidItemPath>(
@@ -268,7 +263,9 @@ export function createItem<P extends ValidItemPath>(
  * @returns The item description.
  */
 export function getItemDescription(paths: ValidItemPath): string {
-	const descriptionContainer = getItemDescriptionContainer(paths) as { description?: string } | undefined;
+	const descriptionContainer = getItemDescriptionContainer(paths) as
+		| undefined
+		| { description?: string };
 	return descriptionContainer?.description ?? "";
 }
 
@@ -279,9 +276,7 @@ export function getItemDescription(paths: ValidItemPath): string {
  * @param guid - The GUID of the item.
  * @returns The matching item, or undefined if not found.
  */
-export function getItemFromGUID<P extends ValidItemPath>(
-	guid: string,
-): N<Item<P>> {
+export function getItemFromGUID<P extends ValidItemPath>(guid: string): N<Item<P>> {
 	const itemPointers = store.shared.getState("itemPointers");
 
 	if (itemPointers[guid] === undefined) {
@@ -312,8 +307,7 @@ export function getItemFromGUID<P extends ValidItemPath>(
 }
 
 /**
- * Retrieves an item by its ID path from a specific location (hotbar or
- * inventory).
+ * Retrieves an item by its ID path from a specific location (hotbar or inventory).
  *
  * @template P
  * @param entityId - The ID of the entity in the world.
@@ -339,7 +333,9 @@ export function getItemFromId<P extends ValidItemPath>(
  * @returns The item image URL.
  */
 export function getItemImage(paths: ValidItemPath): string {
-	const descriptionContainer = getItemDescriptionContainer(paths) as { image?: string } | undefined;
+	const descriptionContainer = getItemDescriptionContainer(paths) as
+		| undefined
+		| { image?: string };
 	return descriptionContainer?.image ?? "";
 }
 
@@ -360,8 +356,8 @@ export function getItemName(id: ValidItemPath): string {
  * @param guid - The GUID of the item.
  * @param id - The ID path of the item.
  * @param items - The array of items to search.
- * @param _excludeParent - If true, excludes the parent ID from the type
- *   returned (has no effect on runtime).
+ * @param _excludeParent - If true, excludes the parent ID from the type returned (has no effect on
+ *   runtime).
  * @returns The matching item, or undefined if not found.
  */
 export function getItemWithIdFromGUID<P extends ValidItemPath, U extends N<boolean>>(
@@ -392,9 +388,8 @@ export function isSameId(...ids: Array<Item["id"]>): boolean {
 }
 
 /**
- * Moves an item between an entity's inventory and hotbar, or from another
- * entity's inventory. Handles cleanup and 'Moved' status for inter-entity
- * transfers.
+ * Moves an item between an entity's inventory and hotbar, or from another entity's inventory.
+ * Handles cleanup and 'Moved' status for inter-entity transfers.
  *
  * @param entityId - The ID of the entity in the world.
  * @param guid - The GUID of the item to move.
@@ -430,7 +425,10 @@ export function moveItem(
 
 		// Mark as moved and transfer to the new entity. Clean up the old entity afterwards.
 		store.world.insert(itemEntityId, items.patch({ moved: true }));
-		store.world.insert(entityId, itemContainer!.patch({ items: [...itemContainer!.items, item] }));
+		store.world.insert(
+			entityId,
+			itemContainer!.patch({ items: [...itemContainer!.items, item] }),
+		);
 
 		// Use task.delay instead of task.defer so it can be mocked in tests
 		task.delay(0, () => {
@@ -451,7 +449,9 @@ export function moveItem(
 		}),
 		hotbar!.patch({
 			items:
-				destination === "Hotbar" ? [...hotbar!.items, item] : removeValue(hotbar!.items, item),
+				destination === "Hotbar"
+					? [...hotbar!.items, item]
+					: removeValue(hotbar!.items, item),
 		}),
 	);
 }
@@ -460,8 +460,7 @@ export function moveItem(
  * Removes an item by GUID, optionally specifying the amount to remove.
  *
  * @param guid - The GUID of the item to remove.
- * @param amount - The amount to remove (defaults to the item's full
- *   amount).
+ * @param amount - The amount to remove (defaults to the item's full amount).
  * @returns The removed item object, or undefined if not found.
  */
 export function removeItem(guid: string, amount?: number): N<Item> {
@@ -475,7 +474,8 @@ export function removeItem(guid: string, amount?: number): N<Item> {
 	let removedItem: N<Item>;
 
 	const removeItemFromContainer = (component: ItemContainer, targetItem: Item): void => {
-		const amountToRemove = amount !== undefined ? math.min(amount, targetItem.amount) : targetItem.amount;
+		const amountToRemove =
+			amount !== undefined ? math.min(amount, targetItem.amount) : targetItem.amount;
 		let newItems = component.items;
 
 		if (amountToRemove === targetItem.amount) {
@@ -483,7 +483,9 @@ export function removeItem(guid: string, amount?: number): N<Item> {
 			removedItem = targetItem;
 		} else {
 			newItems = newItems.map((item) => {
-				return item.guid === guid ? { ...item, amount: item.amount - amountToRemove } : item;
+				return item.guid === guid
+					? { ...item, amount: item.amount - amountToRemove }
+					: item;
 			});
 			removedItem = {
 				...targetItem,
@@ -571,10 +573,7 @@ export function setItemData<T extends Item>(
  * @param cf - The CFrame to spawn the item at.
  * @returns The entity ID of the spawned item.
  */
-export function spawnItem<P extends ValidItemPath>(
-	item: Item<P>,
-	cf: CFrame,
-): AnyEntity {
+export function spawnItem<P extends ValidItemPath>(item: Item<P>, cf: CFrame): AnyEntity {
 	const model = getItemModel(item.id)?.Clone();
 
 	if (!model) {
@@ -604,33 +603,36 @@ export function spawnItem<P extends ValidItemPath>(
 /**
  * Finds the nearest item matching a target item ID within the world.
  *
- * Iterates through all entities with an `Items` component and returns
- * the closest one that matches the target item ID, excluding items
- * that have been moved or are already known.
+ * Iterates through all entities with an `Items` component and returns the closest one that matches
+ * the target item ID, excluding items that have been moved or are already known.
  *
  * @param world - The Matter world instance to query.
  * @param targetItemId - The item ID path to search for.
  * @param gameObject - The model to measure distance from.
- * @param knownPoints - Optional map of entity IDs to positions that
- *   should be excluded from the search.
- * @returns The nearest matching item with its entity ID, magnitude
- *   (distance), and position, or `undefined` if none found.
+ * @param knownPoints - Optional map of entity IDs to positions that should be excluded from the
+ *   search.
+ * @returns The nearest matching item with its entity ID, magnitude (distance), and position, or
+ *   `undefined` if none found.
  */
 export function findNearestItem(
 	world: World,
 	targetItemId: ReadonlyArray<string>,
 	gameObject: Model,
 	knownPoints?: Record<AnyEntity, Vector3>,
-): {
-	entityId: AnyEntity;
-	magnitude: number;
-	position: Vector3;
-} | undefined {
-	let nearestItem: {
-		entityId: AnyEntity;
-		magnitude: number;
-		position: Vector3;
-	} | undefined;
+):
+	| undefined
+	| {
+			entityId: AnyEntity;
+			magnitude: number;
+			position: Vector3;
+	  } {
+	let nearestItem:
+		| undefined
+		| {
+				entityId: AnyEntity;
+				magnitude: number;
+				position: Vector3;
+		  };
 
 	for (const [entityId, { items, model, moved }] of world.query(Components.Items)) {
 		if (
@@ -653,14 +655,13 @@ export function findNearestItem(
 }
 
 /**
- * Retrieves the equipped item from an entity's hotbar that matches a
- * specific item ID.
+ * Retrieves the equipped item from an entity's hotbar that matches a specific item ID.
  *
  * @param world - The Matter world instance.
  * @param entityId - The ID of the entity to query.
  * @param id - The item ID path to match against the equipped item.
- * @returns The matching equipped `Item`, or `undefined` if no item
- *   is equipped or no match is found.
+ * @returns The matching equipped `Item`, or `undefined` if no item is equipped or no match is
+ *   found.
  */
 export function getEquippedItemWithId(
 	world: World,
@@ -675,6 +676,7 @@ export function getEquippedItemWithId(
 	}
 
 	return hotbar.items.find(
-		(item: Item) => item.guid === equippedGuid && id.every((key, index) => item.id[index] === key),
+		(item: Item) =>
+			item.guid === equippedGuid && id.every((key, index) => item.id[index] === key),
 	);
 }

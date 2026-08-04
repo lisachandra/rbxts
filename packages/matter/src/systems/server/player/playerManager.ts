@@ -1,3 +1,7 @@
+import { Constant } from "@lisachandra/constant";
+import type { ServerState } from "@lisachandra/core/store";
+import { store } from "@lisachandra/core/store";
+import { catcher } from "@lisachandra/core/utils/main";
 /*
  * This system manages player lifecycle events, such as joining and leaving the
  * game. It initializes player data, assigns attributes, and synchronizes player
@@ -17,20 +21,18 @@
  *   + entity despawn). Useful for saving game-specific state.
  */
 import type { Crate } from "@rbxts/crate";
+import { Janitor } from "@rbxts/janitor";
+import type { Collection } from "@rbxts/lapis";
+import Log from "@rbxts/log";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
 import { Players } from "@rbxts/services";
+
+import { Components } from "../../../components";
 import { useChange } from "../../../hooks";
-import { ServerState, store } from "@lisachandra/core/store";
-import { getDocumentConfig, getPlayerLifecycleHooks } from "../../../start";
-import type { Collection } from "@rbxts/lapis";
-import { Message, messaging } from "../../../network";
-import Log from "@rbxts/log";
-import { Janitor } from "@rbxts/janitor";
 import { useDocument } from "../../../hooks/useDocument";
-import { catcher } from "@lisachandra/core/utils/main";
-import { Components} from "../../../components";
-import { Constant } from "@lisachandra/constant";
+import { Message, messaging } from "../../../network";
+import { getDocumentConfig, getPlayerLifecycleHooks } from "../../../start";
 
 const loadingQueue = new Map<Player, boolean>();
 const eventQueue: Array<Callback> = [];
@@ -53,9 +55,7 @@ function debugPrint(message: string): void {
 	}
 }
 
-const c = new Constant()
-	.add("LOAD_TIMEOUT", 60)
-	.build();
+const c = new Constant().add("LOAD_TIMEOUT", 60).build();
 
 async function syncWithEventQueue(): Promise<void> {
 	return new Promise<void>((resolve) => {
@@ -90,19 +90,26 @@ async function waitForPlayerLoaded(
 		function listener(loadedPlayer: Player): void {
 			if (loadedPlayer !== player || loadingQueue.get(player) === true) {
 				if (loadedPlayer === player) {
-					debugPrint(`[playerManager] duplicate/ignored loaded ${player.Name} queued=${tostring(loadingQueue.get(player))}`);
+					debugPrint(
+						`[playerManager] duplicate/ignored loaded ${player.Name} queued=${tostring(loadingQueue.get(player))}`,
+					);
 				}
+
 				return;
 			}
 
 			debugPrint(`[playerManager] loaded received ${player.Name}`);
 			loadingQueue.set(player, true);
 			task.spawn(() => {
-				while (!disconnected && !settled) {
+				while (true) {
+					if (disconnected || settled) {
+						break;
+					}
+
 					const data = useDocument(collection, player.UserId, player);
 					debugPrint(`[playerManager] polling document ${player.Name}`);
 					if (data.document) {
-						const document = data.document;
+						const { document } = data;
 						debugPrint(`[playerManager] document ready ${player.Name}`);
 						if (!document) {
 							continue;
@@ -123,6 +130,7 @@ async function waitForPlayerLoaded(
 		}
 
 		let disconnectFn: Callback = () => {};
+
 		disconnect = () => {
 			if (disconnected) {
 				return;
@@ -135,10 +143,12 @@ async function waitForPlayerLoaded(
 
 		disconnectFn = messaging.server.on(Message.Loaded, listener);
 		debugPrint(`[playerManager] subscribed loaded ${player.Name}`);
-		task.delay(c.LOAD_TIMEOUT, () => finalize(() => {
-			debugPrint(`[playerManager] load timeout ${player.Name}`);
-			reject();
-		}));
+		task.delay(c.LOAD_TIMEOUT, () => {
+			finalize(() => {
+				debugPrint(`[playerManager] load timeout ${player.Name}`);
+				reject();
+			});
+		});
 	});
 }
 
@@ -163,32 +173,35 @@ function defaultPlayerAdded(world: World, player: Player): void {
 	syncWithEventQueue()
 		.then(async () => {
 			debugPrint(`[playerManager] sync resumed ${player.Name}`);
-				// preSpawn — validate before spawning
-				if (hooks?.preSpawn) {
-					let result: PreSpawnResult;
-					try {
-						result = await Promise.resolve(hooks.preSpawn(player));
-					} catch (error) {
-						Log.Warn(`[playerManager] preSpawn failed for ${player.Name}: ${tostring(error)}`);
-						if (player.Parent === Players) {
-							player.Kick("Unable to verify access right now. Please rejoin.");
-						}
-						return;
+			// preSpawn — validate before spawning
+			if (hooks?.preSpawn) {
+				let result: PreSpawnResult;
+				try {
+					result = await Promise.resolve(hooks.preSpawn(player));
+				} catch (err) {
+					Log.Warn(
+						`[playerManager] preSpawn failed for ${player.Name}: ${tostring(err)}`,
+					);
+					if (player.Parent === Players) {
+						player.Kick("Unable to verify access right now. Please rejoin.");
 					}
 
-					const [allowed, message] = normalizePreSpawnResult(result);
-					if (!allowed) {
-						if (player.Parent === Players) {
-							player.Kick(message ?? "Access denied");
-						}
-						return;
-					}
-				}
-
-				if (player.Parent !== Players) {
 					return;
 				}
 
+				const [allowed, message] = normalizePreSpawnResult(result);
+				if (!allowed) {
+					if (player.Parent === Players) {
+						player.Kick(message ?? "Access denied");
+					}
+
+					return;
+				}
+			}
+
+			if (player.Parent !== Players) {
+				return;
+			}
 
 			const entityId = world.spawn();
 			player.SetAttribute("serverEntityId", entityId);
@@ -222,13 +235,15 @@ function defaultPlayerAdded(world: World, player: Player): void {
 			const components = hooks?.componentFactory
 				? hooks.componentFactory(player, playerJanitor)
 				: [
-					Components.Profile({ janitor: playerJanitor, player }),
-					Components.Inventory(),
-					Components.Hotbar(),
-					Components.Forces(),
-				];
+						Components.Profile({ janitor: playerJanitor, player }),
+						Components.Inventory(),
+						Components.Hotbar(),
+						Components.Forces(),
+					];
 
-			debugPrint(`[playerManager] inserting components ${player.Name} count=${components.size()}`);
+			debugPrint(
+				`[playerManager] inserting components ${player.Name} count=${components.size()}`,
+			);
 
 			world.insert(entityId, ...components);
 			debugPrint(`[playerManager] inserted components ${player.Name} ${entityId}`);

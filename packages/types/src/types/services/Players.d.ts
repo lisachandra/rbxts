@@ -1,3 +1,3 @@
 interface Players extends Instance {
-	Hotbars: Folder,
+	Hotbars: Folder;
 }

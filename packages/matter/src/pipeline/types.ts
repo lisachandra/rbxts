@@ -1,6 +1,6 @@
-import { SystemStruct } from "@rbxts/matter";
+import type { SystemStruct } from "@rbxts/matter";
 
-type TSystem = SystemStruct<any>
+type TSystem = SystemStruct<any>;
 
 export type PipelineRuntime = "client" | "server" | "shared";
 
@@ -11,11 +11,11 @@ export interface TemplateSystem {
 }
 
 export interface SystemTemplate {
+	dependencies?: ReadonlyArray<string>;
 	kind?: "template";
 	name: string;
-	systems: ReadonlyArray<TemplateSystem>;
-	dependencies?: ReadonlyArray<string>;
 	provides?: ReadonlyArray<string>;
+	systems: ReadonlyArray<TemplateSystem>;
 }
 
 export interface PipelineExtension {
@@ -25,9 +25,9 @@ export interface PipelineExtension {
 }
 
 export interface PipelineBuilder {
-	use(template: SystemTemplate | PipelineExtension): PipelineBuilder;
-	override(systemKey: string, nextSystem: TSystem): PipelineBuilder;
 	build(): Array<TSystem>;
+	override(systemKey: string, nextSystem: TSystem): PipelineBuilder;
+	use(template: SystemTemplate | PipelineExtension): PipelineBuilder;
 }
 
 export type PipelineRegistration = SystemTemplate | PipelineExtension;
@@ -38,6 +38,6 @@ export interface TemplateFamily<TFamily extends string = string> {
 }
 
 export interface TemplateFamilySelection<TFamily extends string = string> {
-	include?: ReadonlyArray<TFamily>;
 	exclude?: ReadonlyArray<TFamily>;
+	include?: ReadonlyArray<TFamily>;
 }

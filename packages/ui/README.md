@@ -20,28 +20,29 @@ A virtualized list renderer — only renders items visible in the viewport.
 import { VirtualScroller } from "@lisachandra/ui";
 
 function MyInventory() {
-  return (
-    <VirtualScroller
-      itemCount={items.size()}
-      itemHeight={48}
-      renderItem={(index) => [<textlabel Text={items[index].name} />]}
-    />
-  );
+	return (
+		<VirtualScroller
+			itemCount={items.size()}
+			itemHeight={48}
+			renderItem={(index) => [<textlabel Text={items[index].name} />]}
+		/>
+	);
 }
 ```
 
 Props:
-| Prop | Type | Description |
-|---|---|---|
-| `itemCount` | `number` | Total number of items |
-| `itemHeight` | `number` | Height of each item in pixels |
-| `renderItem` | `(index: number \| string) => Array<ReactNode>` | Render function per item |
-| `dynamic?` | `boolean` | If true, renders without wrapping frames |
-| `persistentItems?` | `Array<number>` | Item indices to always render |
-| `template?` | `FunctionComponent` | Custom scrolling frame template |
-| `getKey?` | `(index: number) => string` | Custom key function |
-| `itemNative?` | `InstanceProps<Frame>` | Native properties on each item frame |
-| `native?` | `InstanceAttributes<ScrollingFrame>` | Native properties on the scrolling frame |
+
+| Prop               | Type                                            | Description                              |
+| ------------------ | ----------------------------------------------- | ---------------------------------------- |
+| `itemCount`        | `number`                                        | Total number of items                    |
+| `itemHeight`       | `number`                                        | Height of each item in pixels            |
+| `renderItem`       | `(index: number \| string) => Array<ReactNode>` | Render function per item                 |
+| `dynamic?`         | `boolean`                                       | If true, renders without wrapping frames |
+| `persistentItems?` | `Array<number>`                                 | Item indices to always render            |
+| `template?`        | `FunctionComponent`                             | Custom scrolling frame template          |
+| `getKey?`          | `(index: number) => string`                     | Custom key function                      |
+| `itemNative?`      | `InstanceProps<Frame>`                          | Native properties on each item frame     |
+| `native?`          | `InstanceAttributes<ScrollingFrame>`            | Native properties on the scrolling frame |
 
 ---
 
@@ -55,35 +56,34 @@ import { useMemo, useState } from "@rbxts/react";
 import { usePx } from "@lisachandra/ui";
 
 function App() {
-  const [viewport, setViewport] = useState(Vector2.zero);
-  const px = usePx(viewport);
+	const [viewport, setViewport] = useState(Vector2.zero);
+	const px = usePx(viewport);
 
-  const contextValue = useMemo(() => ({
-    px,
-    viewport,
-    screen: useBinding(Vector2.zero),
-  }), [px]);
+	const contextValue = useMemo(
+		() => ({
+			px,
+			viewport,
+			screen: useBinding(Vector2.zero),
+		}),
+		[px],
+	);
 
-  return (
-    <AppContext.Provider value={contextValue}>
-      {/* children */}
-    </AppContext.Provider>
-  );
+	return <AppContext.Provider value={contextValue}>{/* children */}</AppContext.Provider>;
 }
 ```
 
 ### `px` Methods
 
-| Method | Description |
-|---|---|
-| `px(value)` | Scale a number by the current pixel density |
-| `px.floor(value)` | Scale and floor |
-| `px.ceil(value)` | Scale and ceil |
-| `px.even(value)` | Scale and round to nearest even |
-| `px.scale(value)` | Multiply by scale factor (no rounding) |
-| `px.fetch(fn?)` | Create a fetch function with optional mapper |
-| `px.fromUDim(udim, fn?)` | Scale a UDim |
-| `px.fromUDim2(udim2, fn?)` | Scale a UDim2 |
+| Method                     | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| `px(value)`                | Scale a number by the current pixel density  |
+| `px.floor(value)`          | Scale and floor                              |
+| `px.ceil(value)`           | Scale and ceil                               |
+| `px.even(value)`           | Scale and round to nearest even              |
+| `px.scale(value)`          | Multiply by scale factor (no rounding)       |
+| `px.fetch(fn?)`            | Create a fetch function with optional mapper |
+| `px.fromUDim(udim, fn?)`   | Scale a UDim                                 |
+| `px.fromUDim2(udim2, fn?)` | Scale a UDim2                                |
 
 ---
 
@@ -97,16 +97,13 @@ Project a 3D world position to 2D screen coordinates:
 import { useWorldToScreen, projectWorldToScreen } from "@lisachandra/ui";
 
 // As a hook (reactive)
-const screenPos = useWorldToScreen(
-  useBinding(worldPosition),
-  useBinding(new Vector2(100, 100)),
-);
+const screenPos = useWorldToScreen(useBinding(worldPosition), useBinding(new Vector2(100, 100)));
 
 // Imperative
 const result = projectWorldToScreen(worldPos, baseSize, px);
 if (result?.onScreen) {
-  frame.Position = result.position;
-  frame.Size = result.size;
+	frame.Position = result.position;
+	frame.Size = result.size;
 }
 ```
 
@@ -133,11 +130,7 @@ import { useProperty } from "@lisachandra/ui";
 // Returns [values, changeEvent] matching property order
 const [size, position, change] = useProperty("Frame", "Size", "Position");
 
-return (
-  <frame Change={change}>
-    {/* size and position are Binding<Vector2> values */}
-  </frame>
-);
+return <frame Change={change}>{/* size and position are Binding<Vector2> values */}</frame>;
 ```
 
 ### `usePropertyBinding`
@@ -169,10 +162,10 @@ const id = useConstant(() => HttpService.GenerateGUID(false));
 import { createAppHotReloader } from "@lisachandra/ui";
 
 const reloader = createAppHotReloader({
-  target: PlayerGui,
-  moduleRoot: container,
-  entryModuleName: "app",
-  strictMode: true,
+	target: PlayerGui,
+	moduleRoot: container,
+	entryModuleName: "app",
+	strictMode: true,
 });
 
 reloader.start();

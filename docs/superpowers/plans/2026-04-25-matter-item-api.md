@@ -23,6 +23,7 @@
 ### Task 0: Move The Plan Into `docs/superpowers`
 
 **Files:**
+
 - Create: `docs/superpowers/2026-04-25-matter-item-api.md`
 - Source: `.kilo/plans/1777112534989-mighty-comet.md`
 
@@ -49,6 +50,7 @@ Expected: the plan exists under `docs/superpowers`, matching the user's requeste
 #### Subtask 0A: Docs Plan Relocation
 
 **Files:**
+
 - Create: `docs/superpowers/2026-04-25-matter-item-api.md`
 - Source: `.kilo/plans/1777112534989-mighty-comet.md`
 
@@ -83,6 +85,7 @@ Expected: any implementation session starts from `docs/superpowers/2026-04-25-ma
 ### Task 1: Rebuild the Local Item Definition Surface
 
 **Files:**
+
 - Modify: `packages/matter/src/items/definitions.ts`
 - Modify: `packages/matter/src/items/descriptions.ts`
 - Modify: `packages/matter/src/items/serdes.ts`
@@ -185,6 +188,7 @@ Expected: `definitions.ts`, `descriptions.ts`, `serdes.ts`, `types.d.ts`, and `c
 ### Task 2: Remove `Configurations` From `utils/item.ts`
 
 **Files:**
+
 - Modify: `packages/matter/src/utils/item.ts`
 - Review: `packages/matter/src/items/api.ts`
 - Review: `packages/matter/src/items/index.ts`
@@ -222,6 +226,7 @@ This preserves the runtime behavior of path-based lookup while removing the miss
 - [ ] **Step 2: Keep pure item-definition logic aligned with `src/items/api.ts`**
 
 Do not move the whole file. `utils/item.ts` still owns store/world helpers like `moveItem`, `removeItem`, and `spawnItem`, but its pure lookup functions should now agree with `src/items/api.ts`:
+
 - `getCompleteItem`
 - `getItemConfig`
 - `getNumericItemIdFromId`
@@ -243,6 +248,7 @@ Expected: the two `TS2304` errors for `Configurations` in `packages/matter/src/u
 ### Task 3: Fix Tool Cleanup Type Safety
 
 **Files:**
+
 - Modify: `packages/matter/src/utils/item.ts`
 - Review: `packages/matter/src/components.ts`
 - Review: `packages/matter/src/systems/server/item/toolManager.ts`
@@ -281,6 +287,7 @@ Expected: the `TS2790` error at `packages/matter/src/utils/item.ts:530` is gone.
 ### Task 4: Final Verification
 
 **Files:**
+
 - Review: `packages/matter/src/utils/item.ts`
 - Review: `packages/matter/src/items/definitions.ts`
 - Review: `packages/matter/src/items/descriptions.ts`
@@ -297,6 +304,7 @@ Expected: `packages/matter` typechecks cleanly for included source files, with n
 Run: `rg "Configurations\.Items\.Definitions|\bConfigurations\b" packages/matter/src`
 
 Expected:
+
 - No remaining `Configurations.Items.Definitions` usage in the package item API path
 - Any remaining `Configurations` imports are outside this item-API fix scope and can be handled separately if they become build-relevant
 
@@ -312,6 +320,7 @@ Expected: a single commit containing only the package-local item API migration a
 ### Task 5: Public Consumer Compatibility Follow-Up
 
 **Files:**
+
 - Modify: `packages/matter/src/items/api.ts`
 - Modify: `packages/matter/src/items/index.ts`
 - Modify: `packages/matter/src/index.ts`
@@ -321,11 +330,13 @@ Expected: a single commit containing only the package-local item API migration a
 - [ ] **Step 1: Define the compatibility contract before changing the public API**
 
 Decide which of these public behaviors must be preserved for consumers:
+
 - type-level compatibility for `Items`, `ValidItemPath`, and `ExtractData`
 - helper-level compatibility for `getItemConfig`, `getCompleteItem`, `createItem`, and ID helpers
 - runtime compatibility for model/tool/animation lookup helpers
 
 The old generated config cannot be preserved exactly because it used Roblox instances. The practical public contract should instead be:
+
 - same item paths
 - same merged item data shape
 - same exported helper names
@@ -362,6 +373,7 @@ export function getItemToolAnimation(_paths: ValidItemPath): undefined {
 ```
 
 For public compatibility, either:
+
 - delegate them to the existing runtime lookup logic from `packages/matter/src/utils/item.ts`, or
 - mark them as intentionally unsupported in the package build and move them out of the public export surface.
 
@@ -389,6 +401,7 @@ import { createItem, getItemConfig, getItemModel, getItemTool } from "@lisachand
 ```
 
 Expected:
+
 - the imports resolve from the public package surface
 - item path types match the expanded local definitions
 - no helper remains exported publicly as an always-`undefined` placeholder unless that is an intentional breaking change

@@ -25,19 +25,19 @@ describe("main routing", () => {
 	});
 
 	test("missing issue number throws after help", async () => {
-		process.env["DIRAC_SANDCASTLE_MODEL"] = "m";
+		process.env.DIRAC_SANDCASTLE_MODEL = "m";
 		process.argv = ["node", "main.ts"];
 		await assert.rejects(async () => main(), /issue number/);
 	});
 
 	test("integration-status requires name", async () => {
-		process.env["DIRAC_SANDCASTLE_MODEL"] = "m";
+		process.env.DIRAC_SANDCASTLE_MODEL = "m";
 		process.argv = ["node", "main.ts", "integration-status"];
 		await assert.rejects(async () => main(), /--name is required/);
 	});
 
 	test("issue-sequence requires --sequential", async () => {
-		process.env["DIRAC_SANDCASTLE_MODEL"] = "m";
+		process.env.DIRAC_SANDCASTLE_MODEL = "m";
 		process.argv = ["node", "main.ts", "issue-sequence"];
 		await assert.rejects(async () => main(), /--sequential is required/);
 	});

@@ -6,7 +6,7 @@ export default defineConfig({
 		projects: [
 			{
 				test: {
-					displayName: { name: "react-template", color: "blue" },
+					displayName: { color: "blue", name: "react-template" },
 					include: ["src/**/*.spec.ts", "src/**/*.spec.tsx"],
 					mockDataModel: false,
 					outDir: "out",

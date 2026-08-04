@@ -394,7 +394,7 @@ describe("integration composition", () => {
 			worktree: `.sandcastle/integrations/${name}/worktree`,
 		};
 		writeIntegrationManifest(manifest);
-		process.env["DIRAC_SANDCASTLE_MODEL"] = "m";
+		process.env.DIRAC_SANDCASTLE_MODEL = "m";
 		process.argv = ["node", "main.ts", "integration-abort", "--name", name];
 		await main();
 		assert.equal(readIntegrationManifest(name)?.status, "aborted");

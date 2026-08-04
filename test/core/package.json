@@ -12,10 +12,10 @@
 		"test": "pnpm exec jest-roblox ./jest.config.ts"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
 		"@isentinel/jest-roblox": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/jest": "catalog:",
 		"@rbxts/jest-globals": "catalog:",

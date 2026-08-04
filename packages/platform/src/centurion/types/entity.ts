@@ -1,6 +1,11 @@
+import { store } from "@lisachandra/core/store";
+import { includes } from "@lisachandra/core/utils/string";
+import { is } from "@lisachandra/core/utils/type";
+import type { ComponentKey } from "@lisachandra/matter";
+import { Components } from "@lisachandra/matter";
 /**
- * Defines and registers custom Centurion types for entities. These types are
- * used for command argument parsing and validation.
+ * Defines and registers custom Centurion types for entities. These types are used for command
+ * argument parsing and validation.
  */
 import type { SingleArgumentType } from "@rbxts/centurion";
 import { ListTypeBuilder, TransformResult, TypeBuilder } from "@rbxts/centurion";
@@ -8,11 +13,6 @@ import type { AnyEntity } from "@rbxts/matter";
 import { isEmpty } from "@rbxts/object-utils";
 import RegExp from "@rbxts/regexp";
 import { Players } from "@rbxts/services";
-
-import { includes } from "@lisachandra/core/utils/string";
-import { is } from "@lisachandra/core/utils/type";
-import { store } from "@lisachandra/core/store";
-import { ComponentKey, Components } from "@lisachandra/matter";
 
 const prefixRegexp = RegExp("^@([^()]+)(?:\\((.*)\\))?$");
 
@@ -49,57 +49,70 @@ function parsePrefix(prefix: string, args: string, executor: Player): N<Array<An
 	const executorEntityId = executor.GetAttribute<AnyEntity>("serverEntityId")!;
 	const accumulator: Array<AnyEntity> = [];
 
-	if (prefix === "me") {
-		accumulator.push(executorEntityId);
-	} else if (prefix === "all" || prefix === "others") {
-		for (const [entityId] of store.world) {
-			if (prefix === "others" && entityId === executorEntityId) {
-				continue;
-			}
-
-			accumulator.push(entityId);
-		}
-	} else if (prefix === "query") {
-		const components = args
-			.split(";")
-			.map((key) => {
-				if (!is<ComponentKey>(key) || !Components[key]) {
-					return;
+	switch (prefix) {
+		case "all":
+		case "others": {
+			for (const [entityId] of store.world) {
+				if (prefix === "others" && entityId === executorEntityId) {
+					continue;
 				}
 
-				return Components[key];
-			})
-			.filterUndefined();
+				accumulator.push(entityId);
+			}
 
-		if (isEmpty(components)) {
+			break;
+		}
+		case "except":
+		case "only": {
+			const input = args.split(";");
+			const result = Entities.transform(input, executor);
+
+			if (!typeIs(result?.value, "table")) {
+				return;
+			}
+
+			for (const entityId of result.value) {
+				accumulator.push(entityId);
+			}
+
+			break;
+		}
+		case "me": {
+			accumulator.push(executorEntityId);
+
+			break;
+		}
+		case "query": {
+			const components = args
+				.split(";")
+				.map((key) => {
+					if (!is<ComponentKey>(key) || !Components[key]) {
+						return;
+					}
+
+					return Components[key];
+				})
+				.filterUndefined();
+
+			if (isEmpty(components)) {
+				return;
+			}
+
+			for (const [entityId] of store.world.query(...components)) {
+				accumulator.push(entityId);
+			}
+
+			break;
+		}
+		default: {
 			return;
 		}
-
-		for (const [entityId] of store.world.query(...components)) {
-			accumulator.push(entityId);
-		}
-	} else if (prefix === "except" || prefix === "only") {
-		const input = args.split(";");
-		const result = Entities.transform(input, executor);
-
-		if (!typeIs(result?.value, "table")) {
-			return;
-		}
-
-		for (const entityId of result.value) {
-			accumulator.push(entityId);
-		}
-	} else {
-		return;
 	}
 
 	return accumulator;
 }
 
-/**
- * Base entity type. Transforms text input into an entity ID, verifying its
- * existence in the world.
- */
+/** Base entity type. Transforms text input into an entity ID, verifying its existence in the world. */
 export const Entity = TypeBuilder.create<AnyEntity>("entity")
 	.transform((text, executor) => {
 		if (text === "@me") {
@@ -121,12 +134,12 @@ export const Entity = TypeBuilder.create<AnyEntity>("entity")
 	.build();
 
 /**
- * Registered Centurion list type for entity IDs, supporting prefix
- * syntax (`@me`, `@all`, `@others`, `@query`, `@except`, `@only`).
+ * Registered Centurion list type for entity IDs, supporting prefix syntax (`@me`, `@all`,
+ * `@others`, `@query`, `@except`, `@only`).
  *
  * @remarks
- * Prefixes are resolved via `parsePrefix`; bare entity IDs fall through
- * to the single `Entity` transform.
+ *   Prefixes are resolved via `parsePrefix`; bare entity IDs fall through to the single `Entity`
+ *   transform.
  */
 export const Entities = ListTypeBuilder.create<Array<AnyEntity>>("entities")
 	.transform((input, executor) => {
@@ -137,7 +150,8 @@ export const Entities = ListTypeBuilder.create<Array<AnyEntity>>("entities")
 				const match = prefixRegexp.exec(text);
 				const prefix = match?.[1];
 				const args = match?.[2] ?? "";
-				const parsedEntities = prefix !== undefined ? parsePrefix(prefix, args, executor) : undefined;
+				const parsedEntities =
+					prefix !== undefined ? parsePrefix(prefix, args, executor) : undefined;
 
 				if (!parsedEntities) {
 					return TransformResult.err(`Prefix '${text}' is not valid.`);

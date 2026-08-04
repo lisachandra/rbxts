@@ -2,29 +2,29 @@ import type { SystemFn } from "@rbxts/matter";
 
 declare module "@rbxts/matter" {
 	export type RenderPriorityPhase =
-		| "renderCamera"
-		| "renderCharacter"
+		| "renderLast"
 		| "renderFirst"
 		| "renderInput"
-		| "renderLast";
+		| "renderCamera"
+		| "renderCharacter";
 	export type Phases =
 		| "default"
-		| "heartbeat"
-		| "postSimulation"
-		| "preAnimation"
-		| "preRender"
-		| "preSimulation"
 		| "stepped"
+		| "heartbeat"
+		| "preRender"
+		| "preAnimation"
+		| "preSimulation"
 		| "renderStepped"
+		| "postSimulation"
 		| RenderPriorityPhase
 		| "playerModuleCamera";
 
 	interface SystemStruct<T extends Array<unknown>> {
 		after?: Array<SystemFn<T> | SystemStruct<T>>;
+		phase?: Phases;
 		placeIds?: Array<number>;
 		priority?: number;
 		system: SystemFn<T>;
-		phase?: Phases;
 	}
 
 	interface World {

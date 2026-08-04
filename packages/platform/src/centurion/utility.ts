@@ -1,26 +1,25 @@
+import { is } from "@lisachandra/core/utils/type";
 import {
-    type ListArgumentType,
-    ListTypeBuilder,
-    type SingleArgumentType,
-    TransformResult,
-    TypeBuilder,
+	type ListArgumentType,
+	ListTypeBuilder,
+	type SingleArgumentType,
+	TransformResult,
+	TypeBuilder,
 } from "@rbxts/centurion";
 
-import { is } from "@lisachandra/core/utils/type";
-
 /**
- * Creates a {@link ListArgumentType} from a single-value argument type,
- * enabling comma-separated lists of that type in Centurion commands.
+ * Creates a {@link ListArgumentType} from a single-value argument type, enabling comma-separated
+ * lists of that type in Centurion commands.
+ *
+ * @example
+ * 	```ts
+ * 	const PlayersList = makeListableType("players", CenturionType.Player);
+ * 	```;
  *
  * @param name - The name for the generated list type.
  * @param userType - The base single-argument type to wrap as a list.
  * @returns A registered list argument type that transforms and suggests
- *   multiple values at once.
- *
- * @example
- * ```ts
- * const PlayersList = makeListableType("players", CenturionType.Player);
- * ```
+ * multiple values at once.
  */
 export function makeListableType<T extends defined>(
 	name: string,
@@ -63,17 +62,16 @@ export function makeListableType<T extends defined>(
 }
 
 /**
- * Creates a Centurion {@link SingleArgumentType} that accepts only the
- * provided string enum values.
+ * Creates a Centurion {@link SingleArgumentType} that accepts only the provided string enum values.
+ *
+ * @example
+ * 	```ts
+ * 	const TeamType = makeEnumType("team", ["Red", "Blue", "Green"]);
+ * 	```;
  *
  * @param name - The name for the generated type.
  * @param enums - The allowed string values.
  * @returns A registered single-argument type with enum validation.
- *
- * @example
- * ```ts
- * const TeamType = makeEnumType("team", ["Red", "Blue", "Green"]);
- * ```
  */
 export function makeEnumType<T extends string>(
 	name: string,

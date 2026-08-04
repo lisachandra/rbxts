@@ -8,7 +8,7 @@ interface RouterContext {
 }
 
 /**
- * React context that provides the current {@link History} instance and
- * the active {@link HistoryEntry | location} to descendant components.
+ * React context that provides the current {@link History} instance and the active
+ * {@link HistoryEntry | location} to descendant components.
  */
 export const RouterContext = createContext<RouterContext>({} as RouterContext);

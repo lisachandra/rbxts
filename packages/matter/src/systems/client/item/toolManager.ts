@@ -1,3 +1,6 @@
+import type { Humanoid } from "@lisachandra/core/schemas";
+import type { ClientState } from "@lisachandra/core/store";
+import { getHumanoid } from "@lisachandra/core/utils/main";
 /*
  * This system manages the tools equipped in the player's hotbar. It handles
  * equipping, unequipping, and visibility adjustments for tools based on user
@@ -11,37 +14,35 @@
  * directly via `UserInputService`.
  */
 import type { Crate } from "@rbxts/crate";
-import type { DebugWidgets, SystemStruct } from "@rbxts/matter";
-import type { AnyEntity, World } from "@rbxts/matter";
-import { useEvent } from "@rbxts/matter";
+import {
+	type AnyEntity,
+	type DebugWidgets,
+	type SystemStruct,
+	useEvent,
+	type World,
+} from "@rbxts/matter";
 import { Players, UserInputService } from "@rbxts/services";
+
 import { Components } from "../../../components";
-import { getItemFromGUID } from "../../../utils/item";
-import { Humanoid } from "@lisachandra/core/schemas";
-import { ClientState } from "@lisachandra/core/store";
-import { getHumanoid } from "@lisachandra/core/utils/main";
 import { getHotbarInputAdapter } from "../../../start";
+import { getItemFromGUID } from "../../../utils/item";
 import { meta as itemManager } from "../item/itemManager";
 
-/**
- * Map of numeric keycodes to their corresponding hotbar slot index.
- */
+/** Map of numeric keycodes to their corresponding hotbar slot index. */
 const numericKeyToIndex = new Map<Enum.KeyCode, number>([
-	[Enum.KeyCode.One, 0],
-	[Enum.KeyCode.Two, 1],
-	[Enum.KeyCode.Three, 2],
-	[Enum.KeyCode.Four, 3],
-	[Enum.KeyCode.Five, 4],
-	[Enum.KeyCode.Six, 5],
-	[Enum.KeyCode.Seven, 6],
 	[Enum.KeyCode.Eight, 7],
+	[Enum.KeyCode.Five, 4],
+	[Enum.KeyCode.Four, 3],
 	[Enum.KeyCode.Nine, 8],
+	[Enum.KeyCode.One, 0],
+	[Enum.KeyCode.Seven, 6],
+	[Enum.KeyCode.Six, 5],
+	[Enum.KeyCode.Three, 2],
+	[Enum.KeyCode.Two, 1],
 	[Enum.KeyCode.Zero, 9],
 ]);
 
-/**
- * The number of hotbar slots per row.
- */
+/** The number of hotbar slots per row. */
 const slotsPerRow = 10;
 
 function equipTool(humanoid: Humanoid, hotbar: Components["Hotbar"]): void {
@@ -165,11 +166,13 @@ function system(world: World, crate: Crate<ClientState>): void {
 			if (!humanoid || key.UserInputType !== Enum.UserInputType.Keyboard) {
 				continue;
 			}
+
 			const keyCode = key.KeyCode;
 			const slotIndex = numericKeyToIndex.get(keyCode);
 			if (slotIndex === undefined) {
 				continue;
 			}
+
 			equipTool(humanoid, hotbar);
 		}
 	}

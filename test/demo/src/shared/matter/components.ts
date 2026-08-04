@@ -1,51 +1,52 @@
-import { registry, Components } from "@lisachandra/matter";
+import { Components, registry } from "@lisachandra/matter";
 import { component } from "@rbxts/matter";
+
 import type { PlotStage, PromptKind, ResourceKind } from "shared/game/types";
 
 declare module "@lisachandra/matter/components" {
 	interface Components {
-		GardenPlot: {
-			plotId: string;
-			part: BasePart;
-			stage: PlotStage;
-			progress: number;
-			lastTouchedAt: number;
-		};
-		ResourcePickup: {
-			part: BasePart;
-			kind: ResourceKind;
+		CarryState: {
 			amount: number;
-			respawnAt?: number;
+			kind?: ResourceKind;
+		};
+		DecayState: {
+			nextDecayAt: number;
+		};
+		GardenPlot: {
+			lastTouchedAt: number;
+			part: BasePart;
+			plotId: string;
+			progress: number;
+			stage: PlotStage;
+		};
+		GardenProgress: {
+			harvested: number;
+			health: number;
+			restoredPlots: number;
+			totalPlots: number;
 		};
 		Interactable: {
+			kind: PromptKind;
 			part: BasePart;
 			prompt: string;
 			radius: number;
-			kind: PromptKind;
-		};
-		GardenProgress: {
-			restoredPlots: number;
-			totalPlots: number;
-			harvested: number;
-			health: number;
-		};
-		CarryState: {
-			kind?: ResourceKind;
-			amount: number;
-		};
-		PromptState: {
-			text: string;
 		};
 		NotificationState: {
 			latest: string;
 			revision: number;
 		};
+		PromptState: {
+			text: string;
+		};
+		ResourcePickup: {
+			amount: number;
+			kind: ResourceKind;
+			part: BasePart;
+			respawnAt?: number;
+		};
 		WaterSource: {
 			part: BasePart;
 			uses: number;
-		};
-		DecayState: {
-			nextDecayAt: number;
 		};
 	}
 }
@@ -54,14 +55,19 @@ const gardenPlot = component<Components["GardenPlot"]>("GardenPlot");
 const resourcePickup = component<Components["ResourcePickup"]>("ResourcePickup");
 const interactable = component<Components["Interactable"]>("Interactable");
 const gardenProgress = component<Components["GardenProgress"]>("GardenProgress", {
-	restoredPlots: 0,
-	totalPlots: 0,
 	harvested: 0,
 	health: 0,
+	restoredPlots: 0,
+	totalPlots: 0,
 });
 const carryState = component<Components["CarryState"]>("CarryState", { amount: 0 });
-const promptState = component<Components["PromptState"]>("PromptState", { text: "Walk near a pickup." });
-const notificationState = component<Components["NotificationState"]>("NotificationState", { latest: "", revision: 0 });
+const promptState = component<Components["PromptState"]>("PromptState", {
+	text: "Walk near a pickup.",
+});
+const notificationState = component<Components["NotificationState"]>("NotificationState", {
+	latest: "",
+	revision: 0,
+});
 const waterSource = component<Components["WaterSource"]>("WaterSource");
 const decayState = component<Components["DecayState"]>("DecayState");
 
@@ -77,28 +83,28 @@ Components.DecayState = decayState;
 
 registry.register<Components["GardenProgress"], Components["GardenProgress"]>({
 	component: gardenProgress,
-	mode: "all",
 	deserializer: (data) => data,
+	mode: "all",
 	serializer: (record) => record.new,
 });
 
 registry.register<Components["CarryState"], Components["CarryState"]>({
 	component: carryState,
-	mode: "owner",
 	deserializer: (data) => data,
+	mode: "owner",
 	serializer: (record) => record.new,
 });
 
 registry.register<Components["PromptState"], Components["PromptState"]>({
 	component: promptState,
-	mode: "owner",
 	deserializer: (data) => data,
+	mode: "owner",
 	serializer: (record) => record.new,
 });
 
 registry.register<Components["NotificationState"], Components["NotificationState"]>({
 	component: notificationState,
-	mode: "owner",
 	deserializer: (data) => data,
+	mode: "owner",
 	serializer: (record) => record.new,
 });

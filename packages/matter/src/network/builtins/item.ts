@@ -1,30 +1,31 @@
+import { store } from "@lisachandra/core/store";
+import { required } from "@lisachandra/core/utils/type";
 import Log from "@rbxts/log";
 import { isEmpty } from "@rbxts/object-utils";
 import type { Serializer, u16 } from "@rbxts/serio";
 import { filter, flip } from "@rbxts/sift/Dictionary";
-import { store } from "@lisachandra/core/store";
-import { required } from "@lisachandra/core/utils/type";
 
-import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
+import type { Item } from "../../components";
 import type { ValidItemPath } from "../../items";
 import { privateDefinitions, serdes } from "../../items";
-import { Item } from "../../components";
+import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
 
 /**
  * Serialized item data sent over the network.
  *
  * @remarks
- * When only a `guid` is present, the item has been removed.
- * Otherwise, the full item payload is included with amount, numeric id, guid,
- * and optional serialized blobs/buffer.
+ *   When only a `guid` is present, the item has been removed. Otherwise, the full item payload is
+ *   included with amount, numeric id, guid, and optional serialized blobs/buffer.
  */
-export type ItemData = { guid: u16 } | {
-	blobs: unknown;
-	buf?: buffer;
-	amount: u16;
-	guid: u16;
-	id: u16;
-}
+export type ItemData =
+	| { guid: u16 }
+	| {
+			amount: u16;
+			blobs: unknown;
+			buf?: buffer;
+			guid: u16;
+			id: u16;
+	  };
 
 function findItemSerdes<T>(itemId: ValidItemPath): Serializer<T> {
 	let dataSerdes: N<Serializer<T>>;
@@ -60,7 +61,7 @@ function getReplicatedData(
 	let unreplicatedKeys: Array<string> = [];
 
 	for (const [itemId, excludedKeys] of privateDefinitions) {
-		if (itemId.some((str) => item.id.includes(str as never))) {
+		if (itemId.some((str) => item.id.includes(str))) {
 			unreplicatedKeys = excludedKeys;
 		}
 	}
@@ -110,10 +111,7 @@ function shouldItemBeReplicated(
 	return [true, filteredNewData];
 }
 
-function serializeSingleItem(
-	item: Item,
-	lastReplicatedItems: Array<Item>,
-): N<ItemData> {
+function serializeSingleItem(item: Item, lastReplicatedItems: Array<Item>): N<ItemData> {
 	const [replicateSafe, numericId, guidId] = isItemReplicateSafe(item);
 	if (!replicateSafe) {
 		return;
@@ -145,24 +143,19 @@ function serializeSingleItem(
 }
 
 /**
- * Serializes item data for network replication. This function compares new and
- * old item states to generate a concise update packet, minimizing bandwidth
- * usage. It handles data serialization using Squash and manages unreplicated
- * properties. It also updates the server's replicated item list.
+ * Serializes item data for network replication. This function compares new and old item states to
+ * generate a concise update packet, minimizing bandwidth usage. It handles data serialization using
+ * Squash and manages unreplicated properties. It also updates the server's replicated item list.
  *
  * @param items - An object containing arrays of new and optionally old items.
- * @param lastReplicatedItems - The last set of items that were replicated to
- *   the client.
- * @returns A tuple containing the serialized item data for the network packet
- *   and an updated list of replicated items.
+ * @param lastReplicatedItems - The last set of items that were replicated to the client.
+ * @returns A tuple containing the serialized item data for the network packet and an updated list
+ *   of replicated items.
  */
 export function itemsSerializer(
 	items: { new: Array<Item>; old?: Array<Item> },
 	lastReplicatedItems: Array<Item>,
-): [
-	serializedItems: Array<ItemData>,
-	newReplicatedItems: Array<Item>,
-] {
+): [serializedItems: Array<ItemData>, newReplicatedItems: Array<Item>] {
 	const serializedItems: Array<ItemData> = [];
 	const newReplicatedItems: Array<Item> = [];
 
@@ -173,7 +166,7 @@ export function itemsSerializer(
 			serializedItems.push(serializedItem);
 			newReplicatedItems.push({
 				...item,
-				data: { ...newData, ...unreplicatedData } as Item["data"],
+				data: { ...newData, ...unreplicatedData },
 			});
 		}
 	}
@@ -192,27 +185,26 @@ export function itemsSerializer(
 	return [serializedItems, newReplicatedItems];
 }
 
-function deserializeItemData(
-	item: ItemData,
-	itemId: ValidItemPath,
-): N<Item["data"]> {
+function deserializeItemData(item: ItemData, itemId: ValidItemPath): N<Item["data"]> {
 	if (!("buf" in item)) {
 		return;
 	}
 
 	const dataSerdes = findItemSerdes(itemId);
-	return dataSerdes.deserialize({ blobs: item.blobs as defined[], buf: item.buf }) as Item["data"];
+	return dataSerdes.deserialize({
+		blobs: item.blobs as Array<defined>,
+		buf: item.buf,
+	}) as Item["data"];
 }
 
 /**
- * Deserializes item data received from the server, updating existing items and
- * removing deleted ones.
+ * Deserializes item data received from the server, updating existing items and removing deleted
+ * ones.
  *
  * @param items - An array of item data received from the server.
- * @param oldItems - An optional array of existing item components for
- *   comparison and updates.
- * @returns A tuple containing the new array of item components and an array of
- *   GUIDs of removed items.
+ * @param oldItems - An optional array of existing item components for comparison and updates.
+ * @returns A tuple containing the new array of item components and an array of GUIDs of removed
+ *   items.
  */
 export function itemsDeserializer(
 	items: Array<ItemData>,
@@ -253,7 +245,7 @@ export function itemsDeserializer(
 
 		newItems.push({
 			amount: item.amount,
-			data: data as never,
+			data,
 			guid: itemGUID,
 			id: itemId,
 			tool: oldItem.tool!,

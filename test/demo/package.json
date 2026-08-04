@@ -11,30 +11,17 @@
 		"serve:rojo": "rojo serve default.project.json",
 		"test": "pnpm exec jest-roblox ./jest.config.ts"
 	},
-	"devDependencies": {
-		"@isentinel/jest-roblox": "catalog:",
-		"@isentinel/tsconfig": "catalog:",
-		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/types": "catalog:",
-		"io-serve": "catalog:",
-		"jiti": "catalog:",
-		"rbxts-transformer-flamework": "catalog:",
-		"@isentinel/roblox-ts": "catalog:",
-		"shx": "catalog:",
-		"typescript": "catalog:"
-	},
 	"dependencies": {
-		"type-fest": "catalog:",
 		"@flamework/core": "catalog:",
 		"@lisachandra/constant": "catalog:",
 		"@lisachandra/core": "workspace:*",
 		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/platform": "workspace:*",
+		"@lisachandra/react-router": "workspace:*",
+		"@lisachandra/react-template": "workspace:*",
 		"@lisachandra/test": "workspace:*",
 		"@lisachandra/types": "workspace:*",
 		"@lisachandra/ui": "workspace:*",
-		"@lisachandra/react-router": "workspace:*",
-		"@lisachandra/react-template": "workspace:*",
 		"@rbxts/centurion": "catalog:",
 		"@rbxts/centurion-ui": "catalog:",
 		"@rbxts/crate": "catalog:",
@@ -67,6 +54,19 @@
 		"@rbxts/sift": "catalog:",
 		"@rbxts/t": "catalog:",
 		"@rbxts/tether": "catalog:",
-		"@rbxts/validate-tree": "catalog:"
+		"@rbxts/validate-tree": "catalog:",
+		"type-fest": "catalog:"
+	},
+	"devDependencies": {
+		"@isentinel/jest-roblox": "catalog:",
+		"@isentinel/roblox-ts": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
+		"@rbxts/compiler-types": "catalog:",
+		"@rbxts/types": "catalog:",
+		"io-serve": "catalog:",
+		"jiti": "catalog:",
+		"rbxts-transformer-flamework": "catalog:",
+		"shx": "catalog:",
+		"typescript": "catalog:"
 	}
 }

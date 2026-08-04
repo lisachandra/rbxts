@@ -1,0 +1,13 @@
+{
+	"lsp": {
+		"oxlint": {
+			"command": ["node_modules\\.bin\\oxlint.cmd", "--lsp"],
+			"extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]
+		},
+		"typescript": {
+			"command": ["node", "node_modules/typescript/bin/tsc", "--lsp", "--stdio"],
+			"extensions": [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"],
+			"priority": 100
+		}
+	}
+}

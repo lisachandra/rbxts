@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, openSync, readFileSync, rmSync, closeSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -63,33 +63,33 @@ function isCanonicalRbxtsRepo() {
 function runScript(scriptRelativePath, args = []) {
 	execFileSync("node", [scriptRelativePath, ...args], {
 		cwd: repoRoot,
-		stdio: "inherit",
 		env: process.env,
+		stdio: "inherit",
 	});
 }
 
 function tryAcquirePrepareLock() {
 	try {
 		if (existsSync(prepareLockPath)) {
-			return undefined
+			return undefined;
 		}
 
 		const handle = openSync(prepareLockPath, "wx");
 		writeFileSync(handle, `${process.pid}\n`, "utf8");
 		return handle;
-	} catch (error) {
-		if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+	} catch (err) {
+		if (err && typeof err === "object" && "code" in err && err.code === "EEXIST") {
 			return undefined;
 		}
 
-		throw error;
+		throw err;
 	}
 }
 
 function runSharedPrepareBuild() {
 	const lockHandle = tryAcquirePrepareLock();
 	if (lockHandle === undefined) {
-		console.warn("@lisachandra/rbxts: Lock already acquired (built)")
+		console.warn("@lisachandra/rbxts: Lock already acquired (built)");
 		return;
 	}
 

@@ -1,25 +1,28 @@
 import type { Modding } from "@flamework/core";
-import createSerializer, { type Serializer, type SerializerMetadata, type StripMeta } from "@rbxts/serio";
-
 import type { AnyEntity, Component } from "@rbxts/matter";
+import type { OptionalKeys } from "@rbxts/matter/lib/component";
+import createSerializer, {
+	type Serializer,
+	type SerializerMetadata,
+	type StripMeta,
+} from "@rbxts/serio";
+
 import type { ChangeRecord } from "../components";
-import { OptionalKeys } from "@rbxts/matter/lib/component";
 
 /**
  * Extracts the keys common to both a component map and a replication map.
  *
  * @remarks
- * Used to constrain replication registrations to only components that are
- * present in both the world's component definitions and the replication set.
+ *   Used to constrain replication registrations to only components that are present in both the
+ *   world's component definitions and the replication set.
  */
-export type ReplicationComponentKey<TComponents, TReplication> =
-	keyof TComponents & keyof TReplication;
+export type ReplicationComponentKey<TComponents, TReplication> = keyof TComponents &
+	keyof TReplication;
 
 /**
  * Represents a runtime type guard.
  *
  * @typeParam T - The guarded value type.
- *
  * @param value - The value to validate.
  * @returns Whether the value matches `T`.
  */
@@ -47,7 +50,6 @@ export interface ReplicationCodecMetadata<
  *
  * @typeParam TComponent - The component type being serialized.
  * @typeParam TPayload - The payload type to serialize into.
- *
  * @param record - The change record containing old and new component values.
  * @param playerEntityId - The entity ID of the player receiving the payload.
  * @param componentEntityId - The entity ID of the component being replicated.
@@ -64,14 +66,13 @@ export type ServerSerializerFn<
 	componentEntityId: AnyEntity,
 	isLocalComponent: boolean,
 	hasReceivedPayload: boolean,
-) => undefined | false | TPayload;
+) => false | TPayload | undefined;
 
 /**
  * Deserializes a network payload back into component data on the client.
  *
  * @typeParam TComponent - The component type being deserialized.
  * @typeParam TPayload - The payload type to deserialize from.
- *
  * @param data - The payload data received from the server.
  * @param serverEntityId - The entity ID on the server.
  * @param clientEntityId - The optional corresponding entity ID on the client.
@@ -90,8 +91,8 @@ export type ClientDeserializerFn<
  * Determines which clients receive replication data for a component.
  *
  * @remarks
- * - `"all"` — Broadcast to every client.
- * - `"owner"` — Only send to the owning player.
+ *   - `"all"` — Broadcast to every client.
+ *   - `"owner"` — Only send to the owning player.
  */
 export type ReplicationMode = "all" | "owner";
 
@@ -115,12 +116,11 @@ export interface ReplicationCodecRegistration<
 /**
  * A fully resolved replication codec with all defaults applied.
  *
+ * @remarks
+ *   Extends {@link ReplicationCodecRegistration} with resolved defaults such as `componentKey`,
+ *   `payloadSerializer`, generated guards, and `unreliable`.
  * @typeParam TComponent - The component type being replicated.
  * @typeParam TPayload - The serialized payload type.
- *
- * @remarks
- * Extends {@link ReplicationCodecRegistration} with resolved defaults such as
- * `componentKey`, `payloadSerializer`, generated guards, and `unreliable`.
  */
 export interface ReplicationCodec<
 	TComponent extends object = object,
@@ -135,18 +135,13 @@ export interface ReplicationCodec<
 	unreliable: boolean;
 }
 
-/**
- * A registry that stores and retrieves replication codecs by component key.
- */
+/** A registry that stores and retrieves replication codecs by component key. */
 export interface ReplicationCodecRegistry {
 	entries(): ReadonlyMap<string, ReplicationCodec<any, any>>;
-	get(key: string): ReplicationCodec<any, any> | undefined;
-	getById(id: number): ReplicationCodec<any, any> | undefined;
+	get(key: string): undefined | ReplicationCodec<any, any>;
+	getById(id: number): undefined | ReplicationCodec<any, any>;
 	/** @metadata macro */
-	register<
-		TComponent extends object = object,
-		TPayload extends object = object,
-	>(
+	register<TComponent extends object = object, TPayload extends object = object>(
 		registration: ReplicationCodecRegistration<TComponent, TPayload>,
 		meta?: Modding.Many<ReplicationCodecMetadata<TComponent, TPayload>>,
 	): ReplicationCodec<TComponent, TPayload>;
@@ -173,10 +168,7 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
 			return codecsById.get(id);
 		},
 		/** @metadata macro */
-		register<
-			TComponent extends object = object,
-			TPayload extends object = object,
-		>(
+		register<TComponent extends object = object, TPayload extends object = object>(
 			registration: ReplicationCodecRegistration<TComponent, TPayload>,
 			meta?: Modding.Many<ReplicationCodecMetadata<TComponent, TPayload>>,
 		) {
@@ -206,6 +198,6 @@ export function createReplicationCodecRegistry(): ReplicationCodecRegistry {
  * The default singleton replication codec registry.
  *
  * @remarks
- * All built-in component codecs register against this instance.
+ *   All built-in component codecs register against this instance.
  */
 export const registry = createReplicationCodecRegistry();

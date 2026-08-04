@@ -1,13 +1,22 @@
+/* oxlint-disable eslint/max-depth -- legacy demo system kept as-is */
+import { vector } from "@lisachandra/core";
+import type { ServerState } from "@lisachandra/core/store";
+import { Components } from "@lisachandra/matter";
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type { ServerState } from "@lisachandra/core/store";
-import { vector } from "@lisachandra/core";
-import { Components} from "@lisachandra/matter";
+
+import {
+	applyPlotVisual,
+	getCharacterRoot,
+	pushNotification,
+	setCarryState,
+	setPromptState,
+} from "server/game/helpers";
 import { GARDEN_DECAY_TIME, GARDEN_INTERACTION_RADIUS } from "shared/game/constants";
 import { advancePlotStage } from "shared/game/helpers";
-import { applyPlotVisual, getCharacterRoot, pushNotification, setCarryState, setPromptState } from "server/game/helpers";
 
 function getProgressEntity(world: World): AnyEntity | undefined {
+	// oxlint-disable-next-line eslint/no-unreachable-loop -- at most one progress entity exists
 	for (const [entityId] of world.query(Components.GardenProgress)) {
 		return entityId;
 	}
@@ -33,7 +42,9 @@ function system(world: World): void {
 			const dist = vector.distance(root.Position, water.part.Position);
 			if (dist < bestDistance) {
 				bestDistance = dist;
-				bestPrompt = carry?.amount ? "Use your current resource on a plot" : "Collect water";
+				bestPrompt = carry?.amount
+					? "Use your current resource on a plot"
+					: "Collect water";
 			}
 
 			if ((carry?.amount ?? 0) === 0 && dist <= GARDEN_INTERACTION_RADIUS) {
@@ -41,7 +52,6 @@ function system(world: World): void {
 				pushNotification(world, entityId, "Collected water");
 				setPromptState(world, entityId, "Water collected");
 				world.commitCommands();
-				continue;
 			}
 		}
 
@@ -62,18 +72,28 @@ function system(world: World): void {
 					plotEntity,
 					Components.GardenPlot({
 						...plot,
-						stage: "Dirty",
 						lastTouchedAt: now,
 						progress: 0,
+						stage: "Dirty",
 					}),
 				);
-				world.insert(plotEntity, Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }));
+				world.insert(
+					plotEntity,
+					Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }),
+				);
 				if (progressEntity !== undefined) {
 					const progress = world.get(progressEntity, Components.GardenProgress);
 					if (progress) {
-						world.insert(progressEntity, Components.GardenProgress({ ...progress, harvested: progress.harvested + 1 }));
+						world.insert(
+							progressEntity,
+							Components.GardenProgress({
+								...progress,
+								harvested: progress.harvested + 1,
+							}),
+						);
 					}
 				}
+
 				pushNotification(world, entityId, "Harvest collected");
 				setPromptState(world, entityId, "Harvested plant");
 				world.commitCommands();
@@ -94,15 +114,22 @@ function system(world: World): void {
 				plotEntity,
 				Components.GardenPlot({
 					...plot,
-					stage: nextStage,
 					lastTouchedAt: now,
 					progress: nextStage === "Watered" ? 1 : plot.progress,
+					stage: nextStage,
 				}),
 			);
-			world.insert(plotEntity, Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }));
+			world.insert(
+				plotEntity,
+				Components.DecayState({ nextDecayAt: now + GARDEN_DECAY_TIME }),
+			);
 			setCarryState(world, entityId, undefined, 0);
 			pushNotification(world, entityId, `${carry.kind} used on plot`);
-			setPromptState(world, entityId, plot.part.GetAttribute<string>("markerLabel") ?? "Plot updated");
+			setPromptState(
+				world,
+				entityId,
+				plot.part.GetAttribute<string>("markerLabel") ?? "Plot updated",
+			);
 			world.commitCommands();
 		}
 

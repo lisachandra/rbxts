@@ -31,7 +31,6 @@ export function describeEachReactMode(
 			RTL.render(<Wrapper>{ui}</Wrapper>, ...rest);
 
 		func({
-			suiteKey,
 			render: (...args) => {
 				const renderResult = render(...args);
 				const { rerender } = renderResult;
@@ -41,6 +40,7 @@ export function describeEachReactMode(
 
 				return renderResult;
 			},
+			suiteKey,
 		});
 	});
 }

@@ -50,8 +50,8 @@ type TupleMetadata<T extends Array<unknown>> = ["_tuple", T] extends [
 
 // prettier-ignore
 /**
- * Recursive type-level mapping from a Luau data shape to the Serio-based
- * validation metadata format consumed by {@link createDataStoreValidator}.
+ * Recursive type-level mapping from a Luau data shape to the Serio-based validation metadata format
+ * consumed by {@link createDataStoreValidator}.
  *
  * @typeParam T - The Luau type to encode as validation metadata.
  */
@@ -96,10 +96,7 @@ export type ValidateMetadata<T> =
 	]
 	: never;
 
-/**
- * Discriminated union of all possible validation schema nodes produced
- * by {@link ValidateMetadata}.
- */
+/** Discriminated union of all possible validation schema nodes produced by {@link ValidateMetadata}. */
 export type ValidateSchema =
 	| ["bool"]
 	| ["string"]

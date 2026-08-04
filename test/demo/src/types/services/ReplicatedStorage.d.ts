@@ -1,16 +1,21 @@
 interface ReplicatedStorage extends Instance {
-	Models: Folder
+	Animations: Folder;
+	Models: Folder;
+	Tools: Folder;
 	TS: Folder & {
 		client: Folder & {
+			client: LocalScript;
+			constants: ModuleScript;
+			systems: Folder;
 			ui: Folder & {
 				app: ModuleScript;
-				notifications: Folder;
 				hud: Folder;
+				notifications: Folder;
 				overlays: Folder;
 			};
-			client: LocalScript;
-			systems: Folder
-			constants: ModuleScript;
+		};
+		rbxts_include: Folder & {
+			node_modules: Folder;
 		};
 		shared: Folder & {
 			assets: Folder;
@@ -18,19 +23,14 @@ interface ReplicatedStorage extends Instance {
 				types: Folder;
 			};
 			matter: Folder & {
-				resources: ModuleScript;
 				components: ModuleScript;
+				resources: ModuleScript;
 				systems: Folder & {
 					barrel: ModuleScript;
 				};
 			};
 		};
-		rbxts_include: Folder & {
-			node_modules: Folder
-		};
 	};
 	UI: Folder;
-	Tools: Folder;
 	VFX: Folder;
-	Animations: Folder;
 }

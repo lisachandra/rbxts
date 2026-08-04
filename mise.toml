@@ -1,9 +1,10 @@
 [tools]
 "github:luau-lang/lute" = "1.0.0"
-"github:rojo-rbx/rojo" = "v7.7.0-rc.1"
+"github:rojo-rbx/rojo" = "7.7.0"
+gh = "2.96.0"
+jq = "1.8.1"
 pnpm = "11.16.0"
 node = { version = "lts" }
-jq = "latest"
 
 [env]
 _.file = { path = ".env", redact = true }

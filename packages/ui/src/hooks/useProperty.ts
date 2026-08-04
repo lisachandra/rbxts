@@ -12,9 +12,8 @@ export type InstancePropertyBindings<
 };
 
 /**
- * Tracks the state of multiple properties on an Instance.
- * Returns the values and a Change object that can be spread into the `Change`
- * property of an element.
+ * Tracks the state of multiple properties on an Instance. Returns the values and a Change object
+ * that can be spread into the `Change` property of an element.
  */
 export function useProperty<
 	T extends CreatableInstances[I],

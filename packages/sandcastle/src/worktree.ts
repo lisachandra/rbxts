@@ -4,18 +4,13 @@
  * setup commands once per fresh worktree.
  */
 
-import { copyFileSync, existsSync, lstatSync, mkdirSync, symlinkSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
 import type { SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 
-import {
-	checkoutBranch,
-	git,
-	gitTry,
-	registeredWorktrees,
-	resolveCommit,
-} from "./git.js";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, symlinkSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
+
+import { checkoutBranch, git, gitTry, registeredWorktrees, resolveCommit } from "./git.js";
 import { config, io, normalizedPath, repoRoot } from "./runtime.js";
 
 export const sandboxProvider = noSandbox();
@@ -125,13 +120,13 @@ async function createPersistentSandbox(
 	};
 }
 
-export function createIssueSandbox(
+export async function createIssueSandbox(
 	branchName: string,
 	suppliedWorktree: undefined | { branch: string; path: string },
 	baseRef: string | undefined,
 ): Promise<PersistentSandbox> {
 	if (suppliedWorktree !== undefined) {
-		return Promise.resolve({
+		return {
 			close: async () => undefined,
 			run: async (runOptions: SandboxRunOptions) =>
 				io.run({
@@ -141,7 +136,7 @@ export function createIssueSandbox(
 					sandbox: sandboxProvider,
 				}),
 			worktreePath: suppliedWorktree.path,
-		});
+		};
 	}
 
 	return createPersistentSandbox(branchName, baseRef);

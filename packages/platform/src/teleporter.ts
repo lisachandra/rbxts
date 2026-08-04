@@ -1,48 +1,40 @@
+import { catcher } from "@lisachandra/core/utils/main";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import HashLib from "@rbxts/rbxts-hashlib";
 import { TeleportService } from "@rbxts/services";
 import { t } from "@rbxts/t";
 
-import { catcher } from "@lisachandra/core/utils/main";
-
 // ─── Runtime Configuration ──────────────────────────────────────────────────
 
-/**
- * Configuration for teleport behavior including expiration, retry
- * attempts, and flood delay.
- */
+/** Configuration for teleport behavior including expiration, retry attempts, and flood delay. */
 export interface TeleportConfig {
-	/** Teleport data expiration in seconds (default: 300). */
-	expiration?: number;
 	/** Max teleport retry attempts (default: 3). */
 	attempts?: number;
-	/** Delay between retries in seconds (default: 1). */
-	retry_delay?: number;
+	/** Teleport data expiration in seconds (default: 300). */
+	expiration?: number;
 	/** Delay when teleport is flooded in seconds (default: 5). */
 	flood_delay?: number;
+	/** Delay between retries in seconds (default: 1). */
+	retry_delay?: number;
 }
 
 const defaultConfig: Required<TeleportConfig> = {
-	expiration: 300,
 	attempts: 3,
-	retry_delay: 1,
+	expiration: 300,
 	flood_delay: 5,
+	retry_delay: 1,
 };
 
 let teleportConfig = { ...defaultConfig };
 let teleportSecret = "";
 
-/**
- * Configures teleport behavior (expiration, retry, flood delay).
- */
+/** Configures teleport behavior (expiration, retry, flood delay). */
 export function configureTeleport(config: TeleportConfig): void {
 	teleportConfig = { ...defaultConfig, ...config };
 }
 
-/**
- * Configures the secret used for teleport hash verification.
- */
+/** Configures the secret used for teleport hash verification. */
 export function configureTeleportSecret(secret: string): void {
 	teleportSecret = secret;
 }
@@ -58,19 +50,14 @@ const teleportAsync = Promise.promisify(
 	},
 );
 
-/**
- * Reasons why a teleport may be considered invalid.
- */
+/** Reasons why a teleport may be considered invalid. */
 export enum TeleportReason {
 	TeleportInvalidData,
 	TeleportInvalidHash,
 	TeleportOldHash,
 }
 
-/**
- * Defines the structure for teleport data that can be serialized and sent with
- * a teleport.
- */
+/** Defines the structure for teleport data that can be serialized and sent with a teleport. */
 export interface PossibleTeleportData {
 	/** A hash value used to verify the integrity of the teleport data. */
 	hash: string;
@@ -86,11 +73,9 @@ function generateTeleportHash(
 }
 
 /**
- * Serializes teleport data into a TeleportOptions object, adding a hash and
- * timestamp for security.
+ * Serializes teleport data into a TeleportOptions object, adding a hash and timestamp for security.
  *
- * @param data - The teleport data to serialize. It should not include `hash` or
- *   `stamp`.
+ * @param data - The teleport data to serialize. It should not include `hash` or `stamp`.
  * @returns A TeleportOptions object with serialized data, hash, and timestamp.
  */
 export function serializeTeleportData(
@@ -110,7 +95,7 @@ export function serializeTeleportData(
 function logInvalidTeleport(
 	{ success, unexpired, validData, validHash }: ReturnType<typeof isValidTeleport>,
 	userId: number,
-	teleportData?: unknown,
+	_teleportData?: unknown,
 ): void {
 	if (success || validHash === true || unexpired === true) {
 		return;
@@ -126,13 +111,12 @@ function logInvalidTeleport(
 }
 
 /**
- * Validates the teleport data received by a player upon joining a game
- * instance.
+ * Validates the teleport data received by a player upon joining a game instance.
  *
  * @param player - The player whose teleport data needs to be validated.
  * @param logInvalid - Whether it should log invalid teleports.
- * @returns An object indicating the success of the validation and the validity
- *   of the hash and expiration status.
+ * @returns An object indicating the success of the validation and the validity of the hash and
+ *   expiration status.
  */
 export function isValidTeleport(
 	player: Player,
@@ -175,10 +159,9 @@ export function isValidTeleport(
  *
  * @param placeId - The ID of the target place.
  * @param players - An array of players to teleport.
- * @param options - Optional TeleportOptions to include with the teleport
- *   request.
- * @returns A promise resolving to a tuple indicating success and the result of
- *   the teleport attempt.
+ * @param options - Optional TeleportOptions to include with the teleport request.
+ * @returns A promise resolving to a tuple indicating success and the result of the teleport
+ *   attempt.
  */
 export async function teleport(
 	placeId: number,
@@ -199,9 +182,10 @@ export async function teleport(
 
 	if (!success) {
 		Log.Warn("Teleport unsuccessful: {$Result}", result);
+		return [false, result];
 	}
 
-	return [success as true, result as TeleportAsyncResult];
+	return [true, result as TeleportAsyncResult];
 }
 
 TeleportService.TeleportInitFailed.Connect(

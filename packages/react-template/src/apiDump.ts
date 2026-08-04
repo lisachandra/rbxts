@@ -1,4 +1,5 @@
-import { Modding } from "@flamework/core"
+import { Modding } from "@flamework/core";
+
 export const ApiDump = Modding.inspect<{
 	Classes: Array<
 		{

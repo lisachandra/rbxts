@@ -1,24 +1,32 @@
 {
 	"name": "@lisachandra/platform",
 	"version": "0.1.1",
+	"private": false,
 	"description": "Platform integrations (documents, teleporter, centurion, startup glue) for @lisachandra",
 	"keywords": [
-		"roblox",
+		"platform",
 		"rbxts",
-		"platform"
+		"roblox"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
+	},
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
 	"exports": {
 		".": {
 			"import": "./out/init.luau",
@@ -65,14 +73,10 @@
 			"types": "./out/document/validate.d.ts"
 		}
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
-	"files": [
-		"out",
-		"README.md",
-		"default.project.json",
-		"!**/*.tsbuildinfo"
-	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -80,53 +84,49 @@
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
+		"@flamework/core": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
-		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/types": "catalog:",
-		"shx": "catalog:",
-		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/core": "workspace:*",
-		"@rbxts/lapis-mockdatastore": "catalog:",
+		"@lisachandra/matter": "workspace:*",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/centurion": "catalog:",
-		"@rbxts/services": "catalog:",
-		"@rbxts/log": "catalog:",
+		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/lapis": "catalog:",
-		"@rbxts/sift": "catalog:",
-		"@flamework/core": "catalog:",
-		"@rbxts/object-utils": "catalog:",
-		"@rbxts/t": "catalog:",
-		"@rbxts/serio": "catalog:",
-		"@rbxts/regexp": "catalog:",
-		"@rbxts/matter": "catalog:",
+		"@rbxts/lapis-mockdatastore": "catalog:",
+		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"@rbxts/object-utils": "catalog:",
 		"@rbxts/rbxts-hashlib": "catalog:",
-		"type-fest": "catalog:",
+		"@rbxts/regexp": "catalog:",
+		"@rbxts/serio": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/sift": "catalog:",
+		"@rbxts/t": "catalog:",
+		"@rbxts/types": "catalog:",
 		"rbxts-transformer-flamework": "catalog:",
+		"shx": "catalog:",
+		"type-fest": "catalog:",
 		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"@lisachandra/types": "*",
-		"@lisachandra/matter": "*",
-		"@lisachandra/core": "*",
 		"@flamework/core": "*",
-		"@rbxts/rbxts-hashlib": "*",
-		"@rbxts/object-utils": "*",
-		"@rbxts/t": "*",
-		"@rbxts/serio": "*",
-		"@rbxts/regexp": "*",
-		"@rbxts/matter": "*",
-		"@rbxts/lapis-mockdatastore": "*",
+		"@lisachandra/core": "*",
+		"@lisachandra/matter": "*",
+		"@lisachandra/types": "*",
 		"@rbxts/centurion": "*",
-		"@rbxts/services": "*",
-		"@rbxts/log": "*",
 		"@rbxts/lapis": "*",
+		"@rbxts/lapis-mockdatastore": "*",
+		"@rbxts/log": "*",
+		"@rbxts/matter": "*",
+		"@rbxts/object-utils": "*",
+		"@rbxts/rbxts-hashlib": "*",
+		"@rbxts/regexp": "*",
+		"@rbxts/serio": "*",
+		"@rbxts/services": "*",
 		"@rbxts/sift": "*",
+		"@rbxts/t": "*",
 		"type-fest": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
 	}
 }

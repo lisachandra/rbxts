@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  packages: read
+
+env:
+  CI: true
+  HUSKY: 0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment:
+      name: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Validate build
+        run: pnpm build
+
+      - name: Validate tests
+        if: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY != '' }}
+        run: pnpm test
+        env:
+          ROBLOX_OPEN_CLOUD_API_KEY: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY }}
+          ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
+          ROBLOX_UNIVERSE_ID: ${{ secrets.ROBLOX_UNIVERSE_ID }}
+
+      - name: Check for changesets
+        id: check
+        run: |
+          CHANGESETS=$(ls .changeset/*.md 2>/dev/null | grep -v '^\.changeset/README\.md$' | wc -l || true)
+          echo "has_changesets=$([ "$CHANGESETS" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Version packages
+        if: steps.check.outputs.has_changesets == 'true'
+        run: pnpm version
+
+      - name: Commit release
+        if: steps.check.outputs.has_changesets == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(release): version packages"
+
+      - name: Configure npm auth
+        if: steps.check.outputs.has_changesets == 'true'
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+
+      - name: Publish to npm
+        if: steps.check.outputs.has_changesets == 'true'
+        run: pnpm release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push release commit and tags
+        if: steps.check.outputs.has_changesets == 'true'
+        run: git push --follow-tags origin HEAD:main

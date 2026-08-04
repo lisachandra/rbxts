@@ -1,12 +1,14 @@
 import { store } from "@lisachandra/core";
-import { Components} from "@lisachandra/matter";
+import { Components } from "@lisachandra/matter";
 import type { AnyEntity } from "@rbxts/matter";
-import React, { useEffect, useState } from "@rbxts/react";
+import { useEffect, useState } from "@rbxts/react";
 import { Players, RunService } from "@rbxts/services";
 
 export function useLocalClientEntityId(): AnyEntity | undefined {
 	const player = Players.LocalPlayer;
-	const [entityId, setEntityId] = useState<AnyEntity | undefined>(player.GetAttribute<AnyEntity>("clientEntityId"));
+	const [entityId, setEntityId] = useState<AnyEntity | undefined>(
+		player.GetAttribute<AnyEntity>("clientEntityId"),
+	);
 
 	useEffect(() => {
 		setEntityId(player.GetAttribute<AnyEntity>("clientEntityId"));
@@ -14,7 +16,9 @@ export function useLocalClientEntityId(): AnyEntity | undefined {
 			setEntityId(player.GetAttribute<AnyEntity>("clientEntityId"));
 		});
 
-		return () => connection.Disconnect();
+		return () => {
+			connection.Disconnect();
+		};
 	}, [player]);
 
 	return entityId;
@@ -24,7 +28,8 @@ export function useGardenProgressEntityId(): AnyEntity | undefined {
 	const [entityId, setEntityId] = useState<AnyEntity | undefined>();
 
 	useEffect(() => {
-		const refresh = () => {
+		const refresh = (): void => {
+			// oxlint-disable-next-line eslint/no-unreachable-loop -- at most one progress entity exists
 			for (const [nextEntityId] of store.world.query(Components.GardenProgress)) {
 				setEntityId(nextEntityId);
 				return;
@@ -35,7 +40,9 @@ export function useGardenProgressEntityId(): AnyEntity | undefined {
 
 		refresh();
 		const connection = RunService.Heartbeat.Connect(refresh);
-		return () => connection.Disconnect();
+		return () => {
+			connection.Disconnect();
+		};
 	}, []);
 
 	return entityId;

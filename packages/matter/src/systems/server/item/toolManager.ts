@@ -1,3 +1,5 @@
+import type { ServerState } from "@lisachandra/core/store";
+import { store } from "@lisachandra/core/store";
 /*
  * This system synchronizes in-game items with corresponding tools in the
  * player's hotbar. It creates tools for newly added items and ensures proper
@@ -6,13 +8,11 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { equals as equals } from "@rbxts/sift/Array";
+import { equals } from "@rbxts/sift/Array";
 
-import { meta as itemManager } from "./itemManager";
-import { Components } from "../../../components";
+import { Components, type Item } from "../../../components";
 import { getItemTool } from "../../../utils/item";
-import { ServerState, store } from "@lisachandra/core/store";
-import { Item } from "../../../components";
+import { meta as itemManager } from "./itemManager";
 
 function handleToolCreation(itemsToAdd: Array<Item>, hotbar: Instance): void {
 	for (const item of itemsToAdd) {

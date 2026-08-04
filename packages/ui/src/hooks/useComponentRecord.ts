@@ -1,18 +1,16 @@
 import { store } from "@lisachandra/core";
 import { type ChangeRecord, HookConnector } from "@lisachandra/matter";
-import React, { useEffect, useState } from "@rbxts/react";
 import type { AnyEntity } from "@rbxts/matter";
 import type { Component } from "@rbxts/matter/lib/component";
+import { useEffect, useState } from "@rbxts/react";
 
 /**
  * Retrieves a replicated component record for a given entity from React.
  *
  * @remarks
- * This hook does not query Matter's topologically-aware storage directly from
- * React. Instead, it seeds from `world.get(...)` when the entity exists and
- * subscribes through the runtime hook connector, which is serviced by a Matter
- * client system.
- *
+ *   This hook does not query Matter's topologically-aware storage directly from React. Instead, it
+ *   seeds from `world.get(...)` when the entity exists and subscribes through the runtime hook
+ *   connector, which is serviced by a Matter client system.
  * @template T - Component payload type.
  * @param clientEntityId - The replicated client entity id, if available.
  * @param component - The component constructor to observe.
@@ -21,7 +19,7 @@ import type { Component } from "@rbxts/matter/lib/component";
 // eslint-disable-next-line react/no-unnecessary-use-prefix -- allowed
 export function useComponentRecord<T extends object>(
 	clientEntityId: AnyEntity | undefined,
-	component: (() => Component<T>) | { (data?: T): Component<T> }
+	component: (() => Component<T>) | ((data?: T) => Component<T>),
 ): N<ChangeRecord<T>> {
 	const [record, setRecord] = useState<N<ChangeRecord<T>>>();
 
@@ -41,7 +39,9 @@ export function useComponentRecord<T extends object>(
 		const requestId = HookConnector.addComponentRecordRequest(
 			clientEntityId,
 			component,
-			(nextRecord) => setRecord(nextRecord as ChangeRecord<T>),
+			(nextRecord) => {
+				setRecord(nextRecord as ChangeRecord<T>);
+			},
 		);
 
 		return () => {

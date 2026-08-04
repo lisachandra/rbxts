@@ -1,24 +1,32 @@
 {
 	"name": "@lisachandra/test",
 	"version": "0.1.1",
+	"private": false,
 	"description": "Test utilities for @lisachandra rbxts packages",
 	"keywords": [
-		"roblox",
 		"rbxts",
+		"roblox",
 		"test"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
+	},
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
 	"exports": {
 		".": {
 			"import": "./out/init.luau",
@@ -33,14 +41,10 @@
 			"types": "./out/setup.d.ts"
 		}
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
-	"files": [
-		"out",
-		"README.md",
-		"default.project.json",
-		"!**/*.tsbuildinfo"
-	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -52,32 +56,28 @@
 		"@isentinel/tsconfig": "catalog:",
 		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/luau-polyfill": "catalog:",
-		"@rbxts/services": "catalog:",
-		"@rbxts/types": "catalog:",
 		"@rbxts/jest": "catalog:",
 		"@rbxts/jest-globals": "catalog:",
+		"@rbxts/luau-polyfill": "catalog:",
 		"@rbxts/react": "catalog:",
 		"@rbxts/react-roblox-fire": "catalog:",
 		"@rbxts/react-testing-library": "catalog:",
-		"type-fest": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/types": "catalog:",
 		"shx": "catalog:",
+		"type-fest": "catalog:",
 		"typescript": "catalog:"
 	},
 	"peerDependencies": {
 		"@lisachandra/types": "*",
-		"@rbxts/luau-polyfill": "*",
-		"@rbxts/services": "*",
 		"@rbxts/jest": "*",
 		"@rbxts/jest-globals": "*",
+		"@rbxts/luau-polyfill": "*",
 		"@rbxts/react": "*",
 		"@rbxts/react-roblox-fire": "*",
 		"@rbxts/react-testing-library": "*",
+		"@rbxts/services": "*",
 		"@rbxts/types": "*",
 		"type-fest": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
 	}
 }

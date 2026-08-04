@@ -4,36 +4,34 @@
  * PascalCase properties.
  */
 
-import { Component } from "@rbxts/matter";
-import { ValidItemPath } from "./definitions";
+import type { Component } from "@rbxts/matter";
 
-/**
- * A Matter {@link Component} holding an array of {@link Item} objects.
- */
+import type { ValidItemPath } from "./definitions";
+
+/** A Matter {@link Component} holding an array of {@link Item} objects. */
 export type ItemContainer = Component<{ items: Array<Item> }>;
 
 /**
  * Extracts all valid item paths that start with the given prefix `P`.
  *
- * @typeParam P - A valid item path prefix.
- *
  * @example
- * ```ts
- * type SwordPaths = ExtractItemWithId<["Weapon", "Sword"]>;
- * // Includes ["Weapon", "Sword"] and any deeper paths
- * ```
+ * 	```ts
+ * 	type SwordPaths = ExtractItemWithId<["Weapon", "Sword"]>;
+ * 	// Includes ["Weapon", "Sword"] and any deeper paths
+ * 	```;
+ *
+ * @typeParam P - A valid item path prefix.
  */
 export type ExtractItemWithId<P extends ValidItemPath> = Extract<
 	ValidItemPath,
 	[...P, ...Array<string>]
 >;
 /**
- * Extracts child item paths from a parent path, optionally excluding the
- * parent itself.
+ * Extracts child item paths from a parent path, optionally excluding the parent itself.
  *
  * @typeParam P - A valid item path.
  * @typeParam ExcludeParent - If `true`, excludes the parent path `P` from
- *   the resulting union.
+ * the resulting union.
  */
 export type ItemHierarchyIds<
 	P extends ValidItemPath,
@@ -41,16 +39,15 @@ export type ItemHierarchyIds<
 > = ExcludeParent extends true ? Exclude<ExtractItemWithId<P>, P> : ExtractItemWithId<P>;
 
 /**
- * Recursively constructs a union of all valid PascalCase key paths through
- * an object type `T`.
- *
- * @typeParam T - The object type to extract paths from.
+ * Recursively constructs a union of all valid PascalCase key paths through an object type `T`.
  *
  * @example
- * ```ts
- * type Paths = ValidPascalCasePath<typeof itemDefinitions>;
- * // ["Weapon"] | ["Weapon", "Sword"] | ["Consumable"] | ...
- * ```
+ * 	```ts
+ * 	type Paths = ValidPascalCasePath<typeof itemDefinitions>;
+ * 	// ["Weapon"] | ["Weapon", "Sword"] | ["Consumable"] | ...
+ * 	```;
+ *
+ * @typeParam T - The object type to extract paths from.
  */
 export type ValidPascalCasePath<T> = T extends object
 	? {
@@ -59,8 +56,7 @@ export type ValidPascalCasePath<T> = T extends object
 	: [];
 
 /**
- * Evaluates to `true` if `S` starts with an uppercase letter, indicating
- * PascalCase.
+ * Evaluates to `true` if `S` starts with an uppercase letter, indicating PascalCase.
  *
  * @typeParam S - The string to check.
  */
@@ -71,8 +67,7 @@ export type IsPascalCase<S extends string> = S extends `${infer F}${infer _R}`
 	: false;
 
 /**
- * Extracts the keys of `T` that are PascalCase (start with an uppercase
- * letter).
+ * Extracts the keys of `T` that are PascalCase (start with an uppercase letter).
  *
  * @typeParam T - The object type to filter keys from.
  */
@@ -81,13 +76,12 @@ export type PascalCaseKeys<T> = {
 }[keyof T];
 
 /**
- * Recursively extracts the data type at a given path within an item
- * definitions tree.
+ * Recursively extracts the data type at a given path within an item definitions tree.
  *
  * @typeParam T - The object type to traverse.
  * @typeParam Path - A tuple of keys representing the path.
  * @typeParam U - If `true`, returns only the leaf data without merging
- *   ancestors.
+ * ancestors.
  */
 export type ExtractData<T, Path extends Array<string>, U extends boolean = false> = Path extends [
 	infer Head,
@@ -105,8 +99,7 @@ export type ExtractData<T, Path extends Array<string>, U extends boolean = false
 		: Record<string, unknown>;
 
 /**
- * Omits all PascalCase keys from `T`, leaving only the non-PascalCase (data)
- * properties.
+ * Omits all PascalCase keys from `T`, leaving only the non-PascalCase (data) properties.
  *
  * @typeParam T - The object type to filter.
  */

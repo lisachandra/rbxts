@@ -7,17 +7,23 @@
  * with zod so misconfiguration fails fast with a readable error.
  */
 
+import { createJiti } from "jiti";
 import { existsSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createJiti } from "jiti";
 import { z } from "zod";
 
 import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
 
 export type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
 
-export type PromptFileKey = "plan" | "implement" | "review" | "planAll" | "resolveConflicts" | "reviewIntegration";
+export type PromptFileKey =
+	| "plan"
+	| "review"
+	| "planAll"
+	| "implement"
+	| "resolveConflicts"
+	| "reviewIntegration";
 
 export const phaseNames: ReadonlyArray<PhaseName> = ["design", "implement", "review"];
 export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
@@ -31,38 +37,38 @@ export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
 
 /** Fully-resolved configuration surface exposed to consumers. */
 export interface SandcastleConfig {
-	/** Working directory for state, plans, logs, worktrees, and integrations. */
-	dir: string;
+	agents: {
+		/** Backend used when `--agent` is not passed. */
+		default: AgentBackend;
+		enabled: Array<AgentBackend>;
+		/** Default model per backend, used when `--model` is not passed. */
+		models: Partial<Record<AgentBackend, string>>;
+	};
 	/** Branch implementation/review diffs compare against. */
 	baseBranch: string;
-	/** Shell commands run once in a fresh worktree before phase agents start. */
-	setupCommands: Array<string>;
-	/** Repository-local directories linked into fresh worktrees. */
-	symlinks: Array<{ path: string; target: string }>;
+	/** Working directory for state, plans, logs, worktrees, and integrations. */
+	dir: string;
+	/** Default reasoning effort when the environment does not set SANDCASTLE_EFFORT. */
+	effort: SandcastleEffort;
+	/** Command template used to view an issue; `{issue}` is replaced with the issue number. */
+	issueCommand: string;
+	labels: {
+		/** GitHub issue label that marks an issue as ready for an AFK agent pass. */
+		readyForAgent: string;
+	};
 	/** Per-phase prompt files; repo-relative paths resolve from the repo root. */
 	prompts: Partial<Record<PromptFileKey, string>>;
+	/** Machine-readable review marker prefix written as `<marker>: APPROVED|BLOCKED`. */
+	reviewMarker: string;
+	/** Shell commands run once in a fresh worktree before phase agents start. */
+	setupCommands: Array<string>;
 	/** Skills routed into phase prompts, per phase and per issue label. */
 	skills: {
 		defaults: Record<PhaseName, Array<string>>;
 		labels: Record<string, Partial<Record<PhaseName, Array<string>>>>;
 	};
-	labels: {
-		/** GitHub issue label that marks an issue as ready for an AFK agent pass. */
-		readyForAgent: string;
-	};
-	/** Machine-readable review marker prefix written as `<marker>: APPROVED|BLOCKED`. */
-	reviewMarker: string;
-	/** Command template used to view an issue; `{issue}` is replaced with the issue number. */
-	issueCommand: string;
-	agents: {
-		enabled: Array<AgentBackend>;
-		/** Backend used when `--agent` is not passed. */
-		default: AgentBackend;
-		/** Default model per backend, used when `--model` is not passed. */
-		models: Partial<Record<AgentBackend, string>>;
-	};
-	/** Default reasoning effort when the environment does not set SANDCASTLE_EFFORT. */
-	effort: SandcastleEffort;
+	/** Repository-local directories linked into fresh worktrees. */
+	symlinks: Array<{ path: string; target: string }>;
 }
 
 /** Config with every prompt path resolved to an absolute file. */
@@ -72,31 +78,41 @@ export interface ResolvedSandcastleConfig extends SandcastleConfig {
 
 const promptFileSchema = z
 	.object({
-		plan: z.string().optional(),
 		implement: z.string().optional(),
-		review: z.string().optional(),
+		plan: z.string().optional(),
 		planAll: z.string().optional(),
 		resolveConflicts: z.string().optional(),
+		review: z.string().optional(),
 		reviewIntegration: z.string().optional(),
 	})
 	.optional();
 
 export const sandcastleConfigSchema = z
 	.object({
-		dir: z.string().optional(),
+		agents: z
+			.object({
+				default: z.enum(["dirac", "pi"]).optional(),
+				enabled: z.array(z.enum(["dirac", "pi"])).optional(),
+				models: z
+					.object({
+						dirac: z.string().optional(),
+						pi: z.string().optional(),
+					})
+					.optional(),
+			})
+			.optional(),
 		baseBranch: z.string().optional(),
-		setupCommands: z.array(z.string()).optional(),
-		symlinks: z
-			.array(
-				z.object({
-					/** Path inside the worktree (e.g. "creator-docs"). */
-					path: z.string(),
-					/** Path in the repository root (e.g. "creator-docs"). */
-					target: z.string(),
-				}),
-			)
+		dir: z.string().optional(),
+		effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+		issueCommand: z.string().optional(),
+		labels: z
+			.object({
+				readyForAgent: z.string().optional(),
+			})
 			.optional(),
 		prompts: promptFileSchema,
+		reviewMarker: z.string().optional(),
+		setupCommands: z.array(z.string()).optional(),
 		skills: z
 			.object({
 				defaults: z
@@ -118,42 +134,41 @@ export const sandcastleConfigSchema = z
 					.optional(),
 			})
 			.optional(),
-		labels: z
-			.object({
-				readyForAgent: z.string().optional(),
-			})
+		symlinks: z
+			.array(
+				z.object({
+					/** Path inside the worktree (e.g. "creator-docs"). */
+					path: z.string(),
+					/** Path in the repository root (e.g. "creator-docs"). */
+					target: z.string(),
+				}),
+			)
 			.optional(),
-		reviewMarker: z.string().optional(),
-		issueCommand: z.string().optional(),
-		agents: z
-			.object({
-				enabled: z.array(z.enum(["dirac", "pi"])).optional(),
-				default: z.enum(["dirac", "pi"]).optional(),
-				models: z
-					.object({
-						dirac: z.string().optional(),
-						pi: z.string().optional(),
-					})
-					.optional(),
-			})
-			.optional(),
-		effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 	})
 	.strict();
 
 /**
- * Partial config accepted in `sandcastle.config.ts`; every field is optional.
- * Use this in consumer config files — `SandcastleConfig` is the fully-resolved
- * shape produced by `loadConfig`.
+ * Partial config accepted in `sandcastle.config.ts`; every field is optional. Use this in consumer
+ * config files — `SandcastleConfig` is the fully-resolved shape produced by `loadConfig`.
  */
 export type SandcastleUserConfig = z.input<typeof sandcastleConfigSchema>;
 
 const defaultConfig: SandcastleConfig = {
-	dir: ".sandcastle",
+	agents: {
+		default: "dirac",
+		enabled: ["dirac", "pi"],
+		models: {},
+	},
 	baseBranch: "main",
-	setupCommands: [],
-	symlinks: [],
+	dir: ".sandcastle",
+	effort: "xhigh",
+	issueCommand: "gh issue view {issue}",
+	labels: {
+		readyForAgent: "ready-for-agent",
+	},
 	prompts: {},
+	reviewMarker: "Sandcastle-Review",
+	setupCommands: [],
 	skills: {
 		defaults: {
 			design: ["codebase-design", "domain-modeling", "research", "tdd"],
@@ -176,23 +191,13 @@ const defaultConfig: SandcastleConfig = {
 			},
 		},
 	},
-	labels: {
-		readyForAgent: "ready-for-agent",
-	},
-	reviewMarker: "Sandcastle-Review",
-	issueCommand: "gh issue view {issue}",
-	agents: {
-		enabled: ["dirac", "pi"],
-		default: "dirac",
-		models: {},
-	},
-	effort: "xhigh",
+	symlinks: [],
 };
 
 /**
- * Loads `<repoRoot>/sandcastle.config.ts` (if present) and merges it over the
- * package defaults. Never throws for a missing file; throws with a readable
- * message when a present config fails validation.
+ * Loads `<repoRoot>/sandcastle.config.ts` (if present) and merges it over the package defaults.
+ * Never throws for a missing file; throws with a readable message when a present config fails
+ * validation.
  */
 export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 	const packageRoot = pathResolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -205,7 +210,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 			const loaded = jiti(configPath) as unknown;
 			userConfig =
 				loaded !== null && typeof loaded === "object" && "default" in loaded
-					? (loaded as { default: unknown }).default
+					? loaded.default
 					: loaded;
 		} catch (err) {
 			throw new Error(`Could not load ${configPath}: ${String(err)}`);
@@ -214,11 +219,26 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 
 	const parsed = sandcastleConfigSchema.parse(userConfig);
 	const merged: SandcastleConfig = {
-		dir: parsed.dir ?? defaultConfig.dir,
+		agents: {
+			default: parsed.agents?.default ?? defaultConfig.agents.default,
+			enabled: parsed.agents?.enabled ?? defaultConfig.agents.enabled,
+			models: {
+				...(parsed.agents?.models?.dirac !== undefined
+					? { dirac: parsed.agents.models.dirac }
+					: {}),
+				...(parsed.agents?.models?.pi !== undefined ? { pi: parsed.agents.models.pi } : {}),
+			},
+		},
 		baseBranch: parsed.baseBranch ?? defaultConfig.baseBranch,
-		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,
-		symlinks: parsed.symlinks ?? defaultConfig.symlinks,
+		dir: parsed.dir ?? defaultConfig.dir,
+		effort: parsed.effort ?? defaultConfig.effort,
+		issueCommand: parsed.issueCommand ?? defaultConfig.issueCommand,
+		labels: {
+			readyForAgent: parsed.labels?.readyForAgent ?? defaultConfig.labels.readyForAgent,
+		},
 		prompts: parsed.prompts ?? {},
+		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
+		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,
 		skills: {
 			defaults: {
 				design: parsed.skills?.defaults?.design ?? defaultConfig.skills.defaults.design,
@@ -228,31 +248,15 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 			},
 			labels: { ...defaultConfig.skills.labels, ...(parsed.skills?.labels ?? {}) },
 		},
-		labels: {
-			readyForAgent:
-				parsed.labels?.readyForAgent ?? defaultConfig.labels.readyForAgent,
-		},
-		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
-		issueCommand: parsed.issueCommand ?? defaultConfig.issueCommand,
-		agents: {
-			enabled: parsed.agents?.enabled ?? defaultConfig.agents.enabled,
-			default: parsed.agents?.default ?? defaultConfig.agents.default,
-			models: {
-				...(parsed.agents?.models?.dirac !== undefined
-					? { dirac: parsed.agents.models.dirac }
-					: {}),
-				...(parsed.agents?.models?.pi !== undefined ? { pi: parsed.agents.models.pi } : {}),
-			},
-		},
-		effort: parsed.effort ?? defaultConfig.effort,
+		symlinks: parsed.symlinks ?? defaultConfig.symlinks,
 	};
 
 	const promptDefaults: Record<PromptFileKey, string> = {
-		plan: pathResolve(packageRoot, "prompts", "plan-prompt.md"),
 		implement: pathResolve(packageRoot, "prompts", "implement-issue.md"),
-		review: pathResolve(packageRoot, "prompts", "review-issue.md"),
+		plan: pathResolve(packageRoot, "prompts", "plan-prompt.md"),
 		planAll: pathResolve(packageRoot, "prompts", "plan-all.md"),
 		resolveConflicts: pathResolve(packageRoot, "prompts", "resolve-conflicts.md"),
+		review: pathResolve(packageRoot, "prompts", "review-issue.md"),
 		reviewIntegration: pathResolve(packageRoot, "prompts", "review-integration.md"),
 	};
 

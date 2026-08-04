@@ -2,16 +2,14 @@ import { freezeDeep } from "@rbxts/sift/Dictionary";
 import type { EvaluateInstanceTree } from "@rbxts/validate-tree";
 
 import { force } from "../utils/type";
-
 import { humanoid } from "./humanoid";
 
 /**
  * A validated R6 character model instance tree.
  *
  * @remarks
- * Represents the classic Roblox R6 avatar rig with body parts
- * connected via Motor6D joints, including Torso, Head, limbs,
- * Humanoid, and controller sensors.
+ *   Represents the classic Roblox R6 avatar rig with body parts connected via Motor6D joints,
+ *   including Torso, Head, limbs, Humanoid, and controller sensors.
  */
 export type R6Character = EvaluateInstanceTree<typeof r6Character>;
 
@@ -32,29 +30,27 @@ const torso = freezeDeep({
  * Schema for validating an R6 character model instance tree.
  *
  * @remarks
- * Defines the expected structure of a classic R6 avatar: a Model
- * containing Torso, Head, limbs, HumanoidRootPart with sensors,
- * a Humanoid, ControllerManager, and associated motor joints.
+ *   Defines the expected structure of a classic R6 avatar: a Model containing Torso, Head, limbs,
+ *   HumanoidRootPart with sensors, a Humanoid, ControllerManager, and associated motor joints.
  */
 export const r6Character = freezeDeep({
 	"$className": "Model",
 
-	"tiltPart": force<{ $className: "Part"; BodyPosition: "BodyPosition" }>(),
-	"Torso": force<typeof torso & { ToolGrip: "Motor6D" }>(torso),
 	"ControllerManager": force<{
 		$className: "ControllerManager";
 		AirController: "AirController";
 		ClimbController: "ClimbController";
 		GroundController: "GroundController";
 	}>(),
+	"tiltPart": force<{ $className: "Part"; BodyPosition: "BodyPosition" }>(),
+	"Torso": force<typeof torso & { ToolGrip: "Motor6D" }>(torso),
 
-	"Humanoid": humanoid,
-	"Root Motion": "Part",
 	"Head": {
 		$className: "Part",
 		Face: "Decal",
 		Mesh: "SpecialMesh",
 	},
+	"Humanoid": humanoid,
 	"HumanoidRootPart": {
 		"$className": "Part",
 		"ClimbSensor": force<"ControllerPartSensor">(),
@@ -79,4 +75,5 @@ export const r6Character = freezeDeep({
 		"$className": "Part",
 		"Right Foot": "Attachment",
 	},
+	"Root Motion": "Part",
 } as const);

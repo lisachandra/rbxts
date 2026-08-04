@@ -1,3 +1,4 @@
+/* oxlint-disable style/multiline-comment-style -- triple-slash reference directives */
 /// <reference path="./include/RuntimeLib.d.ts" />
 /// <reference path="./types/types.d.ts" />
 /// <reference path="./types/matter.d.ts" />

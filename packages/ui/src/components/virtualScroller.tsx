@@ -1,4 +1,10 @@
-import type { FunctionComponent, InstanceAttributes, InstanceProps, JSX, ReactNode, } from "@rbxts/react";
+import type {
+	FunctionComponent,
+	InstanceAttributes,
+	InstanceProps,
+	JSX,
+	ReactNode,
+} from "@rbxts/react";
 import React, { useCallback, useState } from "@rbxts/react";
 
 const scrollMiddleImage = "rbxasset://textures/ui/Scroll/scroll-middle.png";
@@ -8,8 +14,8 @@ interface Props extends React.PropsWithChildren {
 	dynamic?: boolean;
 
 	/**
-	 * A function to generate a unique key for each item. If not provided, the
-	 * item index will be used as a key.
+	 * A function to generate a unique key for each item. If not provided, the item index will be
+	 * used as a key.
 	 */
 	getKey?: (index: number) => void | string;
 
@@ -25,15 +31,12 @@ interface Props extends React.PropsWithChildren {
 	/** Native properties to apply to the scrolling frame. */
 	native?: InstanceAttributes<ScrollingFrame>;
 
-	/**
-	 * An array of item indices to always render, regardless of their position
-	 * in the viewport.
-	 */
+	/** An array of item indices to always render, regardless of their position in the viewport. */
 	persistentItems?: Array<number>;
 
 	/**
-	 * A function that renders the content of each item. Receives the item index
-	 * or key as an argument.
+	 * A function that renders the content of each item. Receives the item index or key as an
+	 * argument.
 	 */
 	renderItem: (index: number | string) => Array<ReactNode>;
 
@@ -81,8 +84,8 @@ function computeElements(
 }
 
 /**
- * A virtualized scroller component for efficient rendering of large lists. Only
- * renders items that are currently visible within the viewport.
+ * A virtualized scroller component for efficient rendering of large lists. Only renders items that
+ * are currently visible within the viewport.
  */
 export function VirtualScroller({
 	dynamic,

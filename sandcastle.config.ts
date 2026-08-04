@@ -1,13 +1,25 @@
 import type { SandcastleConfig } from "@lisachandra/sandcastle";
 
 const config: SandcastleConfig = {
+	agents: {
+		default: "dirac",
+		enabled: ["dirac", "pi"],
+		models: {},
+	},
 	baseBranch: "main",
+	dir: ".sandcastle",
+	effort: "xhigh",
+	issueCommand: "gh issue view {issue}",
+	labels: { readyForAgent: "ready-for-agent" },
+	prompts: {},
+	reviewMarker: "Sandcastle-Review",
 	setupCommands: ["git submodule update --init --recursive && pnpm install"],
-	symlinks: [
-		{ path: "creator-docs", target: "creator-docs" },
-		{ path: ".diracrules", target: ".agents" },
-	],
 	skills: {
+		defaults: {
+			design: ["codebase-design", "domain-modeling", "research", "tdd"],
+			implement: ["tdd", "jest", "implement", "roblox-ts"],
+			review: ["code-review", "improve-codebase-architecture"],
+		},
 		labels: {
 			ecs: {
 				design: ["ecs-design"],
@@ -24,11 +36,10 @@ const config: SandcastleConfig = {
 			},
 		},
 	},
-	labels: { readyForAgent: "ready-for-agent" },
-	reviewMarker: "Sandcastle-Review",
-	issueCommand: "gh issue view {issue}",
-	agents: { enabled: ["dirac", "pi"] },
-	effort: "xhigh",
+	symlinks: [
+		{ path: "creator-docs", target: "creator-docs" },
+		{ path: ".diracrules", target: ".agents" },
+	],
 };
 
 export default config;

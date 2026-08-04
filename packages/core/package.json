@@ -1,24 +1,32 @@
 {
 	"name": "@lisachandra/core",
 	"version": "0.1.1",
+	"private": false,
 	"description": "Core runtime, utilities, logger, and shared primitives for @lisachandra rbxts packages",
 	"keywords": [
-		"roblox",
+		"core",
 		"rbxts",
-		"core"
+		"roblox"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
+	},
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
 	"exports": {
 		".": {
 			"import": "./out/init.luau",
@@ -81,14 +89,10 @@
 			"types": "./out/utils/vfx.d.ts"
 		}
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
-	"files": [
-		"out",
-		"README.md",
-		"default.project.json",
-		"!**/*.tsbuildinfo"
-	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -96,32 +100,32 @@
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
+		"@flamework/core": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/centurion": "catalog:",
-		"@rbxts/crate": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
+		"@rbxts/crate": "catalog:",
 		"@rbxts/lapis": "catalog:",
 		"@rbxts/lemon-signal": "catalog:",
 		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",
-		"@rbxts/sift": "catalog:",
 		"@rbxts/matter": "catalog:",
 		"@rbxts/message-templates": "catalog:",
+		"@rbxts/object-cache": "catalog:",
 		"@rbxts/services": "catalog:",
+		"@rbxts/sift": "catalog:",
+		"@rbxts/t": "catalog:",
 		"@rbxts/types": "catalog:",
 		"@rbxts/validate-tree": "catalog:",
-		"@rbxts/t": "catalog:",
-		"@rbxts/object-cache": "catalog:",
-		"@flamework/core": "catalog:",
-		"type-fest": "catalog:",
 		"shx": "catalog:",
+		"type-fest": "catalog:",
 		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"@lisachandra/types": "*",
 		"@flamework/core": "*",
+		"@lisachandra/types": "*",
 		"@rbxts/centurion": "*",
 		"@rbxts/crate": "*",
 		"@rbxts/lapis": "*",
@@ -130,15 +134,11 @@
 		"@rbxts/luau-polyfill": "*",
 		"@rbxts/matter": "*",
 		"@rbxts/message-templates": "*",
+		"@rbxts/object-cache": "*",
 		"@rbxts/services": "*",
 		"@rbxts/sift": "*",
-		"@rbxts/validate-tree": "*",
 		"@rbxts/t": "*",
-		"@rbxts/object-cache": "*",
+		"@rbxts/validate-tree": "*",
 		"type-fest": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
 	}
 }

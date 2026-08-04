@@ -19,7 +19,9 @@ export function resolvePackageGraph<
 		}
 
 		if (visiting.has(id)) {
-			error(`[matter/packages] Cyclic package dependency detected: ${[...path, id].join(" -> ")}`);
+			error(
+				`[matter/packages] Cyclic package dependency detected: ${[...path, id].join(" -> ")}`,
+			);
 		}
 
 		const pkg = packages.get(id);

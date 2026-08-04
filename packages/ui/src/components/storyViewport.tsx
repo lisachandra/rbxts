@@ -1,12 +1,12 @@
 import { configureConstant } from "@lisachandra/constant";
-pcall(() => {
-	configureConstant("src/client/constants.json", {})
-})
-
-import { getInstanceByTree } from "@lisachandra/core/utils/main"
+import { getInstanceByTree } from "@lisachandra/core/utils/main";
 import React, { useEffect } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
 import { Workspace } from "@rbxts/services";
+
+pcall(() => {
+	configureConstant("src/client/constants.json", {});
+});
 
 const crateModule = getInstanceByTree(...$getModuleTree("@rbxts/crate"))!;
 
@@ -16,13 +16,12 @@ interface Props extends React.PropsWithChildren {
 }
 
 /**
- * Manages cleanup of temporary objects created during story rendering. This
- * includes destroying ObjectCache folders and clearing crates in
- * ReplicatedStorage.
+ * Manages cleanup of temporary objects created during story rendering. This includes destroying
+ * ObjectCache folders and clearing crates in ReplicatedStorage.
  *
  * @param props - Component props, including a function to set viewport size.
- * @returns React fragment containing a hidden frame for viewport size updates
- *   and any children passed to the component.
+ * @returns React fragment containing a hidden frame for viewport size updates and any children
+ *   passed to the component.
  */
 export function StoryViewport({ children, setViewport }: Readonly<Props>): JSX.Element {
 	useEffect(() => {
@@ -48,14 +47,14 @@ export function StoryViewport({ children, setViewport }: Readonly<Props>): JSX.E
 				key="StoryViewport"
 				Active={false}
 				BackgroundTransparency={1}
-				Interactable={false}
-				Size={UDim2.fromScale(1, 1)}
-				Visible={false}
 				Change={{
 					AbsoluteSize: (rbx) => {
 						setViewport(rbx.AbsoluteSize);
 					},
 				}}
+				Interactable={false}
+				Size={UDim2.fromScale(1, 1)}
+				Visible={false}
 			/>
 			{children}
 		</>

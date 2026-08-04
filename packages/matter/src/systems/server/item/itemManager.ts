@@ -1,3 +1,5 @@
+import type { ServerState } from "@lisachandra/core/store";
+import { catcher, getHumanoid } from "@lisachandra/core/utils/main";
 /*
  * This system manages item interactions, including moving items between
  * inventories, dropping them, and picking them up. It validates player actions
@@ -6,14 +8,21 @@
  */
 import type { Crate } from "@rbxts/crate";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import { equals as equals } from "@rbxts/sift/Array";
-import { equals as dictionaryEquals, filter, flip, fromArrays, map, values, } from "@rbxts/sift/Dictionary";
-import { ChangeRecord, Components, isComponent } from "../../../components";
-import { ServerState } from "@lisachandra/core/store";
-import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
-import { catcher, getHumanoid } from "@lisachandra/core/utils/main";
-import { Message, messaging } from "../../../network";
+import { equals } from "@rbxts/sift/Array";
+import {
+	equals as dictionaryEquals,
+	filter,
+	flip,
+	fromArrays,
+	map,
+	values,
+} from "@rbxts/sift/Dictionary";
+
+import type { ChangeRecord } from "../../../components";
+import { Components, isComponent } from "../../../components";
 import { useMessage } from "../../../hooks";
+import { Message, messaging } from "../../../network";
+import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
 
 const loadTimeout = 30;
 const maxItems = 65535;
@@ -55,7 +64,7 @@ function handleHotbarEquip(
 		return moveItemTo(world, entityId, undefined, itemPointers, hotbarItem.guid, destination);
 	}
 
-	return undefined
+	return undefined;
 }
 
 /* Moves an item between a player's inventory and hotbar, validating the action. */
@@ -248,7 +257,7 @@ function handlePlayerToolSync(world: World): void {
 
 function resyncItems(state: ServerState, player: Player, guid: string): void {
 	if (state.itemGUIDMap[guid] === undefined) {
-		messaging.client.emit(player, Message.ResyncItem, guid)
+		messaging.client.emit(player, Message.ResyncItem, guid);
 	}
 }
 
@@ -376,7 +385,7 @@ function system(world: World, crate: Crate<ServerState>): void {
 		number
 	>;
 
-	messaging.client.emitAll(Message.ItemGUIDMap, newGUIDs)
+	messaging.client.emitAll(Message.ItemGUIDMap, newGUIDs);
 }
 
 export const meta = {

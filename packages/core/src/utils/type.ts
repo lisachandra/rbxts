@@ -58,9 +58,9 @@ export type PredicateType<
 	T extends (
 		value: any, // type-coverage:ignore-line
 	) => value is any, // type-coverage:ignore-line
-> = T extends (
+> = T extends ((
 	value: any, // type-coverage:ignore-line
-) => value is infer U
+) => value is infer U)
 	? U
 	: never;
 
@@ -70,16 +70,15 @@ export type PredicateType<
  * Type guard utility function that always returns true.
  *
  * @template T
- * @param typed - The type to typecheck against.
+ * @param _typed - The type to typecheck against.
  * @returns Always true.
  */
-export function is<T>(typed: unknown): typed is T {
+export function is<T>(_typed: unknown): _typed is T {
 	return true;
 }
 
 /**
- * Type utility function for using generalized iteration. Use $range for loops
- * for arrays.
+ * Type utility function for using generalized iteration. Use $range for loops for arrays.
  *
  * @template T
  * @param object - The table to iterate over.
@@ -104,21 +103,20 @@ export function required<T>(object: T): Required<T> {
  * Type utility function to force assert a condition without erroring.
  *
  * @template T
- * @param condition - The condition to assert.
+ * @param _condition - The condition to assert.
  */
-export function typeAssert<T>(condition: T): asserts condition {}
+export function typeAssert<T>(_condition: T): asserts _condition {}
 
 /**
  * Type utility function to force assert a variable with a type.
  *
  * @template T - The type to assert as.
- * @param typed - The variable to assert.
+ * @param _typed - The variable to assert.
  */
-export function typeAssertIs<T>(typed: unknown): asserts typed is T {}
+export function typeAssertIs<T>(_typed: unknown): asserts _typed is T {}
 
 /**
- * Type utility function to get a member (property or method) from an object
- * without calling it.
+ * Type utility function to get a member (property or method) from an object without calling it.
  *
  * @template T, U
  * @param object - The object to get the member from.
@@ -143,17 +141,15 @@ export function force<T, S extends boolean = false>(value?: S extends true ? T :
 
 /* eslint-disable jsdoc/require-param-description -- From flamework's modding API. */
 /**
- * This function is able to utilize Flamework's user macros to generate and
- * inspect types. This function supports all values natively supported by
- * Flamework's user macros.
+ * This function is able to utilize Flamework's user macros to generate and inspect types. This
+ * function supports all values natively supported by Flamework's user macros.
  *
- * For example, if you want to retrieve the properties of an instance, you could
- * write code like this:.
+ * For example, if you want to retrieve the properties of an instance, you could write code like
+ * this:.
  *
  * ```ts
  * // Returns an array of all keys part of the union.
- * const basePartKeys =
- * 	Modding.inspect<InstancePropertyNames<BasePart>[]>();
+ * const basePartKeys = Modding.inspect<InstancePropertyNames<BasePart>[]>();
  * ```
  *
  * @param value
@@ -166,15 +162,13 @@ export function inspect<T>(value?: Modding.Many<T>): T {
 
 const flowSymbol = Symbol.for("flow");
 /**
- * Conditionally returns an array containing a unique symbol if the provided
- * condition is true, otherwise returns an empty array. This is useful for
- * triggering code execution within a `for...of` loop only when the condition is
- * met.
+ * Conditionally returns an array containing a unique symbol if the provided condition is true,
+ * otherwise returns an empty array. This is useful for triggering code execution within a
+ * `for...of` loop only when the condition is met.
  *
- * @param run - A boolean value determining whether to return the symbol or an
- *   empty array.
+ * @param run - A boolean value determining whether to return the symbol or an empty array.
  * @returns An array containing the `flowSymbol` if `run` is true, otherwise an
- *   empty array.
+ * empty array.
  */
 export function flow(run: boolean): [] | [typeof flowSymbol] {
 	return run ? [flowSymbol] : [];

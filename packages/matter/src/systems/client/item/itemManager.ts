@@ -4,28 +4,27 @@
  * hotbar. It ensures that item interactions and data remain consistent across
  * the game.
  */
-import { ClientState } from "@lisachandra/core/store";
+import type { ClientState } from "@lisachandra/core/store";
+import { catcher, getInstanceWithAttribute } from "@lisachandra/core/utils/main";
+import { iterate } from "@lisachandra/core/utils/type";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
 import type { Component, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { Players } from "@rbxts/services";
-import { equals as equals } from "@rbxts/sift/Array";
-import { count, equals as dictionaryEquals, fromArrays, removeKeys, } from "@rbxts/sift/Dictionary";
+import { equals } from "@rbxts/sift/Array";
+import { count, equals as dictionaryEquals, fromArrays, removeKeys } from "@rbxts/sift/Dictionary";
 
-import { meta as replicationManager } from "../network/replicationManager";
+import type { ChangeRecord, Item } from "../../../components";
+import { Components, isComponent } from "../../../components";
 import { useMessage, useThrottle } from "../../../hooks";
-import { catcher, getInstanceWithAttribute } from "@lisachandra/core/utils/main";
-import { iterate } from "@lisachandra/core/utils/type";
-import { ChangeRecord, Components, isComponent, Item } from "../../../components";
 import { Message, messaging } from "../../../network";
-
+import { meta as replicationManager } from "../network/replicationManager";
 
 /** Interval (seconds) between periodic item resyncs with the server. */
 const ITEM_RESYNC_INTERVAL = 60;
 /**
- * Handles incoming `ResyncItem` packets from the server. Removes the specified
- * GUID from the client's `itemGUIDMap`, triggering a resync of the item from
- * the server.
+ * Handles incoming `ResyncItem` packets from the server. Removes the specified GUID from the
+ * client's `itemGUIDMap`, triggering a resync of the item from the server.
  *
  * @param crate - The Crate instance containing the client state.
  */
@@ -39,8 +38,8 @@ function handleResyncItem(crate: Crate<ClientState>): void {
 }
 
 /**
- * Periodically resynchronizes all items in the client's `itemGUIDMap` with the
- * server. Sends a `ResyncItem` packet for each GUID in the map.
+ * Periodically resynchronizes all items in the client's `itemGUIDMap` with the server. Sends a
+ * `ResyncItem` packet for each GUID in the map.
  *
  * @param crate - The Crate instance containing the client state.
  */
@@ -57,14 +56,13 @@ function resyncItems(crate: Crate<ClientState>): void {
 }
 
 /**
- * Calculates the changes in item lists between old and new component states.
- * Determines which items need to be added or removed from the client's view.
+ * Calculates the changes in item lists between old and new component states. Determines which items
+ * need to be added or removed from the client's view.
  *
  * @param record - The change record containing the old and new component state.
- * @param newItemPointers - A dictionary mapping item GUIDs to their
- *   corresponding UI element pointers.
- * @param pointer - The UI element pointer associated with the current
- *   component.
+ * @param newItemPointers - A dictionary mapping item GUIDs to their corresponding UI element
+ *   pointers.
+ * @param pointer - The UI element pointer associated with the current component.
  * @returns An object containing two arrays: `itemsToAdd` and `itemsToRemove`.
  */
 function getItemChanges(
@@ -94,9 +92,9 @@ function getItemChanges(
 }
 
 /**
- * Updates the `itemPointers` dictionary for a given component (Hotbar,
- * Inventory, or Items). Iterates through changed components, identifies added
- * items, and updates their pointers in the `itemPointers` dictionary.
+ * Updates the `itemPointers` dictionary for a given component (Hotbar, Inventory, or Items).
+ * Iterates through changed components, identifies added items, and updates their pointers in the
+ * `itemPointers` dictionary.
  *
  * @param world - The Matter world instance.
  * @param name - The name of the component ("Hotbar", "Inventory", or "Items").
@@ -130,9 +128,8 @@ function updateItemPointersForComponent(
 }
 
 /**
- * Updates tool references for Hotbar and Inventory items. Assigns the actual
- * Tool instance to the item component if a matching tool is found in the
- * player's character or backpack.
+ * Updates tool references for Hotbar and Inventory items. Assigns the actual Tool instance to the
+ * item component if a matching tool is found in the player's character or backpack.
  *
  * @param world - The Matter world instance.
  * @param state - The current client state.
@@ -172,9 +169,9 @@ function updateToolReferences(
 }
 
 /**
- * Updates the `itemPointers` state with the latest item-to-pointer mappings.
- * Iterates through Inventory, Hotbar, and Items components, updates pointers,
- * and applies changes to the client state.
+ * Updates the `itemPointers` state with the latest item-to-pointer mappings. Iterates through
+ * Inventory, Hotbar, and Items components, updates pointers, and applies changes to the client
+ * state.
  *
  * @param world - The Matter world instance.
  * @param crate - The Crate instance containing the client state.

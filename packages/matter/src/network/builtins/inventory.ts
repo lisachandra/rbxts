@@ -1,29 +1,19 @@
-import { registry } from "../registry";
-import { Components, Item } from "../../components";
-import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
 import { store } from "@lisachandra/core/store";
 
-/**
- * Payload structure for replicating the {@link Components.Inventory} component.
- */
-export type InventoryPayload = {
+import type { Item } from "../../components";
+import { Components } from "../../components";
+import { registry } from "../registry";
+import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
+
+/** Payload structure for replicating the {@link Components.Inventory} component. */
+export interface InventoryPayload {
 	items: Array<ItemData>;
-};
+}
 
 const lastReplicatedItems: Record<string, Array<Item>> = {};
 
 registry.register<Components["Inventory"], InventoryPayload>({
 	component: Components.Inventory,
-	mode: "owner",
-	serializer: (record, _playerEntityId, componentEntityId) => {
-		const key = `${componentEntityId}`;
-		const [items, newReplicatedItems] = itemsSerializer(
-			{ new: record.new!.items, old: record.old?.items },
-			lastReplicatedItems[key] ?? [],
-		);
-		lastReplicatedItems[key] = newReplicatedItems;
-		return { items };
-	},
 	deserializer: (data, _serverEntityId, clientEntityId) => {
 		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
 		const oldItems = entityExists
@@ -38,8 +28,19 @@ registry.register<Components["Inventory"], InventoryPayload>({
 				}
 			}
 		}
+
 		return {
 			items: newItems.filter((item) => !removedGUIDs.includes(item.guid)),
 		};
+	},
+	mode: "owner",
+	serializer: (record, _playerEntityId, componentEntityId) => {
+		const key = `${componentEntityId}`;
+		const [items, newReplicatedItems] = itemsSerializer(
+			{ new: record.new!.items, old: record.old?.items },
+			lastReplicatedItems[key] ?? [],
+		);
+		lastReplicatedItems[key] = newReplicatedItems;
+		return { items };
 	},
 });

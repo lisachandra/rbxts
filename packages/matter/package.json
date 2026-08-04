@@ -1,25 +1,33 @@
 {
 	"name": "@lisachandra/matter",
 	"version": "0.1.1",
+	"private": false,
 	"description": "Matter runtime, hooks, components, and systems composition for @lisachandra",
 	"keywords": [
-		"roblox",
-		"rbxts",
+		"ecs",
 		"matter",
-		"ecs"
+		"rbxts",
+		"roblox"
 	],
 	"homepage": "https://github.com/lisachandra/rbxts",
 	"bugs": {
 		"url": "https://github.com/lisachandra/rbxts/issues"
 	},
-	"repository": {
-		"url": "https://github.com/lisachandra/rbxts",
-		"type": "git"
-	},
 	"license": "MIT",
 	"author": "lisachandra <lisachandra@proton.me>",
-	"private": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lisachandra/rbxts"
+	},
+	"files": [
+		"out",
+		"README.md",
+		"default.project.json",
+		"!**/*.tsbuildinfo"
+	],
 	"type": "module",
+	"main": "out/init.luau",
+	"types": "out/index.d.ts",
 	"exports": {
 		".": {
 			"import": "./out/init.luau",
@@ -53,51 +61,47 @@
 			"import": "./out/systems/init.luau",
 			"types": "./out/systems/index.d.ts"
 		},
-			"./components": {
-				"import": "./out/components.luau",
-				"types": "./out/components.d.ts"
-			},
-			"./hooks": {
-				"import": "./out/hooks/init.luau",
-				"types": "./out/hooks/index.d.ts"
-			},
-			"./hooks/useChange": {
-				"import": "./out/hooks/useChange.luau",
-				"types": "./out/hooks/useChange.d.ts"
-			},
-			"./hooks/useMemo": {
-				"import": "./out/hooks/useMemo.luau",
-				"types": "./out/hooks/useMemo.d.ts"
-			},
-			"./hooks/useMessage": {
-				"import": "./out/hooks/useMessage.luau",
-				"types": "./out/hooks/useMessage.d.ts"
-			},
-			"./hooks/useReducer": {
-				"import": "./out/hooks/useReducer.luau",
-				"types": "./out/hooks/useReducer.d.ts"
-			},
-			"./hooks/useStream": {
-				"import": "./out/hooks/useStream.luau",
-				"types": "./out/hooks/useStream.d.ts"
-			},
-			"./hooks/useThrottle": {
-				"import": "./out/hooks/useThrottle.luau",
-				"types": "./out/hooks/useThrottle.d.ts"
-			},
-			"./hooks/useDocument": {
-				"import": "./out/hooks/useDocument.luau",
-				"types": "./out/hooks/useDocument.d.ts"
-			}
+		"./components": {
+			"import": "./out/components.luau",
+			"types": "./out/components.d.ts"
+		},
+		"./hooks": {
+			"import": "./out/hooks/init.luau",
+			"types": "./out/hooks/index.d.ts"
+		},
+		"./hooks/useChange": {
+			"import": "./out/hooks/useChange.luau",
+			"types": "./out/hooks/useChange.d.ts"
+		},
+		"./hooks/useMemo": {
+			"import": "./out/hooks/useMemo.luau",
+			"types": "./out/hooks/useMemo.d.ts"
+		},
+		"./hooks/useMessage": {
+			"import": "./out/hooks/useMessage.luau",
+			"types": "./out/hooks/useMessage.d.ts"
+		},
+		"./hooks/useReducer": {
+			"import": "./out/hooks/useReducer.luau",
+			"types": "./out/hooks/useReducer.d.ts"
+		},
+		"./hooks/useStream": {
+			"import": "./out/hooks/useStream.luau",
+			"types": "./out/hooks/useStream.d.ts"
+		},
+		"./hooks/useThrottle": {
+			"import": "./out/hooks/useThrottle.luau",
+			"types": "./out/hooks/useThrottle.d.ts"
+		},
+		"./hooks/useDocument": {
+			"import": "./out/hooks/useDocument.luau",
+			"types": "./out/hooks/useDocument.d.ts"
+		}
 	},
-	"main": "out/init.luau",
-	"types": "out/index.d.ts",
-	"files": [
-		"out",
-		"README.md",
-		"default.project.json",
-		"!**/*.tsbuildinfo"
-	],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
 		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
 		"dev": "rbxtsc --watch --allowCommentDirectives",
@@ -105,60 +109,56 @@
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
-		"@lisachandra/core": "workspace:*",
-		"@lisachandra/constant": "catalog:",
 		"@flamework/core": "catalog:",
-		"@rbxts/t": "catalog:",
-		"@rbxts/crate": "catalog:",
-		"@rbxts/janitor": "catalog:",
-		"@rbxts/lemon-signal": "catalog:",
-		"@rbxts/services": "catalog:",
-		"@rbxts/matter": "catalog:",
-		"@rbxts/rewire": "catalog:",
-		"@rbxts/tether": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
+		"@lisachandra/constant": "catalog:",
+		"@lisachandra/core": "workspace:*",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/types": "catalog:",
-		"@rbxts/object-utils": "catalog:",
-		"@rbxts/object-cache": "catalog:",
+		"@rbxts/crate": "catalog:",
+		"@rbxts/janitor": "catalog:",
+		"@rbxts/lapis": "catalog:",
+		"@rbxts/lemon-signal": "catalog:",
 		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",
-		"@rbxts/sift": "catalog:",
+		"@rbxts/matter": "catalog:",
+		"@rbxts/object-cache": "catalog:",
+		"@rbxts/object-utils": "catalog:",
 		"@rbxts/plasma": "catalog:",
-		"@rbxts/lapis": "catalog:",
-		"rbxts-transformer-flamework": "catalog:",
+		"@rbxts/rewire": "catalog:",
 		"@rbxts/serio": "catalog:",
-		"type-fest": "catalog:",
+		"@rbxts/services": "catalog:",
+		"@rbxts/sift": "catalog:",
+		"@rbxts/t": "catalog:",
+		"@rbxts/tether": "catalog:",
+		"@rbxts/types": "catalog:",
+		"rbxts-transformer-flamework": "catalog:",
 		"shx": "catalog:",
+		"type-fest": "catalog:",
 		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"@lisachandra/types": "*",
-		"@lisachandra/core": "*",
-		"@lisachandra/constant": "*",
-		"type-fest": "*",
 		"@flamework/core": "*",
-		"@rbxts/t": "*",
-		"@rbxts/log": "*",
-		"@rbxts/luau-polyfill": "*",
-		"@rbxts/sift": "*",
-		"@rbxts/serio": "*",
-		"@rbxts/object-utils": "*",
-		"@rbxts/object-cache": "*",
-		"@rbxts/matter": "*",
-		"@rbxts/rewire": "*",
+		"@lisachandra/constant": "*",
+		"@lisachandra/core": "*",
+		"@lisachandra/types": "*",
 		"@rbxts/crate": "*",
 		"@rbxts/janitor": "*",
+		"@rbxts/lapis": "*",
 		"@rbxts/lemon-signal": "*",
-		"@rbxts/tether": "*",
-		"@rbxts/services": "*",
+		"@rbxts/log": "*",
+		"@rbxts/luau-polyfill": "*",
+		"@rbxts/matter": "*",
+		"@rbxts/object-cache": "*",
+		"@rbxts/object-utils": "*",
 		"@rbxts/plasma": "*",
-		"@rbxts/lapis": "*"
-	},
-	"publishConfig": {
-		"access": "public",
-		"registry": "https://registry.npmjs.org/"
+		"@rbxts/rewire": "*",
+		"@rbxts/serio": "*",
+		"@rbxts/services": "*",
+		"@rbxts/sift": "*",
+		"@rbxts/t": "*",
+		"@rbxts/tether": "*",
+		"type-fest": "*"
 	}
 }

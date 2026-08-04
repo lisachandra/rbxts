@@ -12,19 +12,19 @@
 		"test": "pnpm exec jest-roblox ./jest.config.ts"
 	},
 	"devDependencies": {
-		"@lisachandra/types": "workspace:*",
-		"@lisachandra/core": "workspace:*",
-		"@lisachandra/matter": "workspace:*",
 		"@isentinel/jest-roblox": "catalog:",
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
+		"@lisachandra/core": "workspace:*",
+		"@lisachandra/matter": "workspace:*",
+		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/jest": "catalog:",
 		"@rbxts/jest-globals": "catalog:",
 		"@rbxts/services": "catalog:",
 		"@rbxts/types": "catalog:",
-		"rbxts-transformer-flamework": "catalog:",
 		"io-serve": "catalog:",
+		"rbxts-transformer-flamework": "catalog:",
 		"shx": "catalog:",
 		"typescript": "catalog:"
 	}

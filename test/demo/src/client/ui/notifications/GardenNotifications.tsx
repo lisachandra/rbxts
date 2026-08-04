@@ -1,7 +1,8 @@
+import { Components } from "@lisachandra/matter";
 import { AppContext, useComponentRecord, VirtualScroller } from "@lisachandra/ui";
-import { Components} from "@lisachandra/matter";
 import React, { useContext, useEffect, useState } from "@rbxts/react";
 import type { JSX } from "@rbxts/react";
+
 import { useLocalClientEntityId } from "client/ui/hooks/useDemoEntities";
 
 export function GardenNotifications(): JSX.Element {
@@ -13,7 +14,11 @@ export function GardenNotifications(): JSX.Element {
 	const [revision, setRevision] = useState(0);
 
 	useEffect(() => {
-		if (!notification || notification.revision <= revision || notification.latest.size() === 0) {
+		if (
+			!notification ||
+			notification.revision <= revision ||
+			notification.latest.size() === 0
+		) {
 			return;
 		}
 
@@ -23,12 +28,18 @@ export function GardenNotifications(): JSX.Element {
 			while (nextMessage.size() > 6) {
 				nextMessage.remove(0);
 			}
+
 			return nextMessage;
 		});
 	}, [notification, revision]);
 
 	return (
-		<frame AnchorPoint={new Vector2(1, 1)} BackgroundTransparency={1} Position={UDim2.fromScale(1, 1).add(UDim2.fromOffset(-px(16), -px(16)))} Size={UDim2.fromOffset(px(280), px(160))}>
+		<frame
+			AnchorPoint={new Vector2(1, 1)}
+			BackgroundTransparency={1}
+			Position={UDim2.fromScale(1, 1).add(UDim2.fromOffset(-px(16), -px(16)))}
+			Size={UDim2.fromOffset(px(280), px(160))}
+		>
 			<VirtualScroller
 				itemCount={messages.size()}
 				itemHeight={px(24)}

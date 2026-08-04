@@ -1,101 +1,124 @@
 packages:
-  - packages/*
-  - test/*
+    - packages/*
+    - test/*
 
 allowBuilds:
-  esbuild: true
+    esbuild: true
 
 autoInstallPeers: true
 
 catalog:
-  '@ai-hero/sandcastle': 0.10.0
-  '@changesets/changelog-github': 0.6.0
-  '@changesets/cli': 2.31.0
-  '@flamework/core': 1.3.2
-  '@isentinel/jest-roblox': 0.3.10
-  '@isentinel/roblox-ts': 4.0.11
-  '@isentinel/tsconfig': 1.2.0
-  '@lisachandra/constant': github:lisachandra/constant#path:packages/constant
-  '@types/node': 24.10.4
-  '@rbxts/centurion': 1.0.1
-  '@rbxts/centurion-ui': 1.0.8
-  '@rbxts/compiler-types': latest
-  '@rbxts/crate': 1.0.3-rc.1
-  '@rbxts/iris': 2.3.1-ts.1
-  '@rbxts/janitor': 1.18.3-ts.0
-  '@rbxts/jest': 3.16.0-ts.1
-  '@rbxts/jest-globals': 3.16.0-ts.1
-  '@rbxts/lapis': 0.3.8
-  '@rbxts/lapis-mockdatastore': 0.3.7
-  '@rbxts/lemon-signal': 1.2.0
-  '@rbxts/log': 0.6.3
-  '@rbxts/luau-polyfill': latest
-  '@rbxts/matter': github:matter-ecs/matter-types
-  '@rbxts/message-templates': 0.3.2
-  '@rbxts/object-cache': 1.4.5
-  '@rbxts/object-utils': 1.0.4
-  '@rbxts/plasma': 0.4.5
-  '@rbxts/pretty-react-hooks': 0.6.4
-  '@rbxts/rbxts-hashlib': 1.0.2
-  '@rbxts/react': 17.3.7-ts.2
-  '@rbxts/react-devtools-core': 17.3.7-ts.2
-  '@rbxts/react-globals': 17.3.7-ts.2
-  '@rbxts/react-roblox': 17.3.7-ts.2
-  '@rbxts/react-roblox-fire': 0.1.4
-  '@rbxts/react-testing-library': 12.1.5-rc.6
-  '@rbxts/regexp': latest
-  '@rbxts/rewire': 0.3.0
-  '@rbxts/serio': 1.2.5
-  '@rbxts/services': latest
-  '@rbxts/sift': 0.0.11
-  '@rbxts/t': 3.2.1
-  '@rbxts/tether': 1.4.17
-  '@rbxts/types': 1.0.925
-  '@rbxts/validate-tree': 2.0.2
-  husky: 9.1.7
-  io-serve: 1.1.2
-  jiti: 2.6.1
-  rbxts-transformer-flamework: 1.3.2
-  shx: 0.4.0
-  type-fest: 5.6.0
-  typescript: 6.0.3
-  tsx: 4.21.0
-  zod: 4.4.3
+    "@ai-hero/sandcastle": 0.10.0
+    "@changesets/changelog-github": 0.6.0
+    "@changesets/cli": 2.31.0
+    "@commitlint/cli": 20.5.3
+    "@commitlint/config-conventional": 20.5.3
+    "@commitlint/prompt-cli": 20.5.3
+    "@commitlint/types": 20.5.0
+    "@flamework/core": 1.3.2
+    "@isentinel/eslint-config": 6.0.0-beta.11
+    "@isentinel/jest-roblox": 0.3.10
+    "@isentinel/roblox-ts": 4.0.11
+    "@isentinel/tsconfig": 1.2.0
+    "@lisachandra/constant": 0.3.0
+    "@types/node": 24.10.4
+    "@rbxts/centurion": 1.0.1
+    "@rbxts/centurion-ui": 1.0.8
+    "@rbxts/compiler-types": latest
+    "@rbxts/crate": 1.0.3-rc.1
+    "@rbxts/iris": 2.3.1-ts.1
+    "@rbxts/janitor": 1.18.3-ts.0
+    "@rbxts/jest": 3.16.0-ts.1
+    "@rbxts/jest-globals": 3.16.0-ts.1
+    "@rbxts/lapis": 0.3.8
+    "@rbxts/lapis-mockdatastore": 0.3.7
+    "@rbxts/lemon-signal": 1.2.0
+    "@rbxts/log": 0.6.3
+    "@rbxts/luau-polyfill": latest
+    "@rbxts/matter": github:matter-ecs/matter-types
+    "@rbxts/message-templates": 0.3.2
+    "@rbxts/object-cache": 1.4.5
+    "@rbxts/object-utils": 1.0.4
+    "@rbxts/plasma": 0.4.5
+    "@rbxts/pretty-react-hooks": 0.6.4
+    "@rbxts/rbxts-hashlib": 1.0.2
+    "@rbxts/react": 17.3.7-ts.2
+    "@rbxts/react-devtools-core": 17.3.7-ts.2
+    "@rbxts/react-globals": 17.3.7-ts.2
+    "@rbxts/react-roblox": 17.3.7-ts.2
+    "@rbxts/react-roblox-fire": 0.1.4
+    "@rbxts/react-testing-library": 12.1.5-rc.6
+    "@rbxts/regexp": latest
+    "@rbxts/rewire": 0.3.0
+    "@rbxts/serio": 1.2.5
+    "@rbxts/services": latest
+    "@rbxts/sift": 0.0.11
+    "@rbxts/t": 3.2.1
+    "@rbxts/tether": 1.4.17
+    "@rbxts/types": 1.0.925
+    "@rbxts/validate-tree": 2.0.2
+    "@typescript-eslint/eslint-plugin": 8.65.0
+    "@typescript/native-preview": 7.0.0-dev.20260707.2
+    husky: 9.1.7
+    io-serve: 1.1.2
+    jiti: 2.6.1
+    rbxts-transformer-flamework: 1.3.2
+    shx: 0.4.0
+    type-fest: 5.6.0
+    typescript: 6.0.3
+    tsx: 4.21.0
+    zod: 4.4.3
+    eslint-plugin-jest: 29.15.4
+    eslint-plugin-jest-extended: 3.0.1
+    eslint-plugin-react-jsx: 5.16.1
+    eslint-plugin-react-naming-convention: 5.16.1
+    eslint-plugin-react-x: 5.16.1
+    oxfmt: 0.60.0
+    oxlint: 1.73.0
+    oxlint-tsgolint: 0.24.0
 
 catalogMode: prefer
 
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/plugin-trusted-deps': 0.2.0+sha512-jqiCC8kyrwOERwMWPo2RB1YlDMMS5WsPSA8Uwi3EXAYwyOSNtqKhrB9bs543JGUiz4yaA9h6nE3q98fG14AEyQ==
+    "@pnpm/plugin-trusted-deps": 0.2.2+sha512-+ZupiXKJhW2fbSilfyRp+wrAY54MKg+c0JWSFGdeb/y9bUoYN5u4XLOZ0Txk7O2bBa6NMhWrX5mwmsHP3/nm9Q==
 
 ignoreWorkspaceRootCheck: true
 
+minimumReleaseAgeExclude:
+    - "@isentinel/eslint-config@6.0.0-beta.11"
+    - "@lisachandra/sandcastle@0.2.0"
+    - "@lisachandra/types@0.1.0 || 0.1.1"
+
 onlyBuiltDependencies:
-  - unrs-resolver
-  - '@lisachandra/constant'
+    - unrs-resolver
+    - "@lisachandra/constant"
+
+overrides:
+    eslint-plugin-arrow-return-style-x>@typescript-eslint/utils: 8.65.0
 
 patchedDependencies:
-  '@isentinel/roblox-ts@4.0.11': patches/@isentinel__roblox-ts@4.0.11.patch
-  '@rbxts-js/emittery@3.16.0-ts.1': patches/@rbxts-js__emittery@3.16.0-ts.1.patch
-  '@rbxts-js/expect@3.16.0-ts.1': patches/@rbxts-js__expect@3.16.0-ts.1.patch
-  '@rbxts-js/jest-mock@3.16.0-ts.1': patches/@rbxts-js__jest-mock@3.16.0-ts.1.patch
-  '@rbxts-js/jest-runner@3.16.0-ts.1': patches/@rbxts-js__jest-runner@3.16.0-ts.1.patch
-  '@rbxts/centurion': patches/@rbxts__centurion.patch
-  '@rbxts/compiler-types': patches/@rbxts__compiler-types@3.0.0-types.0.patch
-  '@rbxts/jest-globals@3.16.0-ts.1': patches/@rbxts__jest-globals@3.16.0-ts.1.patch
-  '@rbxts/log@0.6.3': patches/@rbxts__log@0.6.3.patch
-  '@rbxts/serio@1.2.5': patches/@rbxts__serio@1.2.5.patch
-  '@rbxts/tether@1.4.17': patches/@rbxts__tether@1.4.17.patch
-  '@rbxts/sift@0.0.11': patches/@rbxts__sift@0.0.11.patch
-  rbxts-transformer-flamework: patches/rbxts-transformer-flamework.patch
+    "@isentinel/roblox-ts@4.0.11": patches/@isentinel__roblox-ts@4.0.11.patch
+    "@rbxts-js/emittery@3.16.0-ts.1": patches/@rbxts-js__emittery@3.16.0-ts.1.patch
+    "@rbxts-js/expect@3.16.0-ts.1": patches/@rbxts-js__expect@3.16.0-ts.1.patch
+    "@rbxts-js/jest-mock@3.16.0-ts.1": patches/@rbxts-js__jest-mock@3.16.0-ts.1.patch
+    "@rbxts-js/jest-runner@3.16.0-ts.1": patches/@rbxts-js__jest-runner@3.16.0-ts.1.patch
+    "@rbxts/centurion": patches/@rbxts__centurion.patch
+    "@rbxts/compiler-types": patches/@rbxts__compiler-types@3.0.0-types.0.patch
+    "@rbxts/jest-globals@3.16.0-ts.1": patches/@rbxts__jest-globals@3.16.0-ts.1.patch
+    "@rbxts/log@0.6.3": patches/@rbxts__log@0.6.3.patch
+    "@rbxts/serio@1.2.5": patches/@rbxts__serio@1.2.5.patch
+    "@rbxts/tether@1.4.17": patches/@rbxts__tether@1.4.17.patch
+    "@rbxts/sift@0.0.11": patches/@rbxts__sift@0.0.11.patch
+    rbxts-transformer-flamework: patches/rbxts-transformer-flamework.patch
 
 publicHoistPattern:
-  - '*@rbxts*'
-  - '*@lisachandra*'
-  - '*@flamework*'
-  - '*@rbxts-js*'
-  - '*eslint*'
+    - "*@rbxts*"
+    - "*@lisachandra*"
+    - "*@flamework*"
+    - "*@rbxts-js*"
+    - "*eslint*"
 
 saveExact: true
 
@@ -104,10 +127,10 @@ shellEmulator: true
 trustPolicy: no-downgrade
 
 trustPolicyExclude:
-  - eslint-config-prettier@9.1.2
-  - semver@5.7.2
-  - chokidar@4.0.3
+    - eslint-config-prettier@9.1.2
+    - semver@5.7.2
+    - chokidar@4.0.3
 
 updateConfig:
-  ignoreDependencies:
-    - '@types/node'
+    ignoreDependencies:
+        - "@types/node"

@@ -1,15 +1,15 @@
 /** Command to teleport players to a target player. */
+import { getHumanoid } from "@lisachandra/core/utils/main";
 import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 
 import { adminOrDeveloper } from "../guards";
-import { getHumanoid } from "@lisachandra/core/utils/main";
 
 @Register()
 export class TeleportCommand {
 	/**
-	 * Teleports a group of players to a target player's location. Handles cases
-	 * where the target player's CFrame is invalid.
+	 * Teleports a group of players to a target player's location. Handles cases where the target
+	 * player's CFrame is invalid.
 	 *
 	 * @param _ - The command context (unused).
 	 * @param from - An array of Player objects to teleport.
@@ -17,8 +17,6 @@ export class TeleportCommand {
 	 */
 	@Command({
 		aliases: ["tp"],
-		description: "Teleports a player or set of players to one target.",
-		name: "teleport",
 		arguments: [
 			{
 				type: CenturionType.Players,
@@ -31,6 +29,8 @@ export class TeleportCommand {
 				name: "target",
 			},
 		],
+		description: "Teleports a player or set of players to one target.",
+		name: "teleport",
 	})
 	@Guard(adminOrDeveloper)
 	public teleport(_: CommandContext, from: Array<Player>, target: Player): void {

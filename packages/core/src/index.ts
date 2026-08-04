@@ -2,8 +2,8 @@ import formatTable = require("./utils/formatTable");
 import R6IK = require("./utils/r6ik");
 
 export * from "./logger";
-export * from "./store";
 export * from "./schemas";
+export * from "./store";
 
 export * as asset from "./utils/asset";
 export * as cframe from "./utils/cframe";

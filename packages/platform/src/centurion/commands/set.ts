@@ -1,22 +1,19 @@
+import { getItemFromGUID } from "@lisachandra/matter/utils/item";
 import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 
-import { getItemFromGUID } from "@lisachandra/matter/utils/item";
 import { adminOrDeveloper } from "../guards";
 
 @Register()
 /**
- * Admin command that sets property values on an ECS item identified by
- * its GUID.
+ * Admin command that sets property values on an ECS item identified by its GUID.
  *
  * @remarks
- * Properties are parsed from a comma-separated `key:value` string.
- * Supported value types are `string` and `number`.
+ *   Properties are parsed from a comma-separated `key:value` string. Supported value types are
+ *   `string` and `number`.
  */
 export class SetCommand {
 	@Command({
-		description: "Set new values to an item's properties.",
-		name: "set",
 		arguments: [
 			{
 				type: CenturionType.String,
@@ -25,21 +22,21 @@ export class SetCommand {
 			},
 			{
 				type: CenturionType.String,
-				name: "properties",
 				description:
 					"The properties and values for the item you want to modify.\nFormat: key:value",
+				name: "properties",
 			},
 		],
+		description: "Set new values to an item's properties.",
+		name: "set",
 	})
 	@Guard(adminOrDeveloper)
 	/**
-	 * Applies key-value property updates to the item matching the given
-	 * GUID.
+	 * Applies key-value property updates to the item matching the given GUID.
 	 *
 	 * @param _ - The command context (unused).
 	 * @param guid - The GUID of the ECS item to modify.
-	 * @param propertiesStr - Comma-separated `key:value` pairs (e.g.
-	 *   `health:100,speed:16`).
+	 * @param propertiesStr - Comma-separated `key:value` pairs (e.g. `health:100,speed:16`).
 	 */
 	public set(_: CommandContext, guid: string, propertiesStr: string): void {
 		const item = getItemFromGUID(guid);

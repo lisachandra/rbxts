@@ -1,23 +1,21 @@
-import type { ReactNode, JSX } from "@rbxts/react";
+import type { JSX, ReactNode } from "@rbxts/react";
 import React, { useEffect, useMemo, useRef, useState } from "@rbxts/react";
 
 import { History } from "./history";
 import { RouterContext } from "./routerContext";
 
 /**
- * Root router component that provides history and location state to all
- * descendant route matchers.
- *
- * @param children - Nested route components.
- * @param history - Optional custom history instance. Creates a default one if
- *   omitted.
- *
- * @returns A React element wrapping children in a {@link RouterContext}.
+ * Root router component that provides history and location state to all descendant route matchers.
  *
  * @example
- * ```tsx
- * <Router><App /></Router>
- * ```
+ * 	```tsx
+ * 	<Router>
+ * 		<App />
+ * 	</Router>;
+ * 	```;
+ *
+ * @param children - Nested route components.
+ * @returns A React element wrapping children in a {@link RouterContext}.
  */
 export function Router({
 	children,

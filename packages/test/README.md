@@ -30,10 +30,10 @@ const runtimeMock = TestRuntimeUtils.mockOnRuntime(jest, mock);
 
 // Override specific keys
 runtimeMock.__mockValue__ = (self, key, value) => {
-  if (key === "getData") {
-    return $tuple(true, jest.fn().mockReturnValue("stubbed"));
-  }
-  return $tuple(false, nil);
+	if (key === "getData") {
+		return $tuple(true, jest.fn().mockReturnValue("stubbed"));
+	}
+	return $tuple(false, nil);
 };
 
 // After each test:
@@ -42,20 +42,20 @@ TestRuntimeUtils.restoreAllMocks();
 
 ### API
 
-| Method | Description |
-|---|---|
-| `createMockInstance(instance, mockSelf?)` | Create a metatable proxy that wraps an object — property reads pass through, methods are optionally rebound to the original |
+| Method                                    | Description                                                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `createMockInstance(instance, mockSelf?)` | Create a metatable proxy that wraps an object — property reads pass through, methods are optionally rebound to the original    |
 | `mockOnRuntime(jestModule, mockInstance)` | Promote a MockInstance to a full runtime mock — function properties become `jest.fn()`, nested objects are recursively wrapped |
-| `restoreAllMocks()` | Restore all `jest.fn()` mocks to their original implementations |
-| `resetTSRuntime(clean?)` | Reset the roblox-ts runtime. If `clean=true`, destroys all Workspace children (except Terrain and Camera) |
-| `getModuleByTree(root, parts)` | Traverse an Instance hierarchy via `WaitForChild` to find a `ModuleScript` |
-| `isTesting` | `boolean` — whether currently executing inside Jest |
+| `restoreAllMocks()`                       | Restore all `jest.fn()` mocks to their original implementations                                                                |
+| `resetTSRuntime(clean?)`                  | Reset the roblox-ts runtime. If `clean=true`, destroys all Workspace children (except Terrain and Camera)                      |
+| `getModuleByTree(root, parts)`            | Traverse an Instance hierarchy via `WaitForChild` to find a `ModuleScript`                                                     |
+| `isTesting`                               | `boolean` — whether currently executing inside Jest                                                                            |
 
 ### Types
 
-| Type | Description |
-|---|---|
-| `MockInstance<T>` | Mock wrapper with `__instance__` and `__mockSelf__` |
-| `MockOnRuntime<T>` | Fully-instrumented runtime mock with `__mockValue__` hook |
+| Type                             | Description                                                |
+| -------------------------------- | ---------------------------------------------------------- |
+| `MockInstance<T>`                | Mock wrapper with `__instance__` and `__mockSelf__`        |
+| `MockOnRuntime<T>`               | Fully-instrumented runtime mock with `__mockValue__` hook  |
 | `MockedObjectWithMethodsDeep<T>` | Recursive type transforming all functions into MockMethods |
-| `MockInstanceDeep<T, Original>` | Deep recursive mock wrapper type |
+| `MockInstanceDeep<T, Original>`  | Deep recursive mock wrapper type                           |

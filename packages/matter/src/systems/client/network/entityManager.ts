@@ -1,3 +1,6 @@
+import type { ClientState } from "@lisachandra/core";
+import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
+import { is } from "@lisachandra/core/utils/type";
 /*
  * This system handles the creation, management, and destruction of entities
  * within the game world. It tracks changes to entity components, such as player
@@ -11,11 +14,9 @@ import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter
 import type { AnyComponent, Component } from "@rbxts/matter/lib/component";
 import { Players, Workspace } from "@rbxts/services";
 
+import type { ChangeRecord, ComponentKey } from "../../../components";
+import { Components, isComponent } from "../../../components";
 import { meta as replicationManager } from "./replicationManager";
-import { ChangeRecord, Components, ComponentKey, isComponent } from "../../../components";
-import { is } from "@lisachandra/core/utils/type";
-import { ClientState } from "@lisachandra/core";
-import { getInstanceWithAttribute } from "@lisachandra/core/utils/main";
 
 function handleComponentRemoval(record: ChangeRecord<AnyComponent>): void {
 	if (record.old && !record.new && "janitor" in record.old && is<Janitor>(record.old.janitor)) {
@@ -28,7 +29,7 @@ function handleComponentInsertion(
 	entityId: AnyEntity,
 	component: Component<object>,
 	hasJanitor: boolean,
-	crate: Crate<ClientState>,
+	_crate: Crate<ClientState>,
 ): void {
 	const componentsToInsert: Array<Component<object>> = [];
 	let janitor: N<Janitor>;
