@@ -159,12 +159,29 @@ Developer tooling (not a Roblox runtime package): a three-phase agent issue runn
 
 ---
 
+## Commit Attribution
+
+AI commits MUST include:
+
+```text
+Co-Authored-By: (the agent's name and attribution byline)
+```
+
+## Agent Workflow
+
+- Check matching GitHub issue/sub-issue when useful. Mention in plan and
+  summary.
+- Before changeset: check related changesets. Avoid duplicate.
+- One commit may have many changesets when user-facing behaviors differ.
+- After work: create/update issues for material follow-up. Do not bury follow-up
+  in chat.
+
 ## Development Workflow
 
 ### Prerequisites
 
 - **Node.js LTS** (managed via mise — see `mise.toml`)
-- **pnpm** (enabled via corepack)
+- **pnpm** (managed via mise)
 - **Rojo** `v7.7.0` (managed via mise)
 
 ### Common Commands
@@ -245,6 +262,9 @@ pnpm test     # node:test via tsx
 - Test helpers live in `test/`
 - Shared Jest config: `jest.shared.ts`
 - Per-package test configs in `test/<name>/jest.config.ts`
+- Always use the most efficient test option:
+  - selective tests: `pnpm --filter @lisachandra/test-<name> test --testPathPattern <pattern>`
+  - all tests: `pnpm test`
 
 ### Versioning & Publishing
 
