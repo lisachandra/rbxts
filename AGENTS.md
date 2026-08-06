@@ -263,8 +263,8 @@ pnpm test     # node:test via tsx
 - Shared Jest config: `jest.shared.ts`
 - Per-package test configs in `test/<name>/jest.config.ts`
 - Always use the most efficient test option:
-  - selective tests: `pnpm --filter @lisachandra/test-<name> test --testPathPattern <pattern>`
-  - all tests: `pnpm test`
+    - selective tests: `pnpm --filter @lisachandra/test-<name> test --testPathPattern <pattern>`
+    - all tests: `pnpm test`
 
 ### Versioning & Publishing
 
