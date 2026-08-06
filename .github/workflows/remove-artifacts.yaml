@@ -1,0 +1,35 @@
+name: Remove Artifacts
+
+on:
+  workflow_run:
+    workflows: [Continuous Integration]
+    types:
+      - completed
+
+permissions:
+  actions: write
+
+jobs:
+  delete-artifact:
+    name: Delete Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        id: get-artifact-id
+        name: Get Artifact Id
+        run: |
+          gh api -H 'Accept: application/vnd.github+json' "${{ github.event.workflow_run.artifacts_url }}" --jq '.artifacts[].id' > artifact_ids.txt
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        name: Delete Artifact
+        run: |
+          if [ ! -s artifact_ids.txt ]; then
+            echo "No artifacts to delete"
+            exit 0
+          fi
+          while IFS= read -r id; do
+            echo "Deleting artifact $id"
+            gh api --method DELETE -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/actions/artifacts/$id"
+          done < artifact_ids.txt

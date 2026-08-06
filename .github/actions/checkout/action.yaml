@@ -1,0 +1,93 @@
+name: Checkout
+description: Resolve the correct git ref for pull_request, push, or workflow_run events and check out the repository
+
+outputs:
+  ref:
+    description: Resolved git ref or SHA used for checkout
+    value: ${{ steps.extract_ref.outputs.ref }}
+
+runs:
+  using: composite
+  steps:
+    - if: ${{ github.event_name == 'workflow_run' }}
+      name: Download PR Info
+      uses: actions/download-artifact@v4
+      with:
+        github-token: ${{ github.token }}
+        name: pr-info
+        run-id: ${{ github.event.workflow_run.id }}
+
+    - id: extract_ref
+      name: Extract Ref
+      run: |
+        EVENT_NAME="${{ github.event_name }}"
+
+        if [ "$EVENT_NAME" == "workflow_run" ]; then
+          if [ -f "pr_info.txt" ]; then
+            PR_SHA=$(grep "pr_sha=" pr_info.txt | cut -d= -f2)
+            REF="$PR_SHA"
+          else
+            # Extract head_sha dynamically from the local file payload
+            REF=$(jq -r '.workflow_run.head_sha // empty' "$GITHUB_EVENT_PATH")
+            if [ -z "$REF" ]; then REF="${{ github.ref }}"; fi
+          fi
+        elif [ "$EVENT_NAME" == "pull_request" ]; then
+          REF=$(jq -r '.pull_request.head.sha // empty' "$GITHUB_EVENT_PATH")
+        else
+          REF="${{ github.ref }}"
+        fi
+
+        echo "ref=$REF" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        clean: true
+        ref: ${{ steps.extract_ref.outputs.ref }}
+
+    - name: Expand to Full Checkout
+      run: |
+        git sparse-checkout disable
+        git fetch origin ${{ steps.extract_ref.outputs.ref }}
+        git checkout ${{ steps.extract_ref.outputs.ref }}
+      shell: bash
+
+    - name: Create LFS file list
+      run: |
+        {
+          git lfs ls-files --long --include="*" --exclude=".superpowers/,./docs/,./assets/"
+          git submodule foreach --quiet git lfs ls-files --long --include="*" --exclude=".superpowers/,./docs/,./assets/"
+        } | cut -d ' ' -f1 | sort -u > .lfs-assets-id
+      shell: bash
+
+    - id: cache-paths
+      name: Create submodule LFS cache paths
+      run: |
+        CACHE_PATHS=""
+        if [ -f .gitmodules ]; then
+          while read -r line; do
+            CACHE_PATHS+=".git/modules/$line/lfs "
+          done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+        fi
+        echo "CACHE_PATHS=$CACHE_PATHS" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Restore LFS cache
+      uses: actions/cache@v5
+      with:
+        key: lfs-v3-${{ github.repository }}-${{ hashFiles('.lfs-assets-id') }}
+        path: |
+          .git/lfs
+          ${{ steps.cache-paths.outputs.CACHE_PATHS }}
+        restore-keys: lfs-v3-${{ github.repository }}-
+
+    - name: Pull LFS objects
+      run: |
+        git lfs pull --include="*" --exclude=".superpowers/,./docs/,./assets/"
+        git submodule foreach --quiet git lfs pull --include="*" --exclude=".superpowers/,./docs/,./assets/"
+      shell: bash
+
+    - name: Clean up temp files
+      run: rm -f .lfs-assets-id
+      shell: bash

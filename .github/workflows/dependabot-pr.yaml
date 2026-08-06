@@ -1,0 +1,26 @@
+name: Dependabot PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check_dependabot:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Artifact with PR Info
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          echo "pr_number=$PR_NUMBER" > pr_info.txt
+          echo "pr_sha=$PR_SHA" >> pr_info.txt
+          echo "pr_branch=$PR_BRANCH" >> pr_info.txt
+
+      - name: Upload PR Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-info
+          path: pr_info.txt

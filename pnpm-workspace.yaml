@@ -100,7 +100,6 @@ overrides:
 
 patchedDependencies:
     "@isentinel/roblox-ts@4.0.11": patches/@isentinel__roblox-ts@4.0.11.patch
-    "@rbxts-js/emittery@3.16.0-ts.1": patches/@rbxts-js__emittery@3.16.0-ts.1.patch
     "@rbxts-js/expect@3.16.0-ts.1": patches/@rbxts-js__expect@3.16.0-ts.1.patch
     "@rbxts-js/jest-mock@3.16.0-ts.1": patches/@rbxts-js__jest-mock@3.16.0-ts.1.patch
     "@rbxts-js/jest-runner@3.16.0-ts.1": patches/@rbxts-js__jest-runner@3.16.0-ts.1.patch

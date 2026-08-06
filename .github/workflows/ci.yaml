@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_run:
+    workflows: [Dependabot PR Check]
+    types:
+      - completed
 
 permissions:
   actions: read
@@ -16,18 +20,103 @@ env:
   HUSKY: 0
 
 jobs:
+  badge:
+    needs: [test]
+    if: ${{ needs.test.outputs.test_results != '' && needs.test.outputs.test_results != 'unavailable' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ci
+    env:
+      HAS_GIST: ${{ secrets.GIST_SECRET != '' && vars.BADGE_GIST_ID != '' }}
+    steps:
+      - name: Bootstrap local actions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/actions
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+
+      - id: checkout
+        name: Checkout
+        uses: ./.github/actions/checkout
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          ref: ${{ steps.checkout.outputs.ref }}
+
+      - id: badge_info
+        name: Get Badge Information
+        run: |
+          echo "coverage=${{ needs.test.outputs.coverage }}" >> $GITHUB_OUTPUT
+          echo "test_results=${{ needs.test.outputs.test_results }}" >> $GITHUB_OUTPUT
+          # Fetch version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Set test results color
+          if echo "${{ needs.test.outputs.test_results }}" | grep -q "failed"; then
+            echo "test_color=hsl(0, 100%, 40%)" >> $GITHUB_OUTPUT
+          else
+            echo "test_color=hsl(120, 100%, 40%)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Test Coverage Badge
+        if: ${{ env.HAS_GIST == 'true' }}
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          filename: test-coverage-badge.svg
+          gistID: ${{ vars.BADGE_GIST_ID }}
+          label: test coverage
+          maxColorRange: 100
+          message: ${{ steps.badge_info.outputs.coverage }}%
+          minColorRange: 0
+          valColorRange: ${{ steps.badge_info.outputs.coverage }}
+
+      - name: Create Test Results Badge
+        if: ${{ env.HAS_GIST == 'true' }}
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          color: ${{ steps.badge_info.outputs.test_color }}
+          filename: test-results-badge.svg
+          gistID: ${{ vars.BADGE_GIST_ID }}
+          label: tests
+          message: ${{ steps.badge_info.outputs.test_results }}
+
+      - name: Create Version Badge
+        if: ${{ env.HAS_GIST == 'true' }}
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          color: blue
+          filename: version-badge.svg
+          gistID: ${{ vars.BADGE_GIST_ID }}
+          label: version
+          message: ${{ steps.badge_info.outputs.version }}
+
   lint:
     runs-on: ubuntu-latest
     environment:
       name: ci
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Bootstrap local actions
+        uses: actions/checkout@v7
         with:
+          sparse-checkout: |
+            .github/actions
+          sparse-checkout-cone-mode: false
           fetch-depth: 0
+
+      - id: checkout
+        name: Checkout
+        uses: ./.github/actions/checkout
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          ref: ${{ steps.checkout.outputs.ref }}
 
       - name: Build
         run: pnpm build
@@ -37,25 +126,76 @@ jobs:
 
   test:
     needs: [lint]
-    if: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY != '' }}
     runs-on: ubuntu-latest
     environment:
       name: ci
+    concurrency:
+      group: luau-execution
+      cancel-in-progress: false
+    outputs:
+      coverage: ${{ steps.extract_coverage.outputs.coverage }}
+      test_results: ${{ steps.extract_test_results.outputs.test_results }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Bootstrap local actions
+        uses: actions/checkout@v7
         with:
+          sparse-checkout: |
+            .github/actions
+          sparse-checkout-cone-mode: false
           fetch-depth: 0
+
+      - id: checkout
+        name: Checkout
+        uses: ./.github/actions/checkout
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          ref: ${{ steps.checkout.outputs.ref }}
 
       - name: Build
         run: pnpm build
 
-      - name: Test
-        run: pnpm test
+      - id: run_tests
+        name: Test
+        run: |
+          set -o pipefail
+          pnpm install
+          pnpm -r --include-workspace-root --stream --workspace-concurrency=1 test --coverageReporters json-summary --coverageReporters json | tee test_results.txt
         env:
           ROBLOX_OPEN_CLOUD_API_KEY: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY }}
           ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
           ROBLOX_UNIVERSE_ID: ${{ secrets.ROBLOX_UNIVERSE_ID }}
+
+      - id: extract_coverage
+        name: Extract coverage
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE_SUMMARY=$(cat coverage/coverage-summary.json)
+            COVERAGE=$(node -e "const fs=require('fs'); const summary=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')); process.stdout.write(String(summary.total.lines.pct));")
+          else
+            COVERAGE_SUMMARY='{}'
+            COVERAGE=0
+          fi
+          {
+            echo "coverage=$COVERAGE"
+            echo "coverage_summary<<EOF"
+            echo "$COVERAGE_SUMMARY"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+        shell: bash
+
+      - id: extract_test_results
+        name: Extract Test Results
+        run: |
+          # Extract test results from the report; fall back when the runner output
+          # format changes so the badge still reports the job outcome.
+          if [ -f test_results.txt ]; then
+            TEST_RESULTS=$(grep -oP 'Tests:\s+\K.*' test_results.txt | tail -n 1 || true)
+            if [ -z "$TEST_RESULTS" ]; then
+              TEST_RESULTS="passed"
+            fi
+          else
+            TEST_RESULTS="unavailable"
+          fi
+          echo "test_results=$TEST_RESULTS" >> "$GITHUB_OUTPUT"

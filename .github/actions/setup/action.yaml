@@ -1,6 +1,11 @@
 name: Setup
 description: Setup mise, cache pnpm store, and install dependencies
 
+inputs:
+  ref:
+    description: Git ref or SHA to use for asset checkout
+    required: true
+
 runs:
   using: composite
   steps:
@@ -20,6 +25,12 @@ runs:
         path: ${{ env.STORE_PATH }}
         restore-keys: pnpm-${{ runner.os }}-
 
+    # pnpm no longer expands env vars in a committed project .npmrc, so write
+    # the registry credential to the trusted global config instead.
+    - name: Configure GitHub Packages auth
+      run: pnpm config set "//npm.pkg.github.com/:_authToken" "${{ github.token }}"
+      shell: bash
+
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false pnpm setup
       shell: bash

@@ -64,8 +64,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     '@lisachandra/constant':
-      specifier: github:lisachandra/constant#path:packages/constant
-      version: 0.2.0
+      specifier: 0.3.0
+      version: 0.3.0
     '@rbxts/centurion':
       specifier: 1.0.1
       version: 1.0.1
@@ -239,7 +239,6 @@ pnpmfileChecksum: sha256-ZfwGjIvQgPR9mEJg5iihJauZ5iv1Ogj5lI/dgVj7pgI=
 
 patchedDependencies:
   '@isentinel/roblox-ts@4.0.11': a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d
-  '@rbxts-js/emittery@3.16.0-ts.1': 497d0cd5bf9e422c2955f51b8c9a28e030f5d4b68882ffba4770166ff3f8c496
   '@rbxts-js/expect@3.16.0-ts.1': 0b057609d0c4eabd5a55bc3b84d4ad03d8ad99b10764d0843d17a0f470c90ff3
   '@rbxts-js/jest-mock@3.16.0-ts.1': 29ab8511121e7a1c1e57c1f21e5a30f921bdfa31a96e4a7fb2c6c7157c74404e
   '@rbxts-js/jest-runner@3.16.0-ts.1': 8e9687762b0ea516c5c4ab0f396cb7160d1baabcc3a31cff81ee578112013085
@@ -432,7 +431,7 @@ importers:
         version: 1.2.0(typescript@6.0.3)
       '@lisachandra/constant':
         specifier: 'catalog:'
-        version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+        version: 0.3.0(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -757,7 +756,7 @@ importers:
         version: 1.2.0(typescript@6.0.3)
       '@lisachandra/constant':
         specifier: 'catalog:'
-        version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+        version: 0.3.0(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../core
@@ -841,7 +840,7 @@ importers:
         version: 1.3.2
       '@lisachandra/constant':
         specifier: 'catalog:'
-        version: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
+        version: 0.3.0(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -2116,9 +2115,13 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant':
-    resolution: {gitHosted: true, path: packages/constant, tarball: https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b}
-    version: 0.2.0
+  '@lisachandra/constant-protocol@0.1.0':
+    resolution: {integrity: sha512-rozHvxUlGVYySnkBOsA14qdTMqOp9ioTq9UoK/bzD2z7EWPxUCPqVr98Wv/mbi3CqhkJBwWXNPqjEuK3dDL4RA==}
+    peerDependencies:
+      '@rbxts/services': '*'
+
+  '@lisachandra/constant@0.3.0':
+    resolution: {integrity: sha512-prod+3fAGxqfuTNVGub2b9zrUCQsb6MSvPcYTrTR8TMJzblo4FMMXfS/UNW6kRwlEf/psXgZ+/xxPRtD1FVBjQ==}
     peerDependencies:
       '@rbxts/iris': '*'
       '@rbxts/luau-polyfill': '*'
@@ -7324,8 +7327,13 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lisachandra/constant@https://codeload.github.com/lisachandra/constant/tar.gz/28319da34564cbb79bf6bff83a5c1b3c51fd612b#path:packages/constant(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)':
+  '@lisachandra/constant-protocol@0.1.0(@rbxts/services@1.6.0)':
     dependencies:
+      '@rbxts/services': 1.6.0
+
+  '@lisachandra/constant@0.3.0(@rbxts/iris@2.3.1-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/services@1.6.0)':
+    dependencies:
+      '@lisachandra/constant-protocol': 0.1.0(@rbxts/services@1.6.0)
       '@rbxts/iris': 2.3.1-ts.1
       '@rbxts/luau-polyfill': 1.1.3
       '@rbxts/services': 1.6.0
@@ -7811,7 +7819,7 @@ snapshots:
       '@rbxts-js/roblox-lua-promise': 3.5.0-ts.2
       '@rbxts-js/roblox-shared': 3.16.0-ts.1
 
-  '@rbxts-js/emittery@3.16.0-ts.1(patch_hash=497d0cd5bf9e422c2955f51b8c9a28e030f5d4b68882ffba4770166ff3f8c496)':
+  '@rbxts-js/emittery@3.16.0-ts.1':
     dependencies:
       '@rbxts-js/luau-polyfill': 1.2.3-ts.1
       '@rbxts-js/roblox-lua-promise': 3.5.0-ts.2
@@ -7879,7 +7887,7 @@ snapshots:
   '@rbxts-js/jest-core@3.16.0-ts.1':
     dependencies:
       '@rbxts-js/chalk-lua': 0.2.2-ts.2
-      '@rbxts-js/emittery': 3.16.0-ts.1(patch_hash=497d0cd5bf9e422c2955f51b8c9a28e030f5d4b68882ffba4770166ff3f8c496)
+      '@rbxts-js/emittery': 3.16.0-ts.1
       '@rbxts-js/jest-config': 3.16.0-ts.1
       '@rbxts-js/jest-console': 3.16.0-ts.1
       '@rbxts-js/jest-message-util': 3.16.0-ts.1
@@ -8002,7 +8010,7 @@ snapshots:
   '@rbxts-js/jest-runner@3.16.0-ts.1(patch_hash=8e9687762b0ea516c5c4ab0f396cb7160d1baabcc3a31cff81ee578112013085)':
     dependencies:
       '@rbxts-js/chalk-lua': 0.2.2-ts.2
-      '@rbxts-js/emittery': 3.16.0-ts.1(patch_hash=497d0cd5bf9e422c2955f51b8c9a28e030f5d4b68882ffba4770166ff3f8c496)
+      '@rbxts-js/emittery': 3.16.0-ts.1
       '@rbxts-js/jest-circus': 3.16.0-ts.1
       '@rbxts-js/jest-console': 3.16.0-ts.1
       '@rbxts-js/jest-environment': 3.16.0-ts.1
@@ -8254,7 +8262,7 @@ snapshots:
 
   '@rbxts/emittery@3.16.0-ts.1':
     dependencies:
-      '@rbxts-js/emittery': 3.16.0-ts.1(patch_hash=497d0cd5bf9e422c2955f51b8c9a28e030f5d4b68882ffba4770166ff3f8c496)
+      '@rbxts-js/emittery': 3.16.0-ts.1
 
   '@rbxts/flamework-meta-utils@1.0.7':
     dependencies:
@@ -8714,7 +8722,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.65.0
       debug: 4.4.3(supports-color@7.2.0)
       minimatch: 10.2.6
-      semver: 7.7.4
+      semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
