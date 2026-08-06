@@ -1,7 +1,8 @@
 # Environment and local state
 *.env
 .prepare-build.lock
-.sandcastle/
+.sandcastle/**
+!.sandcastle/.gitkeep
 .pnpm-store/
 .tmp/
 .workspace-links/
