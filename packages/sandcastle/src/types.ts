@@ -7,7 +7,14 @@
  */
 
 export type PhaseName = "design" | "review" | "implement";
-export type AgentBackend = "pi" | "dirac";
+export type AgentBackend =
+	| "pi"
+	| "codex"
+	| "dirac"
+	| "cursor"
+	| "copilot"
+	| "opencode"
+	| "claude-code";
 /**
  * Backend effort levels. "max" is accepted as a user-facing alias and maps to "xhigh" (the highest
  * level the dirac/pi CLIs support).
@@ -78,9 +85,10 @@ export interface SharedPromptArgs {
 	[key: string]: string | undefined;
 	BASE_REF?: string;
 	BRANCH?: string;
-	COMPLETION_SIGNAL: string;
 	ISSUE_NUMBER?: string;
 	ISSUE_TITLE?: string;
+	MARKER_DIR?: string;
+	MARKER_PATH?: string;
 	PLAN_PATH?: string;
 	READY_LABEL?: string;
 	SKILLS: string;

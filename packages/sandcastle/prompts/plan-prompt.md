@@ -55,7 +55,7 @@ If the issue is too broad, underspecified, or needs human design:
 1. Do not write a plan.
 2. Leave a GitHub issue comment explaining what is missing.
 3. Suggest smaller future AFK-ready slices.
-4. Output `{{COMPLETION_SIGNAL}}`.
+4. Create the completion marker (see Completion below).
 
 ## Plan structure
 
@@ -75,10 +75,10 @@ Follow AGENTS.md (and repo docs/agents/* if present) conventions throughout: TDD
 
 ## Output
 
-Once the plan is written and saved to `{{PLAN_PATH}}`, output:
+Once the plan is written and saved to `{{PLAN_PATH}}`, create the completion marker as your final action:
 
-```text
-{{COMPLETION_SIGNAL}}
+```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
 ```
 
-Do not write code. Do not commit anything.
+Do not create the marker before finishing. Do not output a completion token or the marker path in your final response. Do not write code. Do not commit anything.

@@ -39,6 +39,7 @@ words:
     - MICROPROFILER
     - mklink
     - newindex
+    - opencode
     - oxfmt
     - oxlint
     - pcall

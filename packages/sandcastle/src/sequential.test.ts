@@ -4,6 +4,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
+import { markerPath } from "./markers.js";
 import { runSequentialIssues } from "./sequential.js";
 import { writeState } from "./state.js";
 import {
@@ -25,7 +26,7 @@ registerTestHooks();
 describe("sequential issue workflow", () => {
 	test("runSequentialIssues empty throws; blocked and failed exit", async () => {
 		await assert.rejects(
-			async () => runSequentialIssues([], "main", "m", "low", 1, "dirac", false),
+			async () => runSequentialIssues([], "main", "m", "low", "dirac", false),
 			/At least one/,
 		);
 
@@ -93,7 +94,7 @@ describe("sequential issue workflow", () => {
 		});
 
 		// Resume skip path for completed issue, then no blocked/failed.
-		await runSequentialIssues([issue], "main", "test-model", "low", 1, "dirac", true);
+		await runSequentialIssues([issue], "main", "test-model", "low", "dirac", true);
 		assert.deepEqual(codes, []);
 
 		// Failed path.
@@ -107,7 +108,7 @@ describe("sequential issue workflow", () => {
 			},
 		});
 		await assert.rejects(
-			async () => runSequentialIssues([failingIssue], "main", "m", "low", 1, "dirac", false),
+			async () => runSequentialIssues([failingIssue], "main", "m", "low", "dirac", false),
 			(err: unknown) => err instanceof ExitError && err.code === 1,
 		);
 
@@ -160,14 +161,21 @@ describe("sequential issue workflow", () => {
 				return "";
 			},
 		});
-		stubRun({
-			commits: [{ sha: "c1" }],
-			stdout: "ok",
-		});
+		stubRun(
+			{
+				commits: [{ sha: "c1" }],
+				stdout: "ok",
+			},
+			[
+				markerPath(`${issue}.design`),
+				markerPath(`${issue}.implement`),
+				markerPath(`${issue}.review`),
+			],
+		);
 
 		await assert.rejects(
 			async () =>
-				runSequentialIssues([issue], "main", "model", "low", 5, "dirac", false, worktree),
+				runSequentialIssues([issue], "main", "model", "low", "dirac", false, worktree),
 			(err: unknown) => err instanceof ExitError && err.code === 1,
 		);
 		assert.equal(codes.at(-1), 1);

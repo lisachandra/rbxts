@@ -1,6 +1,6 @@
 # Task
 
-Implement GitHub issue #{{ISSUE_NUMBER}} on branch `{{BRANCH}}`.
+Implement GitHub issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}`.
 
 This is a Sandcastle no-sandbox run. You are operating on the host machine in a dedicated git branch/worktree. Be conservative and keep the change scoped.
 
@@ -69,10 +69,12 @@ When done, add a concise issue comment with:
 If files changed, make one or more focused commits.
 Commit messages must use Conventional Commits.
 
-## Final response
+## Completion
 
-End by outputting exactly:
+When every required step above is finished, create the completion marker as your final action:
 
-```text
-{{COMPLETION_SIGNAL}}
 ```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
+```
+
+Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.

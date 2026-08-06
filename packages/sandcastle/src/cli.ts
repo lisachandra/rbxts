@@ -36,7 +36,6 @@ export interface CliOptions {
 	readonly integrationNames: Array<string>;
 	readonly issueNumber: string;
 	readonly issueNumbers: Array<string>;
-	readonly maxImplementIterations: number;
 	readonly model: string;
 	readonly phase?: PhaseName;
 	readonly resume: boolean;
@@ -76,7 +75,6 @@ interface ParsedArgState {
 	integrationNames: Array<string>;
 	issueNumber: string | undefined;
 	issueNumbers: Array<string>;
-	maxImplementIterations: number;
 	model: string | undefined;
 	phase: PhaseName | undefined;
 	resume: boolean;
@@ -101,7 +99,6 @@ function createParsedArgState(): ParsedArgState {
 		integrationNames: [],
 		issueNumber: undefined,
 		issueNumbers: [],
-		maxImplementIterations: 100,
 		model: undefined,
 		phase: undefined,
 		resume: false,
@@ -116,7 +113,15 @@ function isPhaseName(value: string | undefined): value is PhaseName {
 }
 
 function isAgentBackend(value: string | undefined): value is AgentBackend {
-	return value === "dirac" || value === "pi";
+	return (
+		value === "claude-code" ||
+		value === "codex" ||
+		value === "copilot" ||
+		value === "cursor" ||
+		value === "dirac" ||
+		value === "opencode" ||
+		value === "pi"
+	);
 }
 
 function isSandcastleEffort(value: string | undefined): value is SandcastleEffort {
@@ -146,7 +151,9 @@ type ArgHandler = (state: ParsedArgState, next: string | undefined, index: numbe
 const valueArgHandlers: Record<string, ArgHandler> = {
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
-			throw new Error("--agent must be one of: dirac, pi");
+			throw new Error(
+				"--agent must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi",
+			);
 		}
 
 		state.agentBackend = next;
@@ -187,10 +194,6 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--issues": (state, next, index) => {
 		state.issueNumbers.push(...commaSeparated(next, "--issues"));
-		return index + 1;
-	},
-	"--max-iterations": (state, next, index) => {
-		state.maxImplementIterations = Number(next ?? "100");
 		return index + 1;
 	},
 	"--model": (state, next, index) => {
@@ -336,8 +339,13 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 	}
 
 	const legacyModelEnvKey =
-		state.agentBackend === "dirac" ? "DIRAC_SANDCASTLE_MODEL" : "PI_SANDCASTLE_MODEL";
-	const legacyModel = process.env[legacyModelEnvKey]?.trim() ?? "";
+		state.agentBackend === "dirac"
+			? "DIRAC_SANDCASTLE_MODEL"
+			: state.agentBackend === "pi"
+				? "PI_SANDCASTLE_MODEL"
+				: undefined;
+	const legacyModel =
+		legacyModelEnvKey !== undefined ? (process.env[legacyModelEnvKey]?.trim() ?? "") : "";
 	const model =
 		state.model?.trim() ??
 		config.agents.models[state.agentBackend]?.trim() ??
@@ -363,7 +371,6 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		integrationNames: state.integrationNames,
 		issueNumber: state.issueNumber ?? "",
 		issueNumbers: state.issueNumbers,
-		maxImplementIterations: state.maxImplementIterations,
 		model: model ?? "",
 		phase: state.phase,
 		resume: state.resume,
@@ -412,7 +419,7 @@ Integration workflow:
 
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
-	      --agent <backend>      dirac | pi (default: dirac)
+	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi (default: dirac)
       --effort <level>       low | medium | high | xhigh | max (max → xhigh)
       --allow-unreviewed     Explicitly allow sources whose review is incomplete
       --dry-run              Print resolved config without starting an agent
@@ -420,7 +427,6 @@ Shared options:
 
 Issue options:
   -i, --issue <number>       GitHub issue number (or "all")
-      --max-iterations <n>   Max iterations for the implementer (default: 100)
   -c, --concurrency <n>     Max parallel issues for "all" mode (default: 1)
       --resume               Resume from last incomplete phase
       --phase <phase>        Run only one phase (design | implement | review)

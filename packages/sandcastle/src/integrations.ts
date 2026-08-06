@@ -5,11 +5,10 @@
  * handing the branch off for a human merge.
  */
 
-import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { createAgent, skillsForPrompt } from "./agent.js";
+import { skillsForPrompt } from "./agent.js";
 import {
 	commitExists,
 	git,
@@ -18,6 +17,7 @@ import {
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
+import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, integrationsDir, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
@@ -232,7 +232,7 @@ export async function runConflictResolver(
 	agentBackend: AgentBackend,
 ): Promise<void> {
 	const worktree = integrationBasePath(manifest);
-	const completionSignal = randomUUID();
+	const marker = markerPath(`${manifest.name}.resolve`);
 	const sourceContext = JSON.stringify(
 		{
 			base: manifest.base,
@@ -244,27 +244,33 @@ export async function runConflictResolver(
 		undefined,
 		2,
 	);
-	await io.run({
-		agent: createAgent(agentBackend, model, effort, completionSignal),
-		branchStrategy: { type: "head" },
-		completionSignal,
-		cwd: worktree,
-		logging: {
-			type: "file",
-			path: pathResolve(logsDir, `integration-${manifest.name}.log`),
-			verbose: true,
-		},
-		maxIterations: 10,
+	await runMarkerPhase({
+		agentBackend,
+		effort,
+		marker,
+		model,
 		name: `resolve ${manifest.name} <- ${source.name}`,
 		promptArgs: {
-			COMPLETION_SIGNAL: completionSignal,
 			INTEGRATION_NAME: manifest.name,
 			SKILLS: "- resolving-merge-conflicts",
 			SOURCE_CONTEXT: sourceContext,
 			SOURCE_NAME: source.name,
 		},
 		promptFile: config.prompts.resolveConflicts,
-		sandbox: sandboxProvider,
+		run: (options) =>
+			io.run({
+				...options,
+				branchStrategy: { type: "head" },
+				cwd: worktree,
+				sandbox: sandboxProvider,
+			}),
+		runOptions: {
+			logging: {
+				type: "file",
+				path: pathResolve(logsDir, `integration-${manifest.name}.log`),
+				verbose: true,
+			},
+		},
 	});
 }
 
@@ -274,31 +280,37 @@ export async function runIntegrationReview(
 	effort: string,
 	agentBackend: AgentBackend,
 ): Promise<void> {
-	const completionSignal = randomUUID();
+	const marker = markerPath(`${manifest.name}.review`);
 	const sourceContext = JSON.stringify(manifest.sources, undefined, 2);
-	await io.run({
-		agent: createAgent(agentBackend, model, effort, completionSignal),
-		branchStrategy: { type: "head" },
-		completionSignal,
-		cwd: integrationBasePath(manifest),
-		logging: {
-			type: "file",
-			path: pathResolve(logsDir, `integration-${manifest.name}.log`),
-			verbose: true,
-		},
-		maxIterations: 5,
+	await runMarkerPhase({
+		agentBackend,
+		effort,
+		marker,
+		model,
 		name: `review integration ${manifest.name}`,
 		promptArgs: {
 			BASE_COMMIT: manifest.base.commit,
 			BASE_REF: manifest.base.ref,
 			BRANCH: manifest.branch,
-			COMPLETION_SIGNAL: completionSignal,
 			INTEGRATION_NAME: manifest.name,
 			SKILLS: skillsForPrompt("review"),
 			SOURCES: sourceContext,
 		},
 		promptFile: config.prompts.reviewIntegration,
-		sandbox: sandboxProvider,
+		run: (options) =>
+			io.run({
+				...options,
+				branchStrategy: { type: "head" },
+				cwd: integrationBasePath(manifest),
+				sandbox: sandboxProvider,
+			}),
+		runOptions: {
+			logging: {
+				type: "file",
+				path: pathResolve(logsDir, `integration-${manifest.name}.log`),
+				verbose: true,
+			},
+		},
 	});
 }
 

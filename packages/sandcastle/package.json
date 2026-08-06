@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/sandcastle",
-	"version": "0.2.1",
+	"version": "0.3.0",
 	"description": "Three-phase agent issue runner (design → implement → review) with persistent worktrees, sequential issues, and integration composition",
 	"keywords": [
 		"agents",
@@ -47,8 +47,8 @@
 		"build": "shx rm -rf dist && tsc -p tsconfig.json",
 		"dev": "tsc -p tsconfig.json --watch",
 		"clean": "shx rm -rf dist .sandcastle .tmp",
-		"test": "tsc -p tsconfig.test.json && tsx --test src/agent.test.ts src/cli.test.ts src/config.test.ts src/evaluate.test.ts src/git.test.ts src/integrations.test.ts src/issue.test.ts src/main.test.ts src/retry.test.ts src/runtime.test.ts src/sequential.test.ts src/state.test.ts",
-		"test:coverage": "tsc -p tsconfig.test.json && node --import tsx --test --experimental-test-coverage src/agent.test.ts src/cli.test.ts src/config.test.ts src/evaluate.test.ts src/git.test.ts src/integrations.test.ts src/issue.test.ts src/main.test.ts src/retry.test.ts src/runtime.test.ts src/sequential.test.ts src/state.test.ts",
+		"test": "tsc -p tsconfig.test.json && tsx --test src/agent-wrapper.test.ts src/agent.test.ts src/cli.test.ts src/config.test.ts src/evaluate.test.ts src/git.test.ts src/integrations.test.ts src/issue.test.ts src/main.test.ts src/retry.test.ts src/runtime.test.ts src/sequential.test.ts src/state.test.ts",
+		"test:coverage": "tsc -p tsconfig.test.json && node --import tsx --test --experimental-test-coverage src/agent-wrapper.test.ts src/agent.test.ts src/cli.test.ts src/config.test.ts src/evaluate.test.ts src/git.test.ts src/integrations.test.ts src/issue.test.ts src/main.test.ts src/retry.test.ts src/runtime.test.ts src/sequential.test.ts src/state.test.ts",
 		"prepare": "pnpm build"
 	},
 	"dependencies": {

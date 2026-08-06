@@ -1,10 +1,11 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 
 import { runAll, runSingleIssue } from "./issue.js";
+import { markerPath } from "./markers.js";
 import { io } from "./runtime.js";
 import { readState, writeState } from "./state.js";
 import {
@@ -64,12 +65,19 @@ describe("orchestration with heavy stubs", () => {
 			},
 		});
 
-		stubRun({
-			commits: [{ sha: "c1" }],
-			stdout: "agent output",
-		});
+		stubRun(
+			{
+				commits: [{ sha: "c1" }],
+				stdout: "agent output",
+			},
+			[
+				markerPath(`${issue}.design`),
+				markerPath(`${issue}.implement`),
+				markerPath(`${issue}.review`),
+			],
+		);
 
-		await runSingleIssue(issue, "model", "low", 5, {
+		await runSingleIssue(issue, "model", "low", {
 			agentBackend: "dirac",
 			baseRef: "main",
 			worktree,
@@ -84,7 +92,7 @@ describe("orchestration with heavy stubs", () => {
 		rmSync(worktree, { force: true, recursive: true });
 	});
 
-	test("runSingleIssue records design failure on empty stdout", async () => {
+	test("runSingleIssue records design failure on missing completion marker", async () => {
 		const issue = uniqueIssue();
 		const worktree = join(tmpRoot, `run-empty-${issue}`);
 		mkdirSync(worktree, { recursive: true });
@@ -123,10 +131,14 @@ describe("orchestration with heavy stubs", () => {
 		});
 		stubRun({ commits: [], stdout: "" });
 
-		await runSingleIssue(issue, "model", "low", 5, {
-			agentBackend: "dirac",
-			worktree,
-		});
+		await assert.rejects(
+			async () =>
+				runSingleIssue(issue, "model", "low", {
+					agentBackend: "dirac",
+					worktree,
+				}),
+			/completion marker/,
+		);
 		assert.equal(readState(issue)?.phases.design.status, "failed");
 
 		cleanupIssueArtifacts(issue);
@@ -186,7 +198,7 @@ describe("orchestration with heavy stubs", () => {
 			},
 		});
 
-		await runSingleIssue(issue, "test-model", "low", 5, {
+		await runSingleIssue(issue, "test-model", "low", {
 			agentBackend: "dirac",
 			resume: true,
 			worktree,
@@ -250,13 +262,20 @@ describe("orchestration with heavy stubs", () => {
 					"# Plan\n\nImplement it.",
 					"utf-8",
 				);
+				const designMarker = markerPath(`${issue}.design`);
+				mkdirSync(dirname(designMarker), { recursive: true });
+				writeFileSync(designMarker, "", "utf-8");
 				return { commits: [], stdout: "plan written" };
 			}
 
+			const phase = runCalls === 2 ? "implement" : "review";
+			const phaseMarker = markerPath(`${issue}.${phase}`);
+			mkdirSync(dirname(phaseMarker), { recursive: true });
+			writeFileSync(phaseMarker, "", "utf-8");
 			return { commits: [{ sha: "c1" }], stdout: "implemented" };
 		}) as unknown as typeof io.run;
 
-		await runSingleIssue(issue, "model", "low", 5, {
+		await runSingleIssue(issue, "model", "low", {
 			agentBackend: "dirac",
 			baseRef: "main",
 			resume: true,
@@ -321,6 +340,9 @@ describe("orchestration with heavy stubs", () => {
 			mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
 			writeFileSync(join(worktree, ".sandcastle", "plans", `${issue}.md`), "# Plan", "utf-8");
 			if (runCalls === 1) {
+				const designMarker = markerPath(`${issue}.design`);
+				mkdirSync(dirname(designMarker), { recursive: true });
+				writeFileSync(designMarker, "", "utf-8");
 				return { commits: [], stdout: "plan written" };
 			}
 
@@ -329,7 +351,7 @@ describe("orchestration with heavy stubs", () => {
 
 		await assert.rejects(
 			async () =>
-				runSingleIssue(issue, "model", "low", 5, {
+				runSingleIssue(issue, "model", "low", {
 					agentBackend: "dirac",
 					baseRef: "main",
 					resume: true,
@@ -349,19 +371,25 @@ describe("orchestration with heavy stubs", () => {
 	});
 
 	test("runAll handles empty plan and concurrent failures", async () => {
-		stubRun({
-			output: { issues: [] },
-		});
-		await runAll("m", "dirac", "low", 5, 1);
-
-		stubRun({
-			output: {
-				issues: [
-					{ branch: "b1", id: uniqueIssue("8"), title: "one" },
-					{ branch: "b2", id: uniqueIssue("8"), title: "two" },
-				],
+		stubRun(
+			{
+				output: { issues: [] },
 			},
-		});
+			[markerPath("planner")],
+		);
+		await runAll("m", "dirac", "low", 1);
+
+		stubRun(
+			{
+				output: {
+					issues: [
+						{ branch: "b1", id: uniqueIssue("8"), title: "one" },
+						{ branch: "b2", id: uniqueIssue("8"), title: "two" },
+					],
+				},
+			},
+			[markerPath("planner")],
+		);
 
 		const originalRunSingle = runSingleIssue;
 		// Force failures by making validate worktree fail through missing git stubs.
@@ -373,7 +401,8 @@ describe("orchestration with heavy stubs", () => {
 				throw new Error("no sync");
 			},
 		});
-		await runAll("m", "dirac", "low", 5, 2);
+		await runAll("m", "dirac", "low", 2);
 		void originalRunSingle;
+		rmSync(markerPath("planner"), { force: true });
 	});
 });

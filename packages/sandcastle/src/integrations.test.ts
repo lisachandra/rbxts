@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 
 import {
@@ -20,6 +20,7 @@ import {
 	writeIntegrationManifest,
 } from "./integrations.js";
 import { main } from "./main.js";
+import { markerPath } from "./markers.js";
 import { io } from "./runtime.js";
 import { writeState } from "./state.js";
 import {
@@ -340,6 +341,9 @@ describe("integration composition", () => {
 		});
 		io.run = (async () => {
 			resolverRan = true;
+			const marker = markerPath(`${name}.resolve`);
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
 			return { commits: [], stdout: "resolved" };
 		}) as unknown as typeof io.run;
 
@@ -350,6 +354,7 @@ describe("integration composition", () => {
 		assert.equal(readIntegrationManifest(name)?.status, "conflict-resolution-required");
 		assert.equal(resolverRan, true);
 
+		rmSync(markerPath(`${name}.resolve`), { force: true });
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});
 

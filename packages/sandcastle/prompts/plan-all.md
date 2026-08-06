@@ -18,10 +18,9 @@ If zero issues are returned, output:
 <plan>
 {"issues": []}
 </plan>
-{{COMPLETION_SIGNAL}}
 ```
 
-…and stop. Do nothing else.
+…then create the completion marker (see Completion below) and stop. Do nothing else.
 
 ## Step 2 — Order by dependency
 
@@ -40,7 +39,6 @@ Produce exactly this structure — the `<plan>` tag is how your output is extrac
   ]
 }
 </plan>
-{{COMPLETION_SIGNAL}}
 ```
 
 Rules:
@@ -49,5 +47,15 @@ Rules:
 - `title` must be the exact issue title from `gh issue list`.
 - `branch` must be `sandcastle/issue-<id>`.
 - The JSON must be valid — no comments, no trailing commas, no ellipsis.
-- **Do NOT wrap the output in code fences (\`\`\`). Output the <plan> block and {{COMPLETION_SIGNAL}} as raw text.**
-- Output ONLY the `<plan>` block followed by {{COMPLETION_SIGNAL}}. No preamble, no explanation.
+- **Do NOT wrap the output in code fences (\`\`\`). Output the <plan> block as raw text.**
+- Output ONLY the `<plan>` block, then create the completion marker. No preamble, no explanation.
+
+## Completion
+
+After outputting the `<plan>` block, create the completion marker as your final action:
+
+```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
+```
+
+Do not create the marker before the `<plan>` block is output. Do not output a completion token or the marker path in your final response.

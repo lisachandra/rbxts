@@ -31,8 +31,12 @@ Read the source manifests and relevant commit history when needed. The current w
 
 The orchestration will verify the merge commit and preserve the worktree if you cannot finish.
 
-When complete, output exactly:
+## Completion
 
-```text
-{{COMPLETION_SIGNAL}}
+When every required step above is finished, create the completion marker as your final action:
+
 ```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
+```
+
+Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.

@@ -33,8 +33,6 @@ describe("commaSeparated / parseArgs", () => {
 					"--force",
 					"design",
 					"--status",
-					"--max-iterations",
-					"12",
 					"-c",
 					"3",
 					"--base",
@@ -47,7 +45,6 @@ describe("commaSeparated / parseArgs", () => {
 				assert.equal(options.phase, "implement");
 				assert.equal(options.force, "design");
 				assert.equal(options.status, true);
-				assert.equal(options.maxImplementIterations, 12);
 				assert.equal(options.concurrency, 3);
 				assert.equal(options.model, "env-model");
 				// SANDCASTLE_EFFORT is deprecated; config.effort wins.
@@ -76,7 +73,10 @@ describe("commaSeparated / parseArgs", () => {
 
 	test("parseArgs validates agent, effort, phase, and unknown args", () => {
 		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
-			assert.throws(() => parseArgs(["--issue", "1", "--agent", "nope"]), /dirac, pi/);
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--agent", "nope"]),
+				/claude-code, codex, copilot, cursor, dirac, opencode, pi/,
+			);
 			assert.throws(
 				() => parseArgs(["--issue", "1", "--effort", "nope"]),
 				/low, medium, high, xhigh/,
@@ -145,6 +145,21 @@ describe("commaSeparated / parseArgs", () => {
 			() => {
 				assert.equal(parseArgs(["--issue", "1", "--agent", "dirac"]).model, "dirac-model");
 				assert.equal(parseArgs(["--issue", "1", "--agent", "pi"]).model, "pi-model");
+			},
+		);
+	});
+
+	test("parseArgs accepts native backends with explicit models", () => {
+		withEnv(
+			{
+				DIRAC_SANDCASTLE_MODEL: undefined,
+				PI_SANDCASTLE_MODEL: undefined,
+				SANDCASTLE_MODEL: undefined,
+			},
+			() => {
+				const options = parseArgs(["--issue", "1", "--agent", "codex", "--model", "cm"]);
+				assert.equal(options.agentBackend, "codex");
+				assert.equal(options.model, "cm");
 			},
 		);
 	});

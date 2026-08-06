@@ -48,7 +48,9 @@ const config: SandcastleUserConfig = {
 	labels: { readyForAgent: "ready-for-agent" },
 	reviewMarker: "Sandcastle-Review",
 	issueCommand: "gh issue view {issue}",
-	agents: { enabled: ["dirac", "pi"] },
+	agents: {
+		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
+	},
 	effort: "xhigh",
 };
 
@@ -61,22 +63,22 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 
 ### Options
 
-| Option                 | Default                 | Purpose                                                      |
-| ---------------------- | ----------------------- | ------------------------------------------------------------ |
-| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory    |
-| `baseBranch`           | `main`                  | Diff base for implementation and review                      |
-| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents   |
-| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees           |
-| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                  |
-| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                       |
-| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)  |
-| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                      |
-| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                   | BLOCKED`) |
-| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                    |
-| `agents.enabled`       | `["dirac", "pi"]`       | Allowed agent backends                                       |
-| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                    |
-| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed |
-| `effort`               | `xhigh`                 | Default reasoning effort                                     |
+| Option                 | Default                 | Purpose                                                                                         |
+| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory                                       |
+| `baseBranch`           | `main`                  | Diff base for implementation and review                                                         |
+| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                      |
+| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                              |
+| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                     |
+| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                          |
+| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                     |
+| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                         |
+| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                                                      | BLOCKED`) |
+| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                                                       |
+| `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`) |
+| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                       |
+| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                    |
+| `effort`               | `xhigh`                 | Default reasoning effort                                                                        |
 
 ### Local docs via `creator-docs`
 
@@ -120,15 +122,20 @@ sandcastle merge --name release-candidate --issues 150,151 --base main
 ```
 
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
-`.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, and logs in
-`.sandcastle/logs/issue-<n>.log`. The runner never closes issues, merges branches, or
-publishes releases; the final human merge is yours.
+`.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
+`.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log`. Each phase agent
+finishes by creating a scoped `.completed` marker as its final action; the runner treats a
+clean exit without that marker as a phase failure. The runner never closes issues, merges
+branches, or publishes releases; the final human merge is yours.
 
 ## Backends
 
-Sandcastle supports `dirac` (default) and `pi` via `@ai-hero/sandcastle`, plus a
-`no-sandbox()` host runner. The agent backend, default model, and effort are configured in
-`sandcastle.config.ts`; only credentials belong in the environment:
+Sandcastle supports `dirac` (default), `pi`, `codex`, `claude-code`, `cursor`, `opencode`,
+and `copilot`. Dirac is the custom default; the native backends come from
+`@ai-hero/sandcastle` and are wrapped by the same marker-based completion layer. The marker
+file is the only completion contract — no completion token is used. The agent backend,
+default model, and effort are configured in `sandcastle.config.ts`; only credentials belong
+in the environment:
 
 ```ini
 # Credentials only (loaded from .sandcastle/.env or the process environment)

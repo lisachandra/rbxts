@@ -36,8 +36,12 @@ Sources:
 
 This is the final combined review. Individual issue or integration reviews do not replace it.
 
-When complete, output exactly:
+## Completion
 
-```text
-{{COMPLETION_SIGNAL}}
+When every required step above is finished, create the completion marker as your final action:
+
 ```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
+```
+
+Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.

@@ -20,11 +20,17 @@ export const tmpRoot = join(repositoryRoot, ".tmp", "sandcastle-tests");
 export const plansDir = join(repositoryRoot, ".sandcastle", "plans");
 export const stateDir = join(repositoryRoot, ".sandcastle", "state");
 export const integrationsDir = join(repositoryRoot, ".sandcastle", "integrations");
+export const markersDir = join(repositoryRoot, ".sandcastle", "markers");
 
 const originalIo = {
+	claudeCode: io.claudeCode,
+	codex: io.codex,
+	copilot: io.copilot,
+	cursor: io.cursor,
 	execFileSync: io.execFileSync,
 	execSync: io.execSync,
 	exit: io.exit,
+	opencode: io.opencode,
 	pi: io.pi,
 	run: io.run,
 	sleep: io.sleep,
@@ -43,9 +49,14 @@ export class ExitError extends Error {
 }
 
 function restoreIo(): void {
+	io.claudeCode = originalIo.claudeCode;
+	io.codex = originalIo.codex;
+	io.copilot = originalIo.copilot;
+	io.cursor = originalIo.cursor;
 	io.execFileSync = originalIo.execFileSync;
 	io.execSync = originalIo.execSync;
 	io.exit = originalIo.exit;
+	io.opencode = originalIo.opencode;
 	io.pi = originalIo.pi;
 	io.run = originalIo.run;
 	io.sleep = originalIo.sleep;
@@ -92,7 +103,14 @@ export function uniqueIssue(prefix = "9"): string {
 }
 
 export function cleanupIssueArtifacts(issue: string): void {
-	for (const path of [join(plansDir, `${issue}.md`), join(stateDir, `${issue}.json`)]) {
+	const paths = [
+		join(plansDir, `${issue}.md`),
+		join(stateDir, `${issue}.json`),
+		...["design", "implement", "review"].map((phase) =>
+			join(markersDir, `${issue}.${phase}.completed`),
+		),
+	];
+	for (const path of paths) {
 		if (existsSync(path)) {
 			rmSync(path, { force: true });
 		}
@@ -153,8 +171,15 @@ export function stubExecSync(result: string): void {
 	io.execSync = (() => result) as unknown as typeof io.execSync;
 }
 
-export function stubRun(result: Record<string, unknown>): void {
-	io.run = (async () => result) as unknown as typeof io.run;
+export function stubRun(result: Record<string, unknown>, markers: Array<string> = []): void {
+	io.run = (async () => {
+		for (const marker of markers) {
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+		}
+
+		return result;
+	}) as unknown as typeof io.run;
 }
 
 export function gitStub(handlers: {

@@ -19,6 +19,15 @@ describe("config loading", () => {
 		assert.equal(config.effort, "xhigh");
 		assert.equal(config.agents.default, "dirac");
 		assert.deepEqual(config.agents.models, {});
+		assert.deepEqual(config.agents.enabled, [
+			"claude-code",
+			"codex",
+			"copilot",
+			"cursor",
+			"dirac",
+			"opencode",
+			"pi",
+		]);
 		assert.equal(config.prompts.plan.endsWith("plan-prompt.md"), true);
 	});
 
@@ -30,7 +39,7 @@ describe("config loading", () => {
 			[
 				"const config = {",
 				'	effort: "max",',
-				'	agents: { default: "pi", models: { dirac: "model-a", pi: "model-b" } },',
+				'	agents: { default: "codex", models: { "claude-code": "model-c", codex: "model-d", dirac: "model-a", pi: "model-b" } },',
 				"};",
 				"export default config;",
 			].join("\n"),
@@ -38,7 +47,9 @@ describe("config loading", () => {
 		);
 		const config = loadConfig(dir);
 		assert.equal(config.effort, "max");
-		assert.equal(config.agents.default, "pi");
+		assert.equal(config.agents.default, "codex");
+		assert.equal(config.agents.models["claude-code"], "model-c");
+		assert.equal(config.agents.models.codex, "model-d");
 		assert.equal(config.agents.models.dirac, "model-a");
 		assert.equal(config.agents.models.pi, "model-b");
 		assert.equal(config.baseBranch, "main");

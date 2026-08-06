@@ -7,7 +7,16 @@
  * sandcastle implementations.
  */
 
-import { type AgentProvider, pi, run } from "@ai-hero/sandcastle";
+import {
+	type AgentProvider,
+	claudeCode,
+	codex,
+	copilot,
+	cursor,
+	opencode,
+	pi,
+	run,
+} from "@ai-hero/sandcastle";
 
 import { execFileSync, execSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -38,10 +47,25 @@ if (existsSync(sandcastleEnvPath)) {
  * Production keeps the real Node/sandcastle implementations.
  */
 export const io = {
+	claudeCode: ((...args: Parameters<typeof claudeCode>) => claudeCode(...args)) as (
+		...args: Parameters<typeof claudeCode>
+	) => AgentProvider,
+	codex: ((...args: Parameters<typeof codex>) => codex(...args)) as (
+		...args: Parameters<typeof codex>
+	) => AgentProvider,
+	copilot: ((...args: Parameters<typeof copilot>) => copilot(...args)) as (
+		...args: Parameters<typeof copilot>
+	) => AgentProvider,
+	cursor: ((...args: Parameters<typeof cursor>) => cursor(...args)) as (
+		...args: Parameters<typeof cursor>
+	) => AgentProvider,
 	execFileSync: ((...args: Parameters<typeof execFileSync>) =>
 		execFileSync(...args)) as typeof execFileSync,
 	execSync: ((...args: Parameters<typeof execSync>) => execSync(...args)) as typeof execSync,
 	exit: (code: number): never => process.exit(code),
+	opencode: ((...args: Parameters<typeof opencode>) => opencode(...args)) as (
+		...args: Parameters<typeof opencode>
+	) => AgentProvider,
 	// Narrow pi's return type so the unexported AgentSessionStorage name does not leak.
 	pi: ((...args: Parameters<typeof pi>) => pi(...args)) as (
 		...args: Parameters<typeof pi>

@@ -51,7 +51,6 @@ async function processSequentialIssue({
 	index,
 	isLast,
 	issueNumber,
-	maxImplementIterations,
 	model,
 	resume,
 	total,
@@ -64,7 +63,6 @@ async function processSequentialIssue({
 	index: number;
 	isLast: boolean;
 	issueNumber: string;
-	maxImplementIterations: number;
 	model: string;
 	resume: boolean;
 	total: number;
@@ -108,7 +106,7 @@ async function processSequentialIssue({
 	}
 
 	try {
-		await runSingleIssue(issueNumber, model, effort, maxImplementIterations, {
+		await runSingleIssue(issueNumber, model, effort, {
 			agentBackend,
 			baseRef: currentBase,
 			ignoreSetup,
@@ -161,7 +159,6 @@ export async function runSequentialIssues(
 	baseRef: string,
 	model: string,
 	effort: string,
-	maxImplementIterations: number,
 	agentBackend: AgentBackend,
 	resume: boolean,
 	worktree?: string,
@@ -195,7 +192,6 @@ export async function runSequentialIssues(
 			index,
 			isLast: index === issueNumbers.length - 1,
 			issueNumber,
-			maxImplementIterations,
 			model,
 			resume,
 			total: issueNumbers.length,

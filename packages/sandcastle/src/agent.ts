@@ -1,12 +1,17 @@
 /*
- * Agent providers (pi and dirac) plus the prompt-context helpers that build
- * skills lists and fetch issue metadata for prompt substitution.
+ * Agent providers (dirac plus the @ai-hero/sandcastle backends) and the
+ * prompt-context helpers that build skills lists and fetch issue metadata.
  */
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { config, io, packageRoot, repoRoot } from "./runtime.js";
 import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+
+/** Protocol line printed by `assets/agent-wrapper.sh` after a marker-backed run finishes. */
+const MARKER_PROTOCOL_LINE = '{"sandcastleMarker":"completed"}';
+
+type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 
 /**
  * Backend effort levels. "max" is accepted as a user-facing alias and maps to "xhigh", which is the
@@ -16,34 +21,17 @@ export function resolveBackendEffort(effort: string): SandcastleEffort {
 	return effort === "max" ? "xhigh" : (effort as SandcastleEffort);
 }
 
-type DiracStreamEvent =
-	| { text: string; type: "text" }
-	| { result: string; type: "result" }
-	| {
-			type: "usage";
-			usage: {
-				cacheCreationInputTokens: number;
-				cacheReadInputTokens: number;
-				inputTokens: number;
-				outputTokens: number;
-			};
-	  };
-
-let diracTextBuffer = "";
-let diracSignalEmitted = false;
-let diracCompletionSignal = "";
-
+/**
+ * Raw dirac provider. All completion/marker concerns live in `withMarkerCompletion`, so this
+ * provider only parses dirac's stream events.
+ */
 export function diracAgent(
 	model: string,
 	options?: {
-		completionSignal?: string;
 		effort?: string;
 		env?: Record<string, string>;
 	},
 ): AgentProvider {
-	// Store the runtime-generated signal for parseStreamLine detection
-	diracCompletionSignal = options?.completionSignal ?? "<promise>COMPLETE</promise>";
-
 	// oxlint-disable-next-line typescript/prefer-optional-chain -- Access with index string for env
 	let provider = (options?.env ?? {}).OPENAI_API_BASE ?? "";
 	provider = provider ? `-p ${provider}` : "";
@@ -70,56 +58,28 @@ export function diracAgent(
 			};
 		},
 
-		parseStreamLine(line: string): Array<DiracStreamEvent> {
+		parseStreamLine(line: string): Array<StreamEvent> {
 			try {
 				const parsed = JSON.parse(line);
-				const events: Array<DiracStreamEvent> = [];
+				const events: Array<StreamEvent> = [];
 
-				// Reset buffer at the start of a new task
-				if (parsed.type === "task_started") {
-					diracTextBuffer = "";
-					diracSignalEmitted = false;
-				}
-
-				if (parsed.content?.type === "markdown" && parsed.content.isReasoning === false) {
-					/*
-					 * Only accumulate assistant text for signal detection.
-					 * User prompt may contain the signal as an example.
-					 */
-					if (parsed.content.role !== "user") {
-						const rawContent = parsed.content.content;
-						const newText = typeof rawContent === "string" ? rawContent : "";
-						diracTextBuffer += newText;
-
-						/*
-						 * Only flag completion when the CURRENT block contains
-						 * the signal — avoids false positives from earlier
-						 * mentions of the signal lingering in the buffer.
-						 */
-						if (!diracSignalEmitted && newText.includes(diracCompletionSignal)) {
-							diracSignalEmitted = true;
-							events.push({ type: "result", result: diracTextBuffer });
-						}
-					}
-
-					/*
-					 * Only emit text events for assistant content.
-					 * User prompt text must NOT flow into accumulatedOutput
-					 * because it contains the completion UUID, which would
-					 * cause the sandcastle library to detect completion
-					 * immediately and start the 60s grace timer prematurely.
-					 */
-					if (parsed.content.role !== "user") {
-						events.push({ type: "text", text: parsed.content.content });
+				if (
+					parsed.content?.type === "markdown" &&
+					parsed.content.isReasoning === false &&
+					parsed.content.role !== "user"
+				) {
+					const rawContent = parsed.content.content;
+					const newText = typeof rawContent === "string" ? rawContent : "";
+					if (newText !== "") {
+						events.push({ type: "text", text: newText });
 					}
 				}
 
 				/*
-				 * After completion signal is seen, skip card results — they
-				 * overwrite resultText and would lose the <plan> content.
+				 * Card bodies are surfaced as result events so phases with
+				 * little assistant text still produce non-empty stdout.
 				 */
 				if (
-					!diracSignalEmitted &&
 					parsed.content?.type === "card" &&
 					parsed.content.card?.body !== undefined &&
 					parsed.content.card.body !== ""
@@ -152,34 +112,157 @@ export function diracAgent(
 	};
 }
 
+/**
+ * Wraps any @ai-hero/sandcastle provider with marker-based completion.
+ *
+ * The inner provider's command is executed through `assets/agent-wrapper.sh`, which checks the
+ * completion marker after a clean exit and prints a protocol line. This proxy uses that line to
+ * flush the accumulated stream output as a final result event, so structured output like the
+ * `<plan>` block survives even when intermediate card results overwrite the orchestrator's
+ * `resultText`.
+ */
+export function withMarkerCompletion(inner: AgentProvider, markerPath: string): AgentProvider {
+	const markerEnv = {
+		SANDCASTLE_MARKER_COMPLETED: markerPath.replaceAll("\\", "/"),
+	};
+	const wrapperPath = `${packageRoot}/assets/agent-wrapper.sh`.replaceAll("\\", "/");
+	let textBuffer = "";
+	let resultEmitted = false;
+
+	const parseProtocol = (line: string): Array<StreamEvent> => {
+		if (resultEmitted || line.trim() !== MARKER_PROTOCOL_LINE) {
+			return [];
+		}
+
+		resultEmitted = true;
+		return [{ type: "result", result: textBuffer }];
+	};
+
+	return {
+		...(inner.buildInteractiveArgs !== undefined
+			? { buildInteractiveArgs: inner.buildInteractiveArgs }
+			: {}),
+		buildPrintCommand(options): PrintCommand {
+			const innerCommand = inner.buildPrintCommand(options);
+			const useStdin = innerCommand.stdin !== undefined;
+			const command = `bash ${shellEscape(wrapperPath)}${useStdin ? " --stdin" : ""} -- ${shellEscape(innerCommand.command)}`;
+			return {
+				command,
+				stdin: options.prompt,
+			};
+		},
+		captureSessions: inner.captureSessions,
+		env: { ...inner.env, ...markerEnv },
+		name: inner.name,
+		...(inner.parseSessionUsage !== undefined
+			? { parseSessionUsage: inner.parseSessionUsage }
+			: {}),
+		parseStreamLine(line: string): Array<StreamEvent> {
+			const innerEvents = inner.parseStreamLine(line);
+			for (const event of innerEvents) {
+				if (event.type === "text") {
+					textBuffer += event.text;
+				} else if (event.type === "result") {
+					textBuffer += event.result;
+				}
+			}
+
+			return [...innerEvents, ...parseProtocol(line)];
+		},
+		sessionStorage: inner.sessionStorage,
+	};
+}
+
+/** Single-quote a value for use inside a `bash` command string. */
+function shellEscape(value: string): string {
+	return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 export function createAgent(
 	backend: AgentBackend,
 	model: string,
 	effort: string,
-	completionSignal?: string,
+	markerPath: string,
 ): AgentProvider {
 	const resolvedEffort = resolveBackendEffort(effort);
-	if (resolvedEffort !== effort) {
-		console.warn(
-			`  ⚠ Effort "${effort}" is not supported by ${backend}; using "${resolvedEffort}" (highest supported).`,
-		);
+	let inner: AgentProvider;
+	switch (backend) {
+		case "claude-code": {
+			inner = io.claudeCode(model, {
+				captureSessions: false,
+				effort: effort as "low" | "max" | "high" | "xhigh" | "medium",
+			});
+			break;
+		}
+		case "codex": {
+			if (resolvedEffort !== effort) {
+				console.warn(
+					`  ⚠ Effort "${effort}" is not supported by codex; using "${resolvedEffort}" (highest supported).`,
+				);
+			}
+
+			inner = io.codex(model, {
+				captureSessions: false,
+				effort: resolvedEffort as "low" | "high" | "xhigh" | "medium",
+			});
+			break;
+		}
+		case "copilot": {
+			const copilotEffort =
+				effort === "low" ? "low" : effort === "medium" ? "medium" : "high";
+			if (copilotEffort !== effort) {
+				console.warn(
+					`  ⚠ Effort "${effort}" is not supported by copilot; using "${copilotEffort}" (highest supported).`,
+				);
+			}
+
+			inner = io.copilot(model, {
+				effort: copilotEffort,
+			});
+			break;
+		}
+		case "cursor": {
+			console.warn(`  ⚠ Effort "${effort}" is not supported by cursor; ignoring.`);
+			inner = io.cursor(model, {});
+			break;
+		}
+		case "dirac": {
+			if (resolvedEffort !== effort) {
+				console.warn(
+					`  ⚠ Effort "${effort}" is not supported by dirac; using "${resolvedEffort}" (highest supported).`,
+				);
+			}
+
+			inner = diracAgent(model, {
+				effort: resolvedEffort,
+				env: {
+					OPENAI_API_BASE: process.env.OPENAI_API_BASE ?? "https://router.bynara.id/v1",
+					OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+				},
+			});
+			break;
+		}
+		case "opencode": {
+			console.warn(`  ⚠ Effort "${effort}" is not supported by opencode; ignoring.`);
+			inner = io.opencode(model, {});
+			break;
+		}
+		case "pi": {
+			if (resolvedEffort !== effort) {
+				console.warn(
+					`  ⚠ Effort "${effort}" is not supported by pi; using "${resolvedEffort}" (highest supported).`,
+				);
+			}
+
+			inner = io.pi(model, {
+				captureSessions: false,
+				thinking: resolvedEffort as "low" | "high" | "xhigh" | "medium",
+			});
+			break;
+		}
 	}
 
-	if (backend === "pi") {
-		return io.pi(model, {
-			captureSessions: false,
-			thinking: resolvedEffort as "low" | "high" | "xhigh" | "medium",
-		});
-	}
-
-	return diracAgent(model, {
-		completionSignal,
-		effort: resolvedEffort,
-		env: {
-			OPENAI_API_BASE: process.env.OPENAI_API_BASE ?? "https://router.bynara.id/v1",
-			OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
-		},
-	});
+	return withMarkerCompletion(inner, markerPath);
 }
 
 const globalPhaseSkills: Record<PhaseName, ReadonlyArray<string>> = config.skills.defaults;

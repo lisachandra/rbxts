@@ -1,6 +1,6 @@
 # Task
 
-Review the Sandcastle implementation branch for GitHub issue #{{ISSUE_NUMBER}}.
+Review the Sandcastle implementation branch `{{BRANCH}}` for GitHub issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}.
 
 You are the reviewer. The implementer was an agent working from a plan; you have the full context plus `AGENTS.md` and the project's ADRs at your disposal. Be thorough.
 
@@ -51,10 +51,12 @@ The status line must be on its own line. Do not use `BLOCKED` in prose as a subs
 
 Do not close the issue. Do not claim merge/closure.
 
-## Final response
+## Completion
 
-End by outputting exactly:
+When every required step above is finished, create the completion marker as your final action:
 
-```text
-{{COMPLETION_SIGNAL}}
 ```
+mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
+```
+
+Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.

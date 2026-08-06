@@ -25,6 +25,16 @@ export type PromptFileKey =
 	| "resolveConflicts"
 	| "reviewIntegration";
 
+const agentBackendSchema = z.enum([
+	"claude-code",
+	"codex",
+	"copilot",
+	"cursor",
+	"dirac",
+	"opencode",
+	"pi",
+]);
+
 export const phaseNames: ReadonlyArray<PhaseName> = ["design", "implement", "review"];
 export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
 	"plan",
@@ -91,12 +101,17 @@ export const sandcastleConfigSchema = z
 	.object({
 		agents: z
 			.object({
-				default: z.enum(["dirac", "pi"]).optional(),
-				enabled: z.array(z.enum(["dirac", "pi"])).optional(),
+				default: agentBackendSchema.optional(),
+				enabled: z.array(agentBackendSchema).optional(),
 				models: z
 					.object({
-						dirac: z.string().optional(),
-						pi: z.string().optional(),
+						"claude-code": z.string().optional(),
+						"codex": z.string().optional(),
+						"copilot": z.string().optional(),
+						"cursor": z.string().optional(),
+						"dirac": z.string().optional(),
+						"opencode": z.string().optional(),
+						"pi": z.string().optional(),
 					})
 					.optional(),
 			})
@@ -156,7 +171,7 @@ export type SandcastleUserConfig = z.input<typeof sandcastleConfigSchema>;
 const defaultConfig: SandcastleConfig = {
 	agents: {
 		default: "dirac",
-		enabled: ["dirac", "pi"],
+		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
 		models: {},
 	},
 	baseBranch: "main",
@@ -223,8 +238,23 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 			default: parsed.agents?.default ?? defaultConfig.agents.default,
 			enabled: parsed.agents?.enabled ?? defaultConfig.agents.enabled,
 			models: {
+				...(parsed.agents?.models?.["claude-code"] !== undefined
+					? { "claude-code": parsed.agents.models["claude-code"] }
+					: {}),
+				...(parsed.agents?.models?.codex !== undefined
+					? { codex: parsed.agents.models.codex }
+					: {}),
+				...(parsed.agents?.models?.copilot !== undefined
+					? { copilot: parsed.agents.models.copilot }
+					: {}),
+				...(parsed.agents?.models?.cursor !== undefined
+					? { cursor: parsed.agents.models.cursor }
+					: {}),
 				...(parsed.agents?.models?.dirac !== undefined
 					? { dirac: parsed.agents.models.dirac }
+					: {}),
+				...(parsed.agents?.models?.opencode !== undefined
+					? { opencode: parsed.agents.models.opencode }
 					: {}),
 				...(parsed.agents?.models?.pi !== undefined ? { pi: parsed.agents.models.pi } : {}),
 			},

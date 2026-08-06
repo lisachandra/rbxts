@@ -126,7 +126,6 @@ export async function main(): Promise<void> {
 					integrations: options.integrationNames,
 					issueNumber: options.issueNumber || undefined,
 					issues: options.issueNumbers,
-					maxImplementIterations: options.maxImplementIterations,
 					model: options.model,
 					phase: options.phase ?? undefined,
 					phases:
@@ -160,26 +159,19 @@ export async function main(): Promise<void> {
 				options.model,
 				options.agentBackend,
 				options.effort,
-				options.maxImplementIterations,
 				options.concurrency,
 				options.ignoreSetup,
 			);
 		} else {
-			await runSingleIssue(
-				options.issueNumber,
-				options.model,
-				options.effort,
-				options.maxImplementIterations,
-				{
-					agentBackend: options.agentBackend,
-					baseRef: options.base,
-					force: options.force,
-					ignoreSetup: options.ignoreSetup,
-					phase: options.phase,
-					resume: options.resume,
-					worktree: options.worktree,
-				},
-			);
+			await runSingleIssue(options.issueNumber, options.model, options.effort, {
+				agentBackend: options.agentBackend,
+				baseRef: options.base,
+				force: options.force,
+				ignoreSetup: options.ignoreSetup,
+				phase: options.phase,
+				resume: options.resume,
+				worktree: options.worktree,
+			});
 		}
 
 		return;
@@ -198,7 +190,6 @@ export async function main(): Promise<void> {
 			options.base,
 			options.model,
 			options.effort,
-			options.maxImplementIterations,
 			options.agentBackend,
 			options.resume,
 			options.worktree,
