@@ -59,3 +59,5 @@ mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
 ```
 
 Do not create the marker before the `<plan>` block is output. Do not output a completion token or the marker path in your final response.
+
+Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
