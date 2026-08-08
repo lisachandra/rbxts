@@ -38,6 +38,7 @@ describe("commaSeparated / parseArgs", () => {
 					"--base",
 					"main",
 					"--ignore-setup",
+					"--skip-setup",
 				]);
 				assert.equal(options.command, "issue");
 				assert.equal(options.issueNumber, "42");
@@ -50,6 +51,7 @@ describe("commaSeparated / parseArgs", () => {
 				// SANDCASTLE_EFFORT is deprecated; config.effort wins.
 				assert.equal(options.effort, "xhigh");
 				assert.equal(options.ignoreSetup, true);
+				assert.equal(options.skipSetup, true);
 			},
 		);
 	});
@@ -57,6 +59,15 @@ describe("commaSeparated / parseArgs", () => {
 	test("parseArgs defaults ignoreSetup to false", () => {
 		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
 			const options = parseArgs(["--issue", "1"]);
+			assert.equal(options.ignoreSetup, false);
+			assert.equal(options.skipSetup, false);
+		});
+	});
+
+	test("parseArgs parses --skip-setup independently", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			const options = parseArgs(["--issue", "1", "--skip-setup"]);
+			assert.equal(options.skipSetup, true);
 			assert.equal(options.ignoreSetup, false);
 		});
 	});

@@ -134,6 +134,7 @@ export async function main(): Promise<void> {
 							: ["preflight", "merge", "conflict-resolution", "review"],
 					resume: options.resume,
 					sandbox: "no-sandbox",
+					skipSetup: options.skipSetup,
 					worktree: options.worktree ?? undefined,
 				},
 				undefined,
@@ -161,6 +162,7 @@ export async function main(): Promise<void> {
 				options.effort,
 				options.concurrency,
 				options.ignoreSetup,
+				options.skipSetup,
 			);
 		} else {
 			await runSingleIssue(options.issueNumber, options.model, options.effort, {
@@ -170,6 +172,7 @@ export async function main(): Promise<void> {
 				ignoreSetup: options.ignoreSetup,
 				phase: options.phase,
 				resume: options.resume,
+				skipSetup: options.skipSetup,
 				worktree: options.worktree,
 			});
 		}
@@ -194,6 +197,7 @@ export async function main(): Promise<void> {
 			options.resume,
 			options.worktree,
 			options.ignoreSetup,
+			options.skipSetup,
 		);
 		return;
 	}

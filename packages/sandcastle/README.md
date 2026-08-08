@@ -116,10 +116,15 @@ the link is skipped with a warning if the target is missing.
 sandcastle --issue 123 --dry-run   # print resolved config without running
 sandcastle --issue 123             # run design, implement, review
 sandcastle --issue 123 --resume    # resume the incomplete phase
+sandcastle --issue 123 --skip-setup # reuse worktree without re-running setup commands
 sandcastle --issue all             # plan + dispatch unblocked issues
 sandcastle issue-sequence --sequential 156,157,158 --base main
 sandcastle merge --name release-candidate --issues 150,151 --base main
 ```
+
+By default every run executes `setupCommands` and links configured `symlinks` in the worktree
+before phase agents start. `--ignore-setup` continues even if the setup command fails (symlinks
+are still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
 
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in

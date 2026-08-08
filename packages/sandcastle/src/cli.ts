@@ -40,6 +40,7 @@ export interface CliOptions {
 	readonly phase?: PhaseName;
 	readonly resume: boolean;
 	readonly sequentialIssues: Array<string>;
+	readonly skipSetup?: boolean;
 	readonly status: boolean;
 	readonly worktree?: string;
 }
@@ -79,6 +80,7 @@ interface ParsedArgState {
 	phase: PhaseName | undefined;
 	resume: boolean;
 	sequentialIssues: Array<string>;
+	skipSetup: boolean;
 	status: boolean;
 	worktree: string | undefined;
 }
@@ -103,6 +105,7 @@ function createParsedArgState(): ParsedArgState {
 		phase: undefined,
 		resume: false,
 		sequentialIssues: [],
+		skipSetup: false,
 		status: false,
 		worktree: undefined,
 	};
@@ -250,6 +253,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--resume": (state) => {
 		state.resume = true;
 	},
+	"--skip-setup": (state) => {
+		state.skipSetup = true;
+	},
 	"--status": (state) => {
 		state.status = true;
 	},
@@ -375,6 +381,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		phase: state.phase,
 		resume: state.resume,
 		sequentialIssues: state.sequentialIssues,
+		skipSetup: state.skipSetup,
 		status: state.status,
 		worktree: state.worktree,
 	};
@@ -432,6 +439,7 @@ Issue options:
       --phase <phase>        Run only one phase (design | implement | review)
       --force [phase]        Force re-run (optionally specify which phase)
       --ignore-setup         Continue even if env/pnpm setup fails
+      --skip-setup           Skip env/pnpm setup commands (symlinks still linked)
       --status               Print phase evaluation without running
       --worktree <path>      Use an existing registered worktree directly
   -h, --help                 Show this help

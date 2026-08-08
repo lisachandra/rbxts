@@ -412,6 +412,7 @@ export async function runSingleIssue(
 		ignoreSetup?: boolean;
 		phase?: PhaseName;
 		resume?: boolean;
+		skipSetup?: boolean;
 		worktree?: string;
 	},
 ): Promise<void> {
@@ -466,7 +467,7 @@ export async function runSingleIssue(
 	const attempted = new Set<PhaseName>();
 	try {
 		if (eval_.design !== "skip" || eval_.implement !== "skip" || eval_.review !== "skip") {
-			prepareIssueWorktree(sandbox.worktreePath, options?.ignoreSetup);
+			prepareIssueWorktree(sandbox.worktreePath, options?.ignoreSetup, options?.skipSetup);
 		}
 
 		await executeIssuePhases({
@@ -510,6 +511,7 @@ export async function runAll(
 	effort: string,
 	concurrency: number,
 	ignoreSetup = false,
+	skipSetup = false,
 ): Promise<void> {
 	console.log("Planning: analysing open issues for dependencies...\n");
 	const marker = markerPath("planner");
@@ -576,6 +578,7 @@ export async function runAll(
 					await runSingleIssue(issue.id, model, effort, {
 						agentBackend,
 						ignoreSetup,
+						skipSetup,
 					});
 					console.log(`[#${issue.id}] ✓ Complete`);
 					results.push({ id: issue.id, status: "ok" });

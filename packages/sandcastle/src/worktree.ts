@@ -176,22 +176,32 @@ export function validateExistingWorktree(worktreePath: string): {
 	return { branch, commit, path };
 }
 
-export function prepareIssueWorktree(worktreePath: string, ignoreSetup = false): void {
+export function prepareIssueWorktree(
+	worktreePath: string,
+	ignoreSetup = false,
+	skipSetup = false,
+): void {
 	console.log("\n── Setup ──");
 	const setupCommand = config.setupCommands.join(" && ");
-	try {
-		if (setupCommand !== "") {
+
+	if (skipSetup) {
+		console.log("  ⏭ Skipping setup commands.");
+	} else if (setupCommand !== "") {
+		try {
 			io.execSync(setupCommand, { cwd: worktreePath, stdio: "inherit" });
-		}
+		} catch (err) {
+			if (!ignoreSetup) {
+				throw err;
+			}
 
-		linkSymlinks(worktreePath);
-		console.log("  ✓ Setup complete.");
-	} catch (err) {
-		if (ignoreSetup) {
 			console.warn(`  ⚠ Setup failed (continuing): ${String(err)}`);
-			return;
 		}
-
-		throw err;
 	}
+
+	/*
+	 * Symlinks are independent of the setup commands: always link them so agent docs/rules
+	 * are available even when setup was skipped or failed and ignored.
+	 */
+	linkSymlinks(worktreePath);
+	console.log("  ✓ Setup complete.");
 }

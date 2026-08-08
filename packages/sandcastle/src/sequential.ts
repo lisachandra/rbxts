@@ -53,6 +53,7 @@ async function processSequentialIssue({
 	issueNumber,
 	model,
 	resume,
+	skipSetup,
 	total,
 	worktree,
 }: {
@@ -65,6 +66,7 @@ async function processSequentialIssue({
 	issueNumber: string;
 	model: string;
 	resume: boolean;
+	skipSetup?: boolean;
 	total: number;
 	worktree?: string;
 }): Promise<{ nextBase: string; result: SequentialIssueResult; stop: boolean }> {
@@ -111,6 +113,7 @@ async function processSequentialIssue({
 			baseRef: currentBase,
 			ignoreSetup,
 			resume,
+			skipSetup,
 			worktree,
 		});
 
@@ -163,6 +166,7 @@ export async function runSequentialIssues(
 	resume: boolean,
 	worktree?: string,
 	ignoreSetup = false,
+	skipSetup = false,
 ): Promise<void> {
 	if (issueNumbers.length === 0) {
 		throw new Error("At least one issue number is required for sequential workflow");
@@ -194,6 +198,7 @@ export async function runSequentialIssues(
 			issueNumber,
 			model,
 			resume,
+			skipSetup,
 			total: issueNumbers.length,
 			worktree,
 		});
