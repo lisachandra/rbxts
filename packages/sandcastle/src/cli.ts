@@ -431,6 +431,8 @@ Shared options:
       --allow-unreviewed     Explicitly allow sources whose review is incomplete
       --dry-run              Print resolved config without starting an agent
       --force                 Allow cleanup of a dirty integration worktree
+      --ignore-setup         Continue even if env/pnpm setup fails
+      --skip-setup           Skip env/pnpm setup commands (symlinks still linked)
 
 Issue options:
   -i, --issue <number>       GitHub issue number (or "all")
@@ -438,8 +440,6 @@ Issue options:
       --resume               Resume from last incomplete phase
       --phase <phase>        Run only one phase (design | implement | review)
       --force [phase]        Force re-run (optionally specify which phase)
-      --ignore-setup         Continue even if env/pnpm setup fails
-      --skip-setup           Skip env/pnpm setup commands (symlinks still linked)
       --status               Print phase evaluation without running
       --worktree <path>      Use an existing registered worktree directly
   -h, --help                 Show this help

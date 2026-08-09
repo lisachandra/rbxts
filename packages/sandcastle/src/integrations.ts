@@ -5,7 +5,7 @@
  * handing the branch off for a human merge.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
@@ -18,7 +18,7 @@ import {
 	resolveCommit,
 } from "./git.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
-import { config, integrationsDir, io, logsDir } from "./runtime.js";
+import { config, integrationsDir, io, logsDir, repoRoot } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,
@@ -27,7 +27,7 @@ import type {
 	IntegrationSource,
 	IntegrationStatus,
 } from "./types.js";
-import { sandboxProvider } from "./worktree.js";
+import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
 
 export const integrationBranch = (name: string): string => `sandcastle/integration/${name}`;
 
@@ -68,6 +68,20 @@ export function writeIntegrationManifest(manifest: IntegrationManifest): void {
 
 function integrationBasePath(manifest: IntegrationManifest): string {
 	return pathResolve(integrationsDir, manifest.name, "worktree");
+}
+
+/** Mirrors issue-worktree preparation for integration worktrees before agents run. */
+function prepareIntegrationWorktree(
+	worktree: string,
+	ignoreSetup: boolean,
+	skipSetup: boolean,
+): void {
+	const rootEnv = pathResolve(repoRoot, ".env");
+	if (existsSync(rootEnv)) {
+		copyFileSync(rootEnv, pathResolve(worktree, ".env"));
+	}
+
+	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
 }
 
 function assertCleanMergeResolution(manifest: IntegrationManifest): void {
@@ -358,6 +372,8 @@ export async function continueIntegration(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	ignoreSetup = false,
+	skipSetup = false,
 ): Promise<void> {
 	const worktree = integrationBasePath(manifest);
 	if (!existsSync(worktree)) {
@@ -365,6 +381,7 @@ export async function continueIntegration(
 	}
 
 	try {
+		prepareIntegrationWorktree(worktree, ignoreSetup, skipSetup);
 		manifest.status = "merging";
 		manifest.lastError = undefined;
 		writeIntegrationManifest(manifest);
@@ -437,6 +454,8 @@ export async function runNewIntegration(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	ignoreSetup = false,
+	skipSetup = false,
 ): Promise<void> {
 	if (sourceNames.length === 0) {
 		throw new Error("At least one integration source is required.");
@@ -446,7 +465,7 @@ export async function runNewIntegration(
 		kind === "issues" ? resolveIssueIntegrationSource : resolveExistingIntegrationSource;
 	const sources = sourceNames.map((sourceName) => sourceResolver(sourceName, allowUnreviewed));
 	const manifest = createIntegrationManifest(name, kind, baseRef, sources, allowUnreviewed);
-	await continueIntegration(manifest, model, effort, agentBackend);
+	await continueIntegration(manifest, model, effort, agentBackend, ignoreSetup, skipSetup);
 }
 
 export async function resumeIntegration(
@@ -454,6 +473,8 @@ export async function resumeIntegration(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	ignoreSetup = false,
+	skipSetup = false,
 ): Promise<void> {
 	assertIntegrationName(name);
 	const manifest = readIntegrationManifest(name);
@@ -467,7 +488,7 @@ export async function resumeIntegration(
 		);
 	}
 
-	await continueIntegration(manifest, model, effort, agentBackend);
+	await continueIntegration(manifest, model, effort, agentBackend, ignoreSetup, skipSetup);
 }
 
 export function printIntegrationStatus(name: string): void {

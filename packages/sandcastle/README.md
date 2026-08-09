@@ -123,8 +123,9 @@ sandcastle merge --name release-candidate --issues 150,151 --base main
 ```
 
 By default every run executes `setupCommands` and links configured `symlinks` in the worktree
-before phase agents start. `--ignore-setup` continues even if the setup command fails (symlinks
-are still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
+before agents start — including integration merges (`merge`, `merge-integrations`, and
+`integration-resume`). `--ignore-setup` continues even if the setup command fails (symlinks are
+still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
 
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in

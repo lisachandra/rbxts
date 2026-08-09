@@ -122,6 +122,7 @@ export async function main(): Promise<void> {
 					concurrency: options.concurrency,
 					effort: options.effort,
 					force: options.force === true ? "all" : (options.force ?? undefined),
+					ignoreSetup: options.ignoreSetup,
 					integrationName: options.integrationName ?? undefined,
 					integrations: options.integrationNames,
 					issueNumber: options.issueNumber || undefined,
@@ -219,7 +220,14 @@ export async function main(): Promise<void> {
 			break;
 		}
 		case "integration-resume": {
-			await resumeIntegration(name, options.model, options.effort, options.agentBackend);
+			await resumeIntegration(
+				name,
+				options.model,
+				options.effort,
+				options.agentBackend,
+				options.ignoreSetup,
+				options.skipSetup,
+			);
 
 			break;
 		}
@@ -238,6 +246,8 @@ export async function main(): Promise<void> {
 				options.model,
 				options.effort,
 				options.agentBackend,
+				options.ignoreSetup,
+				options.skipSetup,
 			);
 
 			break;
@@ -252,6 +262,8 @@ export async function main(): Promise<void> {
 				options.model,
 				options.effort,
 				options.agentBackend,
+				options.ignoreSetup,
+				options.skipSetup,
 			);
 
 			break;

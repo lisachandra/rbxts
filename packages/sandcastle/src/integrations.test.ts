@@ -1,8 +1,8 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 
 import {
 	abortIntegration,
@@ -21,7 +21,7 @@ import {
 } from "./integrations.js";
 import { main } from "./main.js";
 import { markerPath } from "./markers.js";
-import { io } from "./runtime.js";
+import { config, io } from "./runtime.js";
 import { writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
@@ -34,6 +34,14 @@ import {
 } from "./test-helpers.js";
 
 registerTestHooks();
+
+const originalSetupCommands = config.setupCommands;
+const originalSymlinks = config.symlinks;
+
+afterEach(() => {
+	config.setupCommands = originalSetupCommands;
+	config.symlinks = originalSymlinks;
+});
 
 describe("integration names", () => {
 	test("assertIntegrationName and integrationBranch", () => {
@@ -382,6 +390,124 @@ describe("integration composition", () => {
 			/At least one integration source/,
 		);
 
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("resumeIntegration runs setup and links symlinks in the integration worktree", async () => {
+		const name = `prepare-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		const target = join(integrationsDir, name, "docs-target");
+		mkdirSync(worktree, { recursive: true });
+		mkdirSync(target, { recursive: true });
+		const manifest = {
+			base: { commit: "1111111", ref: "main" },
+			branch: integrationBranch(name),
+			createdAt: new Date().toISOString(),
+			kind: "issues" as const,
+			name,
+			sources: [],
+			status: "created" as const,
+			updatedAt: new Date().toISOString(),
+			worktree: `.sandcastle/integrations/${name}/worktree`,
+		};
+		writeIntegrationManifest(manifest);
+
+		config.setupCommands = ["integration-setup"];
+		config.symlinks = [{ path: "docs", target }];
+
+		const calls: Array<{ command: string; cwd?: string }> = [];
+		gitStub({
+			file: (args) => {
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abcdef1234567";
+				}
+
+				return "";
+			},
+		});
+		io.execSync = ((command: string, options?: { cwd?: string }) => {
+			calls.push({ command: String(command), cwd: options?.cwd });
+			return "";
+		}) as unknown as typeof io.execSync;
+		io.run = (async () => {
+			const marker = markerPath(`${name}.review`);
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+			return { commits: [], stdout: "reviewed" };
+		}) as unknown as typeof io.run;
+
+		await resumeIntegration(name, "m", "low", "dirac");
+
+		assert.deepEqual(calls, [{ command: "integration-setup", cwd: worktree }]);
+		if (process.platform === "win32") {
+			assert.equal(existsSync(join(worktree, "docs")), true);
+		}
+
+		assert.equal(readIntegrationManifest(name)?.status, "ready-for-human-merge");
+		rmSync(markerPath(`${name}.review`), { force: true });
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("resumeIntegration honors skipSetup while still linking symlinks", async () => {
+		const name = `skip-setup-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		const target = join(integrationsDir, name, "docs-target");
+		mkdirSync(worktree, { recursive: true });
+		mkdirSync(target, { recursive: true });
+		const manifest = {
+			base: { commit: "1111111", ref: "main" },
+			branch: integrationBranch(name),
+			createdAt: new Date().toISOString(),
+			kind: "issues" as const,
+			name,
+			sources: [],
+			status: "created" as const,
+			updatedAt: new Date().toISOString(),
+			worktree: `.sandcastle/integrations/${name}/worktree`,
+		};
+		writeIntegrationManifest(manifest);
+
+		config.setupCommands = ["should-not-run"];
+		config.symlinks = [{ path: "docs", target }];
+
+		let ran = false;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abcdef1234567";
+				}
+
+				return "";
+			},
+		});
+		io.execSync = (() => {
+			ran = true;
+			return "";
+		}) as unknown as typeof io.execSync;
+		io.run = (async () => {
+			const marker = markerPath(`${name}.review`);
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+			return { commits: [], stdout: "reviewed" };
+		}) as unknown as typeof io.run;
+
+		await resumeIntegration(name, "m", "low", "dirac", false, true);
+
+		assert.equal(ran, false);
+		if (process.platform === "win32") {
+			assert.equal(existsSync(join(worktree, "docs")), true);
+		}
+
+		assert.equal(readIntegrationManifest(name)?.status, "ready-for-human-merge");
+		rmSync(markerPath(`${name}.review`), { force: true });
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});
 

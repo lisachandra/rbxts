@@ -1,5 +1,13 @@
 # @lisachandra/sandcastle
 
+## 0.5.0
+
+### Minor Changes
+
+- Run the same worktree preparation used by issue runs (`.env` copy, `setupCommands`, and
+  `symlinks`) before integration merge/resume agents start. `--ignore-setup` and `--skip-setup`
+  now apply to `merge`, `merge-integrations`, and `integration-resume` as well.
+
 ## 0.4.0
 
 ### Minor Changes
