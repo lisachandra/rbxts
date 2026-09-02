@@ -127,6 +127,25 @@ before agents start — including integration merges (`merge`, `merge-integratio
 `integration-resume`). `--ignore-setup` continues even if the setup command fails (symlinks are
 still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
 
+### Standalone worktree setup (`sandcastle setup`)
+
+Harnesses (like paseo) and manual `git worktree add` flows can prepare a worktree without
+starting an agent. The command reads the same `sandcastle.config.ts` fields and is
+idempotent:
+
+```bash
+sandcastle setup                        # prepare the current directory
+sandcastle setup --worktree <path>      # prepare an existing worktree path
+sandcastle setup --branch <name> [--base <ref>]  # create/reuse a worktree and prepare it
+sandcastle setup --dry-run              # print what would happen, execute nothing
+```
+
+Preparation is identical to what an issue run performs before its phases: create the
+`.sandcastle/{worktrees,logs,plans,state,integrations}` directories, copy the repo `.env`
+when present, run `setupCommands`, and link `symlinks`. `--ignore-setup` and `--skip-setup`
+behave as in the issue workflow. A bare `sandcastle setup` (no flags) targets the current
+directory — the shape paseo hands you for a clean worktree.
+
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
 `.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log`. Each phase agent

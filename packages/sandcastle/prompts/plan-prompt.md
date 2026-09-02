@@ -21,11 +21,11 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 3. If there is already a plan, read the designer's plan at `{{PLAN_PATH}}`.
 4. Inspect the diff: `git diff {{BASE_REF}}...HEAD`
 
-Here are the last 10 commits:
+Here are the last 10 commit subjects:
 
 <recent-commits>
 
-!`git log -n 10 --format="%H%n%ad%n%B---" --date=short`
+!`git log -n 10 --format="%h %ad %s" --date=short`
 
 </recent-commits>
 

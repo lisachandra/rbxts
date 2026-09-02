@@ -5,7 +5,7 @@
  * handing the branch off for a human merge.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
@@ -18,7 +18,7 @@ import {
 	resolveCommit,
 } from "./git.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
-import { config, integrationsDir, io, logsDir, repoRoot } from "./runtime.js";
+import { config, integrationsDir, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,
@@ -76,10 +76,6 @@ function prepareIntegrationWorktree(
 	ignoreSetup: boolean,
 	skipSetup: boolean,
 ): void {
-	const rootEnv = pathResolve(repoRoot, ".env");
-	if (existsSync(rootEnv)) {
-		copyFileSync(rootEnv, pathResolve(worktree, ".env"));
-	}
 
 	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
 }

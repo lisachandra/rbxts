@@ -18,10 +18,12 @@
  *   pnpm sandcastle:issue -- --issue <number> --status           # print phase evaluation
  */
 
-import { realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
+
 import { fileURLToPath } from "node:url";
 
-import { parseArgs, printHelp } from "./cli.js";
+import { parseArgs, printHelp, type CliOptions } from "./cli.js";
 import {
 	abortIntegration,
 	cleanupIntegration,
@@ -33,6 +35,7 @@ import { runAll, runSingleIssue } from "./issue.js";
 import { io, normalizedPath } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
+import { ensurePersistentWorktree, setupWorktree, worktreePathForBranch } from "./worktree.js";
 
 export * from "./agent.js";
 export * from "./cli.js";
@@ -102,6 +105,37 @@ function warnDeprecatedEnv(): void {
 	}
 }
 
+async function runSetup(options: CliOptions): Promise<void> {
+	let worktreePath: string;
+	if (options.worktree !== undefined && options.worktree !== "") {
+		worktreePath = pathResolve(options.worktree);
+	} else if (options.branch !== undefined && options.branch !== "") {
+		// Dry-run previews the destination without creating a real worktree.
+		worktreePath = options.dryRun
+			? worktreePathForBranch(options.branch)
+			: ensurePersistentWorktree(options.branch, options.base);
+	} else {
+		// No flags: prepare the current directory (e.g. a clean paseo worktree).
+		worktreePath = process.cwd();
+	}
+
+	if (!options.dryRun) {
+		if (!existsSync(worktreePath)) {
+			throw new Error(`Setup target does not exist: ${worktreePath}`);
+		}
+
+		if (!lstatSync(worktreePath).isDirectory()) {
+			throw new Error(`Setup target is not a directory: ${worktreePath}`);
+		}
+	}
+
+	setupWorktree(worktreePath, {
+		dryRun: options.dryRun,
+		ignoreSetup: options.ignoreSetup,
+		skipSetup: options.skipSetup,
+	});
+}
+
 export async function main(): Promise<void> {
 	warnDeprecatedEnv();
 	const options = parseArgs(process.argv.slice(2));
@@ -109,6 +143,11 @@ export async function main(): Promise<void> {
 	if (options.help) {
 		printHelp();
 		io.exit(0);
+	}
+
+	if (options.command === "setup") {
+		await runSetup(options);
+		return;
 	}
 
 	if (options.dryRun) {

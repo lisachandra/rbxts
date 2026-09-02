@@ -19,12 +19,14 @@ export type CliCommand =
 	| "merge-integrations"
 	| "integration-status"
 	| "integration-resume"
-	| "integration-cleanup";
+	| "integration-cleanup"
+	| "setup";
 
 export interface CliOptions {
 	readonly agentBackend: AgentBackend;
 	readonly allowUnreviewed: boolean;
 	readonly base: string;
+	readonly branch: string;
 	readonly command: CliCommand;
 	readonly concurrency: number;
 	readonly dryRun: boolean;
@@ -65,6 +67,7 @@ interface ParsedArgState {
 	agentBackend: AgentBackend;
 	allowUnreviewed: boolean;
 	base: string;
+	branch: string | undefined;
 	command: CliCommand;
 	concurrency: number;
 	dryRun: boolean;
@@ -90,6 +93,7 @@ function createParsedArgState(): ParsedArgState {
 		agentBackend: config.agents.default,
 		allowUnreviewed: false,
 		base: config.baseBranch,
+		branch: undefined,
 		command: "issue",
 		concurrency: 1,
 		dryRun: false,
@@ -149,6 +153,10 @@ function isIntegrationCommand(value: string): value is CliCommand {
 	);
 }
 
+function isCliCommand(value: string): value is CliCommand {
+	return value === "setup" || isIntegrationCommand(value);
+}
+
 type ArgHandler = (state: ParsedArgState, next: string | undefined, index: number) => number;
 
 const valueArgHandlers: Record<string, ArgHandler> = {
@@ -164,6 +172,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--base": (state, next, index) => {
 		state.base = next ?? state.base;
+		return index + 1;
+	},
+	"--branch": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--branch requires a value");
+		}
+
+		state.branch = next;
 		return index + 1;
 	},
 	"--concurrency": (state, next, index) => {
@@ -274,7 +290,7 @@ function applyParsedArgument(
 		return index;
 	}
 
-	if (isIntegrationCommand(arg)) {
+	if (isCliCommand(arg)) {
 		if (state.command !== "issue" || state.issueNumber !== undefined) {
 			throw new Error("Only one Sandcastle command may be specified");
 		}
@@ -317,6 +333,15 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		throw new Error("The merge-integrations command accepts --integrations, not --issues.");
 	}
 
+	if (state.command === "setup" && state.branch !== undefined && state.branch !== "") {
+		if (state.worktree !== undefined && state.worktree !== "") {
+			throw new Error("--branch cannot be combined with --worktree.");
+		}
+	} else if (state.branch !== undefined && state.branch !== "") {
+		throw new Error("--branch is only supported for the setup command.");
+	}
+
+
 	if (
 		state.worktree !== undefined &&
 		state.worktree !== "" &&
@@ -324,7 +349,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.command === "merge-integrations" ||
 			state.command.startsWith("integration-"))
 	) {
-		throw new Error("--worktree is only supported for issue and issue-sequence workflows.");
+		throw new Error("--worktree is only supported for issue, issue-sequence, and setup workflows.");
 	}
 
 	if (
@@ -356,7 +381,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		state.model?.trim() ??
 		config.agents.models[state.agentBackend]?.trim() ??
 		(legacyModel !== "" ? legacyModel : undefined);
-	if (!state.help && (model === undefined || model === "")) {
+	if (!state.help && state.command !== "setup" && (model === undefined || model === "")) {
 		throw new Error(
 			`No model configured for ${state.agentBackend}; set agents.models.${state.agentBackend} in sandcastle.config.ts or pass --model <model>.`,
 		);
@@ -366,6 +391,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		agentBackend: state.agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
+		branch: state.branch ?? "",
 		command: state.command,
 		concurrency: state.concurrency,
 		dryRun: state.dryRun,
@@ -424,6 +450,13 @@ Integration workflow:
   pnpm sandcastle integration-abort --name <name>
   pnpm sandcastle integration-cleanup --name <name>
 
+Setup workflow (harness / manual worktrees):
+  sandcastle setup [--worktree <path>]
+  sandcastle setup --branch <name> [--base <ref>]
+
+  Prepares a worktree for agent runs: creates .sandcastle state dirs, copies .env,
+  runs setupCommands, and links symlinks. No flags prepares the current directory
+  (e.g. a clean paseo worktree). Idempotent; safe to re-run.
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
 	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi (default: dirac)

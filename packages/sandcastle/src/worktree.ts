@@ -11,9 +11,41 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, symlinkSync } from "nod
 import { resolve as pathResolve } from "node:path";
 
 import { checkoutBranch, git, gitTry, registeredWorktrees, resolveCommit } from "./git.js";
-import { config, io, normalizedPath, repoRoot } from "./runtime.js";
+import {
+	config,
+	integrationsDir,
+	io,
+	logsDir,
+	normalizedPath,
+	plansDir,
+	repoRoot,
+	stateDir,
+} from "./runtime.js";
 
 export const sandboxProvider = noSandbox();
+
+const worktreesDir = pathResolve(repoRoot, config.dir, "worktrees");
+
+/** Runner state directories created under the configured state dir. */
+export const setupDirectories: ReadonlyArray<string> = [
+	worktreesDir,
+	logsDir,
+	plansDir,
+	stateDir,
+	integrationsDir,
+];
+
+/** Deterministic worktree path for a branch under the configured state dir. */
+export function worktreePathForBranch(branch: string): string {
+	return pathResolve(worktreesDir, branch.replace(/\//g, "-"));
+}
+
+/** Create the runner's state directories (worktrees, logs, plans, state, integrations). */
+export function ensureSetupDirs(): void {
+	for (const dir of setupDirectories) {
+		mkdirSync(dir, { recursive: true });
+	}
+}
 
 export interface PersistentSandbox {
 	close(): Promise<void>;
@@ -23,8 +55,7 @@ export interface PersistentSandbox {
 
 /** Create or reuse a worktree without invoking Sandcastle's prune lifecycle. */
 export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): string {
-	const worktreesDir = pathResolve(repoRoot, config.dir, "worktrees");
-	const worktreePath = pathResolve(worktreesDir, branch.replace(/\//g, "-"));
+	const worktreePath = worktreePathForBranch(branch);
 	mkdirSync(worktreesDir, { recursive: true });
 
 	const registered = registeredWorktrees();
@@ -104,8 +135,6 @@ async function createPersistentSandbox(
 	baseRef = "HEAD",
 ): Promise<PersistentSandbox> {
 	const worktreePath = ensurePersistentWorktree(branch, baseRef);
-	copyFileSync(pathResolve(repoRoot, ".env"), pathResolve(worktreePath, ".env"));
-
 	return {
 		// The worktree intentionally survives every run; only the agent process ends.
 		close: async () => undefined,
@@ -176,13 +205,62 @@ export function validateExistingWorktree(worktreePath: string): {
 	return { branch, commit, path };
 }
 
-export function prepareIssueWorktree(
+export interface SetupWorktreeOptions {
+	dryRun?: boolean;
+	ignoreSetup?: boolean;
+	skipSetup?: boolean;
+}
+
+/**
+ * Prepares a worktree for agent runs without starting one: creates the runner's state
+ * directories, copies the repo `.env` when present, runs the configured `setupCommands`,
+ * and links configured `symlinks`. Idempotent — safe to re-run on worktrees that already
+ * went through an issue or integration run.
+ *
+ * `dryRun` prints a JSON summary of what would happen without executing anything.
+ * `skipSetup` skips the setup commands but still copies `.env` and links symlinks;
+ * `ignoreSetup` continues (with a warning) when the setup commands fail.
+ */
+export function setupWorktree(
 	worktreePath: string,
-	ignoreSetup = false,
-	skipSetup = false,
+	options: SetupWorktreeOptions = {},
 ): void {
-	console.log("\n── Setup ──");
+	ensureSetupDirs();
+	const { dryRun = false, ignoreSetup = false, skipSetup = false } = options;
+
+	const envSource = pathResolve(repoRoot, ".env");
 	const setupCommand = config.setupCommands.join(" && ");
+
+	if (dryRun) {
+		console.log(
+			JSON.stringify(
+				{
+					dirs: setupDirectories,
+					env: existsSync(envSource) ? "copy" : "skip-missing",
+					runSetupCommands: !skipSetup && setupCommand !== "",
+					setupCommands: config.setupCommands,
+					symlinks: config.symlinks.map((link) => ({
+						path: link.path,
+						status: existsSync(pathResolve(repoRoot, link.target))
+							? "link"
+							: "warn-missing-target",
+						target: link.target,
+					})),
+					worktree: worktreePath,
+				},
+				undefined,
+				2,
+			),
+		);
+		return;
+	}
+
+	console.log("\n── Setup ──");
+
+	if (existsSync(envSource)) {
+		copyFileSync(envSource, pathResolve(worktreePath, ".env"));
+		console.log(`  ✓ Copied .env → ${pathResolve(worktreePath, ".env")}`);
+	}
 
 	if (skipSetup) {
 		console.log("  ⏭ Skipping setup commands.");
@@ -204,4 +282,12 @@ export function prepareIssueWorktree(
 	 */
 	linkSymlinks(worktreePath);
 	console.log("  ✓ Setup complete.");
+}
+
+export function prepareIssueWorktree(
+	worktreePath: string,
+	ignoreSetup = false,
+	skipSetup = false,
+): void {
+	setupWorktree(worktreePath, { ignoreSetup, skipSetup });
 }

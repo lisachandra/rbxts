@@ -53,7 +53,7 @@ export function diracAgent(
 				 * The wrapper captures stdin to a temp file and passes it as a CLI
 				 * argument with stdin from /dev/null, avoiding Ink's raw-mode error.
 				 */
-				command: `bash ${wrapperPath} --json${yoloFlag}${effortFlag} ${provider} -m ${JSON.stringify(model)}`,
+				command: `bash ${wrapperPath} --json${yoloFlag}${effortFlag} --api-error-max-retries 0 ${provider} -m ${JSON.stringify(model)}`,
 				stdin: prompt,
 			};
 		},

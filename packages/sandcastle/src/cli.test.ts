@@ -204,6 +204,66 @@ describe("commaSeparated / parseArgs", () => {
 			assert.equal(sequence.base, "sandcastle/issue-9");
 		});
 	});
+	test("parseArgs parses the setup command without requiring a model", () => {
+		withEnv(
+			{
+				DIRAC_SANDCASTLE_MODEL: undefined,
+				PI_SANDCASTLE_MODEL: undefined,
+				SANDCASTLE_MODEL: undefined,
+			},
+			() => {
+				const options = parseArgs([
+					"setup",
+					"--branch",
+					"sandcastle/issue-1",
+					"--base",
+					"main",
+					"--ignore-setup",
+					"--skip-setup",
+					"--dry-run",
+				]);
+				assert.equal(options.command, "setup");
+				assert.equal(options.branch, "sandcastle/issue-1");
+				assert.equal(options.base, "main");
+				assert.equal(options.ignoreSetup, true);
+				assert.equal(options.skipSetup, true);
+				assert.equal(options.dryRun, true);
+				// setup never requires a model.
+				assert.equal(options.model, "");
+
+				const worktree = parseArgs(["setup", "--worktree", tmpRoot]);
+				assert.equal(worktree.command, "setup");
+				assert.equal(worktree.worktree, tmpRoot);
+
+				const bare = parseArgs(["setup"]);
+				assert.equal(bare.command, "setup");
+				assert.equal(bare.branch, "");
+				assert.equal(bare.worktree, undefined);
+			},
+		);
+	});
+
+	test("parseArgs enforces setup flag rules", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--branch", "x"]),
+				/--branch is only supported for the setup command/,
+			);
+			assert.throws(
+				() => parseArgs(["setup", "--branch", "x", "--worktree", tmpRoot]),
+				/--branch cannot be combined with --worktree/,
+			);
+			assert.throws(
+				() => parseArgs(["setup", "--branch"]),
+				/--branch requires a value/,
+			);
+			assert.throws(
+				() => parseArgs(["setup", "issue-sequence", "--sequential", "1"]),
+				/Only one Sandcastle command/,
+			);
+		});
+	});
+
 });
 
 test("printHelp prints usage without throwing", () => {

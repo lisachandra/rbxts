@@ -59,6 +59,7 @@ describe("diracAgent", () => {
 		assert.match(command.command, /dirac-wrapper\.sh/);
 		assert.match(command.command, /-y/);
 		assert.match(command.command, /--reasoning-effort high/);
+		assert.match(command.command, /--api-error-max-retries 0/);
 		assert.equal(command.stdin, "hi");
 
 		assert.deepEqual(agent.parseStreamLine("not-json"), []);
