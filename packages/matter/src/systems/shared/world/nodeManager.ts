@@ -9,6 +9,7 @@ import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 
 import { Components } from "../../../components";
+import { recordNodeDestroyed } from "../../../debug/soundDebugStats";
 
 function system(world: World): void {
 	for (const [, record] of world.queryChanged(Components.Node)) {
@@ -18,6 +19,7 @@ function system(world: World): void {
 
 		const node = record.old;
 		node.model.Destroy();
+		recordNodeDestroyed();
 	}
 }
 

@@ -7,6 +7,7 @@ import { meta as clientEntityManager } from "./client/network/entityManager";
 import { meta as clientHookConnectorManager } from "./client/network/hookConnectorManager";
 // Client systems
 import { meta as clientReplicationManager } from "./client/network/replicationManager";
+import { meta as clientAudioDebugger } from "./client/sound/audioDebugger";
 import { meta as clientSoundManager } from "./client/sound/soundManager";
 import { meta as clientSoundRenderer } from "./client/sound/soundRenderer";
 import { meta as serverHotbarManager } from "./server/item/hotbarManager";
@@ -119,6 +120,7 @@ export const builtinPackage = definePackage({
 				{ key: "serverSoundManager", runtime: "server", system: serverSoundManager },
 				{ key: "clientSoundManager", runtime: "client", system: clientSoundManager },
 				{ key: "clientSoundRenderer", runtime: "client", system: clientSoundRenderer },
+				{ key: "clientAudioDebugger", runtime: "client", system: clientAudioDebugger },
 			],
 		},
 

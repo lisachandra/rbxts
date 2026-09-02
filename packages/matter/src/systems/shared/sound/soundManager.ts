@@ -1,14 +1,21 @@
+import { Constant } from "@lisachandra/constant";
 import type { ClientState, ServerState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import { type DebugWidgets, type SystemStruct, useHookState, type World } from "@rbxts/matter";
 
 import { Components } from "../../../components";
+import {
+	configureSoundDebugGc,
+	markSoundDebugGc,
+	recordDespawned,
+} from "../../../debug/soundDebugStats";
 import { useThrottle } from "../../../hooks";
 
-const soundGcInterval = 1;
+const c = new Constant().add("SOUND_GC_INTERVAL", 1).add("SOUND_GC", 10).build();
 
 function system(world: World): void {
-	if (!useThrottle(soundGcInterval)) {
+	configureSoundDebugGc(c.SOUND_GC_INTERVAL, c.SOUND_GC);
+	if (!useThrottle(c.SOUND_GC_INTERVAL)) {
 		return;
 	}
 
@@ -23,7 +30,7 @@ function system(world: World): void {
 		state.ended ??= new Map();
 
 		for (const player of sound.players) {
-			if (!player.IsPlaying && useThrottle(10, player)) {
+			if (!player.IsPlaying && useThrottle(c.SOUND_GC, player)) {
 				state.ended.set(player, 0);
 			} else if (player.IsPlaying) {
 				state.ended.delete(player);
@@ -32,12 +39,15 @@ function system(world: World): void {
 
 		if (
 			sound.players.every(
-				(player) => os.clock() - (state.ended.get(player) ?? os.clock()) > 10,
+				(player) => os.clock() - (state.ended.get(player) ?? os.clock()) > c.SOUND_GC,
 			)
 		) {
 			world.despawn(entityId);
+			recordDespawned();
 		}
 	}
+
+	markSoundDebugGc(os.clock());
 }
 
 export const meta = {

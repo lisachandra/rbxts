@@ -1,11 +1,11 @@
 import type { ClientState } from "@lisachandra/core/store";
 import { getSoundFromId } from "@lisachandra/core/utils/asset";
 import type { Crate } from "@rbxts/crate";
-import Log from "@rbxts/log";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { SoundService, Workspace } from "@rbxts/services";
 
 import { Components } from "../../../components";
+import { recordPlay } from "../../../debug/soundDebugStats";
 import { useChange } from "../../../hooks";
 import { connectAudio } from "../../../utils/sound";
 
@@ -25,7 +25,7 @@ function system(world: World): void {
 				// Non-spatial — flat playback for this player only
 				const soundInstance = getSoundFromId(sound.id);
 				if (soundInstance) {
-					Log.Debug(`Playing local sound ${sound.id} (${soundInstance.Name})`);
+					recordPlay(sound.id, true);
 					SoundService.PlayLocalSound(soundInstance);
 				}
 
@@ -34,7 +34,7 @@ function system(world: World): void {
 			} else if (sound.players) {
 				// Spatial — existing emitter pipeline
 				for (const player of sound.players) {
-					Log.Debug(`Playing sound ${sound.id} (${getSoundFromId(sound.id)?.Name})`);
+					recordPlay(sound.id, false);
 					player.Play();
 				}
 			}

@@ -5,6 +5,7 @@ import type ObjectCache from "@rbxts/object-cache";
 import { Workspace } from "@rbxts/services";
 
 import { Components } from "../../../components";
+import { recordNodeReturned } from "../../../debug/soundDebugStats";
 import type { placeAudioToModel } from "../../../utils/sound";
 import { soundEmitterCache } from "../../../utils/sound";
 
@@ -38,13 +39,15 @@ function system(world: World): void {
 		);
 	}
 
-	for (const [_entityId, node, _sound] of world.query(Components.Node, Components.Sound)) {
-		if (!game.IsAncestorOf(node.model)) {
+	for (const [_entityId, record] of world.queryChanged(Components.Sound)) {
+		if (record.new || !record.old || !record.old.emitter || !game.IsAncestorOf(record.old.emitter)) {
 			continue;
 		}
 
-		node.model.Parent = Workspace.Caches.Sound;
-		soundEmitterCache.ReturnPart(node.model as ObjectCachePart<typeof soundEmitterCache>);
+		const node = record.old.emitter.Parent!.Parent!
+		node.Parent = Workspace.Caches.Sound;
+		soundEmitterCache.ReturnPart(node as ObjectCachePart<typeof soundEmitterCache>);
+		recordNodeReturned();
 	}
 }
 
