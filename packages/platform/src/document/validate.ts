@@ -2,7 +2,7 @@ import type { Modding } from "@flamework/core";
 import Log from "@rbxts/log";
 import { fromEntries } from "@rbxts/object-utils";
 import type { HasRest, RestType, SplitRest } from "@rbxts/serio/metadata/tuples";
-import { t } from "@rbxts/t";
+import { Boba } from "@rbxts/boba";
 
 import type { IsLiteral, IsUnion } from "type-fest";
 
@@ -48,7 +48,7 @@ type TupleMetadata<T extends Array<unknown>> = ["_tuple", T] extends [
 			HasRest<T> extends true ? ValidateMetadata<RestType<T>> : undefined,
 		];
 
-// prettier-ignore
+// oxfmt-ignore
 /**
  * Recursive type-level mapping from a Luau data shape to the Serio-based validation metadata format
  * consumed by {@link createDataStoreValidator}.
@@ -66,8 +66,9 @@ export type ValidateMetadata<T> =
 	? ["bool"]
 	: [T] extends [number]
 	? ["number"]
-	: ["_string", T] extends [keyof T, { _string?: [infer _V] }]
-	? ["string", T]
+	: ["_string", T] extends [keyof T, { _string?: infer _V }]
+	? ["map", ["string"], ValidateMetadata<// @ts-expect-error
+		T[string]>]
 	: [T] extends [string]
 	? ["string"]
 	: ["_set", T] extends [keyof T, { _set?: [infer V] }]
@@ -78,6 +79,8 @@ export type ValidateMetadata<T> =
 	? ["map", ValidateMetadata<K>, ValidateMetadata<V>]
 	: [T] extends [ReadonlyMap<infer K, infer V>]
 	? ["map", ValidateMetadata<K>, ValidateMetadata<V>]
+	: [T] extends [ReadonlyArray<infer V>]
+	? ["list", ValidateMetadata<V>]
 	: [T] extends [Array<unknown>]
 	? ArrayMetadata<T>
 	: IsUnion<T> extends true
@@ -110,90 +113,129 @@ export type ValidateSchema =
 	| ["object", Array<[string, ValidateSchema]>]
 	| ["tuple", Array<ValidateSchema>, ValidateSchema];
 
+function wrapBobaValidator<T>(b: Boba<T>): (x: unknown) => asserts x is T {
+	return (x: unknown): asserts x is T => {
+		return b.assert(x);
+	};
+}
+
 /* eslint-disable jsdoc/require-param-description -- Flamework macro */
 /**
- * Creates a `t.check` validator function for a specific type.
+ * Creates a `Boba` const v function for a specific type.
  *
  * @param meta
  * @metadata macro
  */
-export function createDataStoreValidator<T>(meta?: Modding.Many<ValidateMetadata<T>>): t.check<T> {
+export function createDataStoreValidator<T, A extends boolean>(
+	raw?: A,
+	meta?: Modding.Many<ValidateMetadata<T>>,
+): A extends true ? Boba<T> : (x: unknown) => asserts x is T {
 	const schema = meta as ValidateSchema;
-	let validator: t.check<any> = undefined as never; // type-coverage:ignore-line;
+	let validator: Boba<T> | ((x: unknown) => asserts x is T) = undefined as never;
 
 	switch (schema[0]) {
 		case "bool": {
-			validator = t.boolean;
+			const v = Boba.Boolean as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "list": {
 			const [_, elementSchema] = schema;
-			validator = t.array(createDataStoreValidator(elementSchema as never));
+			const v = Boba.Array(createDataStoreValidator(true, elementSchema as never)) as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "literal": {
 			const [_, literals] = schema;
-			validator = t.literalList(literals);
+			let v: Boba<T> = undefined as never;
+			for (const value of literals) {
+				v = (v !== undefined ? v.Or(Boba.Literal(value)) : Boba.Literal(value)) as Boba<T>;
+			}
+
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "map": {
 			const [_, keySchema, valueSchema] = schema;
-			validator = t.map(
-				createDataStoreValidator(keySchema as never),
-				createDataStoreValidator(valueSchema as never),
-			);
+			const v = Boba.Map(
+				createDataStoreValidator(true, keySchema as never),
+				createDataStoreValidator(true, valueSchema as never),
+			) as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "number": {
-			validator = t.number;
+			const v = Boba.Number as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "object": {
 			const [_, fields] = schema;
-			validator = t.interface(
+			const v = Boba.Struct(
 				fromEntries(
 					fields.map(([fieldName, fieldSchema]) => {
-						return [fieldName, createDataStoreValidator(fieldSchema as never)] as const;
+						return [
+							fieldName,
+							createDataStoreValidator(true, fieldSchema as never),
+						] as const;
 					}),
 				),
-			);
+			) as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "optional": {
 			const [_, valueSchema] = schema;
-			validator = t.optional(createDataStoreValidator(valueSchema as never));
+			const v = createDataStoreValidator(true, valueSchema as never).Optional() as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "set": {
 			const [_, valueSchema] = schema;
-			validator = t.set(createDataStoreValidator(valueSchema as never));
+			const v = Boba.Set(createDataStoreValidator(true, valueSchema as never)) as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "string": {
-			validator = t.string;
+			const v = Boba.String as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
+
 			break;
 		}
 		case "tuple": {
 			const [_, elements] = schema;
-			validator = t.strictArray(
-				...elements.map((valueSchema) => createDataStoreValidator(valueSchema as never)),
-			);
+			let index = 0;
+			const v = Boba.ExhaustiveStruct(
+				fromEntries(
+					elements.map(([, tupleSchema]) => {
+						index++;
+						return [
+							index,
+							createDataStoreValidator(true, tupleSchema as never),
+						] as const;
+					}),
+				),
+			) as Boba<T>;
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
 		case "union": {
 			const [_, elements] = schema;
-			validator = t.union(
-				...elements.map((valueSchema) => createDataStoreValidator(valueSchema as never)),
-			);
+			let v: Boba<T> = undefined as never;
+			for (const valueSchema of elements) {
+				const value = createDataStoreValidator(true, valueSchema as never);
+				v = (v !== undefined ? v.Or(value) : value) as Boba<T>;
+			}
+			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
 		}
@@ -204,6 +246,6 @@ export function createDataStoreValidator<T>(meta?: Modding.Many<ValidateMetadata
 		}
 	}
 
-	return validator as t.check<T>;
+	return validator as A extends true ? Boba<T> : (x: unknown) => asserts x is T;
 }
 /* eslint-enable jsdoc/require-param-description */

@@ -1,9 +1,10 @@
 import { catcher } from "@lisachandra/core/utils/main";
+import { typeAssertIs } from "@lisachandra/core/utils/type";
+import { Boba } from "@rbxts/boba";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
 import HashLib from "@rbxts/rbxts-hashlib";
 import { TeleportService } from "@rbxts/services";
-import { t } from "@rbxts/t";
 
 // ─── Runtime Configuration ──────────────────────────────────────────────────
 
@@ -39,10 +40,10 @@ export function configureTeleportSecret(secret: string): void {
 	teleportSecret = secret;
 }
 
-const checkTeleportData = t.strictInterface({
-	hash: t.string,
-	stamp: t.number,
-}) satisfies t.check<PossibleTeleportData>;
+const checkTeleportData = Boba.ExhaustiveStruct({
+	hash: Boba.String,
+	stamp: Boba.Number,
+}) satisfies Boba<PossibleTeleportData>;
 
 const teleportAsync = Promise.promisify(
 	(placeId: number, players: Array<Player>, options?: TeleportOptions) => {
@@ -93,7 +94,7 @@ export function serializeTeleportData(
 
 /* Logs invalid teleports. */
 function logInvalidTeleport(
-	{ success, unexpired, validData, validHash }: ReturnType<typeof isValidTeleport>,
+	{ success, unexpired, validData, validHash, format }: ReturnType<typeof isValidTeleport>,
 	userId: number,
 	_teleportData?: unknown,
 ): void {
@@ -102,11 +103,12 @@ function logInvalidTeleport(
 	}
 
 	Log.Warn(
-		"Invalid teleport detected for user {UserId}: validData={ValidData}, validHash={ValidHash}, unexpired={Unexpired}",
+		"Invalid teleport detected for user {UserId}: validData={ValidData}, validHash={ValidHash}, unexpired={Unexpired} {Format}",
 		userId,
 		validData,
 		validHash,
 		unexpired,
+		format,
 	);
 }
 
@@ -126,18 +128,21 @@ export function isValidTeleport(
 	unexpired?: boolean;
 	validData?: boolean;
 	validHash?: boolean;
+	format?: string;
 } {
 	const joinData = player.GetJoinData();
-	const teleportData = joinData.TeleportData as unknown;
-	const validData = checkTeleportData(teleportData);
-	if (!validData) {
-		const returned = { success: false, validData };
+	let teleportData = joinData.TeleportData as unknown;
+	const validData = checkTeleportData.match(teleportData);
+	if (!validData.ok) {
+		const returned = { success: false, validData: false, format: validData.format() };
 		if (logInvalid) {
 			logInvalidTeleport(returned, player.UserId, teleportData);
 		}
 
 		return returned;
 	}
+
+	typeAssertIs<PossibleTeleportData>(teleportData);
 
 	const stamp = os.time(os.date("!*t"));
 	const hash = generateTeleportHash(teleportData);
@@ -146,7 +151,7 @@ export function isValidTeleport(
 	const unexpired = stamp < teleportData.stamp + teleportConfig.expiration;
 	const success = validHash && unexpired;
 
-	const returned = { success, unexpired, validData, validHash };
+	const returned = { success, unexpired, validData: true, validHash };
 	if (!success) {
 		logInvalidTeleport(returned, player.UserId, teleportData);
 	}

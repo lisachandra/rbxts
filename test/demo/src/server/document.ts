@@ -31,11 +31,24 @@ export const gardenDocumentDefaults: CollectionData = {
 	},
 };
 
+const validator = createDataStoreValidator<CollectionData, false>(false)
+
 configureRuntimeAdapters({
 	document: {
 		collection: createCollection("PlayerData", {
 			defaultData: gardenDocumentDefaults,
-			validate: createDataStoreValidator<CollectionData>(),
+			validate: (v): v is CollectionData => {
+				const [success, result] = pcall(() => {
+					// oxlint-disable-next-line typescript/no-confusing-void-expression -- Compiler requirement
+					return validator(v);
+				});
+
+				if (!success) {
+					warn(result);
+				}
+
+				return success;
+			},
 		}),
 	},
 });
