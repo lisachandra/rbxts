@@ -1,7 +1,20 @@
+diff --git a/out/metadata/index.d.ts b/out/metadata/index.d.ts
+index c0b672b01e7f22341e67ef63810f579df7e6aa58..a5c75e5b56684b63e57b63b4878b008928907152 100644
+--- a/out/metadata/index.d.ts
++++ b/out/metadata/index.d.ts
+@@ -56,7 +56,7 @@ export type SerializerMetadata<T> = IsExactlyBoolean<T> extends true ? ["bool"]
+     {
+         readonly _packed?: [infer V];
+     }
+-] ? ["packed", SerializerMetadata<V>] : undefined extends T ? ["optional", SerializerMetadata<NonNullable<T>>] : [T] extends [
++] ? ["packed", SerializerMetadata<V>] : undefined extends T ? ["optional", SerializerMetadata<NonNullable<T>>] : [keyof T] extends [never] ? ["blob"] : [T] extends [
+     {
+         readonly _f64?: never;
+     }
 diff --git a/package.json b/package.json
+index 606fce495a81c934af77ce721ab07c78288f451d..a3b5b06841cc73d5357b2b2f3713755a4e8b8936 100644
 --- a/package.json
 +++ b/package.json
-
 @@ -39,5 +39,75 @@
      "rbxts-transformer-flamework": "^1.3.2",
      "roblox-ts": "^3.0.0",

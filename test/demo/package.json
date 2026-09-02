@@ -52,8 +52,8 @@
 		"@rbxts/serio": "catalog:",
 		"@rbxts/services": "catalog:",
 		"@rbxts/sift": "catalog:",
-		"@rbxts/t": "catalog:",
 		"@rbxts/tether": "catalog:",
+		"@rbxts/types": "catalog:",
 		"@rbxts/validate-tree": "catalog:",
 		"type-fest": "catalog:"
 	},

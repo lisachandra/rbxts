@@ -50,10 +50,10 @@ catalog:
     "@rbxts/react-testing-library": 12.1.5-rc.6
     "@rbxts/regexp": latest
     "@rbxts/rewire": 0.3.0
-    "@rbxts/serio": 1.2.5
+    "@rbxts/serio": 1.2.7
     "@rbxts/services": latest
     "@rbxts/sift": 0.0.11
-    "@rbxts/t": 3.2.1
+    "@rbxts/boba": 0.0.1
     "@rbxts/tether": 1.4.17
     "@rbxts/types": 1.0.925
     "@rbxts/validate-tree": 2.0.2
@@ -107,10 +107,11 @@ patchedDependencies:
     "@rbxts/compiler-types": patches/@rbxts__compiler-types@3.0.0-types.0.patch
     "@rbxts/jest-globals@3.16.0-ts.1": patches/@rbxts__jest-globals@3.16.0-ts.1.patch
     "@rbxts/log@0.6.3": patches/@rbxts__log@0.6.3.patch
-    "@rbxts/serio@1.2.5": patches/@rbxts__serio@1.2.5.patch
+    "@rbxts/serio": patches/@rbxts__serio.patch
     "@rbxts/tether@1.4.17": patches/@rbxts__tether@1.4.17.patch
     "@rbxts/sift@0.0.11": patches/@rbxts__sift@0.0.11.patch
     rbxts-transformer-flamework: patches/rbxts-transformer-flamework.patch
+    "@rbxts/boba": patches/@rbxts__boba.patch
 
 publicHoistPattern:
     - "*@rbxts*"

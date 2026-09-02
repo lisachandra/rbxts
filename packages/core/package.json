@@ -116,7 +116,6 @@
 		"@rbxts/object-cache": "catalog:",
 		"@rbxts/services": "catalog:",
 		"@rbxts/sift": "catalog:",
-		"@rbxts/t": "catalog:",
 		"@rbxts/types": "catalog:",
 		"@rbxts/validate-tree": "catalog:",
 		"shx": "catalog:",
@@ -137,7 +136,6 @@
 		"@rbxts/object-cache": "*",
 		"@rbxts/services": "*",
 		"@rbxts/sift": "*",
-		"@rbxts/t": "*",
 		"@rbxts/validate-tree": "*",
 		"type-fest": "*"
 	}

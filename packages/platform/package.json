@@ -90,6 +90,7 @@
 		"@lisachandra/core": "workspace:*",
 		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/types": "workspace:*",
+		"@rbxts/boba": "catalog:",
 		"@rbxts/centurion": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/lapis": "catalog:",
@@ -103,7 +104,6 @@
 		"@rbxts/serio": "catalog:",
 		"@rbxts/services": "catalog:",
 		"@rbxts/sift": "catalog:",
-		"@rbxts/t": "catalog:",
 		"@rbxts/types": "catalog:",
 		"rbxts-transformer-flamework": "catalog:",
 		"shx": "catalog:",
@@ -115,6 +115,7 @@
 		"@lisachandra/core": "*",
 		"@lisachandra/matter": "*",
 		"@lisachandra/types": "*",
+		"@rbxts/boba": "*",
 		"@rbxts/centurion": "*",
 		"@rbxts/lapis": "*",
 		"@rbxts/lapis-mockdatastore": "*",
@@ -126,7 +127,6 @@
 		"@rbxts/serio": "*",
 		"@rbxts/services": "*",
 		"@rbxts/sift": "*",
-		"@rbxts/t": "*",
 		"type-fest": "*"
 	}
 }

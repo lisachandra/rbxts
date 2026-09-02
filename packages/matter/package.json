@@ -129,8 +129,8 @@
 		"@rbxts/rewire": "catalog:",
 		"@rbxts/serio": "catalog:",
 		"@rbxts/services": "catalog:",
+		"@rbxts/iris": "catalog:",
 		"@rbxts/sift": "catalog:",
-		"@rbxts/t": "catalog:",
 		"@rbxts/tether": "catalog:",
 		"@rbxts/types": "catalog:",
 		"rbxts-transformer-flamework": "catalog:",
@@ -156,8 +156,8 @@
 		"@rbxts/rewire": "*",
 		"@rbxts/serio": "*",
 		"@rbxts/services": "*",
+		"@rbxts/iris": "*",
 		"@rbxts/sift": "*",
-		"@rbxts/t": "*",
 		"@rbxts/tether": "*",
 		"type-fest": "*"
 	}
