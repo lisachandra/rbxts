@@ -10,6 +10,7 @@ import {
 	createAgent,
 	diracAgent,
 	fetchIssueLabels,
+	resolveBackendEffort,
 	skillsForPrompt,
 	uniqueSkills,
 	withMarkerCompletion,
@@ -125,14 +126,23 @@ describe("diracAgent", () => {
 		]);
 	});
 
-	test("diracAgent maps max effort to the highest supported backend effort", () => {
+	test("diracAgent forwards max effort untouched (natively supported)", () => {
 		const agent = diracAgent("gpt", { effort: "max" });
 		const command = agent.buildPrintCommand({
 			dangerouslySkipPermissions: false,
 			prompt: "hi",
 		});
-		assert.match(command.command, /--reasoning-effort xhigh/);
-		assert.doesNotMatch(command.command, /--reasoning-effort max/);
+		assert.match(command.command, /--reasoning-effort max/);
+		assert.doesNotMatch(command.command, /--reasoning-effort xhigh/);
+	});
+
+	test("resolveBackendEffort keeps max for dirac/claude-code, maps to xhigh elsewhere", () => {
+		assert.equal(resolveBackendEffort("max", "dirac"), "max");
+		assert.equal(resolveBackendEffort("max", "claude-code"), "max");
+		assert.equal(resolveBackendEffort("max", "pi"), "xhigh");
+		assert.equal(resolveBackendEffort("max", "codex"), "xhigh");
+		assert.equal(resolveBackendEffort("max"), "xhigh");
+		assert.equal(resolveBackendEffort("high", "dirac"), "high");
 	});
 });
 

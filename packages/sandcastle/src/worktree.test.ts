@@ -6,7 +6,12 @@ import { afterEach, describe, test } from "node:test";
 
 import { config, io } from "./runtime.js";
 import { registerTestHooks, tmpRoot } from "./test-helpers.js";
-import { prepareIssueWorktree, setupDirectories, setupWorktree, worktreePathForBranch } from "./worktree.js";
+import {
+	prepareIssueWorktree,
+	setupDirectories,
+	setupWorktree,
+	worktreePathForBranch,
+} from "./worktree.js";
 
 registerTestHooks();
 
@@ -96,7 +101,6 @@ describe("prepareIssueWorktree", () => {
 		if (process.platform === "win32") {
 			assert.equal(existsSync(join(worktree, "docs")), true);
 		}
-
 	});
 
 	test("setupWorktree dry-run prints a summary without side effects", () => {
@@ -161,5 +165,4 @@ describe("prepareIssueWorktree", () => {
 		assert.equal(path.endsWith("sandcastle-issue-1"), true);
 		assert.equal(path.includes("/"), false);
 	});
-
 });

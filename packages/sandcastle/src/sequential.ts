@@ -10,7 +10,7 @@ import { checkoutBranch, gitTry } from "./git.js";
 import { runSingleIssue } from "./issue.js";
 import { config, io, repoRoot } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
-import type { AgentBackend } from "./types.js";
+import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js";
 
 interface SequentialIssueResult {
 	error?: string;
@@ -54,6 +54,7 @@ async function processSequentialIssue({
 	model,
 	resume,
 	skipSetup,
+	steps,
 	total,
 	worktree,
 }: {
@@ -67,6 +68,7 @@ async function processSequentialIssue({
 	model: string;
 	resume: boolean;
 	skipSetup?: boolean;
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	total: number;
 	worktree?: string;
 }): Promise<{ nextBase: string; result: SequentialIssueResult; stop: boolean }> {
@@ -114,6 +116,7 @@ async function processSequentialIssue({
 			ignoreSetup,
 			resume,
 			skipSetup,
+			...(steps ? { steps } : {}),
 			worktree,
 		});
 
@@ -167,6 +170,7 @@ export async function runSequentialIssues(
 	worktree?: string,
 	ignoreSetup = false,
 	skipSetup = false,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 ): Promise<void> {
 	if (issueNumbers.length === 0) {
 		throw new Error("At least one issue number is required for sequential workflow");
@@ -199,6 +203,7 @@ export async function runSequentialIssues(
 			model,
 			resume,
 			skipSetup,
+			...(steps ? { steps } : {}),
 			total: issueNumbers.length,
 			worktree,
 		});

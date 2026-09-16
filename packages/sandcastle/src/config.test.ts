@@ -19,6 +19,7 @@ describe("config loading", () => {
 		assert.equal(config.effort, "xhigh");
 		assert.equal(config.agents.default, "dirac");
 		assert.deepEqual(config.agents.models, {});
+		assert.deepEqual(config.agents.steps, {});
 		assert.deepEqual(config.agents.enabled, [
 			"claude-code",
 			"codex",
@@ -39,7 +40,7 @@ describe("config loading", () => {
 			[
 				"const config = {",
 				'	effort: "max",',
-				'	agents: { default: "codex", models: { "claude-code": "model-c", codex: "model-d", dirac: "model-a", pi: "model-b" } },',
+				'	agents: { default: "codex", models: { "claude-code": "model-c", codex: "model-d", dirac: "model-a", pi: "model-b" }, steps: { design: { model: "design-m", effort: "low" }, implement: { backend: "codex" } } },',
 				"};",
 				"export default config;",
 			].join("\n"),
@@ -52,6 +53,8 @@ describe("config loading", () => {
 		assert.equal(config.agents.models.codex, "model-d");
 		assert.equal(config.agents.models.dirac, "model-a");
 		assert.equal(config.agents.models.pi, "model-b");
+		assert.deepEqual(config.agents.steps.design, { effort: "low", model: "design-m" });
+		assert.deepEqual(config.agents.steps.implement, { backend: "codex" });
 		assert.equal(config.baseBranch, "main");
 	});
 });

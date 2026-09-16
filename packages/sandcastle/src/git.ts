@@ -68,6 +68,52 @@ export function hasUnmergedPaths(worktree: string): boolean {
 	return git(["diff", "--name-only", "--diff-filter=U"], worktree).length > 0;
 }
 
+function porcelainStatusPaths(output: string): Array<string> {
+	return (
+		output
+			.split(/\r?\n/)
+			.map((line) => line.trimEnd())
+			.map((line) => line.trim())
+			.filter((line) => line !== "")
+			/*
+			 * `git()` trims the whole output, so the leading space of the first entry's `XY` status column
+			 * is already gone; strip an optional status token rather than a fixed width.
+			 */
+			.map((line) => line.replace(/^[ MADRCU?!]{0,2}\s+/, ""))
+			.map((line) => {
+				// Rename/copy entries read "old -> new"; only the destination can block a merge.
+				const arrow = line.indexOf(" -> ");
+				return (arrow === -1 ? line : line.slice(arrow + 4)).replaceAll('"', "");
+			})
+			.filter((path) => path !== "")
+	);
+}
+
+/**
+ * Tracked paths with uncommitted modifications in a worktree.
+ *
+ * Untracked files are deliberately excluded: sandcastle links `.agents`, `.diracrules`,
+ * `creator-docs`, and `.sandcastle/plans` into worktrees, and those must neither be reported as
+ * merge blockers nor quarantined.
+ */
+export function dirtyPaths(worktree: string): Array<string> {
+	return porcelainStatusPaths(git(["status", "--porcelain", "--untracked-files=no"], worktree));
+}
+
+/** Paths a source commit changed since its merge base with the worktree HEAD. */
+export function changedSinceMergeBase(worktree: string, commit: string): Array<string> {
+	const base = git(["merge-base", "HEAD", commit], worktree);
+	return git(["diff", "--name-only", base, commit], worktree)
+		.split(/\r?\n/)
+		.map((path) => path.replaceAll('"', ""))
+		.filter((path) => path !== "");
+}
+
+/** Whether an index path is a submodule gitlink; git merges over those even when they are dirty. */
+export function isGitlink(worktree: string, path: string): boolean {
+	return (gitTry(["ls-files", "--stage", "--", path], worktree) ?? "").startsWith("160000");
+}
+
 export function mergeHeadPath(worktree: string): string {
 	const gitDir = git(["rev-parse", "--git-dir"], worktree);
 	const absoluteGitDir =

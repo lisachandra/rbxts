@@ -14,7 +14,7 @@ import type { EvaluationResult, PhaseDecision, PhaseName, PhaseState } from "./t
 
 export function evaluatePhases(
 	issueNumber: string,
-	model: string,
+	models: string | Record<PhaseName, string>,
 	opts: {
 		baseRef?: string;
 		force?: true | PhaseName;
@@ -43,7 +43,7 @@ export function evaluatePhases(
 		result[opts.phase] = evaluateSinglePhase(
 			opts.phase,
 			issueNumber,
-			model,
+			modelForPhase(models, opts.phase),
 			state,
 			planFile,
 			worktreePath,
@@ -63,7 +63,7 @@ export function evaluatePhases(
 		design: evaluateSinglePhase(
 			"design",
 			issueNumber,
-			model,
+			modelForPhase(models, "design"),
 			state,
 			planFile,
 			worktreePath,
@@ -73,7 +73,7 @@ export function evaluatePhases(
 		implement: evaluateSinglePhase(
 			"implement",
 			issueNumber,
-			model,
+			modelForPhase(models, "implement"),
 			state,
 			planFile,
 			worktreePath,
@@ -84,7 +84,7 @@ export function evaluatePhases(
 		review: evaluateSinglePhase(
 			"review",
 			issueNumber,
-			model,
+			modelForPhase(models, "review"),
 			state,
 			planFile,
 			worktreePath,
@@ -108,6 +108,11 @@ export function evaluatePhases(
 	}
 
 	return result;
+}
+
+/** Normalizes the `models` arg: a single workflow model or a per-phase map. */
+function modelForPhase(models: string | Record<PhaseName, string>, phase: PhaseName): string {
+	return typeof models === "string" ? models : (models[phase] ?? "");
 }
 
 function evaluateSinglePhase(
@@ -218,9 +223,14 @@ export function evaluateImplement(
 		return "start";
 	}
 
-	// If model changed, restart implementation.
-	if (state?.phases.implement.status === "done" && state.model !== model) {
-		reasons.implement = `model changed (${state.model} → ${model})`;
+	/*
+	 * If model changed, restart implementation.
+	 * If the implement model changed (or a legacy single-model state moved to per-phase
+	 * config), restart implementation. Per-phase overrides live in state.phasesConfig.
+	 */
+	const implementModel = state?.phasesConfig?.implement?.model ?? state?.model;
+	if (state?.phases.implement.status === "done" && implementModel !== model) {
+		reasons.implement = `model changed (${implementModel} → ${model})`;
 		return "start";
 	}
 

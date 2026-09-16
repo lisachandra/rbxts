@@ -13,6 +13,7 @@ import { z } from "zod";
 import { createAgent, fetchIssueLabels, issueView, skillsForPrompt } from "./agent.js";
 import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
 import { countNewCommits, resolveCommit } from "./git.js";
+import { fileLogging } from "./logging.js";
 import {
 	clearMarker,
 	markerExists,
@@ -25,10 +26,12 @@ import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
 import { readState, updatePhase, writeState } from "./state.js";
 import type {
 	AgentBackend,
+	AgentPhaseName,
 	EvaluationResult,
 	PhaseDecision,
 	PhaseName,
 	PhaseState,
+	ResolvedAgentStep,
 	SharedPromptArgs,
 } from "./types.js";
 import {
@@ -82,17 +85,15 @@ function loadIssueContext(issueNumber: string): {
 }
 
 async function runDesignPhase(params: {
-	agentBackend: AgentBackend;
-	effort: string;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
-	model: string;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
+	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 1: Design (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.design`);
@@ -100,10 +101,10 @@ async function runDesignPhase(params: {
 	await runPhaseWithRetry(
 		() =>
 			runMarkerPhase({
-				agentBackend: params.agentBackend,
-				effort: params.effort,
+				agentBackend: params.step.agentBackend,
+				effort: params.step.effort,
 				marker,
-				model: params.model,
+				model: params.step.model,
 				name: `designer #${params.issueNumber}`,
 				promptArgs: {
 					...params.sharedArgs,
@@ -111,7 +112,11 @@ async function runDesignPhase(params: {
 				},
 				promptFile: config.prompts.plan,
 				run: params.sandbox.run,
-				runOptions: { logging: { type: "file", path: params.logPath, verbose: true } },
+				runOptions: {
+					logging: fileLogging(params.logPath, {
+						digest: params.step.agentBackend === "dirac",
+					}),
+				},
 			}),
 		"design",
 	);
@@ -121,17 +126,15 @@ async function runDesignPhase(params: {
 }
 
 async function runImplementPhase(params: {
-	agentBackend: AgentBackend;
-	effort: string;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
-	model: string;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
+	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 2: Implement (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.implement`);
@@ -139,10 +142,10 @@ async function runImplementPhase(params: {
 	const implResult = await runPhaseWithRetry(
 		() =>
 			runMarkerPhase({
-				agentBackend: params.agentBackend,
-				effort: params.effort,
+				agentBackend: params.step.agentBackend,
+				effort: params.step.effort,
 				marker,
-				model: params.model,
+				model: params.step.model,
 				name: `implementer #${params.issueNumber}`,
 				promptArgs: {
 					...params.sharedArgs,
@@ -150,7 +153,11 @@ async function runImplementPhase(params: {
 				},
 				promptFile: config.prompts.implement,
 				run: params.sandbox.run,
-				runOptions: { logging: { type: "file", path: params.logPath, verbose: true } },
+				runOptions: {
+					logging: fileLogging(params.logPath, {
+						digest: params.step.agentBackend === "dirac",
+					}),
+				},
 			}),
 		"implement",
 	);
@@ -163,19 +170,17 @@ async function runImplementPhase(params: {
 }
 
 async function runReviewPhase(params: {
-	agentBackend: AgentBackend;
-	effort: string;
 	evalReview: PhaseDecision;
 	hasCommits: boolean;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
-	model: string;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
+	step: ResolvedAgentStep;
 }): Promise<void> {
 	if (params.hasCommits || params.evalReview === "force") {
 		console.log(`\n── Phase 3: Review (issue #${params.issueNumber}) ──`);
@@ -184,10 +189,10 @@ async function runReviewPhase(params: {
 		await runPhaseWithRetry(
 			() =>
 				runMarkerPhase({
-					agentBackend: params.agentBackend,
-					effort: params.effort,
+					agentBackend: params.step.agentBackend,
+					effort: params.step.effort,
 					marker,
-					model: params.model,
+					model: params.step.model,
 					name: `reviewer #${params.issueNumber}`,
 					promptArgs: {
 						...params.sharedArgs,
@@ -195,7 +200,11 @@ async function runReviewPhase(params: {
 					},
 					promptFile: config.prompts.review,
 					run: params.sandbox.run,
-					runOptions: { logging: { type: "file", path: params.logPath, verbose: true } },
+					runOptions: {
+						logging: fileLogging(params.logPath, {
+							digest: params.step.agentBackend === "dirac",
+						}),
+					},
 				}),
 			"review",
 		);
@@ -217,6 +226,8 @@ function createOrLoadIssueState(params: {
 	options?: {
 		baseRef?: string;
 	};
+	phasesConfig?: PhaseState["phasesConfig"];
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 }): PhaseState {
 	return (
 		readState(params.issueNumber) ?? {
@@ -233,6 +244,13 @@ function createOrLoadIssueState(params: {
 				implement: { status: "skipped", timestamp: "" },
 				review: { status: "skipped", timestamp: "" },
 			},
+			phasesConfig: params.steps
+				? {
+						design: params.steps.design,
+						implement: params.steps.implement,
+						review: params.steps.review,
+					}
+				: params.phasesConfig,
 		}
 	);
 }
@@ -243,6 +261,7 @@ function syncIssueStateOnResume(params: {
 	options?: { baseRef?: string };
 	resume: boolean;
 	state: PhaseState;
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 }): void {
 	if (
 		!params.resume &&
@@ -253,6 +272,14 @@ function syncIssueStateOnResume(params: {
 
 	params.state.model = params.model;
 	params.state.effort = params.effort;
+	if (params.steps) {
+		params.state.phasesConfig = {
+			design: params.steps.design,
+			implement: params.steps.implement,
+			review: params.steps.review,
+		};
+	}
+
 	if (params.options?.baseRef !== undefined && params.options.baseRef !== "") {
 		params.state.base = {
 			commit: resolveCommit(params.options.baseRef),
@@ -264,14 +291,11 @@ function syncIssueStateOnResume(params: {
 }
 
 interface ExecuteIssuePhasesParams {
-	agentBackend: AgentBackend;
 	attempted: Set<PhaseName>;
-	effort: string;
 	eval_: EvaluationResult;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
-	model: string;
 	options?: { baseRef?: string; force?: true | PhaseName; phase?: PhaseName };
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
@@ -279,6 +303,7 @@ interface ExecuteIssuePhasesParams {
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
+	steps: Record<AgentPhaseName, ResolvedAgentStep>;
 }
 
 /**
@@ -287,28 +312,34 @@ interface ExecuteIssuePhasesParams {
  * not a valid decision for implement/review once design finishes.
  */
 function reEvaluatePhase(params: ExecuteIssuePhasesParams, phase: PhaseName): PhaseDecision {
-	return evaluatePhases(params.issueNumber, params.state.model, {
-		baseRef: params.options?.baseRef,
-		force: params.options?.force,
-		phase: params.options?.phase,
-		resume: true,
-		worktree: params.sandbox.worktreePath,
-	})[phase];
+	return evaluatePhases(
+		params.issueNumber,
+		{
+			design: params.steps.design.model,
+			implement: params.steps.implement.model,
+			review: params.steps.review.model,
+		},
+		{
+			baseRef: params.options?.baseRef,
+			force: params.options?.force,
+			phase: params.options?.phase,
+			resume: true,
+			worktree: params.sandbox.worktreePath,
+		},
+	)[phase];
 }
 
 async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<void> {
 	if (params.eval_.design !== "skip") {
 		params.attempted.add("design");
 		await runDesignPhase({
-			agentBackend: params.agentBackend,
-			effort: params.effort,
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
-			model: params.model,
 			sandbox: params.sandbox,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
+			step: params.steps.design,
 		});
 	} else {
 		console.log("\n── Phase 1: Design — SKIPPED ──");
@@ -318,15 +349,13 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 	if (reEvaluatePhase(params, "implement") !== "skip") {
 		params.attempted.add("implement");
 		await runImplementPhase({
-			agentBackend: params.agentBackend,
-			effort: params.effort,
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
-			model: params.model,
 			sandbox: params.sandbox,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
+			step: params.steps.implement,
 		});
 	} else {
 		console.log("\n── Phase 2: Implement — SKIPPED ──");
@@ -343,17 +372,15 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 	if (reviewDecision !== "skip") {
 		params.attempted.add("review");
 		await runReviewPhase({
-			agentBackend: params.agentBackend,
-			effort: params.effort,
 			evalReview: reviewDecision,
 			hasCommits,
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
-			model: params.model,
 			sandbox: params.sandbox,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
+			step: params.steps.review,
 		});
 	} else {
 		console.log("\n── Phase 3: Review — SKIPPED ──");
@@ -413,6 +440,7 @@ export async function runSingleIssue(
 		phase?: PhaseName;
 		resume?: boolean;
 		skipSetup?: boolean;
+		steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 		worktree?: string;
 	},
 ): Promise<void> {
@@ -429,9 +457,48 @@ export async function runSingleIssue(
 	mkdirSync(stateDir, { recursive: true });
 
 	const resume = options?.resume ?? false;
+	const workflowBackend = options?.agentBackend ?? "dirac";
+	const fallbackSteps: Record<AgentPhaseName, ResolvedAgentStep> = {
+		design: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+		implement: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+		integrationReview: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+		planner: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+		resolve: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+		review: {
+			agentBackend: workflowBackend,
+			effort: effort as ResolvedAgentStep["effort"],
+			model,
+		},
+	};
+	const steps = options?.steps ?? fallbackSteps;
+	const models = {
+		design: steps.design.model,
+		implement: steps.implement.model,
+		review: steps.review.model,
+	};
 	const eval_ =
 		resume || options?.phase
-			? evaluatePhases(issueNumber, model, {
+			? evaluatePhases(issueNumber, models, {
 					baseRef: options?.baseRef,
 					force: options?.force,
 					phase: options?.phase,
@@ -460,8 +527,9 @@ export async function runSingleIssue(
 		issueNumber,
 		model,
 		options,
+		steps,
 	});
-	syncIssueStateOnResume({ effort, model, options, resume, state });
+	syncIssueStateOnResume({ effort, model, options, resume, state, steps });
 
 	const sandbox = await createIssueSandbox(branchName, suppliedWorktree, options?.baseRef);
 	const attempted = new Set<PhaseName>();
@@ -471,18 +539,16 @@ export async function runSingleIssue(
 		}
 
 		await executeIssuePhases({
-			agentBackend: options?.agentBackend ?? "dirac",
 			attempted,
-			effort,
 			eval_,
 			issueLabels,
 			issueNumber,
 			logPath,
-			model,
 			options,
 			sandbox,
 			sharedArgs,
 			state,
+			steps,
 		});
 	} catch (err) {
 		const activePhase = resolveActiveFailedPhase(eval_, state, attempted);
@@ -512,13 +578,19 @@ export async function runAll(
 	concurrency: number,
 	ignoreSetup = false,
 	skipSetup = false,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 ): Promise<void> {
 	console.log("Planning: analysing open issues for dependencies...\n");
 	const marker = markerPath("planner");
 	clearMarker(marker);
 
+	const plannerStep = steps?.planner ?? {
+		agentBackend,
+		effort: effort as ResolvedAgentStep["effort"],
+		model,
+	};
 	const planResult = await io.run({
-		agent: createAgent(agentBackend, model, effort, marker),
+		agent: createAgent(plannerStep.agentBackend, plannerStep.model, plannerStep.effort, marker),
 		maxIterations: 1,
 		name: "planner",
 		output: Output.object({ schema: PlanSchema, tag: "plan" }),
@@ -579,6 +651,7 @@ export async function runAll(
 						agentBackend,
 						ignoreSetup,
 						skipSetup,
+						...(steps ? { steps } : {}),
 					});
 					console.log(`[#${issue.id}] ✓ Complete`);
 					results.push({ id: issue.id, status: "ok" });

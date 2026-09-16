@@ -20,10 +20,9 @@
 
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
-
 import { fileURLToPath } from "node:url";
 
-import { parseArgs, printHelp, type CliOptions } from "./cli.js";
+import { type CliOptions, parseArgs, printHelp } from "./cli.js";
 import {
 	abortIntegration,
 	cleanupIntegration,
@@ -54,11 +53,13 @@ export * from "./evaluate.js";
 export * from "./git.js";
 export * from "./integrations.js";
 export * from "./issue.js";
+export * from "./logging.js";
 export * from "./retry.js";
 export { config, io, normalizedPath, packageRoot, repoRoot } from "./runtime.js";
 export * from "./sequential.js";
 export * from "./state.js";
 export * from "./status.js";
+export * from "./steps.js";
 export * from "./types.js";
 export * from "./worktree.js";
 
@@ -175,6 +176,7 @@ export async function main(): Promise<void> {
 					resume: options.resume,
 					sandbox: "no-sandbox",
 					skipSetup: options.skipSetup,
+					steps: options.steps,
 					worktree: options.worktree ?? undefined,
 				},
 				undefined,
@@ -191,7 +193,17 @@ export async function main(): Promise<void> {
 		}
 
 		if (options.status) {
-			printStatus(options.issueNumber, options.model, options.base, options.worktree);
+			printStatus(
+				options.issueNumber,
+				{
+					design: options.steps.design.model,
+					implement: options.steps.implement.model,
+					review: options.steps.review.model,
+				},
+				options.base,
+				options.worktree,
+				options.steps,
+			);
 			io.exit(0);
 		}
 
@@ -203,6 +215,7 @@ export async function main(): Promise<void> {
 				options.concurrency,
 				options.ignoreSetup,
 				options.skipSetup,
+				options.steps,
 			);
 		} else {
 			await runSingleIssue(options.issueNumber, options.model, options.effort, {
@@ -213,6 +226,7 @@ export async function main(): Promise<void> {
 				phase: options.phase,
 				resume: options.resume,
 				skipSetup: options.skipSetup,
+				steps: options.steps,
 				worktree: options.worktree,
 			});
 		}
@@ -238,6 +252,7 @@ export async function main(): Promise<void> {
 			options.worktree,
 			options.ignoreSetup,
 			options.skipSetup,
+			options.steps,
 		);
 		return;
 	}
@@ -266,6 +281,8 @@ export async function main(): Promise<void> {
 				options.agentBackend,
 				options.ignoreSetup,
 				options.skipSetup,
+				options.steps,
+				options.quarantineDrift,
 			);
 
 			break;
@@ -287,6 +304,8 @@ export async function main(): Promise<void> {
 				options.agentBackend,
 				options.ignoreSetup,
 				options.skipSetup,
+				options.steps,
+				options.quarantineDrift,
 			);
 
 			break;
@@ -303,6 +322,8 @@ export async function main(): Promise<void> {
 				options.agentBackend,
 				options.ignoreSetup,
 				options.skipSetup,
+				options.steps,
+				options.quarantineDrift,
 			);
 
 			break;

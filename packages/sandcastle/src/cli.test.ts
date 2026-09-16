@@ -204,6 +204,7 @@ describe("commaSeparated / parseArgs", () => {
 			assert.equal(sequence.base, "sandcastle/issue-9");
 		});
 	});
+
 	test("parseArgs parses the setup command without requiring a model", () => {
 		withEnv(
 			{
@@ -253,10 +254,7 @@ describe("commaSeparated / parseArgs", () => {
 				() => parseArgs(["setup", "--branch", "x", "--worktree", tmpRoot]),
 				/--branch cannot be combined with --worktree/,
 			);
-			assert.throws(
-				() => parseArgs(["setup", "--branch"]),
-				/--branch requires a value/,
-			);
+			assert.throws(() => parseArgs(["setup", "--branch"]), /--branch requires a value/);
 			assert.throws(
 				() => parseArgs(["setup", "issue-sequence", "--sequential", "1"]),
 				/Only one Sandcastle command/,
@@ -264,6 +262,42 @@ describe("commaSeparated / parseArgs", () => {
 		});
 	});
 
+	test("parseArgs resolves per-step overrides", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "workflow-model" }, () => {
+			const options = parseArgs([
+				"--issue",
+				"1",
+				"--design-model",
+				"design-m",
+				"--design-effort",
+				"low",
+				"--implement-agent",
+				"codex",
+				"--model",
+				"codex-m",
+			]);
+			assert.equal(options.steps.design.model, "design-m");
+			assert.equal(options.steps.design.effort, "low");
+			assert.equal(options.steps.design.agentBackend, "dirac");
+			assert.equal(options.steps.implement.agentBackend, "codex");
+			assert.equal(options.steps.implement.model, "codex-m");
+			assert.equal(options.steps.review.model, "codex-m");
+		});
+	});
+
+	test("parseArgs rejects invalid per-step values", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--review-agent", "nope"]),
+				/must be one of/,
+			);
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--design-effort", "nope"]),
+				/must be one of/,
+			);
+			assert.throws(() => parseArgs(["--issue", "1", "--resolve-model"]), /requires a value/);
+		});
+	});
 });
 
 test("printHelp prints usage without throwing", () => {

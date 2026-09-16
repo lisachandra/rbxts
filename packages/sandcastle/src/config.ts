@@ -13,9 +13,17 @@ import { dirname, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+import type { AgentBackend, AgentStepsConfig, PhaseName, SandcastleEffort } from "./types.js";
 
-export type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+export type {
+	AgentBackend,
+	AgentPhaseName,
+	AgentStepConfig,
+	AgentStepsConfig,
+	PhaseName,
+	ResolvedAgentStep,
+	SandcastleEffort,
+} from "./types.js";
 
 export type PromptFileKey =
 	| "plan"
@@ -53,6 +61,8 @@ export interface SandcastleConfig {
 		enabled: Array<AgentBackend>;
 		/** Default model per backend, used when `--model` is not passed. */
 		models: Partial<Record<AgentBackend, string>>;
+		/** Per-step agent/model/effort overrides; missing steps inherit workflow defaults. */
+		steps: AgentStepsConfig;
 	};
 	/** Branch implementation/review diffs compare against. */
 	baseBranch: string;
@@ -97,6 +107,28 @@ const promptFileSchema = z
 	})
 	.optional();
 
+const effortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
+
+const agentStepSchema = z
+	.object({
+		backend: agentBackendSchema.optional(),
+		effort: effortSchema.optional(),
+		model: z.string().min(1).optional(),
+	})
+	.strict();
+
+const agentStepsSchema = z
+	.object({
+		design: agentStepSchema.optional(),
+		implement: agentStepSchema.optional(),
+		integrationReview: agentStepSchema.optional(),
+		planner: agentStepSchema.optional(),
+		resolve: agentStepSchema.optional(),
+		review: agentStepSchema.optional(),
+	})
+	.strict()
+	.optional();
+
 export const sandcastleConfigSchema = z
 	.object({
 		agents: z
@@ -114,11 +146,12 @@ export const sandcastleConfigSchema = z
 						"pi": z.string().optional(),
 					})
 					.optional(),
+				steps: agentStepsSchema,
 			})
 			.optional(),
 		baseBranch: z.string().optional(),
 		dir: z.string().optional(),
-		effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+		effort: effortSchema.optional(),
 		issueCommand: z.string().optional(),
 		labels: z
 			.object({
@@ -173,6 +206,7 @@ const defaultConfig: SandcastleConfig = {
 		default: "dirac",
 		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
 		models: {},
+		steps: {},
 	},
 	baseBranch: "main",
 	dir: ".sandcastle",
@@ -258,6 +292,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 					: {}),
 				...(parsed.agents?.models?.pi !== undefined ? { pi: parsed.agents.models.pi } : {}),
 			},
+			steps: parsed.agents?.steps ?? {},
 		},
 		baseBranch: parsed.baseBranch ?? defaultConfig.baseBranch,
 		dir: parsed.dir ?? defaultConfig.dir,

@@ -9,18 +9,26 @@
 import { resolve as pathResolve } from "node:path";
 
 import { config } from "./runtime.js";
-import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+import { agentStepNames, resolveAgentSteps } from "./steps.js";
+import type {
+	AgentBackend,
+	AgentPhaseName,
+	AgentStepsConfig,
+	PhaseName,
+	ResolvedAgentStep,
+	SandcastleEffort,
+} from "./types.js";
 
 export type CliCommand =
 	| "issue"
 	| "merge"
+	| "setup"
 	| "issue-sequence"
 	| "integration-abort"
 	| "merge-integrations"
 	| "integration-status"
 	| "integration-resume"
-	| "integration-cleanup"
-	| "setup";
+	| "integration-cleanup";
 
 export interface CliOptions {
 	readonly agentBackend: AgentBackend;
@@ -40,10 +48,12 @@ export interface CliOptions {
 	readonly issueNumbers: Array<string>;
 	readonly model: string;
 	readonly phase?: PhaseName;
+	readonly quarantineDrift?: boolean;
 	readonly resume: boolean;
 	readonly sequentialIssues: Array<string>;
 	readonly skipSetup?: boolean;
 	readonly status: boolean;
+	readonly steps: Record<AgentPhaseName, ResolvedAgentStep>;
 	readonly worktree?: string;
 }
 
@@ -81,10 +91,12 @@ interface ParsedArgState {
 	issueNumbers: Array<string>;
 	model: string | undefined;
 	phase: PhaseName | undefined;
+	quarantineDrift: boolean;
 	resume: boolean;
 	sequentialIssues: Array<string>;
 	skipSetup: boolean;
 	status: boolean;
+	steps: AgentStepsConfig;
 	worktree: string | undefined;
 }
 
@@ -107,10 +119,12 @@ function createParsedArgState(): ParsedArgState {
 		issueNumbers: [],
 		model: undefined,
 		phase: undefined,
+		quarantineDrift: false,
 		resume: false,
 		sequentialIssues: [],
 		skipSetup: false,
 		status: false,
+		steps: {},
 		worktree: undefined,
 	};
 }
@@ -159,6 +173,47 @@ function isCliCommand(value: string): value is CliCommand {
 
 type ArgHandler = (state: ParsedArgState, next: string | undefined, index: number) => number;
 
+function setStepModel(
+	state: ParsedArgState,
+	step: AgentPhaseName,
+	flag: string,
+	value: string | undefined,
+): void {
+	if (value === undefined || value.trim() === "" || value.startsWith("-")) {
+		throw new Error(`${flag} requires a value`);
+	}
+
+	state.steps[step] = { ...state.steps[step], model: value.trim() };
+}
+
+function setStepBackend(
+	state: ParsedArgState,
+	step: AgentPhaseName,
+	flag: string,
+	value: string | undefined,
+): void {
+	if (!isAgentBackend(value)) {
+		throw new Error(
+			`${flag} must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi`,
+		);
+	}
+
+	state.steps[step] = { ...state.steps[step], backend: value };
+}
+
+function setStepEffort(
+	state: ParsedArgState,
+	step: AgentPhaseName,
+	flag: string,
+	value: string | undefined,
+): void {
+	if (!isSandcastleEffort(value)) {
+		throw new Error(`${flag} must be one of: low, medium, high, xhigh, max`);
+	}
+
+	state.steps[step] = { ...state.steps[step], effort: value };
+}
+
 const valueArgHandlers: Record<string, ArgHandler> = {
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
@@ -186,6 +241,18 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.concurrency = Math.max(1, Number(next ?? "1"));
 		return index + 1;
 	},
+	"--design-agent": (state, next, index) => {
+		setStepBackend(state, "design", "--design-agent", next);
+		return index + 1;
+	},
+	"--design-effort": (state, next, index) => {
+		setStepEffort(state, "design", "--design-effort", next);
+		return index + 1;
+	},
+	"--design-model": (state, next, index) => {
+		setStepModel(state, "design", "--design-model", next);
+		return index + 1;
+	},
 	"--effort": (state, next, index) => {
 		if (!isSandcastleEffort(next)) {
 			throw new Error("--effort must be one of: low, medium, high, xhigh, max");
@@ -202,6 +269,30 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 
 		state.force = true;
 		return index;
+	},
+	"--implement-agent": (state, next, index) => {
+		setStepBackend(state, "implement", "--implement-agent", next);
+		return index + 1;
+	},
+	"--implement-effort": (state, next, index) => {
+		setStepEffort(state, "implement", "--implement-effort", next);
+		return index + 1;
+	},
+	"--implement-model": (state, next, index) => {
+		setStepModel(state, "implement", "--implement-model", next);
+		return index + 1;
+	},
+	"--integration-review-agent": (state, next, index) => {
+		setStepBackend(state, "integrationReview", "--integration-review-agent", next);
+		return index + 1;
+	},
+	"--integration-review-effort": (state, next, index) => {
+		setStepEffort(state, "integrationReview", "--integration-review-effort", next);
+		return index + 1;
+	},
+	"--integration-review-model": (state, next, index) => {
+		setStepModel(state, "integrationReview", "--integration-review-model", next);
+		return index + 1;
 	},
 	"--integrations": (state, next, index) => {
 		state.integrationNames.push(...commaSeparated(next, "--integrations"));
@@ -229,6 +320,42 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		}
 
 		state.phase = next;
+		return index + 1;
+	},
+	"--planner-agent": (state, next, index) => {
+		setStepBackend(state, "planner", "--planner-agent", next);
+		return index + 1;
+	},
+	"--planner-effort": (state, next, index) => {
+		setStepEffort(state, "planner", "--planner-effort", next);
+		return index + 1;
+	},
+	"--planner-model": (state, next, index) => {
+		setStepModel(state, "planner", "--planner-model", next);
+		return index + 1;
+	},
+	"--resolve-agent": (state, next, index) => {
+		setStepBackend(state, "resolve", "--resolve-agent", next);
+		return index + 1;
+	},
+	"--resolve-effort": (state, next, index) => {
+		setStepEffort(state, "resolve", "--resolve-effort", next);
+		return index + 1;
+	},
+	"--resolve-model": (state, next, index) => {
+		setStepModel(state, "resolve", "--resolve-model", next);
+		return index + 1;
+	},
+	"--review-agent": (state, next, index) => {
+		setStepBackend(state, "review", "--review-agent", next);
+		return index + 1;
+	},
+	"--review-effort": (state, next, index) => {
+		setStepEffort(state, "review", "--review-effort", next);
+		return index + 1;
+	},
+	"--review-model": (state, next, index) => {
+		setStepModel(state, "review", "--review-model", next);
 		return index + 1;
 	},
 	"--sequential": (state, next, index) => {
@@ -265,6 +392,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--ignore-setup": (state) => {
 		state.ignoreSetup = true;
+	},
+	"--quarantine-drift": (state) => {
+		state.quarantineDrift = true;
 	},
 	"--resume": (state) => {
 		state.resume = true;
@@ -341,7 +471,6 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		throw new Error("--branch is only supported for the setup command.");
 	}
 
-
 	if (
 		state.worktree !== undefined &&
 		state.worktree !== "" &&
@@ -349,7 +478,9 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.command === "merge-integrations" ||
 			state.command.startsWith("integration-"))
 	) {
-		throw new Error("--worktree is only supported for issue, issue-sequence, and setup workflows.");
+		throw new Error(
+			"--worktree is only supported for issue, issue-sequence, and setup workflows.",
+		);
 	}
 
 	if (
@@ -381,10 +512,33 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		state.model?.trim() ??
 		config.agents.models[state.agentBackend]?.trim() ??
 		(legacyModel !== "" ? legacyModel : undefined);
-	if (!state.help && state.command !== "setup" && (model === undefined || model === "")) {
-		throw new Error(
-			`No model configured for ${state.agentBackend}; set agents.models.${state.agentBackend} in sandcastle.config.ts or pass --model <model>.`,
-		);
+	const workflowModel = model ?? "";
+	const steps = resolveAgentSteps(
+		{ agentBackend: state.agentBackend, effort: state.effort, model: workflowModel },
+		config.agents.models,
+		config.agents.steps,
+		state.steps,
+	);
+	for (const step of agentStepNames) {
+		if (!isAgentBackend(steps[step].agentBackend)) {
+			throw new Error(`SANDCASTLE_AGENT must be one of: ${config.agents.enabled.join(", ")}`);
+		}
+	}
+
+	if (!state.help && state.command !== "setup") {
+		for (const step of agentStepNames) {
+			if (steps[step].model === "") {
+				throw new Error(
+					`No model configured for ${steps[step].agentBackend} (step ${step}); set agents.models.${steps[step].agentBackend} or agents.steps.${step}.model in sandcastle.config.ts or pass --model <model> / --${step}-model <model>.`,
+				);
+			}
+		}
+
+		if (model === undefined || model === "") {
+			throw new Error(
+				`No model configured for ${state.agentBackend}; set agents.models.${state.agentBackend} in sandcastle.config.ts or pass --model <model>.`,
+			);
+		}
 	}
 
 	return {
@@ -405,10 +559,12 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		issueNumbers: state.issueNumbers,
 		model: model ?? "",
 		phase: state.phase,
+		quarantineDrift: state.quarantineDrift,
 		resume: state.resume,
 		sequentialIssues: state.sequentialIssues,
 		skipSetup: state.skipSetup,
 		status: state.status,
+		steps,
 		worktree: state.worktree,
 	};
 }
@@ -466,6 +622,15 @@ Shared options:
       --force                 Allow cleanup of a dirty integration worktree
       --ignore-setup         Continue even if env/pnpm setup fails
       --skip-setup           Skip env/pnpm setup commands (symlinks still linked)
+      --quarantine-drift     Stash uncommitted worktree drift instead of failing the merge
+
+Per-step overrides (flag > agents.steps config > workflow default):
+      --design-model <m> | --design-agent <b> | --design-effort <l>
+      --implement-model <m> | --implement-agent <b> | --implement-effort <l>
+      --review-model <m> | --review-agent <b> | --review-effort <l>
+      --planner-model <m> | --planner-agent <b> | --planner-effort <l>
+      --resolve-model <m> | --resolve-agent <b> | --resolve-effort <l>
+      --integration-review-model <m> | --integration-review-agent <b> | --integration-review-effort <l>
 
 Issue options:
   -i, --issue <number>       GitHub issue number (or "all")

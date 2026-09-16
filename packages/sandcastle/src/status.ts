@@ -9,13 +9,14 @@ import { issueView } from "./agent.js";
 import { evaluatePhases } from "./evaluate.js";
 import { config, io, repoRoot } from "./runtime.js";
 import { readState } from "./state.js";
-import type { PhaseName } from "./types.js";
+import type { AgentPhaseName, PhaseName, ResolvedAgentStep } from "./types.js";
 
 export function printStatus(
 	issueNumber: string,
-	model: string,
+	model: string | Record<PhaseName, string>,
 	baseRef?: string,
 	worktree?: string,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 ): void {
 	const branchName = `sandcastle/issue-${issueNumber}`;
 	const worktreePath =
@@ -41,9 +42,15 @@ export function printStatus(
 	console.log(`\nIssue #${issueNumber}: ${issueTitle}`);
 	console.log(`Branch: ${branchName}`);
 	console.log(`Worktree: ${existsSync(worktreePath) ? "exists" : "missing"}`);
-	const stateModelNote =
-		state !== undefined && state.model !== model ? ` (state: ${state.model})` : "";
-	console.log(`Model: ${model}${stateModelNote}`);
+	const statusModel = typeof model === "string" ? model : model.implement;
+	const stateModelNote = state !== undefined && state.model !== statusModel ? ` (state: ${state.model})` : "";
+	console.log(`Model: ${statusModel}${stateModelNote}`);
+	if (steps) {
+		for (const step of ["design", "implement", "review"] as const) {
+			const resolved = steps[step];
+			if (resolved) console.log(`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})`);
+		}
+	}
 	console.log();
 
 	// Table header.

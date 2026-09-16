@@ -10,22 +10,28 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
 import {
+	changedSinceMergeBase,
 	commitExists,
+	dirtyPaths,
 	git,
 	gitTry,
 	hasUnmergedPaths,
+	isGitlink,
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
+import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, integrationsDir, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,
+	AgentPhaseName,
 	IntegrationKind,
 	IntegrationManifest,
 	IntegrationSource,
 	IntegrationStatus,
+	ResolvedAgentStep,
 } from "./types.js";
 import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
 
@@ -76,7 +82,6 @@ function prepareIntegrationWorktree(
 	ignoreSetup: boolean,
 	skipSetup: boolean,
 ): void {
-
 	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
 }
 
@@ -91,6 +96,100 @@ function assertCleanMergeResolution(manifest: IntegrationManifest): void {
 	if (mergeInProgress(worktree)) {
 		git(["commit", "--no-edit"], worktree);
 	}
+}
+
+/** Split tracked drift into merge-blocking paths and submodule pointers, which git merges over. */
+function partitionDrift(worktree: string): {
+	blocking: Array<string>;
+	submodules: Array<string>;
+} {
+	const drift = dirtyPaths(worktree);
+	const submodules = drift.filter((path) => isGitlink(worktree, path));
+	return { blocking: drift.filter((path) => !submodules.includes(path)), submodules };
+}
+
+/** Stash uncommitted worktree changes so merges can proceed; the stash is recorded on the manifest. */
+function quarantineWorktreeDrift(
+	manifest: IntegrationManifest,
+	worktree: string,
+	paths: Array<string>,
+): void {
+	const message = `sandcastle ${manifest.name}: pre-merge drift`;
+	try {
+		git(["stash", "push", "-m", message, "--", ...paths], worktree);
+	} catch (err) {
+		throw new Error(
+			`Could not quarantine uncommitted changes in ${worktree}: ${String(err)}\nResolve them manually before resuming.`,
+		);
+	}
+
+	const stashCommit = gitTry(["rev-parse", "--verify", "stash@{0}"], worktree);
+	manifest.drift = {
+		paths,
+		stashCommit: stashCommit ?? undefined,
+		stashedAt: new Date().toISOString(),
+	};
+	writeIntegrationManifest(manifest);
+
+	const stashSuffix = stashCommit === undefined || stashCommit === "" ? "" : `: ${stashCommit}`;
+	console.log(
+		`  ⤓ Quarantined ${paths.length} uncommitted path(s) before merging (${message})${stashSuffix}`,
+	);
+
+	const remaining = partitionDrift(worktree).blocking;
+	if (remaining.length > 0) {
+		throw new Error(
+			`Could not quarantine every uncommitted change in ${worktree}; still dirty: ${remaining.join(", ")}`,
+		);
+	}
+}
+
+/**
+ * Refuse to merge over dirty tracked files.
+ *
+ * Git aborts such merges with "Your local changes would be overwritten by merge", which the
+ * conflict resolver cannot fix, so the runner decides: fail with an actionable message, or stash
+ * the drift when the operator passed `--quarantine-drift`.
+ */
+function prepareWorktreeForMerge(
+	manifest: IntegrationManifest,
+	source: IntegrationSource,
+	worktree: string,
+	quarantineDrift: boolean,
+): void {
+	const { blocking, submodules } = partitionDrift(worktree);
+	if (submodules.length > 0) {
+		console.warn(
+			`  ⚠ Submodule pointers are dirty but do not block the merge: ${submodules.join(", ")}`,
+		);
+	}
+
+	if (blocking.length === 0) {
+		return;
+	}
+
+	if (quarantineDrift) {
+		quarantineWorktreeDrift(manifest, worktree, blocking);
+		return;
+	}
+
+	const incoming = new Set(changedSinceMergeBase(worktree, source.commit));
+	const overlapping = blocking.filter((path) => incoming.has(path));
+	if (overlapping.length > 0) {
+		throw new Error(
+			[
+				`Integration worktree has uncommitted changes that merging ${source.name} would overwrite:`,
+				...overlapping.map((path) => `  ${path}`),
+				`Worktree: ${worktree}`,
+				"Re-run with --quarantine-drift to stash them automatically, or resolve them yourself:",
+				`  git -C "${worktree}" stash push -m 'sandcastle ${manifest.name}: pre-merge drift'`,
+			].join("\n"),
+		);
+	}
+
+	console.warn(
+		`  ⚠ ${blocking.length} uncommitted path(s) are outside this merge but will block a later source.`,
+	);
 }
 
 const integrationReviewStatuses: ReadonlySet<IntegrationStatus> = new Set([
@@ -240,6 +339,7 @@ export async function runConflictResolver(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	step?: ResolvedAgentStep,
 ): Promise<void> {
 	const worktree = integrationBasePath(manifest);
 	const marker = markerPath(`${manifest.name}.resolve`);
@@ -254,11 +354,14 @@ export async function runConflictResolver(
 		undefined,
 		2,
 	);
+	const resolveBackend = step?.agentBackend ?? agentBackend;
+	const resolveEffort = step?.effort ?? effort;
+	const resolveModel = step?.model ?? model;
 	await runMarkerPhase({
-		agentBackend,
-		effort,
+		agentBackend: resolveBackend,
+		effort: resolveEffort,
 		marker,
-		model,
+		model: resolveModel,
 		name: `resolve ${manifest.name} <- ${source.name}`,
 		promptArgs: {
 			INTEGRATION_NAME: manifest.name,
@@ -275,11 +378,9 @@ export async function runConflictResolver(
 				sandbox: sandboxProvider,
 			}),
 		runOptions: {
-			logging: {
-				type: "file",
-				path: pathResolve(logsDir, `integration-${manifest.name}.log`),
-				verbose: true,
-			},
+			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
+				digest: resolveBackend === "dirac",
+			}),
 		},
 	});
 }
@@ -289,14 +390,18 @@ export async function runIntegrationReview(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	step?: ResolvedAgentStep,
 ): Promise<void> {
 	const marker = markerPath(`${manifest.name}.review`);
 	const sourceContext = JSON.stringify(manifest.sources, undefined, 2);
+	const reviewBackend = step?.agentBackend ?? agentBackend;
+	const reviewEffort = step?.effort ?? effort;
+	const reviewModel = step?.model ?? model;
 	await runMarkerPhase({
-		agentBackend,
-		effort,
+		agentBackend: reviewBackend,
+		effort: reviewEffort,
 		marker,
-		model,
+		model: reviewModel,
 		name: `review integration ${manifest.name}`,
 		promptArgs: {
 			BASE_COMMIT: manifest.base.commit,
@@ -315,11 +420,9 @@ export async function runIntegrationReview(
 				sandbox: sandboxProvider,
 			}),
 		runOptions: {
-			logging: {
-				type: "file",
-				path: pathResolve(logsDir, `integration-${manifest.name}.log`),
-				verbose: true,
-			},
+			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
+				digest: reviewBackend === "dirac",
+			}),
 		},
 	});
 }
@@ -331,16 +434,20 @@ export async function integrateManifestSource(
 	model: string,
 	effort: string,
 	agentBackend: AgentBackend,
+	step?: ResolvedAgentStep,
+	quarantineDrift = false,
 ): Promise<void> {
 	if (gitTry(["merge-base", "--is-ancestor", source.commit, "HEAD"], worktree) !== undefined) {
 		return;
 	}
 
+	prepareWorktreeForMerge(manifest, source, worktree, quarantineDrift);
+
 	if (mergeInProgress(worktree)) {
 		manifest.status = "conflict-resolution-required";
 		manifest.lastError = `Conflict resolution is still required for ${source.name}.`;
 		writeIntegrationManifest(manifest);
-		await runConflictResolver(manifest, source, model, effort, agentBackend);
+		await runConflictResolver(manifest, source, model, effort, agentBackend, step);
 		assertCleanMergeResolution(manifest);
 		return;
 	}
@@ -358,7 +465,7 @@ export async function integrateManifestSource(
 		console.error(
 			`  Conflict while integrating ${source.name}; invoking resolving-merge-conflicts.`,
 		);
-		await runConflictResolver(manifest, source, model, effort, agentBackend);
+		await runConflictResolver(manifest, source, model, effort, agentBackend, step);
 		assertCleanMergeResolution(manifest);
 	}
 }
@@ -370,6 +477,8 @@ export async function continueIntegration(
 	agentBackend: AgentBackend,
 	ignoreSetup = false,
 	skipSetup = false,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
+	quarantineDrift = false,
 ): Promise<void> {
 	const worktree = integrationBasePath(manifest);
 	if (!existsSync(worktree)) {
@@ -392,7 +501,16 @@ export async function continueIntegration(
 			manifest.currentSource = index;
 			writeIntegrationManifest(manifest);
 
-			await integrateManifestSource(manifest, source, worktree, model, effort, agentBackend);
+			await integrateManifestSource(
+				manifest,
+				source,
+				worktree,
+				model,
+				effort,
+				agentBackend,
+				steps?.resolve,
+				quarantineDrift,
+			);
 
 			if (
 				gitTry(["merge-base", "--is-ancestor", source.commit, "HEAD"], worktree) ===
@@ -412,7 +530,7 @@ export async function continueIntegration(
 
 		manifest.status = "reviewing";
 		writeIntegrationManifest(manifest);
-		await runIntegrationReview(manifest, model, effort, agentBackend);
+		await runIntegrationReview(manifest, model, effort, agentBackend, steps?.integrationReview);
 		assertCleanMergeResolution(manifest);
 		if (git(["status", "--porcelain"], worktree).length > 0) {
 			throw new Error(
@@ -432,7 +550,10 @@ export async function continueIntegration(
 		if (manifest.status === "reviewing") {
 			manifest.status = "review-failed";
 		} else if (manifest.status === "merging") {
-			manifest.status = "conflict-resolution-required";
+			manifest.status =
+				mergeInProgress(worktree) || hasUnmergedPaths(worktree)
+					? "conflict-resolution-required"
+					: "blocked";
 		}
 
 		manifest.lastError = String(err);
@@ -452,6 +573,8 @@ export async function runNewIntegration(
 	agentBackend: AgentBackend,
 	ignoreSetup = false,
 	skipSetup = false,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
+	quarantineDrift = false,
 ): Promise<void> {
 	if (sourceNames.length === 0) {
 		throw new Error("At least one integration source is required.");
@@ -461,7 +584,16 @@ export async function runNewIntegration(
 		kind === "issues" ? resolveIssueIntegrationSource : resolveExistingIntegrationSource;
 	const sources = sourceNames.map((sourceName) => sourceResolver(sourceName, allowUnreviewed));
 	const manifest = createIntegrationManifest(name, kind, baseRef, sources, allowUnreviewed);
-	await continueIntegration(manifest, model, effort, agentBackend, ignoreSetup, skipSetup);
+	await continueIntegration(
+		manifest,
+		model,
+		effort,
+		agentBackend,
+		ignoreSetup,
+		skipSetup,
+		steps,
+		quarantineDrift,
+	);
 }
 
 export async function resumeIntegration(
@@ -471,6 +603,8 @@ export async function resumeIntegration(
 	agentBackend: AgentBackend,
 	ignoreSetup = false,
 	skipSetup = false,
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
+	quarantineDrift = false,
 ): Promise<void> {
 	assertIntegrationName(name);
 	const manifest = readIntegrationManifest(name);
@@ -484,7 +618,16 @@ export async function resumeIntegration(
 		);
 	}
 
-	await continueIntegration(manifest, model, effort, agentBackend, ignoreSetup, skipSetup);
+	await continueIntegration(
+		manifest,
+		model,
+		effort,
+		agentBackend,
+		ignoreSetup,
+		skipSetup,
+		steps,
+		quarantineDrift,
+	);
 }
 
 export function printIntegrationStatus(name: string): void {
@@ -512,6 +655,17 @@ export function printIntegrationStatus(name: string): void {
 	);
 	if (existsSync(worktree)) {
 		console.log(`Git: ${git(["status", "--short"], worktree) || "clean"}`);
+	}
+
+	if (manifest.drift !== undefined && manifest.drift.paths.length > 0) {
+		const restore =
+			manifest.drift.stashCommit === undefined || manifest.drift.stashCommit === ""
+				? ""
+				: ` (git stash apply ${manifest.drift.stashCommit})`;
+		console.log(
+			`Drift: ${manifest.drift.paths.length} path(s) quarantined at ${manifest.drift.stashedAt}${restore}`,
+		);
+		console.log(`  ${manifest.drift.paths.join(", ")}`);
 	}
 
 	if (manifest.lastError !== undefined && manifest.lastError !== "") {

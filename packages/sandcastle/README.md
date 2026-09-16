@@ -50,6 +50,13 @@ const config: SandcastleUserConfig = {
 	issueCommand: "gh issue view {issue}",
 	agents: {
 		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
+		default: "dirac",
+		models: { dirac: "dirac-model", codex: "codex-model" },
+		steps: {
+			design: { model: "cheap-planner", effort: "medium" },
+			implement: { model: "strong-coder", effort: "max" },
+			review: { backend: "codex", effort: "high" },
+		},
 	},
 	effort: "xhigh",
 };
@@ -78,7 +85,10 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 | `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`) |
 | `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                       |
 | `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                    |
+| `agents.steps`         | `{}`                    | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview` |
 | `effort`               | `xhigh`                 | Default reasoning effort                                                                        |
+
+Precedence for every step is CLI flag (`--design-model`, `--implement-agent`, `--review-effort`, `--planner-*`, `--resolve-*`, `--integration-review-*`) over `agents.steps` config over the workflow default (`--agent` / `--model` / `--effort` plus `agents.models`). When a step selects a different backend without its own model, the mapped `agents.models[backend]` wins over the workflow model.
 
 ### Local docs via `creator-docs`
 
@@ -127,6 +137,25 @@ before agents start — including integration merges (`merge`, `merge-integratio
 `integration-resume`). `--ignore-setup` continues even if the setup command fails (symlinks are
 still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
 
+Because integration worktrees are long-lived, they accumulate uncommitted changes: setup
+artifacts (fetched places, submodule checkouts), formatter churn from `lint:fix`, and agent
+edits that no source branch owns. When a source also touched one of those files, git aborts the
+merge with "Your local changes to the following files would be overwritten by merge" — and the
+conflict resolver cannot act on that.
+
+The merge loop therefore inspects the worktree first:
+
+- default: fail before merging, list the blocking paths, and record status `blocked`
+- `--quarantine-drift`: `git stash push -m "sandcastle <name>: pre-merge drift"` those paths,
+  record the stash commit on the manifest, and continue merging
+- submodule pointers are reported but never block a merge (git merges over them)
+- untracked files are ignored, so the `.agents` / `.diracrules` / `creator-docs` junctions are
+  never stashed
+
+`integration-status` prints the quarantined paths and the `git stash apply <commit>` command to
+restore them. Only genuine unmerged paths produce `conflict-resolution-required`; blocked runs
+are resumable and re-enter the same source once the worktree is clean.
+
 ### Standalone worktree setup (`sandcastle setup`)
 
 Harnesses (like paseo) and manual `git worktree add` flows can prepare a worktree without
@@ -148,7 +177,8 @@ directory — the shape paseo hands you for a clean worktree.
 
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
-`.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log`. Each phase agent
+`.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log` (live upstream log output;
+`issue-<n>.dirac.log` additionally streams a clean markdown digest for dirac runs). Each phase agent
 finishes by creating a scoped `.completed` marker as its final action; the runner treats a
 clean exit without that marker as a phase failure. The runner never closes issues, merges
 branches, or publishes releases; the final human merge is yours.
@@ -184,10 +214,11 @@ The runner is split into focused modules under `src/`, with `main.ts` as the thi
 that re-exports the public API:
 
 - `runtime.ts` — repository/config context and the injectable `io` boundary
-- `cli.ts` — argument parsing and help
+- `cli.ts` — argument parsing and help (including `--<step>-model|agent|effort` flags)
+- `steps.ts` — per-step resolution (CLI flag over `agents.steps` over workflow default)
 - `issue.ts` / `sequential.ts` — single-issue and sequential workflows
 - `integrations.ts` — integration composition and merge-conflict resolution
-- `evaluate.ts` / `state.ts` — phase decisions and persisted issue state
+- `evaluate.ts` / `state.ts` — phase decisions and persisted issue state (`phasesConfig`)
 - `agent.ts` / `worktree.ts` / `git.ts` / `retry.ts` — agent providers, worktrees, git, retries
 
 Each module has a matching `*.test.ts` file; shared test fixtures live in

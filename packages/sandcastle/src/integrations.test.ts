@@ -286,6 +286,157 @@ describe("integration composition", () => {
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});
 
+	test("integrateManifestSource refuses to merge over dirty tracked files", async () => {
+		const name = `drift-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = {
+			base: { commit: "1111111", ref: "main" },
+			branch: integrationBranch(name),
+			createdAt: new Date().toISOString(),
+			kind: "issues" as const,
+			name,
+			sources: [
+				{
+					branch: "sandcastle/issue-1",
+					commit: "2222222",
+					issue: "1",
+					name: "issue-1",
+					order: 1,
+				},
+			],
+			status: "merging" as const,
+			updatedAt: new Date().toISOString(),
+			worktree: `.sandcastle/integrations/${name}/worktree`,
+		};
+		writeIntegrationManifest(manifest);
+
+		let mergeAttempts = 0;
+		let resolverRan = false;
+		io.run = (async () => {
+			resolverRan = true;
+			return { commits: [], stdout: "" };
+		}) as unknown as typeof io.run;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					throw new Error("not ancestor");
+				}
+
+				if (args[0] === "merge-base") {
+					return "base0001";
+				}
+
+				if (args[0] === "status") {
+					return " M AGENTS.md";
+				}
+
+				if (args[0] === "diff") {
+					return "AGENTS.md";
+				}
+
+				if (args[0] === "merge") {
+					mergeAttempts += 1;
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		const source = manifest.sources[0];
+		assert.ok(source);
+		await assert.rejects(
+			async () => integrateManifestSource(manifest, source, worktree, "m", "low", "dirac"),
+			/uncommitted changes that merging issue-1 would overwrite[\s\S]*--quarantine-drift/,
+		);
+		assert.equal(mergeAttempts, 0);
+		assert.equal(resolverRan, false);
+		assert.equal(readIntegrationManifest(name)?.status, "merging");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("integrateManifestSource quarantines drift before merging when asked", async () => {
+		const name = `quarantine-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = {
+			base: { commit: "1111111", ref: "main" },
+			branch: integrationBranch(name),
+			createdAt: new Date().toISOString(),
+			kind: "issues" as const,
+			name,
+			sources: [
+				{
+					branch: "sandcastle/issue-1",
+					commit: "2222222",
+					issue: "1",
+					name: "issue-1",
+					order: 1,
+				},
+			],
+			status: "merging" as const,
+			updatedAt: new Date().toISOString(),
+			worktree: `.sandcastle/integrations/${name}/worktree`,
+		};
+		writeIntegrationManifest(manifest);
+
+		let dirty = true;
+		const merges: Array<Array<string>> = [];
+		const stashes: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					throw new Error("not ancestor");
+				}
+
+				if (args[0] === "status") {
+					return dirty ? " M AGENTS.md" : "";
+				}
+
+				if (args[0] === "stash") {
+					stashes.push([...args]);
+					dirty = false;
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef";
+				}
+
+				if (args[0] === "merge") {
+					merges.push([...args]);
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		const source = manifest.sources[0];
+		assert.ok(source);
+		await integrateManifestSource(
+			manifest,
+			source,
+			worktree,
+			"m",
+			"low",
+			"dirac",
+			undefined,
+			true,
+		);
+
+		assert.equal(stashes.length, 1);
+		assert.ok(stashes[0]?.includes("AGENTS.md"));
+		assert.equal(merges.length, 1);
+		const drift = readIntegrationManifest(name)?.drift;
+		assert.deepEqual(drift?.paths, ["AGENTS.md"]);
+		assert.equal(drift?.stashCommit, "deadbeef");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
 	test("integrateManifestSource resolves merge conflicts via agent", async () => {
 		const name = `conflict-${Date.now()}`;
 		const worktree = join(integrationsDir, name, "worktree");

@@ -212,19 +212,16 @@ export interface SetupWorktreeOptions {
 }
 
 /**
- * Prepares a worktree for agent runs without starting one: creates the runner's state
- * directories, copies the repo `.env` when present, runs the configured `setupCommands`,
- * and links configured `symlinks`. Idempotent — safe to re-run on worktrees that already
- * went through an issue or integration run.
+ * Prepares a worktree for agent runs without starting one: creates the runner's state directories,
+ * copies the repo `.env` when present, runs the configured `setupCommands`, and links configured
+ * `symlinks`. Idempotent — safe to re-run on worktrees that already went through an issue or
+ * integration run.
  *
- * `dryRun` prints a JSON summary of what would happen without executing anything.
- * `skipSetup` skips the setup commands but still copies `.env` and links symlinks;
- * `ignoreSetup` continues (with a warning) when the setup commands fail.
+ * `dryRun` prints a JSON summary of what would happen without executing anything. `skipSetup` skips
+ * the setup commands but still copies `.env` and links symlinks; `ignoreSetup` continues (with a
+ * warning) when the setup commands fail.
  */
-export function setupWorktree(
-	worktreePath: string,
-	options: SetupWorktreeOptions = {},
-): void {
+export function setupWorktree(worktreePath: string, options: SetupWorktreeOptions = {}): void {
 	ensureSetupDirs();
 	const { dryRun = false, ignoreSetup = false, skipSetup = false } = options;
 

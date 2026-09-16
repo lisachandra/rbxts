@@ -14,11 +14,17 @@ const MARKER_PROTOCOL_LINE = '{"sandcastleMarker":"completed"}';
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 
 /**
- * Backend effort levels. "max" is accepted as a user-facing alias and maps to "xhigh", which is the
- * highest level the dirac/pi CLIs support.
+ * Backend effort levels. "max" is a first-class level in dirac (see
+ * `OPENAI_REASONING_EFFORT_OPTIONS` in dirac's `src/shared/storage/types.ts`) and is forwarded
+ * untouched to dirac/claude-code. Backends whose CLIs cap out at "xhigh" (pi, codex) map "max" down
+ * to "xhigh".
  */
-export function resolveBackendEffort(effort: string): SandcastleEffort {
-	return effort === "max" ? "xhigh" : (effort as SandcastleEffort);
+export function resolveBackendEffort(effort: string, backend?: AgentBackend): SandcastleEffort {
+	if (effort !== "max") {
+		return effort as SandcastleEffort;
+	}
+
+	return backend === "dirac" || backend === "claude-code" ? "max" : "xhigh";
 }
 
 /**
@@ -45,7 +51,7 @@ export function diracAgent(
 			const yoloFlag = dangerouslySkipPermissions ? " -y" : "";
 			const effortFlag =
 				options?.effort !== undefined && options.effort !== ""
-					? ` --reasoning-effort ${resolveBackendEffort(options.effort)}`
+					? ` --reasoning-effort ${resolveBackendEffort(options.effort, "dirac")}`
 					: "";
 			const wrapperPath = `${packageRoot}/assets/dirac-wrapper.sh`.replaceAll("\\", "/");
 			return {
@@ -65,12 +71,20 @@ export function diracAgent(
 
 				if (
 					parsed.content?.type === "markdown" &&
-					parsed.content.isReasoning === false &&
-					parsed.content.role !== "user"
+					parsed.content.role !== "user" &&
+					parsed.content.isReasoning !== true
 				) {
 					const rawContent = parsed.content.content;
 					const newText = typeof rawContent === "string" ? rawContent : "";
-					if (newText !== "") {
+					/*
+					 * Surface assistant markdown even when `isReasoning` is absent (some backends
+					 * omit the field), but drop known noise so the terminal/log stay readable.
+					 */
+					const isNoise =
+						newText.startsWith("Retrying API request...") ||
+						newText.startsWith("[workspace stdout") ||
+						newText.startsWith('{"rules"');
+					if (newText !== "" && !isNoise) {
 						events.push({ type: "text", text: newText });
 					}
 				}
@@ -184,7 +198,7 @@ export function createAgent(
 	effort: string,
 	markerPath: string,
 ): AgentProvider {
-	const resolvedEffort = resolveBackendEffort(effort);
+	const resolvedEffort = resolveBackendEffort(effort, backend);
 	let inner: AgentProvider;
 	switch (backend) {
 		case "claude-code": {
@@ -227,12 +241,7 @@ export function createAgent(
 			break;
 		}
 		case "dirac": {
-			if (resolvedEffort !== effort) {
-				console.warn(
-					`  ⚠ Effort "${effort}" is not supported by dirac; using "${resolvedEffort}" (highest supported).`,
-				);
-			}
-
+			// Dirac natively supports "max" (OPENAI_REASONING_EFFORT_OPTIONS), so no downgrade.
 			inner = diracAgent(model, {
 				effort: resolvedEffort,
 				env: {
