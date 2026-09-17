@@ -3,7 +3,9 @@
  * Order matters: registry must be loaded before builtins.
  */
 import "./registry";
-export * from "./builtins";
+import "./builtins";
+
+export * from "./builtins/itemList";
 
 export * from "./messaging";
 export * from "./registry";

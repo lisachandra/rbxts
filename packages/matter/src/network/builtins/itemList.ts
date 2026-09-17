@@ -9,7 +9,10 @@ import type {
 	ReplicationMode,
 	ServerSerializerFn,
 } from "../registry";
-import { type ItemData, itemsDeserializer, itemsSerializer } from "./item";
+import { itemsDeserializer, itemsSerializer } from "./item";
+import type { ItemData } from "./item";
+
+export type { ItemData } from "./item";
 
 /**
  * Builds a client-side deserializer for an item-list component (e.g. {@link Components.Inventory},

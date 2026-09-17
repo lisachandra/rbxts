@@ -81,15 +81,11 @@ describe("createItemListDeserializer", () => {
 	it("should merge incoming items with existing client items and drop removed GUIDs", () => {
 		expect.assertions(4);
 
-		const entityId = world.spawn(TestListComponent());
-		world.insert(
-			entityId,
-			TestListComponent({ items: [makeItem({ damage: 5 }, 1, "guid-1")] }),
+		const entityId = world.spawn(
+			Components.Inventory({ items: [makeItem({ damage: 5 }, 1, "guid-1")] }),
 		);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
-			"TestList" as never,
-		);
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
 		const result = deserializer(
 			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
 			99 as never,
@@ -106,12 +102,45 @@ describe("createItemListDeserializer", () => {
 		expect((result.items[0]!.data as TestData).damage).toBe(5);
 	});
 
+	it("should strip server-removed GUIDs while preserving unsent items", () => {
+		expect.assertions(3);
+
+		const entityId = world.spawn(
+			Components.Inventory({
+				items: [makeItem({ damage: 5 }, 1, "guid-1"), makeItem({}, 1, "guid-2")],
+			}),
+		);
+
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		// `{ guid: 1 }` without `id` signals removal of guid-1; guid-2 is unsent and preserved.
+		const result = deserializer(
+			{ items: [{ guid: 1 }] },
+			99 as never,
+			entityId as never,
+		) as TestComponent;
+
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]!.guid).toBe("guid-2");
+		expect((result.items[0]!.data as TestData).damage).toBe(10);
+	});
+
+	it("should tolerate removal payloads when the client entity is absent", () => {
+		expect.assertions(1);
+
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		const result = deserializer(
+			{ items: [{ guid: 1 }] },
+			99 as never,
+			undefined,
+		) as TestComponent;
+
+		expect(result.items).toHaveLength(0);
+	});
+
 	it("should return deserialized items without error when client entity is not yet in world", () => {
 		expect.assertions(2);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
-			"TestList" as never,
-		);
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
 		const result = deserializer(
 			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
 			99 as never,
@@ -218,8 +247,8 @@ describe("createItemListCodecRegistration", () => {
 		expect.assertions(4);
 
 		const registration = createItemListCodecRegistration<TestComponent, TestPayload>({
-			component: () => TestListComponent(),
-			componentKey: "TestList" as never,
+			component: Components.Inventory,
+			componentKey: "Inventory",
 			mode: "owner",
 			serializeExtras: () => ({}),
 		});
