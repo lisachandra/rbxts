@@ -11,6 +11,14 @@ function freshTracker(): ReplicationTracker {
 	return createReplicationTracker();
 }
 
+describe("replication tracker exports", () => {
+	it("should export createReplicationTracker from the network barrel", () => {
+		expect.assertions(2);
+		expect(typeOf(createReplicationTracker)).toBe("function");
+		expect(createReplicationTracker()).toBeDefined();
+	});
+});
+
 describe("replication tracker", () => {
 	describe("hasReceived / markReceived", () => {
 		it("should track whether a player has received initial payload", () => {
