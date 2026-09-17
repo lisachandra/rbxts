@@ -1,9 +1,9 @@
-import { store } from "@lisachandra/core/store";
 import type { u16 } from "@rbxts/serio";
 import { flip } from "@rbxts/sift/Dictionary";
 
 import { Components } from "../../components";
 import { registry } from "../registry";
+import { defaultStateReader } from "../stateReader";
 import type { ItemData } from "./item";
 import { createItemListCodecRegistration } from "./itemList";
 
@@ -25,13 +25,13 @@ registry.register<Components["Hotbar"], HotbarPayload>(
 		deserializeExtras: (data) => ({
 			equipped:
 				data.equipped !== undefined
-					? flip(store.client.getState("itemGUIDMap"))[data.equipped]!
+					? flip(defaultStateReader.getItemGUIDMap())[data.equipped]!
 					: undefined,
 		}),
 		mode: "owner",
 		serializeExtras: (record) => ({
 			equipped:
-				store.server.getState("itemGUIDMap")[
+				defaultStateReader.getItemGUIDMap()[
 					(record.old?.equipped !== record.new!.equipped
 						? record.new!.equipped
 						: undefined)!
