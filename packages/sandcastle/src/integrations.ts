@@ -17,6 +17,7 @@ import {
 	gitTry,
 	hasUnmergedPaths,
 	isGitlink,
+	issueBranch,
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
@@ -201,11 +202,7 @@ export function resolveIssueIntegrationSource(
 	issueNumber: string,
 	allowUnreviewed: boolean,
 ): IntegrationSource {
-	if (!/^\d+$/.test(issueNumber)) {
-		throw new Error(`Invalid issue number ${JSON.stringify(issueNumber)}; expected digits.`);
-	}
-
-	const branch = `sandcastle/issue-${issueNumber}`;
+	const branch = issueBranch(issueNumber);
 	const state = readState(issueNumber);
 	if (!allowUnreviewed && state?.phases.review.status !== "done") {
 		throw new Error(

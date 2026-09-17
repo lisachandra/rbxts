@@ -7,6 +7,7 @@ import { resolve as pathResolve } from "node:path";
 
 import { issueView } from "./agent.js";
 import { evaluatePhases } from "./evaluate.js";
+import { issueBranch } from "./git.js";
 import { config, io, repoRoot } from "./runtime.js";
 import { readState } from "./state.js";
 import type { AgentPhaseName, PhaseName, ResolvedAgentStep } from "./types.js";
@@ -18,7 +19,7 @@ export function printStatus(
 	worktree?: string,
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 ): void {
-	const branchName = `sandcastle/issue-${issueNumber}`;
+	const branchName = issueBranch(issueNumber);
 	const worktreePath =
 		worktree ??
 		pathResolve(repoRoot, config.dir, "worktrees", `sandcastle-issue-${issueNumber}`);

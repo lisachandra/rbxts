@@ -6,7 +6,7 @@
 import { existsSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { checkoutBranch, gitTry } from "./git.js";
+import { checkoutBranch, gitTry, issueBranch } from "./git.js";
 import { runSingleIssue } from "./issue.js";
 import { config, io, repoRoot } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
@@ -76,8 +76,8 @@ async function processSequentialIssue({
 
 	const branchName =
 		worktree !== undefined && worktree !== ""
-			? (checkoutBranch(worktree) ?? `sandcastle/issue-${issueNumber}`)
-			: `sandcastle/issue-${issueNumber}`;
+			? (checkoutBranch(worktree) ?? issueBranch(issueNumber))
+			: issueBranch(issueNumber);
 	const worktreePath =
 		worktree ??
 		pathResolve(repoRoot, config.dir, "worktrees", `sandcastle-issue-${issueNumber}`);
