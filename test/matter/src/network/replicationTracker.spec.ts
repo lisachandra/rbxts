@@ -89,4 +89,59 @@ describe("replication tracker", () => {
 			expect(() => tracker.entitiesFor(player).size()).toBe(2);
 		});
 	});
+
+	describe("dispose", () => {
+		it("should clear all player state", () => {
+			expect.assertions(5);
+
+			const tracker = freshTracker();
+
+			tracker.markReceived(player);
+			tracker.trackEntity(player, entityA);
+
+			tracker.dispose(player);
+
+			expect(tracker.hasReceived(player)).toBe(false);
+			expect(tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(() => tracker.entitiesFor(player).size()).toBe(0);
+			expect(tracker.knowsEntity(player, entityB)).toBe(false);
+			expect(() => tracker.entitiesFor(otherPlayer).size()).toBe(0);
+		});
+
+		it("should dispose idempotently for unknown or repeated players", () => {
+			expect.assertions(4);
+
+			const tracker = freshTracker();
+
+			tracker.dispose(player);
+			tracker.dispose(player);
+			tracker.dispose(otherPlayer);
+
+			tracker.trackEntity(player, entityA);
+			tracker.dispose(player);
+			tracker.dispose(player);
+
+			expect(() => tracker.hasReceived(player)).toBe(false);
+			expect(() => tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(() => tracker.entitiesFor(player).size()).toBe(0);
+			expect(() => tracker.entitiesFor(otherPlayer).size()).toBe(0);
+		});
+
+		it("should not affect other players' state", () => {
+			expect.assertions(4);
+
+			const tracker = freshTracker();
+
+			tracker.markReceived(player);
+			tracker.trackEntity(player, entityA);
+			tracker.trackEntity(otherPlayer, entityB);
+
+			tracker.dispose(player);
+
+			expect(tracker.hasReceived(player)).toBe(false);
+			expect(tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(tracker.hasReceived(otherPlayer)).toBe(true);
+			expect(tracker.knowsEntity(otherPlayer, entityB)).toBe(true);
+		});
+	});
 });

@@ -53,6 +53,15 @@ export interface ReplicationTracker {
 	 * @returns The player's set of known entities (empty set if none tracked yet).
 	 */
 	entitiesFor(player: Player): Set<AnyEntity>;
+
+	/**
+	 * Removes all state for a player.
+	 *
+	 * @remarks
+	 *   Idempotent: calling for an unknown or already-disposed player is a no-op.
+	 * @param player - Player to dispose.
+	 */
+	dispose(player: Player): void;
 }
 
 /**
@@ -65,6 +74,10 @@ export function createReplicationTracker(): ReplicationTracker {
 	const entities = new Map<Player, Set<AnyEntity>>();
 
 	return {
+		dispose(player) {
+			received.delete(player);
+			entities.delete(player);
+		},
 		entitiesFor(player) {
 			let set = entities.get(player);
 			if (!set) {
@@ -77,6 +90,7 @@ export function createReplicationTracker(): ReplicationTracker {
 		hasReceived(player) {
 			return received.has(player);
 		},
+
 		knowsEntity(player, entity) {
 			return entities.get(player)?.has(entity) ?? false;
 		},
