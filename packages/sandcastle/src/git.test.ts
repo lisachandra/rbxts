@@ -8,6 +8,7 @@ import {
 	checkoutBranch,
 	commitExists,
 	countNewCommits,
+	issueBranch,
 	registeredWorktrees,
 	resolveCommit,
 } from "./git.js";
@@ -81,4 +82,16 @@ describe("git helpers with stubs", () => {
 		stubExecSync("4");
 		assert.equal(countNewCommits(tmpRoot, "main"), 4);
 	});
+});
+
+test("issueBranch formats string and numeric issue numbers", () => {
+	assert.equal(issueBranch("123"), "sandcastle/issue-123");
+	assert.equal(issueBranch(456), "sandcastle/issue-456");
+});
+
+test("issueBranch rejects invalid or non-digit issue numbers", () => {
+	assert.throws(() => issueBranch("abc"), /Invalid issue number/);
+	assert.throws(() => issueBranch(""), /Invalid issue number/);
+	assert.throws(() => issueBranch(-1), /Invalid issue number/);
+	assert.throws(() => issueBranch("1.2"), /Invalid issue number/);
 });

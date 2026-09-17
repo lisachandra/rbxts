@@ -155,3 +155,18 @@ export function checkoutBranch(worktreePath: string): string | undefined {
 
 	return gitTry(["-C", worktreePath, "symbolic-ref", "--quiet", "--short", "HEAD"]);
 }
+
+/**
+ * - Canonical branch name for an issue sandbox: `sandcastle/issue-<id>`.
+ * - @param issueNumber - Issue number; digits only.
+ * - @returns Branch name in the canonical `sandcastle/issue-<id>` form.
+ * - @throws If `issueNumber` is not composed solely of digits.
+ */
+export function issueBranch(issueNumber: string | number): string {
+	const issueStr = String(issueNumber).trim();
+	if (!/^\d+$/.test(issueStr)) {
+		throw new Error(`Invalid issue number ${JSON.stringify(issueNumber)}; expected digits.`);
+	}
+
+	return `sandcastle/issue-${issueStr}`;
+}
