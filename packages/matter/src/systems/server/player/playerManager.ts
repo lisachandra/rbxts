@@ -260,7 +260,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 			// postSpawn hook
 			hooks?.postSpawn?.(world, player, entityId);
 		})
-		.catch(catcher);
+		.catch(catcher());
 }
 
 /*

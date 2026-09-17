@@ -31,7 +31,7 @@ export const gardenDocumentDefaults: CollectionData = {
 	},
 };
 
-const validator = createDataStoreValidator<CollectionData, false>(false)
+const validator = createDataStoreValidator<CollectionData, false>(false);
 
 configureRuntimeAdapters({
 	document: {

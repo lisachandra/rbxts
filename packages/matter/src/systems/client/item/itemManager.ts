@@ -33,7 +33,7 @@ function handleResyncItem(crate: Crate<ClientState>): void {
 		Log.Verbose("Resyncing item {info}", { guid });
 		crate
 			.update({ itemGUIDMap: (itemGUIDMap) => removeKeys(itemGUIDMap, guid) })
-			.catch(catcher);
+			.catch(catcher());
 	}
 }
 
@@ -193,7 +193,7 @@ function updateItemPointers(world: World, crate: Crate<ClientState>): void {
 		return;
 	}
 
-	crate.update({ itemPointers: () => newItemPointers }).catch(catcher);
+	crate.update({ itemPointers: () => newItemPointers }).catch(catcher());
 }
 
 function system(world: World, crate: Crate<ClientState>): void {

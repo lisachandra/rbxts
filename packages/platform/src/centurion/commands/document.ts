@@ -49,6 +49,6 @@ export class DocumentCommand {
 					});
 				}
 			})
-			.catch(catcher);
+			.catch(catcher());
 	}
 }

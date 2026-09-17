@@ -94,7 +94,7 @@ export function serializeTeleportData(
 
 /* Logs invalid teleports. */
 function logInvalidTeleport(
-	{ success, unexpired, validData, validHash, format }: ReturnType<typeof isValidTeleport>,
+	{ format, success, unexpired, validData, validHash }: ReturnType<typeof isValidTeleport>,
 	userId: number,
 	_teleportData?: unknown,
 ): void {
@@ -124,17 +124,17 @@ export function isValidTeleport(
 	player: Player,
 	logInvalid = true,
 ): {
+	format?: string;
 	success: boolean;
 	unexpired?: boolean;
 	validData?: boolean;
 	validHash?: boolean;
-	format?: string;
 } {
 	const joinData = player.GetJoinData();
 	let teleportData = joinData.TeleportData as unknown;
 	const validData = checkTeleportData.match(teleportData);
 	if (!validData.ok) {
-		const returned = { success: false, validData: false, format: validData.format() };
+		const returned = { format: validData.format(), success: false, validData: false };
 		if (logInvalid) {
 			logInvalidTeleport(returned, player.UserId, teleportData);
 		}
@@ -205,6 +205,6 @@ TeleportService.TeleportInitFailed.Connect(
 			);
 		}
 
-		teleport(targetPlaceId, [player], teleportOptions).catch(catcher);
+		teleport(targetPlaceId, [player], teleportOptions).catch(catcher());
 	},
 );

@@ -369,7 +369,7 @@ function system(world: World, crate: Crate<ServerState>): void {
 		return;
 	}
 
-	crate.update({ itemPointers: () => newItemPointers }).catch(catcher);
+	crate.update({ itemPointers: () => newItemPointers }).catch(catcher());
 
 	const unusedIds = generateUnusedIds(state);
 	const newItemGUIDMap = createNewItemGUIDMap(state, newItemPointers, unusedIds);
@@ -378,7 +378,7 @@ function system(world: World, crate: Crate<ServerState>): void {
 		return;
 	}
 
-	crate.update({ itemGUIDMap: () => newItemGUIDMap }).catch(catcher);
+	crate.update({ itemGUIDMap: () => newItemGUIDMap }).catch(catcher());
 
 	const newGUIDs = filter(newItemGUIDMap, (_, guid) => !(guid in state.itemGUIDMap)) as Record<
 		string,

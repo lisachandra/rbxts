@@ -40,11 +40,16 @@ function system(world: World): void {
 	}
 
 	for (const [_entityId, record] of world.queryChanged(Components.Sound)) {
-		if (record.new || !record.old || !record.old.emitter || !game.IsAncestorOf(record.old.emitter)) {
+		if (
+			record.new ||
+			!record.old ||
+			!record.old.emitter ||
+			!game.IsAncestorOf(record.old.emitter)
+		) {
 			continue;
 		}
 
-		const node = record.old.emitter.Parent!.Parent!
+		const node = record.old.emitter.Parent!.Parent!;
 		node.Parent = Workspace.Caches.Sound;
 		soundEmitterCache.ReturnPart(node as ObjectCachePart<typeof soundEmitterCache>);
 		recordNodeReturned();

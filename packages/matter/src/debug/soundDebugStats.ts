@@ -22,6 +22,7 @@ export interface SoundDebugGc {
 	interval: number;
 	lastSweepAt: number;
 }
+
 /**
  * Creates the zeroed counter snapshot used by reset assertions.
  *

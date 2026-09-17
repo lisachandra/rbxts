@@ -83,7 +83,7 @@ function handleDespawn(
 		store.world.despawn(clientEntityId);
 
 		const newEntityIdMap = { ...entityIdMap, [serverEntityId]: undefined };
-		store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher);
+		store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher());
 		delete batchSpawns[serverEntityId];
 
 		if (debugging) {
@@ -116,7 +116,7 @@ function handleSpawn(
 	delete batchSpawns[serverEntityId];
 
 	const newEntityIdMap = { ...entityIdMap, [serverEntityId]: clientEntityId };
-	store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher);
+	store.client.update({ entityIdMap: () => newEntityIdMap }).catch(catcher());
 
 	if (debugging) {
 		const insertNames = componentsToInsert.map((component) =>
@@ -253,7 +253,7 @@ function handleItemGUIDMap(crate: Crate<ClientState>): void {
 		);
 		const newItemGUIDMap = { ...currentItemGUIDMap, ...itemGUIDMap } as Record<string, number>;
 
-		crate.update({ itemGUIDMap: () => newItemGUIDMap }).catch(catcher);
+		crate.update({ itemGUIDMap: () => newItemGUIDMap }).catch(catcher());
 	}
 }
 
@@ -265,7 +265,7 @@ function system(_world: World, crate: Crate<ClientState>, ui: DebugWidgets): voi
 				serverStartClock: startClock,
 				serverStartEpoch: startEpoch,
 			})
-			.catch(catcher);
+			.catch(catcher());
 	}
 
 	debugging = ui.checkbox("Log replication").checked();

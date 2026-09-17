@@ -107,6 +107,6 @@ Centurion.client()
 	.then(() => {
 		CenturionUI.start(Centurion.client(), { activationKeys: [Enum.KeyCode.F2] });
 	})
-	.catch(catcher);
+	.catch(catcher());
 
 Log.Info("Client started: @{info}", { PlaceId: game.PlaceId, PlaceVersion: game.PlaceVersion });

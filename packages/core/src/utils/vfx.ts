@@ -223,13 +223,13 @@ export function vfxAnimationMarkerReached(
 
 	switch (emitType) {
 		case "Emit": {
-			emitAllDescendants(vfxAttachment).catch(catcher);
+			emitAllDescendants(vfxAttachment).catch(catcher());
 			break;
 		}
 		case "Enable": {
 			const numberDuration = tonumber(duration) ?? 0;
 			const timestamp = tick();
-			enableWhile(vfxAttachment, () => tick() - timestamp < numberDuration).catch(catcher);
+			enableWhile(vfxAttachment, () => tick() - timestamp < numberDuration).catch(catcher());
 			break;
 		}
 		default: {

@@ -1,8 +1,8 @@
 import type { Modding } from "@flamework/core";
+import { Boba } from "@rbxts/boba";
 import Log from "@rbxts/log";
 import { fromEntries } from "@rbxts/object-utils";
 import type { HasRest, RestType, SplitRest } from "@rbxts/serio/metadata/tuples";
-import { Boba } from "@rbxts/boba";
 
 import type { IsLiteral, IsUnion } from "type-fest";
 
@@ -235,6 +235,7 @@ export function createDataStoreValidator<T, A extends boolean>(
 				const value = createDataStoreValidator(true, valueSchema as never);
 				v = (v !== undefined ? v.Or(value) : value) as Boba<T>;
 			}
+
 			validator = raw ? v : wrapBobaValidator(v);
 
 			break;
