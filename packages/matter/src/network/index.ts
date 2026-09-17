@@ -7,3 +7,4 @@ import "./builtins";
 
 export * from "./messaging";
 export * from "./registry";
+export * from "./replicationTracker";
