@@ -151,6 +151,27 @@ describe("createItemListDeserializer", () => {
 		expect(result.items).toHaveLength(1);
 		expect(result.items[0]!.guid).toBe("guid-1");
 	});
+
+	it("should deserialize items using provided CodecStateReader without accessing store", () => {
+		expect.assertions(2);
+
+		const reader = new InMemoryCodecStateReader({ "guid-1": 1, "guid-2": 2 });
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
+			"Inventory",
+			undefined,
+			reader,
+		);
+
+		// Incoming numeric guid 1 maps back to guid-1 via the reader's GUID map.
+		const result = deserializer(
+			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
+			99 as never,
+			undefined,
+		) as TestComponent;
+
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]!.guid).toBe("guid-1");
+	});
 });
 
 describe("createItemListSerializer", () => {

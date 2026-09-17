@@ -1,4 +1,3 @@
-import { store } from "@lisachandra/core/store";
 import { required } from "@lisachandra/core/utils/type";
 import Log from "@rbxts/log";
 import { isEmpty } from "@rbxts/object-utils";
@@ -221,10 +220,14 @@ function deserializeItemData(item: ItemData, itemId: ValidItemPath): N<Item["dat
 export function itemsDeserializer(
 	items: Array<ItemData>,
 	oldItems?: Array<Item>,
+	reader?: CodecStateReader,
 ): [newItems: Array<Item>, removedItems: Array<string>] {
 	const newItems: Array<Item> = [];
 	const removedItems: Array<string> = [];
-	const flippedGUIDMap = flip(store.client.getState("itemGUIDMap"));
+	const flippedGUIDMap = flip((reader ?? defaultStateReader).getItemGUIDMap()) as Record<
+		number,
+		string
+	>;
 
 	for (const item of items) {
 		const itemGUID = flippedGUIDMap[item.guid];

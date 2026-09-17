@@ -1,4 +1,3 @@
-import { store } from "@lisachandra/core/store";
 import type { AnyEntity, Component } from "@rbxts/matter";
 
 import type { ChangeRecord, Item } from "../../components";
@@ -9,7 +8,7 @@ import type {
 	ReplicationMode,
 	ServerSerializerFn,
 } from "../registry";
-import type { CodecStateReader } from "../stateReader";
+import { type CodecStateReader, defaultStateReader } from "../stateReader";
 import { itemsDeserializer, itemsSerializer } from "./item";
 import type { ItemData } from "./item";
 
@@ -41,19 +40,22 @@ export function createItemListDeserializer<
 		serverEntityId: AnyEntity,
 		clientEntityId?: AnyEntity,
 	) => Partial<Omit<TComponent, "items">>,
+	reader?: CodecStateReader,
 ): ClientDeserializerFn<TComponent, TPayload> {
-	const component = Components[componentKey];
 	return (data, serverEntityId, clientEntityId) => {
-		const entityExists = clientEntityId !== undefined && store.world.contains(clientEntityId);
+		const stateReader = reader ?? defaultStateReader;
+		const entityExists =
+			clientEntityId !== undefined &&
+			stateReader.getComponent(clientEntityId, componentKey) !== undefined;
 		const oldItems = entityExists
 			? (
-					store.world.get(clientEntityId, component as never) as unknown as {
+					stateReader.getComponent(clientEntityId!, componentKey) as unknown as {
 						items: Array<Item>;
 					}
 				)?.items
 			: undefined;
 
-		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems);
+		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems, stateReader);
 		if (oldItems) {
 			for (const oldItem of oldItems) {
 				const newItem = newItems.find((item) => item.guid === oldItem.guid);
@@ -138,6 +140,8 @@ export interface ItemListCodecOptions<
 	) => Partial<Omit<TComponent, "items">>;
 	/** Which clients receive replication data: `"owner"` or `"all"`. */
 	mode: ReplicationMode;
+	/** Optional state reader seam for tests; defaults to the production store-backed reader. */
+	reader?: CodecStateReader;
 	/** Optional hook for encoding additional component fields into the payload. */
 	serializeExtras?: (
 		record: ChangeRecord<TComponent>,
@@ -171,8 +175,12 @@ export function createItemListCodecRegistration<
 		deserializer: createItemListDeserializer<TPayload, TComponent>(
 			options.componentKey,
 			options.deserializeExtras,
+			options.reader,
 		),
 		mode: options.mode,
-		serializer: createItemListSerializer<TComponent, TPayload>(options.serializeExtras),
+		serializer: createItemListSerializer<TComponent, TPayload>(
+			options.serializeExtras,
+			options.reader,
+		),
 	};
 }
