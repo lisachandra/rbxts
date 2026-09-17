@@ -16,6 +16,7 @@
 		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@lisachandra/core": "workspace:*",
+		"@lisachandra/test": "workspace:*",
 		"@lisachandra/matter": "workspace:*",
 		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
