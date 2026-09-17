@@ -9,6 +9,7 @@ import type { Item } from "../../components";
 import type { ValidItemPath } from "../../items";
 import { privateDefinitions, serdes } from "../../items";
 import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
+import { type CodecStateReader, defaultStateReader } from "../stateReader";
 
 /**
  * Serialized item data sent over the network.
@@ -76,6 +77,7 @@ function getReplicatedData(
 
 function isItemReplicateSafe(
 	item: Item,
+	reader: CodecStateReader,
 ): [safe: false] | [safe: true, itemId: number, guidId: number] {
 	const itemId = getNumericItemIdFromId(item.id);
 	if (itemId === undefined) {
@@ -83,7 +85,7 @@ function isItemReplicateSafe(
 		return [false];
 	}
 
-	const guidId = store.server.getState("itemGUIDMap")[item.guid];
+	const guidId = reader.getItemGUIDMap()[item.guid];
 	if (guidId === undefined) {
 		Log.Error("GUIDId does not exist for item:", item);
 		return [false];
@@ -111,8 +113,15 @@ function shouldItemBeReplicated(
 	return [true, filteredNewData];
 }
 
-function serializeSingleItem(item: Item, lastReplicatedItems: Array<Item>): N<ItemData> {
-	const [replicateSafe, numericId, guidId] = isItemReplicateSafe(item);
+function serializeSingleItem(
+	item: Item,
+	lastReplicatedItems: Array<Item>,
+	reader?: CodecStateReader,
+): N<ItemData> {
+	const [replicateSafe, numericId, guidId] = isItemReplicateSafe(
+		item,
+		reader ?? defaultStateReader,
+	);
 	if (!replicateSafe) {
 		return;
 	}
@@ -155,12 +164,13 @@ function serializeSingleItem(item: Item, lastReplicatedItems: Array<Item>): N<It
 export function itemsSerializer(
 	items: { new: Array<Item>; old?: Array<Item> },
 	lastReplicatedItems: Array<Item>,
+	reader?: CodecStateReader,
 ): [serializedItems: Array<ItemData>, newReplicatedItems: Array<Item>] {
 	const serializedItems: Array<ItemData> = [];
 	const newReplicatedItems: Array<Item> = [];
 
 	for (const item of items.new) {
-		const serializedItem = serializeSingleItem(item, lastReplicatedItems);
+		const serializedItem = serializeSingleItem(item, lastReplicatedItems, reader);
 		if (serializedItem) {
 			const [newData, unreplicatedData] = getReplicatedData(item);
 			serializedItems.push(serializedItem);
@@ -178,7 +188,9 @@ export function itemsSerializer(
 				continue;
 			}
 
-			serializedItems.push({ guid: store.server.getState("itemGUIDMap")[item.guid]! });
+			serializedItems.push({
+				guid: (reader ?? defaultStateReader).getItemGUIDMap()[item.guid]!,
+			});
 		}
 	}
 

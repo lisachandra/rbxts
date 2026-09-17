@@ -4,6 +4,7 @@ import {
 	createItemListCodecRegistration,
 	createItemListDeserializer,
 	createItemListSerializer,
+	InMemoryCodecStateReader,
 	type ItemData,
 	registry,
 } from "@lisachandra/matter";
@@ -239,6 +240,31 @@ describe("createItemListSerializer", () => {
 		) as TestPayload;
 
 		expect(aSecond.items).toHaveLength(0);
+	});
+
+	it("should serialize items using provided CodecStateReader without accessing store", () => {
+		expect.assertions(3);
+
+		const reader = new InMemoryCodecStateReader({ "guid-1": 10, "guid-2": 11 });
+		const serializer = createItemListSerializer<TestComponent, TestPayload>(undefined, reader);
+
+		const first = serializer(
+			{
+				new: TestListComponent({ items: [makeItem({}, 1, "guid-1")] }),
+				old: undefined,
+			},
+			1 as never,
+			123 as never,
+			false,
+			true,
+		) as TestPayload;
+
+		expect(first.items).toHaveLength(1);
+		expect(first.items[0]!.guid).toBe(10);
+
+		const serializedItem = first.items[0] as { id: number };
+
+		expect(serializedItem.id).toBe(0);
 	});
 });
 

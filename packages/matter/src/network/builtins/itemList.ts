@@ -9,6 +9,7 @@ import type {
 	ReplicationMode,
 	ServerSerializerFn,
 } from "../registry";
+import type { CodecStateReader } from "../stateReader";
 import { itemsDeserializer, itemsSerializer } from "./item";
 import type { ItemData } from "./item";
 
@@ -93,6 +94,7 @@ export function createItemListSerializer<
 		playerEntityId: AnyEntity,
 		componentEntityId: AnyEntity,
 	) => Partial<Omit<TPayload, "items">>,
+	reader?: CodecStateReader,
 ): ServerSerializerFn<TComponent, TPayload> {
 	const lastReplicatedItems: Record<string, Array<Item>> = {};
 
@@ -101,6 +103,7 @@ export function createItemListSerializer<
 		const [items, newReplicatedItems] = itemsSerializer(
 			{ new: record.new!.items, old: record.old?.items },
 			lastReplicatedItems[key] ?? [],
+			reader,
 		);
 		lastReplicatedItems[key] = newReplicatedItems;
 
