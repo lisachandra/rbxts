@@ -6,7 +6,8 @@ import "./registry";
 import "./builtins";
 
 export * from "./builtins/itemList";
-export * from "./messaging";
+export * from "./builtins/stream";
 
+export * from "./messaging";
 export * from "./registry";
 export * from "./stateReader";
