@@ -30,133 +30,6 @@ rbxts/
 └── package.json        Root scripts (build, dev, release)
 ```
 
-### Dependency Graph (simplified)
-
-```
-types  ←  core  ←  matter  ←  platform
-              ↖__ ui _______/
-                   test ____/
-
-react-template  ← types
-react-router    ← types
-sandcastle      (standalone Node tooling, no workspace deps)
-```
-
-- **types** has no internal dependencies (leaf package)
-- **core** depends on types
-- **matter** depends on core + types
-- **ui** depends on core + matter + react-template + types
-- **platform** depends on matter + core + types
-- **test** depends on types
-- **react-template** depends on types
-- **react-router** depends on types
-- **sandcastle** has no workspace dependencies (Node-side CLI for the agent issue workflow)
-
----
-
-## Package Descriptions
-
-### `@lisachandra/types`
-
-Global type augmentations for Roblox services (`Workspace`, `Players`, `ReplicatedStorage`, `SoundService`) and shared types used across packages. Also re-exports Luau types needed at runtime.
-
-### `@lisachandra/core`
-
-Core runtime primitives:
-
-- **`/logger`** — Structured logging via `@rbxts/log`
-- **`/store`** — Reactive store primitive
-- **`/schemas`** — Character validation schemas (R6, R15, Humanoid)
-- **`/utils/asset`** — Asset ID resolution
-- **`/utils/cframe`** — CFrame helpers
-- **`/utils/color`** — Color utilities
-- **`/utils/formatTable`** — Table formatting (Luau)
-- **`/utils/main`** — General-purpose utilities
-- **`/utils/math`** — Math helpers
-- **`/utils/r6ik`** — R6 inverse kinematics (Luau)
-- **`/utils/string`** — String manipulation
-- **`/utils/type`** — Type guards and type utilities
-- **`/utils/vector`** — Vector math
-- **`/utils/vfx`** — Visual effects helpers
-
-### `@lisachandra/matter`
-
-The heart of the ECS. Built on top of `@rbxts/matter`:
-
-- **`/items`** — Item definitions, registry, serialization/deserialization, type descriptions
-- **`/hooks`** — Matter hook wrappers (`useMemo`, `useChange`, `useReducer`, `useStream`, `useThrottle`, `useDocument`, `useMessage`)
-- **`/packages`** — Package system for composable game features (plugin-like architecture)
-- **`/network`** — Network registry, messaging abstractions, built-in network types (item, forces, node, sound, stream, hotbar, inventory, profile)
-- **`/utils/item`** — Item utility functions
-- **`/utils/entity`** — Entity lookup and management
-- **`/utils/physics`** — Physics utilities
-- **`/utils/sound`** — Sound helpers
-- **Systems** — Client/server systems for items, sound, network replication, players, world nodes
-- **Replication** — Server→client state replication through built-in network types
-- **Pipeline** — Template family registration and processing pipeline
-
-### `@lisachandra/ui`
-
-React-based UI components and hooks:
-
-- **`/hooks/useWorldToScreen`** — World-to-screen coordinate projection
-- **`/hooks/usePx`** — Pixel-density-aware measurements
-- **`/hooks/usePropertyBinding`** / **`/hooks/useProperty`** — Property change hooks
-- **`/hooks/useConstant`** — Stable constant references
-- **`/components/virtualScroller`** — Virtualized list rendering
-- **Hot Reloader** — Component hot-reloading for development
-
-### `@lisachandra/test`
-
-Test utilities and runtime helpers for Jest Roblox (`@rbxts/jest`). Provides Luau runtime utilities used by test suites across the monorepo.
-
-### `@lisachandra/react-template`
-
-Instance → React component generator for Roblox. Turns a `ModuleScript` template (or instance) into a React component, with an `apiDump` utility for describing the template surface.
-
-### `@lisachandra/react-router`
-
-Client-side router for React Roblox: path matching, history tracking, `Router`/`RouteMatch` React context, and hooks (`useRouter`, `useRouteMatch`).
-
-### `@lisachandra/platform`
-
-Runtime platform glue:
-
-- **`/bootstrap`** — Client and server startup orchestration
-- **`/centurion`** — Admin commands (document, kick, set, teleport) with type-safe argument guards
-- **`/document`** — Document-based data with Lapis persistence and validation
-- **`/teleporter`** — Player teleportation between places/servers
-
-### `@lisachandra/sandcastle`
-
-Developer tooling (not a Roblox runtime package): a three-phase agent issue runner (design → implement → review) with persistent worktrees, sequential issue processing, and integration composition. Runs outside the game via a Node CLI (`sandcastle`) using `@ai-hero/sandcastle`.
-
----
-
-## Technology Stack
-
-| Technology                              | Purpose                                    |
-| --------------------------------------- | ------------------------------------------ |
-| **roblox-ts**                           | TypeScript-to-Luau compiler                |
-| **pnpm** (v10)                          | Package manager with workspace support     |
-| **Matter** (`@rbxts/matter`)            | Entity Component System                    |
-| **Flamework** (`@flamework/core`)       | Dependency injection & lifecycle framework |
-| **React** (`@rbxts/react`)              | UI rendering                               |
-| **Centurion** (`@rbxts/centurion`)      | Admin command framework                    |
-| **Lapis** (`@rbxts/lapis`)              | Data store abstraction                     |
-| **Sift** (`@rbxts/sift`)                | Immutable data utilities                   |
-| **Serio** (`@rbxts/serio`)              | Serialization/deserialization              |
-| **Tether** (`@rbxts/tether`)            | Client-server messaging                    |
-| **T** (`@rbxts/t`)                      | Runtime type validation                    |
-| **Log** (`@rbxts/log`)                  | Structured logging                         |
-| **LemonSignal** (`@rbxts/lemon-signal`) | Event signals                              |
-| **Janitor** (`@rbxts/janitor`)          | Cleanup management                         |
-| **Crate** (`@rbxts/crate`)              | Dependency injection                       |
-| **Rewire** (`@rbxts/rewire`)            | Hot reloading                              |
-| **Changesets**                          | Versioning and changelog generation        |
-| **Jest Roblox**                         | Testing framework                          |
-| **Rojo**                                | Roblox project syncing                     |
-
 ---
 
 ## Commit Attribution
@@ -175,6 +48,11 @@ Co-Authored-By: (the agent's name and attribution byline)
 - One commit may have many changesets when user-facing behaviors differ.
 - After work: create/update issues for material follow-up. Do not bury follow-up
   in chat.
+
+## Verification
+
+- `pnpm typecheck`, `pnpm lint:fix`, `pnpm build`, `pnpm test`
+- Report exact tests/tools run and blockers.
 
 ## Development Workflow
 
@@ -282,7 +160,7 @@ The `packages/` subsystem in matter provides a plugin-like architecture where ga
 
 ### Replication (matter)
 
-Server→client state replication is handled through built-in network types (item, forces, node, sound, stream, hotbar, inventory, profile) registered via the network registry.
+Server→client state replication is handled through built-in network types registered via the network registry.
 
 ### Items (matter)
 
@@ -290,11 +168,11 @@ Items are the core gameplay entity: they have definitions, a registry, serializa
 
 ### Bootstrap (platform)
 
-The bootstrap module provides standardized client/server initialization sequences — registering Flamework, starting Matter systems, and initializing platform services.
+The bootstrap module provides standardized client/server initialization sequences — starting Matter systems, and initializing platform services.
 
 ### Documents (platform)
 
-Document-based data with JSON Schema validation for persisting player/entity data via Lapis data stores.
+Document-based data with JSON Schema validation for persisting player/entity data via data stores.
 
 ---
 

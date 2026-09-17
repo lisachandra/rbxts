@@ -4,22 +4,25 @@ const config: SandcastleUserConfig = {
 	agents: {
 		default: "dirac",
 		enabled: ["dirac", "pi"],
-		models: {},
+		models: { dirac: "ag/gemini-3.8-flash-high" },
+		steps: {
+			design: { effort: "xhigh", model: "ag/gemini-3.8-flash-high" },
+			implement: { effort: "max", model: "ix/deepseek-v4-flash" },
+			integrationReview: { effort: "xhigh", model: "by/muse-spark-1.3-contributor" },
+			planner: { effort: "xhigh", model: "ag/gemini-3.8-flash-high" },
+			resolve: { effort: "max", model: "ix/deepseek-v4-flash" },
+			review: { effort: "xhigh", model: "by/muse-spark-1.3-contributor" },
+		},
 	},
 	baseBranch: "main",
 	dir: ".sandcastle",
-	effort: "xhigh",
 	issueCommand: "gh issue view {issue}",
 	labels: { readyForAgent: "ready-for-agent" },
-	prompts: {},
 	reviewMarker: "Sandcastle-Review",
-	setupCommands: ["git submodule update --init --recursive && pnpm install"],
+	setupCommands: [
+		"pnpm setup",
+	],
 	skills: {
-		defaults: {
-			design: ["codebase-design", "domain-modeling", "research", "tdd"],
-			implement: ["tdd", "jest", "implement", "roblox-ts"],
-			review: ["code-review", "improve-codebase-architecture"],
-		},
 		labels: {
 			ecs: {
 				design: ["ecs-design"],
@@ -38,6 +41,8 @@ const config: SandcastleUserConfig = {
 	},
 	symlinks: [
 		{ path: "creator-docs", target: "creator-docs" },
+		{ path: ".sandcastle/plans", target: ".sandcastle/plans" },
+		{ path: ".agents", target: ".agents" },
 		{ path: ".diracrules", target: ".agents" },
 	],
 };

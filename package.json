@@ -15,7 +15,7 @@
 		"sandcastle": "sandcastle",
 		"sandcastle:all": "sandcastle --issue all",
 		"sandcastle:issue": "sandcastle",
-		"setup": "pnpm install --frozen-lockfile && pnpm build",
+		"setup": "git submodule update --init --recursive && pnpm install --frozen-lockfile && pnpm build && pnpm hoist",
 		"test": "COLUMNS=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)} FORCE_COLOR=1 pnpm -r --parallel --stream test",
 		"test:sandcastle": "pnpm --filter @lisachandra/sandcastle test",
 		"typecheck": "tsgo --build tsconfig.json --emitDeclarationOnly",
@@ -29,7 +29,8 @@
 		"dev:test": "pnpm -r  --parallel --filter \"./test/**\" dev",
 		"release": "pnpm -r publish --access=public && changeset tag",
 		"version": "changeset version",
-		"postinstall": "node ./scripts/hoist.mjs"
+		"hoist": "node ./scripts/hoist.mjs",
+		"postinstall": "pnpm hoist"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "catalog:",
