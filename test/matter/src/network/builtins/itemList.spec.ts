@@ -68,29 +68,26 @@ function seedGUIDMap(): void {
 }
 
 describe("createItemListDeserializer", () => {
-	let world: World;
-
-	beforeAll(() => {
-		seedGUIDMap();
-	});
-
-	beforeEach(() => {
-		world = new World();
-		store.world = world as never;
-	});
-
 	it("should merge incoming items with existing client items and drop removed GUIDs", () => {
 		expect.assertions(4);
 
-		const entityId = world.spawn(
-			Components.Inventory({ items: [makeItem({ damage: 5 }, 1, "guid-1")] }),
+		const reader = new InMemoryCodecStateReader({ "guid-1": 1, "guid-2": 2 });
+		const entityId = 100 as never;
+		reader.setComponent(
+			entityId,
+			"Inventory",
+			Components.Inventory({ items: [makeItem({ damage: 5 }, 1, "guid-1")] }) as never,
 		);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
+			"Inventory",
+			undefined,
+			reader,
+		);
 		const result = deserializer(
 			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
 			99 as never,
-			entityId as never,
+			entityId,
 		) as TestComponent;
 
 		/*
@@ -106,18 +103,26 @@ describe("createItemListDeserializer", () => {
 	it("should strip server-removed GUIDs while preserving unsent items", () => {
 		expect.assertions(3);
 
-		const entityId = world.spawn(
+		const reader = new InMemoryCodecStateReader({ "guid-1": 1, "guid-2": 2 });
+		const entityId = 100 as never;
+		reader.setComponent(
+			entityId,
+			"Inventory",
 			Components.Inventory({
 				items: [makeItem({ damage: 5 }, 1, "guid-1"), makeItem({}, 1, "guid-2")],
-			}),
+			}) as never,
 		);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
+			"Inventory",
+			undefined,
+			reader,
+		);
 		// `{ guid: 1 }` without `id` signals removal of guid-1; guid-2 is unsent and preserved.
 		const result = deserializer(
 			{ items: [{ guid: 1 }] },
 			99 as never,
-			entityId as never,
+			entityId,
 		) as TestComponent;
 
 		expect(result.items).toHaveLength(1);
@@ -128,7 +133,12 @@ describe("createItemListDeserializer", () => {
 	it("should tolerate removal payloads when the client entity is absent", () => {
 		expect.assertions(1);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		const reader = new InMemoryCodecStateReader({ "guid-1": 1 });
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
+			"Inventory",
+			undefined,
+			reader,
+		);
 		const result = deserializer(
 			{ items: [{ guid: 1 }] },
 			99 as never,
@@ -141,7 +151,12 @@ describe("createItemListDeserializer", () => {
 	it("should return deserialized items without error when client entity is not yet in world", () => {
 		expect.assertions(2);
 
-		const deserializer = createItemListDeserializer<TestPayload, TestComponent>("Inventory");
+		const reader = new InMemoryCodecStateReader({ "guid-1": 1, "guid-2": 2 });
+		const deserializer = createItemListDeserializer<TestPayload, TestComponent>(
+			"Inventory",
+			undefined,
+			reader,
+		);
 		const result = deserializer(
 			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
 			99 as never,
