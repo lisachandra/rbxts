@@ -39,7 +39,7 @@ export interface CodecStateReader {
 }
 
 /**
- * Production {@link CodecStateReader} that delegates to the global store crater and world.
+ * Production {@link CodecStateReader} that delegates to the global store crate and world.
  *
  * @remarks
  *   `getItemGUIDMap` reads the client crate when the code runs on the client and the server crate

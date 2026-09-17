@@ -39,21 +39,17 @@ export function createItemListDeserializer<
 		data: TPayload,
 		serverEntityId: AnyEntity,
 		clientEntityId?: AnyEntity,
+		reader?: CodecStateReader,
 	) => Partial<Omit<TComponent, "items">>,
 	reader?: CodecStateReader,
 ): ClientDeserializerFn<TComponent, TPayload> {
 	return (data, serverEntityId, clientEntityId) => {
 		const stateReader = reader ?? defaultStateReader;
-		const entityExists =
-			clientEntityId !== undefined &&
-			stateReader.getComponent(clientEntityId, componentKey) !== undefined;
-		const oldItems = entityExists
-			? (
-					stateReader.getComponent(clientEntityId!, componentKey) as unknown as {
-						items: Array<Item>;
-					}
-				)?.items
-			: undefined;
+		const oldComponent =
+			clientEntityId !== undefined
+				? stateReader.getComponent(clientEntityId, componentKey)
+				: undefined;
+		const oldItems = (oldComponent as unknown as undefined | { items: Array<Item> })?.items;
 
 		const [newItems, removedGUIDs] = itemsDeserializer(data.items, oldItems, stateReader);
 		if (oldItems) {
@@ -66,7 +62,9 @@ export function createItemListDeserializer<
 		}
 
 		const mergedItems = newItems.filter((item) => !removedGUIDs.includes(item.guid));
-		const extras = extractExtras ? extractExtras(data, serverEntityId, clientEntityId) : {};
+		const extras = extractExtras
+			? extractExtras(data, serverEntityId, clientEntityId, stateReader)
+			: {};
 		return {
 			...extras,
 			items: mergedItems,
@@ -95,6 +93,7 @@ export function createItemListSerializer<
 		record: ChangeRecord<TComponent>,
 		playerEntityId: AnyEntity,
 		componentEntityId: AnyEntity,
+		reader?: CodecStateReader,
 	) => Partial<Omit<TPayload, "items">>,
 	reader?: CodecStateReader,
 ): ServerSerializerFn<TComponent, TPayload> {
@@ -109,7 +108,10 @@ export function createItemListSerializer<
 		);
 		lastReplicatedItems[key] = newReplicatedItems;
 
-		const extras = buildExtras ? buildExtras(record, playerEntityId, componentEntityId) : {};
+		const stateReader = reader ?? defaultStateReader;
+		const extras = buildExtras
+			? buildExtras(record, playerEntityId, componentEntityId, stateReader)
+			: {};
 		return {
 			...extras,
 			items,
@@ -137,6 +139,7 @@ export interface ItemListCodecOptions<
 		data: TPayload,
 		serverEntityId: AnyEntity,
 		clientEntityId?: AnyEntity,
+		reader?: CodecStateReader,
 	) => Partial<Omit<TComponent, "items">>;
 	/** Which clients receive replication data: `"owner"` or `"all"`. */
 	mode: ReplicationMode;
@@ -147,6 +150,7 @@ export interface ItemListCodecOptions<
 		record: ChangeRecord<TComponent>,
 		playerEntityId: AnyEntity,
 		componentEntityId: AnyEntity,
+		reader?: CodecStateReader,
 	) => Partial<Omit<TPayload, "items">>;
 }
 

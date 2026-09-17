@@ -302,6 +302,53 @@ describe("createItemListSerializer", () => {
 
 		expect(serializedItem.id).toBe(0);
 	});
+
+	it("should thread CodecStateReader through extras hooks without accessing store", () => {
+		expect.assertions(2);
+
+		const reader = new InMemoryCodecStateReader({ "guid-9": 99 });
+		const serializer = createItemListSerializer<
+			TestComponent,
+			TestPayload & { equipped?: number }
+		>(
+			(_record, _player, _entity, extraReader) => ({
+				equipped: extraReader?.getItemGUIDMap()["guid-9"],
+			}),
+			reader,
+		);
+
+		const serialized = serializer(
+			{
+				new: TestListComponent({ items: [] }),
+				old: undefined,
+			},
+			1 as never,
+			77 as never,
+			false,
+			true,
+		) as TestPayload & { equipped?: number };
+
+		expect(serialized.equipped).toBe(99);
+
+		const deserializer = createItemListDeserializer<
+			TestPayload & { equipped?: number },
+			TestComponent & { equipped?: string }
+		>(
+			"Inventory",
+			(_data, _server, _client, extraReader) => ({
+				equipped:
+					extraReader?.getItemGUIDMap()["guid-9"] !== undefined ? "guid-9" : undefined,
+			}),
+			reader,
+		);
+		const result = deserializer(
+			{ equipped: 99, items: [] },
+			1 as never,
+			undefined,
+		) as TestComponent & { equipped?: string };
+
+		expect(result.equipped).toBe("guid-9");
+	});
 });
 
 describe("createItemListCodecRegistration", () => {

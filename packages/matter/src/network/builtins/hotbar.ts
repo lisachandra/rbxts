@@ -22,20 +22,17 @@ registry.register<Components["Hotbar"], HotbarPayload>(
 	createItemListCodecRegistration<Components["Hotbar"], HotbarPayload>({
 		component: Components.Hotbar,
 		componentKey: "Hotbar",
-		deserializeExtras: (data) => ({
+		deserializeExtras: (data, _serverEntityId, _clientEntityId, reader) => ({
 			equipped:
 				data.equipped !== undefined
-					? flip(defaultStateReader.getItemGUIDMap())[data.equipped]!
+					? flip((reader ?? defaultStateReader).getItemGUIDMap())[data.equipped]!
 					: undefined,
 		}),
 		mode: "owner",
-		serializeExtras: (record) => ({
-			equipped:
-				defaultStateReader.getItemGUIDMap()[
-					(record.old?.equipped !== record.new!.equipped
-						? record.new!.equipped
-						: undefined)!
-				],
+		serializeExtras: (record, _playerEntityId, _componentEntityId, reader) => ({
+			equipped: (reader ?? defaultStateReader).getItemGUIDMap()[
+				(record.old?.equipped !== record.new!.equipped ? record.new!.equipped : undefined)!
+			],
 		}),
 	}),
 );
