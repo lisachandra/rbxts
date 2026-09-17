@@ -74,10 +74,11 @@ async function processSequentialIssue({
 }): Promise<{ nextBase: string; result: SequentialIssueResult; stop: boolean }> {
 	console.log(`\n[${index + 1}/${total}] Processing issue #${issueNumber}...`);
 
+	const fallbackBranch = issueBranch(issueNumber);
 	const branchName =
 		worktree !== undefined && worktree !== ""
-			? (checkoutBranch(worktree) ?? issueBranch(issueNumber))
-			: issueBranch(issueNumber);
+			? (checkoutBranch(worktree) ?? fallbackBranch)
+			: fallbackBranch;
 	const worktreePath =
 		worktree ??
 		pathResolve(repoRoot, config.dir, "worktrees", `sandcastle-issue-${issueNumber}`);
