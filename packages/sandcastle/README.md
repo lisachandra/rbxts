@@ -70,23 +70,23 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 
 ### Options
 
-| Option                 | Default                 | Purpose                                                                                         |
-| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory                                       |
-| `baseBranch`           | `main`                  | Diff base for implementation and review                                                         |
-| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                      |
-| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                              |
-| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                     |
-| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                          |
-| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                     |
-| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                         |
-| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                                                      | BLOCKED`) |
-| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                                                       |
-| `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`) |
-| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                       |
-| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                    |
+| Option                 | Default                 | Purpose                                                                                                                        |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory                                                                      |
+| `baseBranch`           | `main`                  | Diff base for implementation and review                                                                                        |
+| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                                                     |
+| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                                                             |
+| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                                                    |
+| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                                                         |
+| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                                                    |
+| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                                                        |
+| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                                                                                     | BLOCKED`) |
+| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                                                                                      |
+| `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`)                                |
+| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                                                      |
+| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                                                   |
 | `agents.steps`         | `{}`                    | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview` |
-| `effort`               | `xhigh`                 | Default reasoning effort                                                                        |
+| `effort`               | `xhigh`                 | Default reasoning effort                                                                                                       |
 
 Precedence for every step is CLI flag (`--design-model`, `--implement-agent`, `--review-effort`, `--planner-*`, `--resolve-*`, `--integration-review-*`) over `agents.steps` config over the workflow default (`--agent` / `--model` / `--effort` plus `agents.models`). When a step selects a different backend without its own model, the mapped `agents.models[backend]` wins over the workflow model.
 

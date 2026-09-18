@@ -258,7 +258,7 @@ export function catcher(): (err: object) => void {
 	const trace = debug.traceback("\n");
 	return (err: object) => {
 		Log.Warn(`${trace}${debug.traceback(`\n${tostring(err)}`)}`);
-	}
+	};
 }
 
 export function applyHumanoidDescription(

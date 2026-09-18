@@ -43,12 +43,16 @@ export function printStatus(
 	console.log(`Branch: ${branchName}`);
 	console.log(`Worktree: ${existsSync(worktreePath) ? "exists" : "missing"}`);
 	const statusModel = typeof model === "string" ? model : model.implement;
-	const stateModelNote = state !== undefined && state.model !== statusModel ? ` (state: ${state.model})` : "";
+	const stateModelNote =
+		state !== undefined && state.model !== statusModel ? ` (state: ${state.model})` : "";
 	console.log(`Model: ${statusModel}${stateModelNote}`);
 	if (steps) {
 		for (const step of ["design", "implement", "review"] as const) {
 			const resolved = steps[step];
-			if (resolved) console.log(`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})`);
+			if (resolved)
+				console.log(
+					`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})`,
+				);
 		}
 	}
 	console.log();
