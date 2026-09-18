@@ -27,7 +27,7 @@ let internalDebugging = false;
 
 function debugPrint(message: string): void {
 	if (internalDebugging) {
-		print(message);
+		Log.Info(message);
 	}
 }
 
@@ -310,7 +310,7 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 
 	for (const [player, payloadContainer] of payloads) {
 		if (initialized.includes(player)) {
-			print(`sending initial payload to: ${player}`, payloadContainer);
+			Log.Info(`sending initial payload to: ${player}`, payloadContainer);
 		}
 
 		for (const [strEntityId, componentMap] of iterate(payloadContainer)) {

@@ -51,7 +51,7 @@ let internalDebugging = false;
 
 function debugPrint(message: string): void {
 	if (internalDebugging) {
-		print(message);
+		Log.Info(message);
 	}
 }
 
