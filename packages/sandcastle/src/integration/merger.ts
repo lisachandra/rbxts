@@ -9,9 +9,17 @@
  * and drift branches without a live repo.
  */
 
-import { git as defaultGit, gitTry as defaultGitTry } from "../git.js";
-import type { IntegrationManifest } from "../types.js";
-import { integrationBasePath } from "./manifest.js";
+import {
+	changedSinceMergeBase,
+	git as defaultGit,
+	gitTry as defaultGitTry,
+	dirtyPaths,
+	hasUnmergedPaths,
+	isGitlink,
+	mergeInProgress,
+} from "../git.js";
+import type { IntegrationManifest, IntegrationSource } from "../types.js";
+import { integrationBasePath, writeIntegrationManifest } from "./manifest.js";
 
 /** Injectable git/inspection seam for integration merge operations. */
 export interface MergerDeps {
@@ -25,13 +33,13 @@ export interface MergerDeps {
 }
 
 const defaultDeps: MergerDeps = {
-	changedSinceMergeBase: () => [],
-	dirtyPaths: () => [],
+	changedSinceMergeBase,
+	dirtyPaths,
 	git: defaultGit,
 	gitTry: defaultGitTry,
-	hasUnmergedPaths: () => false,
-	isGitlink: () => false,
-	mergeInProgress: () => false,
+	hasUnmergedPaths,
+	isGitlink,
+	mergeInProgress,
 };
 
 export function resolveMergerDeps(deps?: Partial<MergerDeps>): MergerDeps {
@@ -53,4 +61,107 @@ export function assertCleanMergeResolution(
 	if (merged.mergeInProgress(worktree)) {
 		merged.git(["commit", "--no-edit"], worktree);
 	}
+}
+
+/** Split tracked drift into merge-blocking paths and submodule pointers, which git merges over. */
+export function partitionDrift(
+	worktree: string,
+	deps: Partial<MergerDeps> = {},
+): { blocking: Array<string>; submodules: Array<string> } {
+	const merged = resolveMergerDeps(deps);
+	const drift = merged.dirtyPaths(worktree);
+	const submodules = drift.filter((path) => merged.isGitlink(worktree, path));
+	return { blocking: drift.filter((path) => !submodules.includes(path)), submodules };
+}
+
+/** Stash uncommitted worktree changes so merges can proceed; the stash is recorded on the manifest. */
+export function quarantineWorktreeDrift(
+	manifest: IntegrationManifest,
+	worktree: string,
+	paths: Array<string>,
+	deps: Partial<MergerDeps> = {},
+	manifestWriter: (manifest: IntegrationManifest) => void = writeIntegrationManifest,
+): void {
+	const merged = resolveMergerDeps(deps);
+	const message = `sandcastle ${manifest.name}: pre-merge drift`;
+	try {
+		merged.git(["stash", "push", "-m", message, "--", ...paths], worktree);
+	} catch (err) {
+		throw new Error(
+			`Could not quarantine uncommitted changes in ${worktree}: ${String(err)}\nResolve them manually before resuming.`,
+		);
+	}
+
+	const stashCommit = merged.gitTry(["rev-parse", "--verify", "stash@{0}"], worktree);
+	manifest.drift = {
+		paths,
+		stashCommit: stashCommit ?? undefined,
+		stashedAt: new Date().toISOString(),
+	};
+	if (manifestWriter !== undefined) {
+		manifestWriter(manifest);
+	}
+
+	const stashSuffix = stashCommit === undefined || stashCommit === "" ? "" : `: ${stashCommit}`;
+	console.log(
+		`  ⤓ Quarantined ${paths.length} uncommitted path(s) before merging (${message})${stashSuffix}`,
+	);
+
+	const remaining = partitionDrift(worktree, deps).blocking;
+	if (remaining.length > 0) {
+		throw new Error(
+			`Could not quarantine every uncommitted change in ${worktree}; still dirty: ${remaining.join(", ")}`,
+		);
+	}
+}
+
+/**
+ * Refuse to merge over dirty tracked files.
+ *
+ * Git aborts such merges with "Your local changes would be overwritten by merge", which the
+ * conflict resolver cannot fix, so the runner decides: fail with an actionable message, or stash
+ * the drift when the operator passed `--quarantine-drift`.
+ */
+export function prepareWorktreeForMerge(
+	manifest: IntegrationManifest,
+	source: IntegrationSource,
+	worktree: string,
+	quarantineDrift: boolean,
+	deps: Partial<MergerDeps> = {},
+	manifestWriter: (manifest: IntegrationManifest) => void = writeIntegrationManifest,
+): void {
+	const merged = resolveMergerDeps(deps);
+	const { blocking, submodules } = partitionDrift(worktree, deps);
+	if (submodules.length > 0) {
+		console.warn(
+			`  ⚠ Submodule pointers are dirty but do not block the merge: ${submodules.join(", ")}`,
+		);
+	}
+
+	if (blocking.length === 0) {
+		return;
+	}
+
+	if (quarantineDrift) {
+		quarantineWorktreeDrift(manifest, worktree, blocking, deps, manifestWriter);
+		return;
+	}
+
+	const incoming = new Set(merged.changedSinceMergeBase(worktree, source.commit));
+	const overlapping = blocking.filter((path) => incoming.has(path));
+	if (overlapping.length > 0) {
+		throw new Error(
+			[
+				`Integration worktree has uncommitted changes that merging ${source.name} would overwrite:`,
+				...overlapping.map((path) => `  ${path}`),
+				`Worktree: ${worktree}`,
+				"Re-run with --quarantine-drift to stash them automatically, or resolve them yourself:",
+				`  git -C "${worktree}" stash push -m 'sandcastle ${manifest.name}: pre-merge drift'`,
+			].join("\n"),
+		);
+	}
+
+	console.warn(
+		`  ⚠ ${blocking.length} uncommitted path(s) are outside this merge but will block a later source.`,
+	);
 }

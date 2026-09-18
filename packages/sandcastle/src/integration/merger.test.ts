@@ -7,7 +7,12 @@ import { integrationsDir } from "../runtime.js";
 import { registerTestHooks } from "../test-helpers.js";
 import type { IntegrationManifest } from "../types.js";
 import { integrationBasePath, integrationBranch } from "./manifest.js";
-import { assertCleanMergeResolution, type MergerDeps } from "./merger.js";
+import {
+	assertCleanMergeResolution,
+	type MergerDeps,
+	prepareWorktreeForMerge,
+	quarantineWorktreeDrift,
+} from "./merger.js";
 
 registerTestHooks();
 
@@ -27,7 +32,17 @@ function manifestFor(name: string): IntegrationManifest {
 
 /** Record git calls while deferring to optional overrides for each merged helper. */
 function fakeDeps(
-	overrides: Partial<Pick<MergerDeps, "git" | "mergeInProgress" | "hasUnmergedPaths">> = {},
+	overrides: Partial<
+		Pick<
+			MergerDeps,
+			| "git"
+			| "isGitlink"
+			| "dirtyPaths"
+			| "mergeInProgress"
+			| "hasUnmergedPaths"
+			| "changedSinceMergeBase"
+		>
+	> = {},
 ): { deps: MergerDeps; gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> } {
 	const gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> = [];
 	const deps: MergerDeps = {
@@ -78,5 +93,77 @@ describe("merger adapter seam", () => {
 		const committing = fakeDeps({ mergeInProgress: () => true });
 		assert.doesNotThrow(() => assertCleanMergeResolution(manifest, committing.deps));
 		assert.deepEqual(committing.gitCalls, [{ args: ["commit", "--no-edit"], cwd: worktree }]);
+	});
+
+	test("should quarantine uncommitted drift or abort if drift overlaps incoming merge", () => {
+		const manifest = manifestFor("drift");
+		const worktree = integrationBasePath(manifest);
+		const source = {
+			branch: "sandcastle/issue-1",
+			commit: "2222222",
+			issue: "1",
+			name: "issue-1",
+			order: 1,
+		};
+
+		// No blocking drift → no stash, return.
+		const clean = fakeDeps({ dirtyPaths: () => [] });
+		let prepared = false;
+		assert.doesNotThrow(() => {
+			prepareWorktreeForMerge(manifest, source, worktree, false, clean.deps);
+			prepared = true;
+		});
+		assert.equal(prepared, true);
+		assert.equal(clean.gitCalls.length, 0);
+
+		// Overlapping drift without quarantine → throw with actionable message.
+		const overlap = fakeDeps({
+			changedSinceMergeBase: () => ["AGENTS.md", "other.ts"],
+			dirtyPaths: () => ["AGENTS.md"],
+		});
+		assert.throws(
+			() => prepareWorktreeForMerge(manifest, source, worktree, false, overlap.deps),
+			/uncommitted changes that merging issue-1 would overwrite[\s\S]*--quarantine-drift/,
+		);
+
+		// Submodule pointers are reported but never block.
+		const submodule = fakeDeps({
+			changedSinceMergeBase: () => ["sub"] as Array<string>,
+			dirtyPaths: () => ["sub"] as Array<string>,
+			isGitlink: () => true,
+		});
+		assert.doesNotThrow(() =>
+			prepareWorktreeForMerge(manifest, source, worktree, false, submodule.deps),
+		);
+
+		// Quarantine stashes the blocking paths and records drift on the manifest.
+		const stashes: Array<Array<string>> = [];
+		let wroteManifest: undefined | IntegrationManifest;
+		const quarantine = fakeDeps({
+			dirtyPaths: () => [],
+			git: (args) => {
+				if (args[0] === "stash") {
+					stashes.push([...args]);
+					return "";
+				}
+
+				return "";
+			},
+		});
+		quarantine.deps.gitTry = () => "deadbeef";
+		quarantineWorktreeDrift(
+			manifest,
+			worktree,
+			["AGENTS.md"],
+			quarantine.deps,
+			(written: IntegrationManifest) => {
+				wroteManifest = written;
+			},
+		);
+		assert.equal(stashes.length, 1);
+		assert.ok(stashes[0]?.includes("AGENTS.md"));
+		assert.equal(manifest.drift?.paths[0], "AGENTS.md");
+		assert.equal(manifest.drift?.stashCommit, "deadbeef");
+		assert.equal(wroteManifest?.name, "drift");
 	});
 });

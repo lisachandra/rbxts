@@ -10,13 +10,10 @@ import { resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
 import {
-	changedSinceMergeBase,
 	commitExists,
-	dirtyPaths,
 	git,
 	gitTry,
 	hasUnmergedPaths,
-	isGitlink,
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
@@ -28,7 +25,7 @@ import {
 	readIntegrationManifest,
 	writeIntegrationManifest,
 } from "./integration/manifest.js";
-import { assertCleanMergeResolution } from "./integration/merger.js";
+import { assertCleanMergeResolution, prepareWorktreeForMerge } from "./integration/merger.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, io, logsDir } from "./runtime.js";
@@ -54,100 +51,6 @@ function prepareIntegrationWorktree(
 	skipSetup: boolean,
 ): void {
 	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
-}
-
-/** Split tracked drift into merge-blocking paths and submodule pointers, which git merges over. */
-function partitionDrift(worktree: string): {
-	blocking: Array<string>;
-	submodules: Array<string>;
-} {
-	const drift = dirtyPaths(worktree);
-	const submodules = drift.filter((path) => isGitlink(worktree, path));
-	return { blocking: drift.filter((path) => !submodules.includes(path)), submodules };
-}
-
-/** Stash uncommitted worktree changes so merges can proceed; the stash is recorded on the manifest. */
-function quarantineWorktreeDrift(
-	manifest: IntegrationManifest,
-	worktree: string,
-	paths: Array<string>,
-): void {
-	const message = `sandcastle ${manifest.name}: pre-merge drift`;
-	try {
-		git(["stash", "push", "-m", message, "--", ...paths], worktree);
-	} catch (err) {
-		throw new Error(
-			`Could not quarantine uncommitted changes in ${worktree}: ${String(err)}\nResolve them manually before resuming.`,
-		);
-	}
-
-	const stashCommit = gitTry(["rev-parse", "--verify", "stash@{0}"], worktree);
-	manifest.drift = {
-		paths,
-		stashCommit: stashCommit ?? undefined,
-		stashedAt: new Date().toISOString(),
-	};
-	writeIntegrationManifest(manifest);
-
-	const stashSuffix = stashCommit === undefined || stashCommit === "" ? "" : `: ${stashCommit}`;
-	console.log(
-		`  ⤓ Quarantined ${paths.length} uncommitted path(s) before merging (${message})${stashSuffix}`,
-	);
-
-	const remaining = partitionDrift(worktree).blocking;
-	if (remaining.length > 0) {
-		throw new Error(
-			`Could not quarantine every uncommitted change in ${worktree}; still dirty: ${remaining.join(", ")}`,
-		);
-	}
-}
-
-/**
- * Refuse to merge over dirty tracked files.
- *
- * Git aborts such merges with "Your local changes would be overwritten by merge", which the
- * conflict resolver cannot fix, so the runner decides: fail with an actionable message, or stash
- * the drift when the operator passed `--quarantine-drift`.
- */
-function prepareWorktreeForMerge(
-	manifest: IntegrationManifest,
-	source: IntegrationSource,
-	worktree: string,
-	quarantineDrift: boolean,
-): void {
-	const { blocking, submodules } = partitionDrift(worktree);
-	if (submodules.length > 0) {
-		console.warn(
-			`  ⚠ Submodule pointers are dirty but do not block the merge: ${submodules.join(", ")}`,
-		);
-	}
-
-	if (blocking.length === 0) {
-		return;
-	}
-
-	if (quarantineDrift) {
-		quarantineWorktreeDrift(manifest, worktree, blocking);
-		return;
-	}
-
-	const incoming = new Set(changedSinceMergeBase(worktree, source.commit));
-	const overlapping = blocking.filter((path) => incoming.has(path));
-	if (overlapping.length > 0) {
-		throw new Error(
-			[
-				`Integration worktree has uncommitted changes that merging ${source.name} would overwrite:`,
-				...overlapping.map((path) => `  ${path}`),
-				`Worktree: ${worktree}`,
-				"Re-run with --quarantine-drift to stash them automatically, or resolve them yourself:",
-				`  git -C "${worktree}" stash push -m 'sandcastle ${manifest.name}: pre-merge drift'`,
-			].join("\n"),
-		);
-	}
-
-	console.warn(
-		`  ⚠ ${blocking.length} uncommitted path(s) are outside this merge but will block a later source.`,
-	);
 }
 
 const integrationReviewStatuses: ReadonlySet<IntegrationStatus> = new Set([
