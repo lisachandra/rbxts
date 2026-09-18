@@ -18,7 +18,12 @@ import {
 	isGitlink,
 	mergeInProgress,
 } from "../git.js";
-import type { IntegrationManifest, IntegrationSource } from "../types.js";
+import type {
+	AgentBackend,
+	IntegrationManifest,
+	IntegrationSource,
+	ResolvedAgentStep,
+} from "../types.js";
 import { integrationBasePath, writeIntegrationManifest } from "./manifest.js";
 
 /** Injectable git/inspection seam for integration merge operations. */
@@ -164,4 +169,83 @@ export function prepareWorktreeForMerge(
 	console.warn(
 		`  ⚠ ${blocking.length} uncommitted path(s) are outside this merge but will block a later source.`,
 	);
+}
+
+/** Seam for the agent that resolves a merge conflict on the integration worktree. */
+export type ConflictResolverRunner = (
+	manifest: IntegrationManifest,
+	source: IntegrationSource,
+	model: string,
+	effort: string,
+	agentBackend: AgentBackend,
+	step?: ResolvedAgentStep,
+) => Promise<void>;
+
+export interface IntegrateSourceDeps extends Partial<MergerDeps> {
+	runConflictResolver?: ConflictResolverRunner;
+	writeIntegrationManifest?: (manifest: IntegrationManifest) => void;
+}
+
+export async function integrateManifestSource(
+	manifest: IntegrationManifest,
+	source: IntegrationSource,
+	worktree: string,
+	model: string,
+	effort: string,
+	agentBackend: AgentBackend,
+	step?: ResolvedAgentStep,
+	quarantineDrift = false,
+	deps: IntegrateSourceDeps = {},
+): Promise<void> {
+	const merged = resolveMergerDeps(deps);
+	const resolver =
+		deps.runConflictResolver ??
+		((async (...args: Parameters<ConflictResolverRunner>) => {
+			const { runConflictResolver } = await import("../integrations.js");
+			await runConflictResolver(...args);
+		}) as ConflictResolverRunner);
+	const manifestWriter =
+		deps.writeIntegrationManifest ??
+		((written: IntegrationManifest) => writeIntegrationManifest(written));
+
+	if (
+		merged.gitTry(["merge-base", "--is-ancestor", source.commit, "HEAD"], worktree) !==
+		undefined
+	) {
+		return;
+	}
+
+	prepareWorktreeForMerge(manifest, source, worktree, quarantineDrift, deps, manifestWriter);
+
+	if (merged.mergeInProgress(worktree)) {
+		manifest.status = "conflict-resolution-required";
+		manifest.lastError = `Conflict resolution is still required for ${source.name}.`;
+		manifestWriter(manifest);
+		if (resolver !== undefined) {
+			await resolver(manifest, source, model, effort, agentBackend, step);
+		}
+
+		assertCleanMergeResolution(manifest, deps);
+		return;
+	}
+
+	try {
+		merged.git(["merge", "--no-ff", source.commit, "-m", `Integrate ${source.name}`], worktree);
+	} catch (err) {
+		if (!merged.hasUnmergedPaths(worktree)) {
+			throw err;
+		}
+
+		manifest.status = "conflict-resolution-required";
+		manifest.lastError = `Conflict while integrating ${source.name}: ${String(err)}`;
+		manifestWriter(manifest);
+		console.error(
+			`  Conflict while integrating ${source.name}; invoking resolving-merge-conflicts.`,
+		);
+		if (resolver !== undefined) {
+			await resolver(manifest, source, model, effort, agentBackend, step);
+		}
+
+		assertCleanMergeResolution(manifest, deps);
+	}
 }

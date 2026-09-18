@@ -25,7 +25,7 @@ import {
 	readIntegrationManifest,
 	writeIntegrationManifest,
 } from "./integration/manifest.js";
-import { assertCleanMergeResolution, prepareWorktreeForMerge } from "./integration/merger.js";
+import { assertCleanMergeResolution, integrateManifestSource } from "./integration/merger.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, io, logsDir } from "./runtime.js";
@@ -227,49 +227,6 @@ export async function runIntegrationReview(
 	});
 }
 
-export async function integrateManifestSource(
-	manifest: IntegrationManifest,
-	source: IntegrationSource,
-	worktree: string,
-	model: string,
-	effort: string,
-	agentBackend: AgentBackend,
-	step?: ResolvedAgentStep,
-	quarantineDrift = false,
-): Promise<void> {
-	if (gitTry(["merge-base", "--is-ancestor", source.commit, "HEAD"], worktree) !== undefined) {
-		return;
-	}
-
-	prepareWorktreeForMerge(manifest, source, worktree, quarantineDrift);
-
-	if (mergeInProgress(worktree)) {
-		manifest.status = "conflict-resolution-required";
-		manifest.lastError = `Conflict resolution is still required for ${source.name}.`;
-		writeIntegrationManifest(manifest);
-		await runConflictResolver(manifest, source, model, effort, agentBackend, step);
-		assertCleanMergeResolution(manifest);
-		return;
-	}
-
-	try {
-		git(["merge", "--no-ff", source.commit, "-m", `Integrate ${source.name}`], worktree);
-	} catch (err) {
-		if (!hasUnmergedPaths(worktree)) {
-			throw err;
-		}
-
-		manifest.status = "conflict-resolution-required";
-		manifest.lastError = `Conflict while integrating ${source.name}: ${String(err)}`;
-		writeIntegrationManifest(manifest);
-		console.error(
-			`  Conflict while integrating ${source.name}; invoking resolving-merge-conflicts.`,
-		);
-		await runConflictResolver(manifest, source, model, effort, agentBackend, step);
-		assertCleanMergeResolution(manifest);
-	}
-}
-
 export async function continueIntegration(
 	manifest: IntegrationManifest,
 	model: string,
@@ -310,6 +267,7 @@ export async function continueIntegration(
 				agentBackend,
 				steps?.resolve,
 				quarantineDrift,
+				{ runConflictResolver },
 			);
 
 			if (

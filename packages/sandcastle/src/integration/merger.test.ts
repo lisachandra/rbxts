@@ -9,6 +9,7 @@ import type { IntegrationManifest } from "../types.js";
 import { integrationBasePath, integrationBranch } from "./manifest.js";
 import {
 	assertCleanMergeResolution,
+	integrateManifestSource,
 	type MergerDeps,
 	prepareWorktreeForMerge,
 	quarantineWorktreeDrift,
@@ -36,6 +37,7 @@ function fakeDeps(
 		Pick<
 			MergerDeps,
 			| "git"
+			| "gitTry"
 			| "isGitlink"
 			| "dirtyPaths"
 			| "mergeInProgress"
@@ -165,5 +167,112 @@ describe("merger adapter seam", () => {
 		assert.equal(manifest.drift?.paths[0], "AGENTS.md");
 		assert.equal(manifest.drift?.stashCommit, "deadbeef");
 		assert.equal(wroteManifest?.name, "drift");
+	});
+
+	test("should merge source with no-ff and invoke conflict resolver on unmerged paths", async () => {
+		const manifest = manifestFor("merge-conflict");
+		const worktree = integrationBasePath(manifest);
+		const source = {
+			branch: "sandcastle/issue-1",
+			commit: "2222222",
+			issue: "1",
+			name: "issue-1",
+			order: 1,
+		};
+
+		// Already an ancestor → short-circuit, no git merge.
+		const ancestor = fakeDeps({
+			gitTry: () => "",
+		});
+		let resolverRuns = 0;
+		await integrateManifestSource(
+			manifest,
+			source,
+			worktree,
+			"m",
+			"low",
+			"dirac",
+			undefined,
+			false,
+			{
+				...ancestor.deps,
+				runConflictResolver: async () => {
+					resolverRuns += 1;
+				},
+			},
+		);
+		assert.equal(resolverRuns, 0);
+		assert.equal(ancestor.gitCalls.filter((call) => call.args[0] === "merge").length, 0);
+
+		// Non-ancestor, merge succeeds cleanly.
+		const merges: Array<Array<string>> = [];
+		const merged = fakeDeps({
+			dirtyPaths: () => [],
+			git: (args) => {
+				if (args[0] === "merge") {
+					merges.push([...args]);
+					return "";
+				}
+
+				return "";
+			},
+			gitTry: () => undefined,
+			mergeInProgress: () => false,
+		});
+		resolverRuns = 0;
+		await integrateManifestSource(
+			manifest,
+			source,
+			worktree,
+			"m",
+			"low",
+			"dirac",
+			undefined,
+			false,
+			merged.deps as never,
+		);
+		assert.equal(merges.length, 1);
+		assert.ok(merges[0]?.[0] === "merge" && merges[0].includes("--no-ff"));
+		assert.equal(resolverRuns, 0);
+
+		// Merge fails with unmerged paths → invoke resolver, then assert clean resolution.
+		let resolverAfterFailure = 0;
+		let conflicted = true;
+		let mergedCount = 0;
+		const conflict = fakeDeps({
+			dirtyPaths: () => [],
+			git: (args) => {
+				if (args[0] === "merge") {
+					mergedCount += 1;
+					throw new Error("conflict");
+				}
+
+				return "";
+			},
+			gitTry: () => undefined,
+			hasUnmergedPaths: () => conflicted,
+			mergeInProgress: () => false,
+		});
+		await integrateManifestSource(
+			manifest,
+			source,
+			worktree,
+			"m",
+			"low",
+			"dirac",
+			undefined,
+			false,
+			{
+				...conflict.deps,
+				runConflictResolver: async () => {
+					resolverAfterFailure += 1;
+					// The resolver cleans the unmerged paths so the clean-resolution check passes.
+					conflicted = false;
+				},
+			},
+		);
+		assert.equal(mergedCount, 1);
+		assert.equal(resolverAfterFailure, 1);
+		assert.equal(manifest.status, "conflict-resolution-required");
 	});
 });
