@@ -1,12 +1,13 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
 import { config, io } from "./runtime.js";
 import { registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
+	linkSymlinks,
 	prepareIssueWorktree,
 	setupDirectories,
 	setupWorktree,
@@ -164,5 +165,55 @@ describe("prepareIssueWorktree", () => {
 		const path = worktreePathForBranch("sandcastle/issue-1");
 		assert.equal(path.endsWith("sandcastle-issue-1"), true);
 		assert.equal(path.includes("/"), false);
+	});
+
+	describe("linkSymlinks with missing junction parent", () => {
+		test("creates the parent dir and links a junction even when the parent is gitignored/absent", () => {
+			const worktree = makeDir("link-missing-parent");
+			const target = makeDir("link-target-parent");
+			writeFileSync(join(target, "keep.txt"), "hi", "utf-8");
+
+			/*
+			 * Simulate the gitignored case: the link's parent (<worktree>/.sandcastle)
+			 * does not exist on a fresh `git worktree add` checkout.
+			 */
+			config.symlinks = [{ path: ".sandcastle/plans", target }];
+			linkSymlinks(worktree);
+
+			if (process.platform === "win32") {
+				assert.equal(existsSync(join(worktree, ".sandcastle", "plans")), true);
+				assert.equal(
+					lstatSync(join(worktree, ".sandcastle", "plans")).isSymbolicLink(),
+					true,
+				);
+			}
+		});
+
+		test("preserves a pre-existing real plans dir into the junction and links it", () => {
+			const worktree = makeDir("link-preserve");
+			const target = makeDir("link-target-preserve");
+			writeFileSync(join(target, "existing.txt"), "target", "utf-8");
+
+			// A real plans dir already exists (e.g. written by a plan agent into `<wt>/.sandcastle/plans`).
+			const plansPath = join(worktree, ".sandcastle", "plans");
+			mkdirSync(plansPath, { recursive: true });
+			writeFileSync(join(plansPath, "7.md"), "# Plan 7", "utf-8");
+
+			config.symlinks = [{ path: ".sandcastle/plans", target }];
+			linkSymlinks(worktree);
+
+			if (process.platform === "win32") {
+				assert.equal(lstatSync(plansPath).isSymbolicLink(), true);
+				// The agent-written plan made it into the junction target.
+				assert.equal(existsSync(join(target, "7.md")), true);
+				// No leftover backup dir remains next to the link.
+				assert.equal(
+					readdirSync(dirname(plansPath)).some((entry) =>
+						entry.startsWith("plans.backup"),
+					),
+					false,
+				);
+			}
+		});
 	});
 });

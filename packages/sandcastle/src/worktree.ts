@@ -7,8 +7,17 @@
 import type { SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 
-import { copyFileSync, existsSync, lstatSync, mkdirSync, symlinkSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
+import {
+	copyFileSync,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	renameSync,
+	rmSync,
+	symlinkSync,
+} from "node:fs";
+import { dirname, resolve as pathResolve } from "node:path";
 
 import { checkoutBranch, git, gitTry, registeredWorktrees, resolveCommit } from "./git.js";
 import {
@@ -106,6 +115,41 @@ export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): stri
 	return worktreePath;
 }
 
+/**
+ * Replace a real directory occupying `linkPath` with a junction to `targetPath`, preserving its
+ * contents into the target. Repairs drift left by an earlier phase whose junction failed to link
+ * (e.g. gitignored `.sandcastle/plans`), while keeping plan files an agent already wrote.
+ *
+ * @returns The number of entries preserved into the target.
+ */
+function replaceDirectoryWithJunction(linkPath: string, targetPath: string): number {
+	const backup = `${linkPath}.backup-${Date.now()}`;
+	renameSync(linkPath, backup);
+	try {
+		symlinkSync(targetPath, linkPath, "junction");
+		let preserved = 0;
+		for (const entry of readdirSync(backup)) {
+			if (entry.startsWith(".")) {
+				continue;
+			}
+
+			try {
+				renameSync(pathResolve(backup, entry), pathResolve(targetPath, entry));
+				preserved++;
+			} catch {
+				// Entry collides with an existing target file; leave it in the backup dir.
+			}
+		}
+
+		rmSync(backup, { force: true, recursive: true });
+		return preserved;
+	} catch (err) {
+		// Restore the original directory so nothing is lost, then surface the failure.
+		renameSync(backup, linkPath);
+		throw err;
+	}
+}
+
 /** Link repository-local directories (docs, agent rules, assets) into a sandbox worktree. */
 export function linkSymlinks(worktreePath: string): void {
 	for (const link of config.symlinks) {
@@ -118,7 +162,29 @@ export function linkSymlinks(worktreePath: string): void {
 		}
 
 		try {
-			if (existsSync(linkPath) || lstatSync(linkPath, { throwIfNoEntry: false })) {
+			/*
+			 * Junctions (Windows) require their parent directory to exist. Repo-local dirs
+			 * that are gitignored (e.g. `.sandcastle/`) are absent from fresh `git worktree
+			 * add` checkouts, so create the parent here instead of letting symlinkSync fail
+			 * with ENOENT.
+			 */
+			mkdirSync(dirname(linkPath), { recursive: true });
+
+			if (lstatSync(linkPath, { throwIfNoEntry: false })?.isSymbolicLink()) {
+				continue;
+			}
+
+			if (existsSync(linkPath)) {
+				if (!lstatSync(linkPath).isDirectory()) {
+					console.warn(`  ⚠ ${link.path} exists as a file; skipping symlink.`);
+					continue;
+				}
+
+				// A real dir minted by an earlier phase occupies the link path; preserve it into the junction.
+				const preserved = replaceDirectoryWithJunction(linkPath, targetPath);
+				console.log(
+					`  ✓ Linked ${link.path} → ${targetPath} (preserved ${preserved} pre-existing item(s))`,
+				);
 				continue;
 			}
 
