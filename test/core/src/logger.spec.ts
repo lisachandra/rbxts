@@ -32,16 +32,30 @@ describe("logEventSFTOutputSink fallback behavior", () => {
 	}
 
 	it("should fall back to standard print/warn/error when in test mode", () => {
-		expect.assertions(1);
+		expect.assertions(4);
 
 		_G.__TEST__ = true;
 
+		const mockPrint = jest.spyOn(jest.globalEnv, "print");
+		mockPrint.mockImplementation(() => {});
 		const mockWarn = jest.spyOn(jest.globalEnv, "warn");
 		mockWarn.mockImplementation(() => {});
 
+		emit(LogLevel.Information);
+
+		expect(mockPrint).toHaveBeenCalled();
+
 		emit(LogLevel.Warning);
 
-		expect(mockWarn).toHaveBeenCalled();
+		expect(mockWarn).toHaveBeenCalledTimes(1);
+
+		// Error stays non-halting in fallback (legacy warn semantics).
+		emit(LogLevel.Error);
+
+		expect(mockWarn).toHaveBeenCalledTimes(2);
+
+		// Fatal still halts.
+		expect(() => emit(LogLevel.Fatal)).toThrow();
 	});
 
 	it("should preserve the ring buffer, flushing to fullLogOutputs past the cap", () => {
