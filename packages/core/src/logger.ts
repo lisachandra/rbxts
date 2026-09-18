@@ -88,8 +88,9 @@ const maxLogOutputSize = 128;
  *
  * @remarks
  *   `Debugging`, `Verbose`, and `Information` map to `MessageInfo`; `Warning` maps to
- *   `MessageWarning`; `Error` and `Fatal` map to `MessageError`. `Fatal` still halts execution
- *   because `MessageError` throws in the Roblox engine.
+ *   `MessageWarning`; `Error` and `Fatal` map to `MessageError`. `LogService.Log` with
+ *   `MessageError` throws in the Roblox engine, so the sink pcalls the dispatch: `Error` stays
+ *   non-halting (legacy `warn()` semantics) while `Fatal` still halts via an explicit `error()`.
  * @param level - The log level to map.
  * @returns The corresponding `Enum.MessageType`.
  */
@@ -160,7 +161,9 @@ export class LogEventSFTOutputSink implements ILogEventSink {
 		const logService = getLogService();
 		if (logService !== undefined) {
 			const messageType = mapLogLevelToMessageType(message.Level);
-			logService.Log(messageType, formattedMessage);
+			// LogService.Log with MessageError throws (see LogService.yaml); pcall so
+			// Error stays non-halting while Fatal still halts via explicit error().
+			pcall(() => logService.Log(messageType, formattedMessage));
 			if (message.Level >= LogLevel.Fatal) {
 				error(formattedMessage);
 			}
