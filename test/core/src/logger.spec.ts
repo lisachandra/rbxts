@@ -1,4 +1,9 @@
-import { LogEventSFTOutputSink, mapLogLevelToMessageType } from "@lisachandra/core/logger";
+import {
+	fullLogOutputs,
+	LogEventSFTOutputSink,
+	logOutput,
+	mapLogLevelToMessageType,
+} from "@lisachandra/core/logger";
 import { describe, expect, it, jest } from "@rbxts/jest-globals";
 import { LogLevel } from "@rbxts/log";
 
@@ -37,5 +42,20 @@ describe("logEventSFTOutputSink fallback behavior", () => {
 		emit(LogLevel.Warning);
 
 		expect(mockWarn).toHaveBeenCalled();
+	});
+
+	it("should preserve the ring buffer, flushing to fullLogOutputs past the cap", () => {
+		expect.assertions(3);
+
+		logOutput.clear();
+		fullLogOutputs.clear();
+
+		for (let index = 0; index < 200; index++) {
+			emit(LogLevel.Information);
+		}
+
+		expect(fullLogOutputs).toHaveLength(1);
+		expect(fullLogOutputs[0]).toHaveLength(129);
+		expect(logOutput).toHaveLength(71);
 	});
 });
