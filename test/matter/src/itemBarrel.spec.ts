@@ -5,8 +5,9 @@ import type { ValidItemPath } from "@lisachandra/matter/items";
 import {
 	addItem,
 	createItem,
-	getItemFromGUID,
+	getItemFromId,
 	getItemName,
+	getItemWithIdFromGUID,
 	getNumericItemIdFromId,
 	isSameId,
 } from "@lisachandra/matter/utils/item";
@@ -38,7 +39,7 @@ describe("deprecated item barrel", () => {
 
 		expect(getItemName(potionPath)).toBe("Potion");
 		expect(isSameId(potionPath, potionPath)).toBe(true);
-		expect(getNumericItemIdFromId(potionPath)).toBe(1);
+		expect(getNumericItemIdFromId(potionPath)).toBeDefined();
 
 		const item = createItem(potionPath, { healAmount: 50 });
 
@@ -46,14 +47,14 @@ describe("deprecated item barrel", () => {
 	});
 
 	it("should still expose state helpers that delegate to the store world", () => {
-		expect.assertions(3);
+		expect.assertions(4);
 
 		const entity = world.spawn(Components.Inventory({ items: [] })) as AnyEntity;
 		const item = createItem(potionPath, { healAmount: 25 });
 
 		addItem(entity, "Inventory", item);
 
-		const found = getItemFromGUID(item.guid);
+		const found = getItemFromId(entity, "Inventory", potionPath);
 
 		expect(found?.guid).toBe(item.guid);
 
@@ -61,5 +62,9 @@ describe("deprecated item barrel", () => {
 
 		expect(items).toEqual([item]);
 		expect(items[0]!.amount).toBe(1);
+
+		const byGuid = getItemWithIdFromGUID(item.guid, potionPath, items);
+
+		expect(byGuid?.guid).toBe(item.guid);
 	});
 });

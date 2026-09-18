@@ -2,10 +2,14 @@ import { store } from "@lisachandra/core/store";
 import { Components } from "@lisachandra/matter/components";
 import { defineItems } from "@lisachandra/matter/items";
 import type { ValidItemPath } from "@lisachandra/matter/items";
+import { createItem } from "@lisachandra/matter/utils/item/lookup";
 import {
 	addItem,
+	findNearestItem,
 	getEquippedItemWithId,
+	getItemFromGUID,
 	getItemWithIdFromGUID,
+	setItemData,
 } from "@lisachandra/matter/utils/item/state";
 import { beforeEach, describe, expect, it } from "@rbxts/jest-globals";
 import { type AnyEntity, World } from "@rbxts/matter";
@@ -55,6 +59,30 @@ describe("item state helpers", () => {
 
 		// Same id stacks: keep first item, bump its amount by the second's amount.
 		expect(world.get(entity, Components.Inventory)!.items[0]!.amount).toBe(3);
+	});
+
+	it("should update item data through world state", () => {
+		expect.assertions(2);
+
+		const entity = world.spawn(Components.Inventory({ items: [] })) as AnyEntity;
+		const item = { ...createItem(potionPath, { healAmount: 25 }), guid: "guid-set" };
+		addItem(world, entity, "Inventory", item);
+
+		const component = world.get(entity, Components.Inventory)!;
+		const updated = setItemData(world, entity, component, item, { healAmount: 99 });
+
+		expect((updated.data as { healAmount: number }).healAmount).toBe(99);
+		expect(
+			(world.get(entity, Components.Inventory)!.items[0]!.data as { healAmount: number })
+				.healAmount,
+		).toBe(99);
+	});
+
+	it("should return undefined for unknown guids and empty worlds", () => {
+		expect.assertions(2);
+
+		expect(getItemFromGUID(world, "missing-guid")).toBeUndefined();
+		expect(findNearestItem(world, potionPath, undefined as unknown as Model)).toBeUndefined();
 	});
 
 	it("should find a matching item by guid and id path and resolve the equipped item", () => {

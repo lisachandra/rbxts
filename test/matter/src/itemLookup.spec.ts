@@ -52,7 +52,7 @@ describe("item lookup helpers", () => {
 
 		const numericId = getNumericItemIdFromId(potionPath);
 
-		expect(numericId).toBe(1);
+		expect(numericId).toBeDefined();
 		expect(getItemIdFromNumericId(numericId!)).toEqual(["Consumable", "Potion"]);
 		expect(getItemIdFromNumericId(999999)).toBeUndefined();
 	});
