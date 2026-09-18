@@ -38,7 +38,8 @@
 		},
 		"./setup": {
 			"import": "./out/setup.luau",
-			"types": "./out/setup.d.ts"
+			"types": "./out/setup.d.ts",
+			"default": "./out/setup.luau"
 		}
 	},
 	"publishConfig": {
