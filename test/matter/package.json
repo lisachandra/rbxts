@@ -9,7 +9,7 @@
 		"serve:rbx-tree": "io-serve",
 		"serve:sourcemap": "rojo sourcemap --watch default.project.json --output sourcemap.json",
 		"serve:rojo": "rojo serve default.project.json",
-		"test": "pnpm exec jest-roblox ./jest.config.ts"
+		"test": "pnpm exec jest-roblox"
 	},
 	"devDependencies": {
 		"@isentinel/jest-roblox": "catalog:",
@@ -17,6 +17,7 @@
 		"@isentinel/tsconfig": "catalog:",
 		"@lisachandra/core": "workspace:*",
 		"@lisachandra/matter": "workspace:*",
+		"@lisachandra/test": "workspace:*",
 		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/jest": "catalog:",

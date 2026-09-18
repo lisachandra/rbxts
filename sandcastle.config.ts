@@ -19,9 +19,7 @@ const config: SandcastleUserConfig = {
 	issueCommand: "gh issue view {issue}",
 	labels: { readyForAgent: "ready-for-agent" },
 	reviewMarker: "Sandcastle-Review",
-	setupCommands: [
-		"pnpm setup",
-	],
+	setupCommands: ["pnpm setup"],
 	skills: {
 		labels: {
 			ecs: {
