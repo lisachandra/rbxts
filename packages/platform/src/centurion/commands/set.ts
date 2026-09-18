@@ -1,4 +1,5 @@
-import { getItemFromGUID } from "@lisachandra/matter/utils/item";
+import { store } from "@lisachandra/core/store";
+import { getItemFromGUID } from "@lisachandra/matter/utils/item/state";
 import type { CommandContext } from "@rbxts/centurion";
 import { CenturionType, Command, Guard, Register } from "@rbxts/centurion";
 
@@ -39,7 +40,7 @@ export class SetCommand {
 	 * @param propertiesStr - Comma-separated `key:value` pairs (e.g. `health:100,speed:16`).
 	 */
 	public set(_: CommandContext, guid: string, propertiesStr: string): void {
-		const item = getItemFromGUID(guid);
+		const item = getItemFromGUID(store.world, guid);
 		if (!item) {
 			return;
 		}

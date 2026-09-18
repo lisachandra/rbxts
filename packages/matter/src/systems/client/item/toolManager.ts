@@ -25,7 +25,7 @@ import { Players, UserInputService } from "@rbxts/services";
 
 import { Components } from "../../../components";
 import { getHotbarInputAdapter } from "../../../start";
-import { getItemFromGUID } from "../../../utils/item";
+import { getItemFromGUID } from "../../../utils/item/state";
 import { meta as itemManager } from "../item/itemManager";
 
 /** Map of numeric keycodes to their corresponding hotbar slot index. */
@@ -109,7 +109,7 @@ function equipTool(humanoid: Humanoid, hotbar: Components["Hotbar"]): void {
 	}
 }
 
-function syncEquippedTool(hotbar: Components["Hotbar"], humanoid?: Humanoid): void {
+function syncEquippedTool(world: World, hotbar: Components["Hotbar"], humanoid?: Humanoid): void {
 	if (!humanoid) {
 		return;
 	}
@@ -125,7 +125,7 @@ function syncEquippedTool(hotbar: Components["Hotbar"], humanoid?: Humanoid): vo
 		return;
 	}
 
-	const equippedTool = getItemFromGUID(hotbar.equipped)?.tool;
+	const equippedTool = getItemFromGUID(world, hotbar.equipped)?.tool;
 	const toolGrip = character.Torso.FindFirstChild<Motor6D>("ToolGrip");
 
 	if (equippedTool && !toolInHumanoid) {
@@ -157,7 +157,7 @@ function system(world: World, crate: Crate<ClientState>): void {
 	const hotbar = world.get(clientEntityId, Components.Hotbar)!;
 	const humanoid = getHumanoid(Players.LocalPlayer);
 
-	syncEquippedTool(hotbar, humanoid);
+	syncEquippedTool(world, hotbar, humanoid);
 
 	const adapter = getHotbarInputAdapter();
 	if (adapter) {

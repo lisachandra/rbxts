@@ -8,7 +8,7 @@ import { filter, flip } from "@rbxts/sift/Dictionary";
 import type { Item } from "../../components";
 import type { ValidItemPath } from "../../items";
 import { privateDefinitions, serdes } from "../../items";
-import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item";
+import { getItemIdFromNumericId, getNumericItemIdFromId } from "../../utils/item/lookup";
 
 /**
  * Serialized item data sent over the network.

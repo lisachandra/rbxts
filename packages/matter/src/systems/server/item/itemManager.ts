@@ -22,7 +22,8 @@ import type { ChangeRecord } from "../../../components";
 import { Components, isComponent } from "../../../components";
 import { useMessage } from "../../../hooks";
 import { Message, messaging } from "../../../network";
-import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
+import { getItemTool } from "../../../utils/item/lookup";
+import { getItemFromGUID, moveItem, removeItem, spawnItem } from "../../../utils/item/state";
 
 const loadTimeout = 30;
 const maxItems = 65535;
@@ -81,7 +82,7 @@ function moveItemTo(
 		N<"Hotbar" | "Inventory">,
 	];
 	const itemEntityId = tonumber(itemEntityIdStr) as AnyEntity;
-	const item = getItemFromGUID(guid)!;
+	const item = getItemFromGUID(world, guid)!;
 
 	const arrival = destination ? "Inventory" : "Hotbar";
 
@@ -104,12 +105,13 @@ function moveItemTo(
 		return;
 	}
 
-	moveItem(entityId, guid, arrival);
+	moveItem(world, entityId, guid, arrival);
 	return { ...itemPointers, [guid]: `${itemEntityIdStr}_${arrival}` };
 }
 
 /* Drops an item from the player's inventory or hotbar into the world. */
 function dropItem(
+	world: World,
 	entityId: AnyEntity,
 	humanoid: Humanoid,
 	itemPointers: ServerState["itemPointers"],
@@ -122,10 +124,10 @@ function dropItem(
 		return;
 	}
 
-	const item = removeItem(guid, amount)!;
+	const item = removeItem(world, guid, amount)!;
 	const cf = humanoid.RootPart!.CFrame.mul(new CFrame(0, 0, -1));
 
-	const itemEntityId = spawnItem(item, cf);
+	const itemEntityId = spawnItem(world, item, cf);
 	return { ...itemPointers, [guid]: `${itemEntityId}` };
 }
 
@@ -283,6 +285,7 @@ function handleMoveItemPacket(
 }
 
 function handleDropItemPacket(
+	world: World,
 	newItemPointers: ServerState["itemPointers"],
 	player: Player,
 	flippedItemGUIDMap: Record<string, string>,
@@ -296,7 +299,9 @@ function handleDropItemPacket(
 	const entityId = player.GetAttribute<AnyEntity>("serverEntityId")!;
 	const guid = flippedItemGUIDMap[data.guid]!;
 
-	return dropItem(entityId, humanoid, newItemPointers, guid, data.amount) ?? newItemPointers;
+	return (
+		dropItem(world, entityId, humanoid, newItemPointers, guid, data.amount) ?? newItemPointers
+	);
 }
 
 function updateItemPointers(
@@ -359,7 +364,7 @@ function system(world: World, crate: Crate<ServerState>): void {
 
 	for (const [_, player, data] of useMessage(messaging.server, Message.DropItem)) {
 		newItemPointers =
-			handleDropItemPacket(newItemPointers, player, flippedItemGUIDMap, data) ??
+			handleDropItemPacket(world, newItemPointers, player, flippedItemGUIDMap, data) ??
 			newItemPointers;
 	}
 
