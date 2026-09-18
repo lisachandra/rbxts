@@ -1,8 +1,12 @@
-import { readSoundDebugCounters } from "@lisachandra/matter/debug/soundDebugStats";
+import {
+	readSoundDebugCounters,
+	resetSoundDebugStats,
+} from "@lisachandra/matter/debug/soundDebugStats";
 import {
 	assembleSoundComponent,
 	emitAudioNode,
 	getNodeFromEmitter,
+	getNodeFromSoundComponent,
 	recycleAudioNode,
 } from "@lisachandra/matter/utils/audioEmitter";
 import type { AudioEmitterNode } from "@lisachandra/matter/utils/audioEmitter";
@@ -11,7 +15,7 @@ import { Workspace } from "@rbxts/services";
 
 describe("audio emitter", () => {
 	it("should acquire and configure a cached audio node part", () => {
-		expect.assertions(12);
+		expect.assertions(7);
 
 		const sound = new Instance("Sound");
 		const target = new Vector3(10, 20, 30);
@@ -34,7 +38,7 @@ describe("audio emitter", () => {
 	});
 
 	it("should place the node on a model pivot", () => {
-		expect.assertions(4);
+		expect.assertions(3);
 
 		const sound = new Instance("Sound");
 		const model = new Instance("Model");
@@ -108,19 +112,44 @@ describe("getNodeFromEmitter", () => {
 
 		node.Destroy();
 	});
+
+	it("should resolve audio node part from a Sound component payload", () => {
+		expect.assertions(2);
+
+		const emitted = emitAudioNode({ sound: new Instance("Sound"), target: new Vector3() });
+		const component = assembleSoundComponent(emitted.node, 7);
+
+		expect(getNodeFromSoundComponent(component)).toBe(emitted.node);
+		expect(getNodeFromSoundComponent({ id: 7 })).toBeUndefined();
+
+		recycleAudioNode(emitted.node);
+	});
 });
 
 describe("recycleAudioNode", () => {
 	it("should recycle audio node back to cache and increment return diagnostics", () => {
-		expect.assertions(3);
+		expect.assertions(2);
 
+		resetSoundDebugStats();
+		const emitted = emitAudioNode({ sound: new Instance("Sound"), target: new Vector3() });
+
+		recycleAudioNode(emitted.node);
+
+		expect(emitted.node.Parent).toBe(Workspace.Caches.Sound);
+		expect(readSoundDebugCounters().nodeReturns).toBe(1);
+	});
+
+	it("should ignore foreign parts without corrupting the cache", () => {
+		expect.assertions(2);
+
+		resetSoundDebugStats();
 		const node = new Instance("Part") as AudioEmitterNode;
 		node.Parent = Workspace;
 
 		recycleAudioNode(node);
 
-		expect(node.Parent).toBe(Workspace.Caches.Sound);
-		expect(readSoundDebugCounters().nodeReturns).toBeGreaterThan(0);
+		expect(node.Parent).toBe(Workspace);
+		expect(readSoundDebugCounters().nodeReturns).toBe(0);
 
 		node.Destroy();
 	});

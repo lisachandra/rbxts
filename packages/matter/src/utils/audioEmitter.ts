@@ -312,14 +312,37 @@ export function getNodeFromEmitter(emitter: AudioEmitter): N<AudioEmitterNode> {
 }
 
 /**
+ * Derives the containing audio node part from a `Components.Sound` payload.
+ *
+ * Thin adapter over {@link getNodeFromEmitter} so callers holding only the component (for example GC
+ * sweeps) do not reach into `sound.emitter.Parent` themselves.
+ *
+ * @param sound - The `Sound` component payload carrying the emitter.
+ * @returns The containing `AudioEmitterNode`, or `undefined` if none is found.
+ */
+export function getNodeFromSoundComponent(sound: Components["Sound"]): N<AudioEmitterNode> {
+	const { emitter } = sound;
+	if (emitter === undefined) {
+		return undefined;
+	}
+
+	return getNodeFromEmitter(emitter);
+}
+
+/**
  * Recycles an audio node part back to the sound emitter cache.
  *
  * Re-parents the node to `Workspace.Caches.Sound`, returns it to the underlying
- * `soundEmitterCache`, and records the return for diagnostics.
+ * `soundEmitterCache`, and records the return for diagnostics. Guards against foreign parts so a
+ * hand-built `Part` can never corrupt the cache free-list.
  *
  * @param node - The audio node part to recycle.
  */
 export function recycleAudioNode(node: AudioEmitterNode): void {
+	if (node.Attachment === undefined || node.Attachment.AudioEmitter === undefined) {
+		return;
+	}
+
 	node.Parent = Workspace.Caches.Sound;
 	soundEmitterCache.ReturnPart(node);
 	recordNodeReturned();
