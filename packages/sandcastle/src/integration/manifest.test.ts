@@ -14,6 +14,8 @@ import {
 	integrationManifestPath,
 	type ManifestFs,
 	readIntegrationManifest,
+	resolveExistingIntegrationSource,
+	resolveIssueIntegrationSource,
 	writeIntegrationManifest,
 } from "./manifest.js";
 
@@ -162,5 +164,84 @@ describe("integration manifest seam", () => {
 		assert.equal(created.status, "created");
 		assert.equal(created.sources[0]?.order, 1);
 		assert.equal(readIntegrationManifest("wave-3", ok.fs)?.status, "created");
+	});
+
+	test("should resolve issue and existing integration sources with status and marker verification", () => {
+		// Issue source: invalid number rejected.
+		assert.throws(() => resolveIssueIntegrationSource("abc", false), /Invalid issue number/);
+
+		// Review phase not done → reject.
+		assert.throws(
+			() =>
+				resolveIssueIntegrationSource("123", false, {
+					readState: () => undefined,
+				}),
+			/review phase is not complete/,
+		);
+
+		// Review done but latest marker BLOCKED → reject.
+		assert.throws(
+			() =>
+				resolveIssueIntegrationSource("123", false, {
+					getLatestReviewMarker: () => "BLOCKED",
+					readState: () =>
+						({
+							phases: { review: { status: "done" as const } },
+						}) as never,
+				}),
+			/expected APPROVED/,
+		);
+
+		// Review done + APPROVED → resolve with commit.
+		const source = resolveIssueIntegrationSource("123", false, {
+			getLatestReviewMarker: () => "APPROVED",
+			readState: () =>
+				({
+					phases: { review: { status: "done" as const } },
+				}) as never,
+			resolveCommit: () => "abcdef1234567",
+		});
+		assert.equal(source.name, "issue-123");
+		assert.equal(source.commit, "abcdef1234567");
+		assert.equal(source.order, 0);
+
+		// Unreviewed bypasses the marker/status gates.
+		const unreviewed = resolveIssueIntegrationSource("123", true, {
+			readState: () => undefined,
+			resolveCommit: () => "abcdef1234567",
+		});
+		assert.equal(unreviewed.issue, "123");
+
+		// Existing integration source: missing manifest → reject.
+		assert.throws(
+			() =>
+				resolveExistingIntegrationSource("wave-1", false, {
+					readIntegrationManifest: () => undefined,
+				}),
+			/does not exist/,
+		);
+
+		// Existing source with status not ready → reject.
+		assert.throws(
+			() =>
+				resolveExistingIntegrationSource("wave-1", false, {
+					readIntegrationManifest: () =>
+						manifestFor("wave-1", { status: "created" }) as never,
+				}),
+			/status is created/,
+		);
+
+		// Existing source ready + commit valid → resolve.
+		const existing = resolveExistingIntegrationSource("wave-1", false, {
+			commitExists: () => true,
+			readIntegrationManifest: () =>
+				manifestFor("wave-1", {
+					headCommit: "2222222",
+					status: "ready-for-human-merge",
+				}),
+			resolveCommit: () => "2222222",
+		});
+		assert.equal(existing.commit, "2222222");
+		assert.equal(existing.name, "wave-1");
 	});
 });

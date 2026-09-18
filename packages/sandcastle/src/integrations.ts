@@ -9,34 +9,27 @@ import { existsSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
-import {
-	commitExists,
-	git,
-	gitTry,
-	hasUnmergedPaths,
-	mergeInProgress,
-	resolveCommit,
-} from "./git.js";
+import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "./git.js";
 import {
 	assertIntegrationName,
 	createIntegrationManifest,
 	integrationBasePath,
 	integrationManifestPath,
 	readIntegrationManifest,
+	resolveExistingIntegrationSource,
+	resolveIssueIntegrationSource,
 	writeIntegrationManifest,
 } from "./integration/manifest.js";
 import { assertCleanMergeResolution, integrateManifestSource } from "./integration/merger.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, io, logsDir } from "./runtime.js";
-import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,
 	AgentPhaseName,
 	IntegrationKind,
 	IntegrationManifest,
 	IntegrationSource,
-	IntegrationStatus,
 	ResolvedAgentStep,
 } from "./types.js";
 import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
@@ -51,86 +44,6 @@ function prepareIntegrationWorktree(
 	skipSetup: boolean,
 ): void {
 	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
-}
-
-const integrationReviewStatuses: ReadonlySet<IntegrationStatus> = new Set([
-	"ready-for-human-merge",
-	"review-passed",
-]);
-
-export function resolveIssueIntegrationSource(
-	issueNumber: string,
-	allowUnreviewed: boolean,
-): IntegrationSource {
-	if (!/^\d+$/.test(issueNumber)) {
-		throw new Error(`Invalid issue number ${JSON.stringify(issueNumber)}; expected digits.`);
-	}
-
-	const branch = `sandcastle/issue-${issueNumber}`;
-	const state = readState(issueNumber);
-	if (!allowUnreviewed && state?.phases.review.status !== "done") {
-		throw new Error(
-			`Cannot integrate issue #${issueNumber}: its review phase is not complete. Use --allow-unreviewed to override.`,
-		);
-	}
-
-	if (!allowUnreviewed) {
-		const marker = getLatestReviewMarker(issueNumber);
-		if (marker !== "APPROVED") {
-			throw new Error(
-				`Cannot integrate issue #${issueNumber}: latest review marker is ${marker ?? "missing"}; expected APPROVED.`,
-			);
-		}
-	}
-
-	const commit = resolveCommit(branch);
-	return { branch, commit, issue: issueNumber, name: `issue-${issueNumber}`, order: 0 };
-}
-
-export function resolveExistingIntegrationSource(
-	name: string,
-	allowUnreviewed: boolean,
-): IntegrationSource {
-	assertIntegrationName(name);
-	const source = readIntegrationManifest(name);
-	if (!source) {
-		throw new Error(`Integration ${JSON.stringify(name)} does not exist.`);
-	}
-
-	if (!allowUnreviewed && !integrationReviewStatuses.has(source.status)) {
-		throw new Error(
-			`Cannot compose ${JSON.stringify(name)}: status is ${source.status}. Use --allow-unreviewed to override.`,
-		);
-	}
-
-	if (
-		source.headCommit !== undefined &&
-		source.headCommit !== "" &&
-		!commitExists(source.headCommit)
-	) {
-		throw new Error(
-			`Cannot compose ${JSON.stringify(name)}: recorded commit ${source.headCommit} no longer exists.`,
-		);
-	}
-
-	const currentCommit = resolveCommit(source.branch);
-	if (
-		source.headCommit !== undefined &&
-		source.headCommit !== "" &&
-		currentCommit !== source.headCommit
-	) {
-		throw new Error(
-			`Cannot compose ${JSON.stringify(name)}: branch moved since its manifest was recorded.`,
-		);
-	}
-
-	if (!commitExists(currentCommit)) {
-		throw new Error(
-			`Cannot compose ${JSON.stringify(name)}: branch commit ${currentCommit} no longer exists.`,
-		);
-	}
-
-	return { branch: source.branch, commit: currentCommit, name, order: 0 };
 }
 
 export async function runConflictResolver(

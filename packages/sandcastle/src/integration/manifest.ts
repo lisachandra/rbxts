@@ -11,9 +11,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { git, gitTry, resolveCommit } from "../git.js";
+import { commitExists, git, gitTry, resolveCommit } from "../git.js";
 import { config, integrationsDir } from "../runtime.js";
-import type { IntegrationKind, IntegrationManifest, IntegrationSource } from "../types.js";
+import { getLatestReviewMarker, readState } from "../state.js";
+import type {
+	IntegrationKind,
+	IntegrationManifest,
+	IntegrationSource,
+	IntegrationStatus,
+} from "../types.js";
 
 /** Injectable filesystem surface for manifest reads/writes. Defaults to `node:fs`. */
 export interface ManifestFs {
@@ -139,4 +145,105 @@ export function createIntegrationManifest(
 	}
 
 	return manifest;
+}
+
+const integrationReviewStatuses: ReadonlySet<IntegrationStatus> = new Set([
+	"ready-for-human-merge",
+	"review-passed",
+]);
+
+/**
+ * Resolve an approved issue branch as an integration source, gated on review completion and an
+ * APPROVED review marker unless `allowUnreviewed` is set.
+ */
+export function resolveIssueIntegrationSource(
+	issueNumber: string,
+	allowUnreviewed: boolean,
+	deps: {
+		getLatestReviewMarker?: typeof getLatestReviewMarker;
+		readState?: typeof readState;
+		resolveCommit?: typeof resolveCommit;
+	} = {},
+): IntegrationSource {
+	if (!/^\d+$/.test(issueNumber)) {
+		throw new Error(`Invalid issue number ${JSON.stringify(issueNumber)}; expected digits.`);
+	}
+
+	const readStateCmd = deps.readState ?? readState;
+	const branch = `sandcastle/issue-${issueNumber}`;
+	const state = readStateCmd(issueNumber);
+	if (!allowUnreviewed && state?.phases.review.status !== "done") {
+		throw new Error(
+			`Cannot integrate issue #${issueNumber}: its review phase is not complete. Use --allow-unreviewed to override.`,
+		);
+	}
+
+	if (!allowUnreviewed) {
+		const marker = (deps.getLatestReviewMarker ?? getLatestReviewMarker)(issueNumber);
+		if (marker !== "APPROVED") {
+			throw new Error(
+				`Cannot integrate issue #${issueNumber}: latest review marker is ${marker ?? "missing"}; expected APPROVED.`,
+			);
+		}
+	}
+
+	const commit = (deps.resolveCommit ?? resolveCommit)(branch);
+	return { branch, commit, issue: issueNumber, name: `issue-${issueNumber}`, order: 0 };
+}
+
+/**
+ * Resolve an existing, previously integrated integration as a source, verifying its status and that
+ * its recorded commit still exists and the branch has not moved.
+ */
+export function resolveExistingIntegrationSource(
+	name: string,
+	allowUnreviewed: boolean,
+	deps: {
+		commitExists?: typeof commitExists;
+		readIntegrationManifest?: typeof readIntegrationManifest;
+		resolveCommit?: typeof resolveCommit;
+	} = {},
+): IntegrationSource {
+	assertIntegrationName(name);
+	const readManifest = deps.readIntegrationManifest ?? readIntegrationManifest;
+	const source = readManifest(name);
+	if (!source) {
+		throw new Error(`Integration ${JSON.stringify(name)} does not exist.`);
+	}
+
+	if (!allowUnreviewed && !integrationReviewStatuses.has(source.status)) {
+		throw new Error(
+			`Cannot compose ${JSON.stringify(name)}: status is ${source.status}. Use --allow-unreviewed to override.`,
+		);
+	}
+
+	const commitExistsCmd = deps.commitExists ?? commitExists;
+	if (
+		source.headCommit !== undefined &&
+		source.headCommit !== "" &&
+		!commitExistsCmd(source.headCommit)
+	) {
+		throw new Error(
+			`Cannot compose ${JSON.stringify(name)}: recorded commit ${source.headCommit} no longer exists.`,
+		);
+	}
+
+	const currentCommit = (deps.resolveCommit ?? resolveCommit)(source.branch);
+	if (
+		source.headCommit !== undefined &&
+		source.headCommit !== "" &&
+		currentCommit !== source.headCommit
+	) {
+		throw new Error(
+			`Cannot compose ${JSON.stringify(name)}: branch moved since its manifest was recorded.`,
+		);
+	}
+
+	if (!commitExistsCmd(currentCommit)) {
+		throw new Error(
+			`Cannot compose ${JSON.stringify(name)}: branch commit ${currentCommit} no longer exists.`,
+		);
+	}
+
+	return { branch: source.branch, commit: currentCommit, name, order: 0 };
 }
