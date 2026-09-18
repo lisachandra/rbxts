@@ -57,7 +57,7 @@ describe("deprecated item barrel", () => {
 
 		expect(found?.guid).toBe(item.guid);
 
-		const {items} = world.get(entity, Components.Inventory)!;
+		const { items } = world.get(entity, Components.Inventory)!;
 
 		expect(items).toEqual([item]);
 		expect(items[0]!.amount).toBe(1);

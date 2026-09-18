@@ -48,11 +48,11 @@
 		"./utils/item/lookup": {
 			"import": "./out/utils/item/lookup.luau",
 			"types": "./out/utils/item/lookup.d.ts"
-			},
+		},
 		"./utils/item/state": {
 			"import": "./out/utils/item/state.luau",
 			"types": "./out/utils/item/state.d.ts"
-			},
+		},
 		"./utils/entity": {
 			"import": "./out/utils/entity.luau",
 			"types": "./out/utils/entity.d.ts"
