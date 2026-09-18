@@ -83,6 +83,34 @@ export const logOutput: Array<[string, string]> = [];
 
 const maxLogOutputSize = 128;
 
+/**
+ * Maps a `@rbxts/log` {@link LogLevel} to the Roblox `Enum.MessageType` used by `LogService`.
+ *
+ * @remarks
+ *   `Debugging`, `Verbose`, and `Information` map to `MessageInfo`; `Warning` maps to
+ *   `MessageWarning`; `Error` and `Fatal` map to `MessageError`. `Fatal` still halts execution
+ *   because `MessageError` throws in the Roblox engine.
+ * @param level - The log level to map.
+ * @returns The corresponding `Enum.MessageType`.
+ */
+export function mapLogLevelToMessageType(level: LogLevel): Enum.MessageType {
+	switch (level) {
+		case LogLevel.Warning: {
+			return Enum.MessageType.MessageWarning;
+		}
+		case LogLevel.Error:
+		case LogLevel.Fatal: {
+			return Enum.MessageType.MessageError;
+		}
+		case LogLevel.Debugging:
+		case LogLevel.Information:
+		case LogLevel.Verbose:
+		default: {
+			return Enum.MessageType.MessageInfo;
+		}
+	}
+}
+
 const environment = RunService.IsClient() ? "Client" : "Server";
 const stackTraceLevelModule = 5;
 
