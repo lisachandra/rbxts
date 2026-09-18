@@ -28,6 +28,7 @@ import {
 	readIntegrationManifest,
 	writeIntegrationManifest,
 } from "./integration/manifest.js";
+import { assertCleanMergeResolution } from "./integration/merger.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
 import { config, io, logsDir } from "./runtime.js";
@@ -44,6 +45,7 @@ import type {
 import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
 
 export * from "./integration/manifest.js";
+export * from "./integration/merger.js";
 
 /** Mirrors issue-worktree preparation for integration worktrees before agents run. */
 function prepareIntegrationWorktree(
@@ -52,19 +54,6 @@ function prepareIntegrationWorktree(
 	skipSetup: boolean,
 ): void {
 	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
-}
-
-function assertCleanMergeResolution(manifest: IntegrationManifest): void {
-	const worktree = integrationBasePath(manifest);
-	if (hasUnmergedPaths(worktree)) {
-		throw new Error(
-			`Unmerged paths remain in ${worktree}; resolve every conflict before continuing.`,
-		);
-	}
-
-	if (mergeInProgress(worktree)) {
-		git(["commit", "--no-edit"], worktree);
-	}
 }
 
 /** Split tracked drift into merge-blocking paths and submodule pointers, which git merges over. */
