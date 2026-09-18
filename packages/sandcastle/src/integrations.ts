@@ -5,8 +5,8 @@
  * handing the branch off for a human merge.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve as pathResolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
 
 import { skillsForPrompt } from "./agent.js";
 import {
@@ -20,9 +20,17 @@ import {
 	mergeInProgress,
 	resolveCommit,
 } from "./git.js";
+import {
+	assertIntegrationName,
+	createIntegrationManifest,
+	integrationBasePath,
+	integrationManifestPath,
+	readIntegrationManifest,
+	writeIntegrationManifest,
+} from "./integration/manifest.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
-import { config, integrationsDir, io, logsDir } from "./runtime.js";
+import { config, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {
 	AgentBackend,
@@ -35,46 +43,7 @@ import type {
 } from "./types.js";
 import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
 
-export const integrationBranch = (name: string): string => `sandcastle/integration/${name}`;
-
-function integrationManifestPath(name: string): string {
-	return pathResolve(integrationsDir, name, "manifest.json");
-}
-
-export function assertIntegrationName(name: string): void {
-	if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
-		throw new Error(
-			`Invalid integration name ${JSON.stringify(name)}; use letters, numbers, ., _, or -`,
-		);
-	}
-}
-
-export function readIntegrationManifest(name: string): undefined | IntegrationManifest {
-	const path = integrationManifestPath(name);
-	if (!existsSync(path)) {
-		return undefined;
-	}
-
-	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as IntegrationManifest;
-	} catch {
-		throw new Error(`Integration manifest is invalid: ${path}`);
-	}
-}
-
-export function writeIntegrationManifest(manifest: IntegrationManifest): void {
-	mkdirSync(dirname(integrationManifestPath(manifest.name)), { recursive: true });
-	manifest.updatedAt = new Date().toISOString();
-	writeFileSync(
-		integrationManifestPath(manifest.name),
-		`${JSON.stringify(manifest, undefined, 2)}\n`,
-		"utf-8",
-	);
-}
-
-function integrationBasePath(manifest: IntegrationManifest): string {
-	return pathResolve(integrationsDir, manifest.name, "worktree");
-}
+export * from "./integration/manifest.js";
 
 /** Mirrors issue-worktree preparation for integration worktrees before agents run. */
 function prepareIntegrationWorktree(
@@ -270,67 +239,6 @@ export function resolveExistingIntegrationSource(
 	}
 
 	return { branch: source.branch, commit: currentCommit, name, order: 0 };
-}
-
-export function createIntegrationManifest(
-	name: string,
-	kind: IntegrationKind,
-	baseRef: string,
-	sources: Array<IntegrationSource>,
-	allowUnreviewed: boolean,
-): IntegrationManifest {
-	assertIntegrationName(name);
-	if (readIntegrationManifest(name)) {
-		throw new Error(
-			`Integration ${JSON.stringify(name)} already exists; use integration-resume or choose another name.`,
-		);
-	}
-
-	const now = new Date().toISOString();
-	const manifest: IntegrationManifest = {
-		allowUnreviewed: allowUnreviewed || undefined,
-		base: { commit: "", ref: baseRef },
-		branch: integrationBranch(name),
-		createdAt: now,
-		kind,
-		name,
-		sources: sources.map((source, index) => ({ ...source, order: index + 1 })),
-		status: "created",
-		updatedAt: now,
-		worktree: `${config.dir}/integrations/${name}/worktree`,
-	};
-
-	try {
-		manifest.base.commit = resolveCommit(baseRef);
-		if (
-			gitTry(["show-ref", "--verify", "--quiet", `refs/heads/${manifest.branch}`]) !==
-			undefined
-		) {
-			throw new Error(`Branch ${manifest.branch} already exists.`);
-		}
-
-		if (existsSync(integrationBasePath(manifest))) {
-			throw new Error(`Worktree path already exists: ${integrationBasePath(manifest)}`);
-		}
-
-		writeIntegrationManifest(manifest);
-		mkdirSync(dirname(integrationBasePath(manifest)), { recursive: true });
-		git([
-			"worktree",
-			"add",
-			"-b",
-			manifest.branch,
-			integrationBasePath(manifest),
-			manifest.base.commit,
-		]);
-	} catch (err) {
-		manifest.status = "preflight-failed";
-		manifest.lastError = String(err);
-		writeIntegrationManifest(manifest);
-		throw err;
-	}
-
-	return manifest;
 }
 
 export async function runConflictResolver(
