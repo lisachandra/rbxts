@@ -32,19 +32,13 @@ import type {
 	IntegrationSource,
 	ResolvedAgentStep,
 } from "./types.js";
-import { prepareIssueWorktree, sandboxProvider } from "./worktree.js";
+import { sandboxProvider } from "./worktree.js";
 
 export * from "./integration/manifest.js";
 export * from "./integration/merger.js";
+export * from "./integration/orchestrator.js";
 
-/** Mirrors issue-worktree preparation for integration worktrees before agents run. */
-function prepareIntegrationWorktree(
-	worktree: string,
-	ignoreSetup: boolean,
-	skipSetup: boolean,
-): void {
-	prepareIssueWorktree(worktree, ignoreSetup, skipSetup);
-}
+import { prepareIntegrationWorktree } from "./integration/orchestrator.js";
 
 export async function runConflictResolver(
 	manifest: IntegrationManifest,
