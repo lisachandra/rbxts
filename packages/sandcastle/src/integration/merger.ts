@@ -201,7 +201,7 @@ export async function integrateManifestSource(
 	const resolver =
 		deps.runConflictResolver ??
 		((async (...args: Parameters<ConflictResolverRunner>) => {
-			const { runConflictResolver } = await import("../integrations.js");
+			const { runConflictResolver } = await import("./orchestrator.js");
 			await runConflictResolver(...args);
 		}) as ConflictResolverRunner);
 	const manifestWriter =
