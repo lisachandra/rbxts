@@ -1,5 +1,5 @@
-import { mapLogLevelToMessageType } from "@lisachandra/core/logger";
-import { describe, expect, it } from "@rbxts/jest-globals";
+import { LogEventSFTOutputSink, mapLogLevelToMessageType } from "@lisachandra/core/logger";
+import { describe, expect, it, jest } from "@rbxts/jest-globals";
 import { LogLevel } from "@rbxts/log";
 
 describe("log level to message type mapping", () => {
@@ -11,5 +11,31 @@ describe("log level to message type mapping", () => {
 		expect(mapLogLevelToMessageType(LogLevel.Warning)).toBe(Enum.MessageType.MessageWarning);
 		expect(mapLogLevelToMessageType(LogLevel.Error)).toBe(Enum.MessageType.MessageError);
 		expect(mapLogLevelToMessageType(LogLevel.Fatal)).toBe(Enum.MessageType.MessageError);
+	});
+});
+
+describe("logEventSFTOutputSink fallback behavior", () => {
+	function emit(level: LogLevel): void {
+		const sink = new LogEventSFTOutputSink();
+		sink.Emit({
+			Level: level,
+			name: "world",
+			SourceContext: "test",
+			Template: "hello {name}",
+			Timestamp: "2024-01-01T00:00:00Z",
+		});
+	}
+
+	it("should fall back to standard print/warn/error when in test mode", () => {
+		expect.assertions(1);
+
+		_G.__TEST__ = true;
+
+		const mockWarn = jest.spyOn(jest.globalEnv, "warn");
+		mockWarn.mockImplementation(() => {});
+
+		emit(LogLevel.Warning);
+
+		expect(mockWarn).toHaveBeenCalled();
 	});
 });
