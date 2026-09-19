@@ -8,7 +8,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { skillsForPrompt } from "./prompts/skills.js";
 import {
 	changedSinceMergeBase,
 	commitExists,
@@ -22,6 +21,7 @@ import {
 } from "./git.js";
 import { fileLogging } from "./logging.js";
 import { markerPath, runMarkerPhase } from "./markers.js";
+import { skillsForPrompt } from "./prompts/skills.js";
 import { config, integrationsDir, io, logsDir } from "./runtime.js";
 import { getLatestReviewMarker, readState } from "./state.js";
 import type {

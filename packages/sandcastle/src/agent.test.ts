@@ -4,12 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
-import {
-	createAgent,
-	diracAgent,
-	fetchIssueLabels,
-	resolveBackendEffort,
-} from "./agent.js";
+import { createAgent, diracAgent, fetchIssueLabels, resolveBackendEffort } from "./agent.js";
 import { io, packageRoot } from "./runtime.js";
 import { registerTestHooks, stubExecSync } from "./test-helpers.js";
 import type { AgentBackend } from "./types.js";
@@ -18,6 +13,7 @@ registerTestHooks();
 
 const MARKER = "C:/sandcastle/markers/1.design.completed";
 const SOME_TOKEN = "completion-token";
+
 describe("skills and issue metadata", () => {
 	test("fetchIssueLabels returns [] on failure and parses labels", () => {
 		io.execSync = () => {

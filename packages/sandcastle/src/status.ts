@@ -5,8 +5,8 @@
 import { existsSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { issueMetadata } from "./issue-metadata.js";
 import { evaluatePhases } from "./evaluate.js";
+import { issueMetadata } from "./issue-metadata.js";
 import { config, repoRoot } from "./runtime.js";
 import { readState } from "./state.js";
 import type { AgentPhaseName, PhaseName, ResolvedAgentStep } from "./types.js";
@@ -39,10 +39,11 @@ export function printStatus(
 	if (steps) {
 		for (const step of ["design", "implement", "review"] as const) {
 			const resolved = steps[step];
-			if (resolved)
-				{console.log(
+			if (resolved) {
+				console.log(
 					`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})`,
-				);}
+				);
+			}
 		}
 	}
 
