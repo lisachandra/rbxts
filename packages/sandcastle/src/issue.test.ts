@@ -45,12 +45,8 @@ describe("orchestration with heavy stubs", () => {
 				return "";
 			},
 			sync: (command) => {
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [{ name: "ecs" }] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "Test issue title";
+					return JSON.stringify({ labels: [{ name: "ecs" }], title: "Test issue title" });
 				}
 
 				if (command.includes("rev-list")) {
@@ -114,12 +110,8 @@ describe("orchestration with heavy stubs", () => {
 				return "";
 			},
 			sync: (command) => {
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "title";
+					return JSON.stringify({ labels: [], title: "title" });
 				}
 
 				if (command.includes("rev-list")) {
@@ -186,12 +178,8 @@ describe("orchestration with heavy stubs", () => {
 					return "2";
 				}
 
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "title";
+					return JSON.stringify({ labels: [], title: "title" });
 				}
 
 				return "";
@@ -231,12 +219,8 @@ describe("orchestration with heavy stubs", () => {
 				return "";
 			},
 			sync: (command) => {
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "Test issue title";
+					return JSON.stringify({ labels: [], title: "Test issue title" });
 				}
 
 				if (command.includes("rev-list")) {
@@ -314,12 +298,8 @@ describe("orchestration with heavy stubs", () => {
 				return "";
 			},
 			sync: (command) => {
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "Test issue title";
+					return JSON.stringify({ labels: [], title: "Test issue title" });
 				}
 
 				if (command.includes("rev-list")) {
