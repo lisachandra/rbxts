@@ -1,26 +1,26 @@
 import type { CollectionData } from "@lisachandra/core/store";
 import { store } from "@lisachandra/core/store";
-import type { Collection, Document } from "@rbxts/lapis";
+import type { Profile, Store } from "@rbxts/dataforge";
 import Log from "@rbxts/log";
 import { None } from "@rbxts/sift";
 
 /**
- * A hook that retrieves a Lapis Document for a given player. Handles loading and caching of
- * documents.
+ * A hook that retrieves a Dataforge Profile for a given player. Handles loading and caching of
+ * player documents in the shared store.
  *
- * @param collection - The Lapis collection to load documents from.
+ * @param dataStore - The Dataforge store to load profiles from.
  * @param userId - The userId of the player.
  * @param player - The Player instance (optional). If provided, used for name logging and kicking in
  *   case of document load failure.
- * @returns An object containing the document (if loaded) and the discriminator string used to
+ * @returns An object containing the profile (if loaded) and the discriminator string used to
  *   identify the document.
  * @server
  */
 export function useDocument(
-	collection: Collection<any, any>,
+	dataStore: Store<CollectionData>,
 	userId: number,
 	player?: Player,
-): { discriminator: string; document?: Document<CollectionData> } {
+): { discriminator: string; document?: Profile<CollectionData> } {
 	const name = player ? player.Name : `${userId}`;
 	const discriminator = `Player_${userId}`;
 
@@ -28,18 +28,19 @@ export function useDocument(
 		Log.Info(`loading document for Player: ${name}`);
 		store.documents[discriminator] = None as never;
 
-		collection
-			.load(`Player_${userId}`, [userId])
-			.then(async (document) => {
+		Promise.defer<Profile<CollectionData>>((resolve) => {
+			resolve(dataStore.load(discriminator, [userId]));
+		})
+			.then((profile) => {
 				if (!player?.Parent) {
-					document.close().await();
+					profile.unload();
 					return;
 				}
 
 				Log.Info(`document loaded for Player: ${name}`);
-				store.documents[discriminator] = document;
+				store.documents[discriminator] = profile;
 
-				document.beforeClose(() => {
+				profile.on_closed(() => {
 					delete store.documents[discriminator];
 					store.server
 						.update({

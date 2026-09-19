@@ -21,8 +21,8 @@ import { catcher } from "@lisachandra/core/utils/main";
  *   + entity despawn). Useful for saving game-specific state.
  */
 import type { Crate } from "@rbxts/crate";
+import type { Store } from "@rbxts/dataforge";
 import { Janitor } from "@rbxts/janitor";
-import type { Collection } from "@rbxts/lapis";
 import Log from "@rbxts/log";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
@@ -69,7 +69,7 @@ async function syncWithEventQueue(): Promise<void> {
  */
 async function waitForPlayerLoaded(
 	player: Player,
-	collection: Collection<any, any>,
+	collection: Store<any>,
 ): Promise<Required<ReturnType<typeof useDocument>>> {
 	return new Promise((resolve, reject) => {
 		debugPrint(`[playerManager] waitForPlayerLoaded start ${player.Name}`);
@@ -166,7 +166,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 	const hooks = getPlayerLifecycleHooks();
 	const documentConfig = getDocumentConfig();
-	const collection = documentConfig?.collection;
+	const collection = documentConfig?.store ?? documentConfig?.collection;
 
 	debugPrint(`[playerManager] queued sync ${player.Name}`);
 
@@ -223,7 +223,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 				playerJanitor = new Janitor();
 				playerJanitor.Add(async () => {
-					data.document.close().await();
+					data.document.unload();
 				});
 			} else {
 				Log.Info(`spawning player (no document): ${player.Name}`);
