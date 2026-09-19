@@ -11,7 +11,9 @@ import dataforge from "@rbxts/dataforge";
  * @param config - The public store configuration (name and template).
  * @returns The store, memory hook and virtual scheduler used to construct it.
  */
-export function createTestStore<T>(config: dataforge.Config<T>): {
+export function createTestStore<T>(
+	config: dataforge.Config<T> & { _hook?: never; _scheduler?: never },
+): {
 	hook: dataforge.MemoryHook;
 	scheduler: dataforge.VirtualScheduler;
 	store: dataforge.Store<T>;

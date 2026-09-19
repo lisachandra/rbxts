@@ -433,7 +433,7 @@ configureRuntimeAdapters({
 - `item/toolManager` — Tool creation and cleanup
 - `item/hotbarManager` — Hotbar equip/unequip management
 - `player/playerManager` — Player join/leave lifecycle
-- `player/documentManager` — Persist components to Lapis documents
+- `player/documentManager` — Persist components to Dataforge profiles
 - `sound/soundManager` — Server-side audio setup
 - `network/replicationManager` — Serialize and send component changes
 
