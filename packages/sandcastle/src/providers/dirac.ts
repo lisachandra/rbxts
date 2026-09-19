@@ -8,7 +8,6 @@
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
-import { resolveBackendEffort } from "../agent.js";
 import { packageRoot } from "../runtime.js";
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
@@ -33,7 +32,7 @@ export function diracProvider(
 			const yoloFlag = dangerouslySkipPermissions ? " -y" : "";
 			const effortFlag =
 				options?.effort !== undefined && options.effort !== ""
-					? ` --reasoning-effort ${resolveBackendEffort(options.effort, "dirac")}`
+					? ` --reasoning-effort ${options.effort}`
 					: "";
 			const wrapperPath = `${packageRoot}/assets/dirac-wrapper.sh`.replaceAll("\\", "/");
 			return {
