@@ -6,7 +6,7 @@
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { config, io, packageRoot, repoRoot } from "./runtime.js";
-import type { AgentBackend, PhaseName, SandcastleEffort } from "./types.js";
+import type { AgentBackend, SandcastleEffort } from "./types.js";
 
 /** Protocol line printed by `assets/agent-wrapper.sh` after a marker-backed run finishes. */
 const MARKER_PROTOCOL_LINE = '{"sandcastleMarker":"completed"}';
@@ -274,26 +274,6 @@ export function createAgent(
 	return withMarkerCompletion(inner, markerPath);
 }
 
-const globalPhaseSkills: Record<PhaseName, ReadonlyArray<string>> = config.skills.defaults;
-const issueLabelSkills: Record<string, Partial<Record<PhaseName, ReadonlyArray<string>>>> = config
-	.skills.labels;
-
-export const uniqueSkills = (skills: ReadonlyArray<string>): Array<string> => [...new Set(skills)];
-
-export function skillsForPrompt(phase: PhaseName, labels: ReadonlyArray<string> = []): string {
-	const skills = [...globalPhaseSkills[phase]];
-	for (const label of labels) {
-		for (const skill of issueLabelSkills[label]?.[phase] ?? []) {
-			skills.push(skill);
-		}
-	}
-
-	return uniqueSkills(skills)
-		.map((skill) => `- ${skill}`)
-		.join("\n");
-}
-
-/** Returns the configured issue-view command with `{issue}` replaced. */
 export function issueView(issueNumber: string): string {
 	return config.issueCommand.replaceAll("{issue}", issueNumber);
 }

@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { skillsForPrompt } from "./agent.js";
+import { skillsForPrompt } from "./prompts/skills.js";
 import {
 	changedSinceMergeBase,
 	commitExists,

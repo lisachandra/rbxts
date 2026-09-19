@@ -11,8 +11,6 @@ import {
 	diracAgent,
 	fetchIssueLabels,
 	resolveBackendEffort,
-	skillsForPrompt,
-	uniqueSkills,
 	withMarkerCompletion,
 } from "./agent.js";
 import { io, packageRoot } from "./runtime.js";
@@ -26,15 +24,6 @@ const SOME_TOKEN = "completion-token";
 const PROTOCOL = '{"sandcastleMarker":"completed"}';
 
 describe("skills and issue metadata", () => {
-	test("skillsForPrompt includes label-specific skills and uniqueSkills dedupes", () => {
-		assert.deepEqual(uniqueSkills(["a", "b", "a"]), ["a", "b"]);
-		const design = skillsForPrompt("design", ["ecs", "security", "ui"]);
-		assert.match(design, /domain-modeling/);
-		assert.match(design, /threat-model/);
-		assert.match(design, /react-roblox-ui/);
-		assert.equal(design.split("\n").length, new Set(design.split("\n")).size);
-	});
-
 	test("fetchIssueLabels returns [] on failure and parses labels", () => {
 		io.execSync = () => {
 			throw new Error("gh down");

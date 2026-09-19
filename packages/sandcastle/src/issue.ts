@@ -10,8 +10,9 @@ import { mkdirSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
-import { createAgent, skillsForPrompt } from "./agent.js";
+import { createAgent } from "./agent.js";
 import { issueMetadata } from "./issue-metadata.js";
+import { skillsForPrompt } from "./prompts/skills.js";
 import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
 import { countNewCommits, resolveCommit } from "./git.js";
 import { fileLogging } from "./logging.js";
