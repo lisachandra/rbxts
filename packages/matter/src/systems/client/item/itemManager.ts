@@ -18,6 +18,7 @@ import type { ChangeRecord, Item } from "../../../components";
 import { Components, isComponent } from "../../../components";
 import { useMessage, useThrottle } from "../../../hooks";
 import { Message, messaging } from "../../../network";
+import { encodeItemPointer } from "../../../utils/itemPointer";
 import { meta as replicationManager } from "../network/replicationManager";
 
 /** Interval (seconds) between periodic item resyncs with the server. */
@@ -115,7 +116,7 @@ function updateItemPointersForComponent(
 			continue;
 		}
 
-		const pointer = name === "Items" ? `${entityId}` : `${entityId}_${name}`;
+		const pointer = encodeItemPointer(entityId, name);
 		const { itemsToAdd } = getItemChanges(record, updatedPointers, pointer);
 
 		updatedPointers = {
