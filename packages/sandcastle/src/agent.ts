@@ -6,19 +6,11 @@
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { config, io, packageRoot, repoRoot } from "./runtime.js";
+import { withMarkerCompletion } from "./providers/marker.js";
 import type { AgentBackend, SandcastleEffort } from "./types.js";
-
-/** Protocol line printed by `assets/agent-wrapper.sh` after a marker-backed run finishes. */
-const MARKER_PROTOCOL_LINE = '{"sandcastleMarker":"completed"}';
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 
-/**
- * Backend effort levels. "max" is a first-class level in dirac (see
- * `OPENAI_REASONING_EFFORT_OPTIONS` in dirac's `src/shared/storage/types.ts`) and is forwarded
- * untouched to dirac/claude-code. Backends whose CLIs cap out at "xhigh" (pi, codex) map "max" down
- * to "xhigh".
- */
 export function resolveBackendEffort(effort: string, backend?: AgentBackend): SandcastleEffort {
 	if (effort !== "max") {
 		return effort as SandcastleEffort;
@@ -124,72 +116,6 @@ export function diracAgent(
 			}
 		},
 	};
-}
-
-/**
- * Wraps any @ai-hero/sandcastle provider with marker-based completion.
- *
- * The inner provider's command is executed through `assets/agent-wrapper.sh`, which checks the
- * completion marker after a clean exit and prints a protocol line. This proxy uses that line to
- * flush the accumulated stream output as a final result event, so structured output like the
- * `<plan>` block survives even when intermediate card results overwrite the orchestrator's
- * `resultText`.
- */
-export function withMarkerCompletion(inner: AgentProvider, markerPath: string): AgentProvider {
-	const markerEnv = {
-		SANDCASTLE_MARKER_COMPLETED: markerPath.replaceAll("\\", "/"),
-	};
-	const wrapperPath = `${packageRoot}/assets/agent-wrapper.sh`.replaceAll("\\", "/");
-	let textBuffer = "";
-	let resultEmitted = false;
-
-	const parseProtocol = (line: string): Array<StreamEvent> => {
-		if (resultEmitted || line.trim() !== MARKER_PROTOCOL_LINE) {
-			return [];
-		}
-
-		resultEmitted = true;
-		return [{ type: "result", result: textBuffer }];
-	};
-
-	return {
-		...(inner.buildInteractiveArgs !== undefined
-			? { buildInteractiveArgs: inner.buildInteractiveArgs }
-			: {}),
-		buildPrintCommand(options): PrintCommand {
-			const innerCommand = inner.buildPrintCommand(options);
-			const useStdin = innerCommand.stdin !== undefined;
-			const command = `bash ${shellEscape(wrapperPath)}${useStdin ? " --stdin" : ""} -- ${shellEscape(innerCommand.command)}`;
-			return {
-				command,
-				stdin: options.prompt,
-			};
-		},
-		captureSessions: inner.captureSessions,
-		env: { ...inner.env, ...markerEnv },
-		name: inner.name,
-		...(inner.parseSessionUsage !== undefined
-			? { parseSessionUsage: inner.parseSessionUsage }
-			: {}),
-		parseStreamLine(line: string): Array<StreamEvent> {
-			const innerEvents = inner.parseStreamLine(line);
-			for (const event of innerEvents) {
-				if (event.type === "text") {
-					textBuffer += event.text;
-				} else if (event.type === "result") {
-					textBuffer += event.result;
-				}
-			}
-
-			return [...innerEvents, ...parseProtocol(line)];
-		},
-		sessionStorage: inner.sessionStorage,
-	};
-}
-
-/** Single-quote a value for use inside a `bash` command string. */
-function shellEscape(value: string): string {
-	return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 export function createAgent(
