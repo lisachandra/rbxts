@@ -96,12 +96,6 @@ catalogs:
     '@rbxts/jest-globals':
       specifier: 3.16.0-ts.1
       version: 3.16.0-ts.1
-    '@rbxts/lapis':
-      specifier: 0.3.8
-      version: 0.3.8
-    '@rbxts/lapis-mockdatastore':
-      specifier: 0.3.7
-      version: 0.3.7
     '@rbxts/lemon-signal':
       specifier: 1.2.0
       version: 1.2.0
@@ -379,9 +373,6 @@ importers:
       '@rbxts/dataforge':
         specifier: 'catalog:'
         version: 0.1.0
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -457,9 +448,6 @@ importers:
       '@rbxts/janitor':
         specifier: 'catalog:'
         version: 1.18.3-ts.0
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -544,12 +532,6 @@ importers:
       '@rbxts/dataforge':
         specifier: 'catalog:'
         version: 0.1.0
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
-      '@rbxts/lapis-mockdatastore':
-        specifier: 'catalog:'
-        version: 0.3.7
       '@rbxts/log':
         specifier: 'catalog:'
         version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
@@ -911,12 +893,6 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
-      '@rbxts/lapis-mockdatastore':
-        specifier: 'catalog:'
-        version: 0.3.7
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -3231,14 +3207,6 @@ packages:
 
   '@rbxts/jest@3.16.0-ts.1':
     resolution: {integrity: sha512-ah5fZE9UlkFedGKNU55jyFlZSpUkfGXFhv3n0avq9e2iggnRvEG5OzblS3IgMCH9VcH+RE5vuAHdCXSxKb20Lg==}
-
-  '@rbxts/lapis-mockdatastore@0.3.7':
-    resolution: {integrity: sha512-D8DhcnTDoMit7Rne6AQxAas8H5ZK7B6StFIGNTUoe2oUfQVmEbPF85Q78PjBEww2vAjVAnAF2FbMnbcALQjaUQ==}
-
-  '@rbxts/lapis@0.3.8':
-    resolution: {integrity: sha512-SQTVdSp47Rh7nzuI/ArUsGssz2+KmciPlue4Qlj3i9iO2p3Xgf1ZsgfhvMemPih/kFdjSH47E8wHGA4dY/Y+AA==}
-    peerDependencies:
-      '@rbxts/t': '*'
 
   '@rbxts/lemon-signal@1.2.0':
     resolution: {integrity: sha512-R8iZqtwqLCnA4g2gS8d8j/QVnctkvzLQspq3VfuKfFbXp+Zqs7rw/2LebD/9ifX/NGpHAGgatRqj0C6DABT9Rw==}
@@ -8341,12 +8309,6 @@ snapshots:
       '@rbxts/emittery': 3.16.0-ts.1
       '@rbxts/jest-globals': 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
       '@rbxts/pretty-format': 3.16.0-ts.1
-
-  '@rbxts/lapis-mockdatastore@0.3.7': {}
-
-  '@rbxts/lapis@0.3.8(@rbxts/t@3.2.1)':
-    dependencies:
-      '@rbxts/t': 3.2.1
 
   '@rbxts/lemon-signal@1.2.0': {}
 

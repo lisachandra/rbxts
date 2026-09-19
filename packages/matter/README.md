@@ -8,7 +8,7 @@ The ECS runtime — built on `@rbxts/matter` with components, hooks, networking,
 pnpm add @lisachandra/matter
 ```
 
-Peer dependencies: `@lisachandra/types`, `@lisachandra/core`, `@rbxts/matter`, `@rbxts/crate`, `@rbxts/janitor`, `@rbxts/lemon-signal`, `@rbxts/tether`, `@rbxts/serio`, `@rbxts/sift`, `@rbxts/services`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/object-utils`, `@rbxts/object-cache`, `@flamework/core`, `@rbxts/t`, `@rbxts/lapis`, `@rbxts/plasma`, `@rbxts/rewire`, `type-fest`
+Peer dependencies: `@lisachandra/types`, `@lisachandra/core`, `@rbxts/matter`, `@rbxts/crate`, `@rbxts/janitor`, `@rbxts/lemon-signal`, `@rbxts/tether`, `@rbxts/serio`, `@rbxts/sift`, `@rbxts/services`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/object-utils`, `@rbxts/object-cache`, `@flamework/core`, `@rbxts/t`, `@rbxts/dataforge`, `@rbxts/plasma`, `@rbxts/rewire`, `type-fest`
 
 ## Submodule Exports
 
@@ -33,7 +33,7 @@ import { store } from "@lisachandra/core/store";
 
 // Configure adapters before starting
 configureRuntimeAdapters({
-	document: { collection: myLapisCollection },
+	document: { store: myDataforgeStore },
 	playerLifecycle: {
 		postSpawn(world, player, entityId) {
 			print(`Player ${player.Name} spawned as entity ${entityId}`);
@@ -407,7 +407,7 @@ configureRuntimeAdapters({
 		},
 	},
 	document: {
-		collection: myCollection,
+		store: myStore,
 		persistedComponents: { Hotbar: "hotbar", Inventory: "inventory" },
 	},
 });

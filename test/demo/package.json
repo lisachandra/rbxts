@@ -30,8 +30,6 @@
 		"@rbxts/janitor": "catalog:",
 		"@rbxts/jest": "catalog:",
 		"@rbxts/jest-globals": "catalog:",
-		"@rbxts/lapis": "catalog:",
-		"@rbxts/lapis-mockdatastore": "catalog:",
 		"@rbxts/lemon-signal": "catalog:",
 		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",

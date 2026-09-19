@@ -31,8 +31,6 @@ catalog:
     "@rbxts/janitor": 1.18.3-ts.0
     "@rbxts/jest": 3.16.0-ts.1
     "@rbxts/jest-globals": 3.16.0-ts.1
-    "@rbxts/lapis": 0.3.8
-    "@rbxts/lapis-mockdatastore": 0.3.7
     "@rbxts/lemon-signal": 1.2.0
     "@rbxts/log": 0.6.3
     "@rbxts/luau-polyfill": latest
