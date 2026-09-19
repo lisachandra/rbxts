@@ -25,6 +25,7 @@
 		"@rbxts/centurion": "catalog:",
 		"@rbxts/centurion-ui": "catalog:",
 		"@rbxts/crate": "catalog:",
+		"@rbxts/dataforge": "catalog:",
 		"@rbxts/iris": "catalog:",
 		"@rbxts/janitor": "catalog:",
 		"@rbxts/jest": "catalog:",

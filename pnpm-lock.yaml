@@ -815,6 +815,9 @@ importers:
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@lisachandra/test':
         specifier: workspace:*
         version: link:../../packages/test
@@ -824,6 +827,12 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/crate':
+        specifier: 'catalog:'
+        version: 1.0.3-rc.1
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/jest':
         specifier: 'catalog:'
         version: 3.16.0-ts.1
@@ -887,6 +896,9 @@ importers:
       '@rbxts/crate':
         specifier: 'catalog:'
         version: 1.0.3-rc.1
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/iris':
         specifier: 'catalog:'
         version: 2.3.1-ts.1
@@ -1035,6 +1047,9 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/jest':
         specifier: 'catalog:'
         version: 3.16.0-ts.1
