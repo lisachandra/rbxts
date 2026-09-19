@@ -1,11 +1,11 @@
 import type { CrateDiff, InferCrateType } from "@rbxts/crate";
 import { Crate } from "@rbxts/crate";
-import type { Document } from "@rbxts/lapis";
+import type { Profile } from "@rbxts/dataforge";
 import Signal from "@rbxts/lemon-signal";
 import Log from "@rbxts/log";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { RunService, Workspace } from "@rbxts/services";
-import { removeValues, values } from "@rbxts/sift/Dictionary";
+import { copyDeep, removeValues, values } from "@rbxts/sift/Dictionary";
 
 import { iterate } from "./utils/type";
 
@@ -119,19 +119,23 @@ crate.useDiff((diff) => {
 	diffSignal.Fire(diff);
 });
 
-const documents: Partial<Record<string, Document<CollectionData>>> = {};
+const documents: Partial<Record<string, Profile<CollectionData>>> = {};
 if (RunService.IsServer()) {
 	(crate as Crate<ServerState>).useMiddleware("documents", (oldValue, newValue) => {
 		const difference = removeValues(oldValue, ...values(newValue));
 
 		for (const [key, data] of iterate(difference)) {
-			const document = documents[key];
-			if (!document) {
+			const profile = documents[key];
+			if (!profile) {
 				Log.Warn(`${key} document is modified from the store but it doesn't exist!`);
 				continue;
 			}
 
-			document.write(data);
+			/*
+			 * Dataforge profiles use an immutable data model: the dispatcher must
+			 * hand back a fresh object, never the frozen `get_data()` result.
+			 */
+			profile.update(() => copyDeep(data as object) as CollectionData);
 		}
 
 		return newValue;
