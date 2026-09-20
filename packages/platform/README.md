@@ -8,7 +8,7 @@ Platform glue: bootstrap orchestration, Centurion admin commands, document persi
 pnpm add @lisachandra/platform
 ```
 
-Peer dependencies: `@lisachandra/types`, `@lisachandra/matter`, `@lisachandra/core`, `@flamework/core`, `@rbxts/centurion`, `@rbxts/lapis`, `@rbxts/services`, `@rbxts/log`, `@rbxts/sift`, `@rbxts/t`, `@rbxts/serio`, `@rbxts/object-utils`, `@rbxts/rbxts-hashlib`, `@rbxts/regexp`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `type-fest`
+Peer dependencies: `@lisachandra/types`, `@lisachandra/matter`, `@lisachandra/core`, `@flamework/core`, `@rbxts/centurion`, `@rbxts/dataforge`, `@rbxts/services`, `@rbxts/log`, `@rbxts/sift`, `@rbxts/t`, `@rbxts/serio`, `@rbxts/object-utils`, `@rbxts/rbxts-hashlib`, `@rbxts/regexp`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `type-fest`
 
 ## Submodule Exports
 
@@ -173,23 +173,25 @@ const { success, validHash, unexpired } = isValidTeleport(player);
 
 ## Document
 
-Lapis-based data persistence with validation:
+Dataforge-based data persistence with validation:
 
 ```ts
-import { collection } from "@lisachandra/platform/document";
-// Or use the create helper:
-import { createCollection } from "@rbxts/lapis";
+import { configureRuntimeAdapters } from "@lisachandra/matter";
+import dataforge from "@rbxts/dataforge";
 
-// Create a custom collection
-const collection = createCollection("PlayerData", {
-	defaultData: {
-		banned: { value: false },
+// Create a custom store
+const store = dataforge.create_store<CollectionData>({
+	name: "PlayerData",
+	template: {
+		banned: false,
 		hotbar: [],
 		inventory: [],
 	},
-	validate: createDataStoreValidator<CollectionData>(),
 });
 
 // Pass to matter
-configureRuntimeAdapters({ document: { collection } });
+configureRuntimeAdapters({ document: { store } });
 ```
+
+For tests, `createTestStore()` builds an in-memory store backed by the dataforge memory hook and
+virtual scheduler.

@@ -13,10 +13,7 @@
 				"node_modules": {
 					"$className": "Folder",
 					"@lisachandra": {
-						"$path": "node_modules/@lisachandra",
-						"core": {
-							"$path": "../../packages/core/out"
-						}
+						"$path": "node_modules/@lisachandra"
 					},
 					"@rbxts-js": {
 						"$path": "node_modules/@rbxts-js"

@@ -8,7 +8,7 @@ Core runtime primitives: structured logging, reactive store, character schemas, 
 pnpm add @lisachandra/core
 ```
 
-Peer dependencies: `@lisachandra/types`, `@flamework/core`, `@rbxts/crate`, `@rbxts/lapis`, `@rbxts/lemon-signal`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `@rbxts/message-templates`, `@rbxts/services`, `@rbxts/sift`, `@rbxts/validate-tree`, `@rbxts/t`, `@rbxts/object-cache`, `type-fest`
+Peer dependencies: `@lisachandra/types`, `@flamework/core`, `@rbxts/crate`, `@rbxts/dataforge`, `@rbxts/lemon-signal`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `@rbxts/message-templates`, `@rbxts/services`, `@rbxts/sift`, `@rbxts/validate-tree`, `@rbxts/t`, `@rbxts/object-cache`, `type-fest`
 
 ## Submodule Exports
 

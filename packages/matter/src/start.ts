@@ -1,8 +1,8 @@
 import type { ClientState, ServerState } from "@lisachandra/core/store";
 import { store } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
+import type { Store } from "@rbxts/dataforge";
 import type { Janitor } from "@rbxts/janitor";
-import type { Collection } from "@rbxts/lapis";
 import { String } from "@rbxts/luau-polyfill";
 import type { AnyEntity, Component, System } from "@rbxts/matter";
 import { Debugger, Loop, World } from "@rbxts/matter";
@@ -33,17 +33,19 @@ export type SystemEvent = NonNullable<SystemContainer["event"]>;
 export type SystemModule = Record<string, unknown> & { meta: SystemContainer };
 
 export interface DocumentConfig {
-	/**
-	 * The Lapis collection instance for document persistence. Create one with `createCollection()`
-	 * from `@rbxts/lapis`.
-	 */
-	collection: Collection<any, any>;
+	/** @deprecated Use `store`. Kept for transitional compatibility. */
+	collection?: Store<any>;
 	/**
 	 * Map of component names → document keys for change-triggered persistence.
 	 *
 	 * Default: `{ Hotbar: "hotbar", Inventory: "inventory" }`.
 	 */
 	persistedComponents?: Record<string, string>;
+	/**
+	 * The Dataforge store instance for document persistence. Create one with `create_store()` from
+	 * `@rbxts/dataforge`.
+	 */
+	store?: Store<any>;
 }
 
 export interface PlayerLifecycleHooks {

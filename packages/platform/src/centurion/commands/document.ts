@@ -12,7 +12,7 @@ import { adminOrDeveloper } from "../guards";
  *
  * @remarks
  *   On success the player is kicked (data is reloaded on rejoin). If the player is not in the
- *   server the document is closed asynchronously.
+ *   server the document is unloaded asynchronously.
  */
 export class DocumentCommand {
 	@Command({
@@ -28,7 +28,7 @@ export class DocumentCommand {
 	})
 	@Guard(adminOrDeveloper)
 	/**
-	 * Fetches and displays the document associated with a user ID, then kicks the player or closes
+	 * Fetches and displays the document associated with a user ID, then kicks the player or unloads
 	 * the document.
 	 *
 	 * @param context - The command context for replying with results.
@@ -37,15 +37,15 @@ export class DocumentCommand {
 	public document(context: CommandContext, userId: number): void {
 		waitForDocument(userId)
 			.then(async (document) => {
-				const data = document.read();
-				context.reply(formatTable(data, "Long"));
+				const data = document.get_data();
+				context.reply(formatTable(data as Record<string, unknown>, "Long"));
 
 				const player = Players.GetPlayerByUserId(userId);
 				if (player !== undefined) {
 					player.Kick("Kicked by admin.");
 				} else {
 					task.defer(() => {
-						document.close().await();
+						document.unload();
 					});
 				}
 			})

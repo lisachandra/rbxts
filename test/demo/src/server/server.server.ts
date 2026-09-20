@@ -9,16 +9,9 @@ if (_G.__TEST__ ?? false) {
 }
 
 import { configureConstant } from "@lisachandra/constant";
-import { setConfig } from "@rbxts/lapis";
-import DataStoreServiceMock from "@rbxts/lapis-mockdatastore";
 import { ReplicatedStorage, RunService, ServerScriptService } from "@rbxts/services";
 
 import * as constants from "./constants.json";
-
-// Set data store service mock when running in studio before other imports
-if (RunService.IsStudio()) {
-	setConfig({ dataStoreService: new DataStoreServiceMock() });
-}
 
 configureConstant("src/server/constants.json", constants);
 

@@ -81,6 +81,9 @@ catalogs:
     '@rbxts/crate':
       specifier: 1.0.3-rc.1
       version: 1.0.3-rc.1
+    '@rbxts/dataforge':
+      specifier: 0.1.0
+      version: 0.1.0
     '@rbxts/iris':
       specifier: 2.3.1-ts.1
       version: 2.3.1-ts.1
@@ -93,12 +96,6 @@ catalogs:
     '@rbxts/jest-globals':
       specifier: 3.16.0-ts.1
       version: 3.16.0-ts.1
-    '@rbxts/lapis':
-      specifier: 0.3.8
-      version: 0.3.8
-    '@rbxts/lapis-mockdatastore':
-      specifier: 0.3.7
-      version: 0.3.7
     '@rbxts/lemon-signal':
       specifier: 1.2.0
       version: 1.2.0
@@ -373,9 +370,9 @@ importers:
       '@rbxts/crate':
         specifier: 'catalog:'
         version: 1.0.3-rc.1
-      '@rbxts/lapis':
+      '@rbxts/dataforge':
         specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
+        version: 0.1.0
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -442,15 +439,15 @@ importers:
       '@rbxts/crate':
         specifier: 'catalog:'
         version: 1.0.3-rc.1
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/iris':
         specifier: 'catalog:'
         version: 2.3.1-ts.1
       '@rbxts/janitor':
         specifier: 'catalog:'
         version: 1.18.3-ts.0
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -532,12 +529,9 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
-      '@rbxts/lapis':
+      '@rbxts/dataforge':
         specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
-      '@rbxts/lapis-mockdatastore':
-        specifier: 'catalog:'
-        version: 0.3.7
+        version: 0.1.0
       '@rbxts/log':
         specifier: 'catalog:'
         version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
@@ -815,6 +809,12 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/crate':
+        specifier: 'catalog:'
+        version: 1.0.3-rc.1
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/jest':
         specifier: 'catalog:'
         version: 3.16.0-ts.1
@@ -881,6 +881,9 @@ importers:
       '@rbxts/crate':
         specifier: 'catalog:'
         version: 1.0.3-rc.1
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/iris':
         specifier: 'catalog:'
         version: 2.3.1-ts.1
@@ -893,12 +896,6 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
-      '@rbxts/lapis':
-        specifier: 'catalog:'
-        version: 0.3.8(@rbxts/t@3.2.1)
-      '@rbxts/lapis-mockdatastore':
-        specifier: 'catalog:'
-        version: 0.3.7
       '@rbxts/lemon-signal':
         specifier: 'catalog:'
         version: 1.2.0
@@ -1029,6 +1026,9 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/jest':
         specifier: 'catalog:'
         version: 3.16.0-ts.1
@@ -1083,6 +1083,9 @@ importers:
       '@rbxts/compiler-types':
         specifier: 'catalog:'
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
+      '@rbxts/dataforge':
+        specifier: 'catalog:'
+        version: 0.1.0
       '@rbxts/jest':
         specifier: 'catalog:'
         version: 3.16.0-ts.1
@@ -3176,6 +3179,9 @@ packages:
   '@rbxts/crate@1.0.3-rc.1':
     resolution: {integrity: sha512-A+s1Z/t9WWRedUoH52D1ewi7Jh0sZjeFNZkD1N0V2AAvg5K8X155rXbncz+1NP+kkkmUXq2FyayUlu3rbAg1IA==}
 
+  '@rbxts/dataforge@0.1.0':
+    resolution: {integrity: sha512-ueRUg8geMspztVQLRUocgp/G/SrABif4XgmT0u0CMeMlxzP/faoJ3WeyFcL4pkQtzjB6+i/9SuXcp2oqAnc5PQ==}
+
   '@rbxts/destroyable@1.0.9':
     resolution: {integrity: sha512-gVTDDnpyPqbp1u1ak9pqmsPhC2B0NigRCE7UexWpIDKK81SJsqbvC7k8aKmY0Fjn0w8fjBn/ReY3HLinMAsxeg==}
 
@@ -3207,14 +3213,6 @@ packages:
 
   '@rbxts/jest@3.16.0-ts.1':
     resolution: {integrity: sha512-ah5fZE9UlkFedGKNU55jyFlZSpUkfGXFhv3n0avq9e2iggnRvEG5OzblS3IgMCH9VcH+RE5vuAHdCXSxKb20Lg==}
-
-  '@rbxts/lapis-mockdatastore@0.3.7':
-    resolution: {integrity: sha512-D8DhcnTDoMit7Rne6AQxAas8H5ZK7B6StFIGNTUoe2oUfQVmEbPF85Q78PjBEww2vAjVAnAF2FbMnbcALQjaUQ==}
-
-  '@rbxts/lapis@0.3.8':
-    resolution: {integrity: sha512-SQTVdSp47Rh7nzuI/ArUsGssz2+KmciPlue4Qlj3i9iO2p3Xgf1ZsgfhvMemPih/kFdjSH47E8wHGA4dY/Y+AA==}
-    peerDependencies:
-      '@rbxts/t': '*'
 
   '@rbxts/lemon-signal@1.2.0':
     resolution: {integrity: sha512-R8iZqtwqLCnA4g2gS8d8j/QVnctkvzLQspq3VfuKfFbXp+Zqs7rw/2LebD/9ifX/NGpHAGgatRqj0C6DABT9Rw==}
@@ -8244,6 +8242,8 @@ snapshots:
       '@rbxts/lemon-signal': 1.2.0
       '@rbxts/sift': 0.0.9
 
+  '@rbxts/dataforge@0.1.0': {}
+
   '@rbxts/destroyable@1.0.9':
     dependencies:
       '@rbxts/trash': 1.0.8
@@ -8286,12 +8286,6 @@ snapshots:
       '@rbxts/emittery': 3.16.0-ts.1
       '@rbxts/jest-globals': 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
       '@rbxts/pretty-format': 3.16.0-ts.1
-
-  '@rbxts/lapis-mockdatastore@0.3.7': {}
-
-  '@rbxts/lapis@0.3.8(@rbxts/t@3.2.1)':
-    dependencies:
-      '@rbxts/t': 3.2.1
 
   '@rbxts/lemon-signal@1.2.0': {}
 
