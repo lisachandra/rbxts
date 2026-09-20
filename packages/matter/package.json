@@ -53,6 +53,10 @@
 			"import": "./out/utils/item/state.luau",
 			"types": "./out/utils/item/state.d.ts"
 		},
+		"./utils/itemPointer": {
+			"import": "./out/utils/itemPointer.luau",
+			"types": "./out/utils/itemPointer.d.ts"
+		},
 		"./utils/entity": {
 			"import": "./out/utils/entity.luau",
 			"types": "./out/utils/entity.d.ts"

@@ -9,6 +9,7 @@ import type { Item } from "../../components";
 import { Components } from "../../components";
 import type { ValidItemPath } from "../../items/definitions";
 import type { ItemContainer, ItemHierarchyIds } from "../../items/types";
+import { itemEntityId, parseItemPointer } from "../itemPointer";
 import { getItemModel, isSameId } from "./lookup";
 
 /**
@@ -76,19 +77,14 @@ export function getItemFromGUID<P extends ValidItemPath>(world: World, guid: str
 		return;
 	}
 
-	const [entityIdStr, location] = itemPointers[guid].split("_") as [
-		string,
-		N<"Hotbar" | "Inventory">,
-	];
-	const entityId = tonumber(entityIdStr) as N<AnyEntity>;
-
-	if (entityId === undefined || !world.contains(entityId)) {
+	const pointer = parseItemPointer(itemPointers[guid]);
+	if (pointer === undefined || !world.contains(pointer.entityId)) {
 		return;
 	}
 
-	const itemContainer = location
-		? world.get(entityId, Components[location])!.items
-		: world.get(entityId, Components.Items)!.items;
+	const itemContainer = pointer.container
+		? world.get(pointer.entityId, Components[pointer.container])!.items
+		: world.get(pointer.entityId, Components.Items)!.items;
 
 	for (const item of itemContainer) {
 		if (item.guid === guid) {
@@ -148,11 +144,13 @@ export function moveItem(
 
 	const item = getItemFromGUID(world, guid)!;
 	const itemPointers = store.shared.getState("itemPointers");
-	const [itemEntityIdStr] = itemPointers[guid]!.split("_");
-	const itemEntityId = tonumber(itemEntityIdStr) as AnyEntity;
+	const entityIdForGuid = itemEntityId(itemPointers[guid]);
+	if (entityIdForGuid === undefined) {
+		return;
+	}
 
-	if (itemEntityId !== entityId) {
-		const items = world.get(itemEntityId, Components.Items);
+	if (entityIdForGuid !== entityId) {
+		const items = world.get(entityIdForGuid, Components.Items);
 		const itemContainer = destination === "Inventory" ? inventory : hotbar;
 
 		if (!items) {
@@ -160,12 +158,12 @@ export function moveItem(
 		}
 
 		// Mark as moved and transfer to the new entity. Clean up the old entity afterwards.
-		world.insert(itemEntityId, items.patch({ moved: true }));
+		world.insert(entityIdForGuid, items.patch({ moved: true }));
 		world.insert(entityId, itemContainer!.patch({ items: [...itemContainer!.items, item] }));
 
 		// Use task.delay instead of task.defer so it can be mocked in tests
 		task.delay(0, () => {
-			world.despawn(itemEntityId);
+			world.despawn(entityIdForGuid);
 		});
 
 		return;
@@ -198,11 +196,12 @@ export function moveItem(
  */
 export function removeItem(world: World, guid: string, amount?: number): N<Item> {
 	const itemPointers = store.shared.getState("itemPointers");
-	const [entityIdStr, location] = itemPointers[guid]!.split("_") as [
-		string,
-		N<"Hotbar" | "Inventory">,
-	];
-	const entityId = tonumber(entityIdStr) as AnyEntity;
+	const pointer = parseItemPointer(itemPointers[guid]);
+	if (pointer === undefined) {
+		return undefined;
+	}
+
+	const { container: location, entityId } = pointer;
 
 	let removedItem: N<Item>;
 
