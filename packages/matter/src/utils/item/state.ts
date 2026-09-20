@@ -96,6 +96,34 @@ export function getItemFromGUID<P extends ValidItemPath>(world: World, guid: str
 }
 
 /**
+ * Retrieves an item by its ID path from a specific location (hotbar or inventory).
+ *
+ * @template P
+ * @param world - The Matter world instance.
+ * @param entityId - The ID of the entity in the world.
+ * @param location - The location ("Hotbar" or "Inventory").
+ * @param id - The item's ID path.
+ * @returns The item if found, undefined otherwise.
+ */
+export function getItemFromId<P extends ValidItemPath>(
+	world: World,
+	entityId: AnyEntity,
+	location: "Hotbar" | "Inventory",
+	id: P,
+): N<Item<P>> {
+	const component = world.get(entityId, Components[location]) as ItemContainer;
+
+	/*
+	 * Compare by explicit index against a concretely-typed `Item`: reading `item.id[index]` directly
+	 * inside the generic signature makes rbxtsc emit a 0-based table read, which never matches.
+	 */
+	return component.items.find((item) => {
+		const itemId: ReadonlyArray<string> = item.id;
+		return id.every((key, index) => itemId[index] === key);
+	}) as Item<P>;
+}
+
+/**
  * Retrieves an item by its GUID and ID path from an array of items.
  *
  * @template P, U

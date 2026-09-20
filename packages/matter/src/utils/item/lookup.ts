@@ -1,18 +1,15 @@
-import { store } from "@lisachandra/core/store";
 import { isPascalCase } from "@lisachandra/core/utils/string";
 import { iterate } from "@lisachandra/core/utils/type";
-import type { AnyEntity } from "@rbxts/matter";
 import { HttpService, ReplicatedStorage } from "@rbxts/services";
 import { equals } from "@rbxts/sift/Array";
 import { copyDeep, removeKeys } from "@rbxts/sift/Dictionary";
 
 import type { Item } from "../../components";
-import { Components } from "../../components";
 import type { ValidItemPath } from "../../items/definitions";
 import { itemDefinitions } from "../../items/definitions";
 import { descriptions } from "../../items/descriptions";
 import { itemIds } from "../../items/registry";
-import type { ExtractData, ItemContainer } from "../../items/types";
+import type { ExtractData } from "../../items/types";
 
 /**
  * Retrieves a value from a nested table using a path of keys.
@@ -216,26 +213,6 @@ export function getItemDescription(paths: ValidItemPath): string {
 		| undefined
 		| { description?: string };
 	return descriptionContainer?.description ?? "";
-}
-
-/**
- * Retrieves an item by its ID path from a specific location (hotbar or inventory).
- *
- * @template P
- * @param entityId - The ID of the entity in the world.
- * @param location - The location ("Hotbar" or "Inventory").
- * @param id - The item's ID path.
- * @returns The item if found, undefined otherwise.
- */
-export function getItemFromId<P extends ValidItemPath>(
-	entityId: AnyEntity,
-	location: "Hotbar" | "Inventory",
-	id: P,
-): N<Item<P>> {
-	const component = store.world.get(entityId, Components[location]) as ItemContainer;
-	return component.items.find((item) =>
-		id.every((key, index) => item.id[index] === key),
-	) as Item<P>;
 }
 
 /**

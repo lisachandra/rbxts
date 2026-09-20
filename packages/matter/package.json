@@ -42,8 +42,8 @@
 			"types": "./out/items/index.d.ts"
 		},
 		"./utils/item": {
-			"import": "./out/utils/item.luau",
-			"types": "./out/utils/item.d.ts"
+			"import": "./out/utils/item/init.luau",
+			"types": "./out/utils/item/index.d.ts"
 		},
 		"./utils/item/lookup": {
 			"import": "./out/utils/item/lookup.luau",

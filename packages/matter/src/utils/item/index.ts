@@ -1,11 +1,11 @@
 import { store } from "@lisachandra/core/store";
 import type { AnyEntity } from "@rbxts/matter";
 
-import type { Item } from "../components";
-import type { ValidItemPath } from "../items/definitions";
-import type { ItemContainer, ItemHierarchyIds } from "../items/types";
-import * as Lookup from "./item/lookup";
-import * as State from "./item/state";
+import type { Item } from "../../components";
+import type { ValidItemPath } from "../../items/definitions";
+import type { ItemContainer, ItemHierarchyIds } from "../../items/types";
+import * as Lookup from "./lookup";
+import * as State from "./state";
 
 /** @deprecated Use `import { getCompleteItem } from "@lisachandra/matter/utils/item/lookup"`. */
 export const { getCompleteItem } = Lookup;
@@ -52,8 +52,17 @@ export const { createItem } = Lookup;
 /** @deprecated Use `import { getItemDescription } from "@lisachandra/matter/utils/item/lookup"`. */
 export const { getItemDescription } = Lookup;
 
-/** @deprecated Use `import { getItemFromId } from "@lisachandra/matter/utils/item/lookup"`. */
-export const { getItemFromId } = Lookup;
+/**
+ * @deprecated Use `import { getItemFromId } from "@lisachandra/matter/utils/item/state"` passing
+ *   `world`.
+ */
+export function getItemFromId<P extends ValidItemPath>(
+	entityId: AnyEntity,
+	location: "Hotbar" | "Inventory",
+	id: P,
+): N<Item<P>> {
+	return State.getItemFromId(store.world, entityId, location, id);
+}
 
 /** @deprecated Use `import { getItemImage } from "@lisachandra/matter/utils/item/lookup"`. */
 export const { getItemImage } = Lookup;

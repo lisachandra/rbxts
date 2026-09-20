@@ -144,6 +144,8 @@ describe("replication tracker", () => {
 			tracker.trackEntity(player, entityA);
 			tracker.trackEntity(otherPlayer, entityB);
 
+			tracker.markReceived(otherPlayer);
+
 			tracker.dispose(player);
 
 			expect(tracker.hasReceived(player)).toBe(false);

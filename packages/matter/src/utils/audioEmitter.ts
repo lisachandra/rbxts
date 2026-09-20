@@ -339,7 +339,10 @@ export function getNodeFromSoundComponent(sound: Components["Sound"]): N<AudioEm
  * @param node - The audio node part to recycle.
  */
 export function recycleAudioNode(node: AudioEmitterNode): void {
-	if (node.Attachment === undefined || node.Attachment.AudioEmitter === undefined) {
+	const attachment = node.FindFirstChild("Attachment") as N<
+		Attachment & { AudioEmitter: N<AudioEmitter> }
+	>;
+	if (attachment === undefined || attachment.AudioEmitter === undefined) {
 		return;
 	}
 
