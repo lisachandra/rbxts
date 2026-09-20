@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { skillsForPrompt } from "../agent.js";
+import { skillsForPrompt } from "../prompts/skills.js";
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
 import { fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";

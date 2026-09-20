@@ -10,9 +10,10 @@ import { mkdirSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
-import { createAgent, fetchIssueLabels, issueView, skillsForPrompt } from "./agent.js";
+import { createAgent } from "./agent.js";
 import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
 import { countNewCommits, issueBranch, resolveCommit } from "./git.js";
+import { issueMetadata } from "./issue-metadata.js";
 import { fileLogging } from "./logging.js";
 import {
 	clearMarker,
@@ -21,6 +22,7 @@ import {
 	markerPromptArgs,
 	runMarkerPhase,
 } from "./markers.js";
+import { skillsForPrompt } from "./prompts/skills.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
 import { readState, updatePhase, writeState } from "./state.js";
@@ -67,21 +69,14 @@ function loadIssueContext(issueNumber: string): {
 	issueLabels: Array<string>;
 	issueTitle: string;
 } {
-	let issueTitle = "";
-	try {
-		issueTitle = io
-			.execSync(`${issueView(issueNumber)} --json title --jq .title`, {
-				encoding: "utf-8",
-			})
-			.toString()
-			.trim();
-	} catch {
+	const meta = issueMetadata(issueNumber);
+	if (meta.title === "(could not fetch)") {
 		console.warn(`  ⚠ Could not fetch issue title for #${issueNumber}`);
 	}
 
-	const issueLabels = fetchIssueLabels(issueNumber).map((label) => label.toLowerCase());
+	const issueLabels = meta.labels.map((label) => label.toLowerCase());
 	console.log(`  Labels: ${issueLabels.length > 0 ? issueLabels.join(", ") : "none"}`);
-	return { issueLabels, issueTitle };
+	return { issueLabels, issueTitle: meta.title };
 }
 
 async function runDesignPhase(params: {
