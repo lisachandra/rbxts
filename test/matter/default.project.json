@@ -22,6 +22,30 @@
 						"$path": "node_modules/@rbxts"
 					}
 				}
+			},
+			"Models": {
+				"$className": "Folder",
+				"Items": {
+					"$className": "Folder"
+				}
+			},
+			"Tools": {
+				"$className": "Folder"
+			},
+			"Animations": {
+				"$className": "Folder",
+				"Tools": {
+					"$className": "Folder"
+				}
+			}
+		},
+		"Workspace": {
+			"$className": "Workspace",
+			"Caches": {
+				"$className": "Folder",
+				"Sound": {
+					"$className": "Folder"
+				}
 			}
 		},
 		"ServerScriptService": {
