@@ -12,16 +12,14 @@ import Log from "@rbxts/log";
 import type { AnyComponent, AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { isEmpty } from "@rbxts/object-utils";
 import type { SerializedData } from "@rbxts/serio";
-import { removeValue } from "@rbxts/sift/Array";
 
 import type { ChangeRecord, ComponentKey } from "../../../components";
 import { Components } from "../../../components";
-import { Message, messaging, registry } from "../../../network";
+import { createReplicationTracker, Message, messaging, registry } from "../../../network";
 import { meta as hotbarManager } from "../item/hotbarManager";
 import { meta as itemManager } from "../item/itemManager";
 
-const hasReceived: Array<Player> = [];
-const replicatedEntities = new Map<Player, Set<AnyEntity>>();
+const tracker = createReplicationTracker();
 
 let internalDebugging = false;
 
@@ -111,7 +109,7 @@ function setComponentPayload(
 	mode: "all" | "owner",
 	key: string,
 ): void {
-	const hasReceivedPayload = hasReceived.includes(player);
+	const hasReceivedPayload = tracker.hasReceived(player);
 	const payload = payloads.get(player) ?? {};
 
 	const serializedPayload = serializeSingleComponent(
@@ -203,16 +201,21 @@ function handleInitialReplication(
 ): void {
 	for (const [componentEntityId, profile] of world.query(Components.Profile)) {
 		debugPrint(
-			`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(hasReceived.includes(profile.player))}`,
+			`[server replication] profile seen ${profile.player.Name} entity=${componentEntityId} received=${tostring(tracker.hasReceived(profile.player))}`,
 		);
-		const playerHasReceived = hasReceived.includes(profile.player);
-		const previous = replicatedEntities.get(profile.player) ?? new Set<AnyEntity>();
+		const playerHasReceived = tracker.hasReceived(profile.player);
 		const eligible = getEligibleEntities(world, componentEntityId);
-		replicatedEntities.set(profile.player, eligible);
-		for (const entityId of previous) {
+		const known = tracker.entitiesFor(profile.player);
+
+		for (const entityId of known) {
 			if (!eligible.has(entityId)) {
 				messaging.client.emit(profile.player, Message.DespawnEntity, entityId);
 			}
+		}
+
+		known.clear();
+		for (const entityId of eligible) {
+			known.add(entityId);
 		}
 
 		if (playerHasReceived) {
@@ -225,11 +228,9 @@ function handleInitialReplication(
 		initialized.push(profile.player);
 
 		if (!playerHasReceived) {
-			hasReceived.push(profile.player);
-			replicatedEntities.set(profile.player, eligible);
+			tracker.markReceived(profile.player);
 			profile.janitor.Add(() => {
-				removeValue(hasReceived, profile.player);
-				replicatedEntities.delete(profile.player);
+				tracker.dispose(profile.player);
 			});
 		}
 
@@ -275,7 +276,7 @@ function handleComponentChanges(
 				 */
 				if (
 					record.new === undefined &&
-					!(replicatedEntities.get(profile.player)?.has(targetEntityId) ?? false)
+					!tracker.knowsEntity(profile.player, targetEntityId)
 				) {
 					continue;
 				}
@@ -346,7 +347,7 @@ function sendPayloads(payloads: Map<Player, Payload>, initialized: Array<Player>
 
 			if (sentComponent) {
 				messaging.client.emit(player, Message.SpawnEntity, entityId);
-				replicatedEntities.get(player)?.add(entityId);
+				tracker.trackEntity(player, entityId);
 				debugPrint(`[server replication] send spawn ${player.Name} ${entityId}`);
 			}
 		}
