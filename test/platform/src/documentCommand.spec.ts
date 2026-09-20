@@ -39,7 +39,7 @@ describe("document command", () => {
 			name: "PlayerData",
 			template: { credits: 0, items: [] },
 		});
-		const profile = store.load(`Player_${USER_ID}`, [USER_ID]);
+		const profile = store.load(`Player_${USER_ID}`, [USER_ID]).unwrap();
 
 		configureDocumentAccessor(() => ({
 			document: profile as unknown as import("@rbxts/dataforge").Profile<

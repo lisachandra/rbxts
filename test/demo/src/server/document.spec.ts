@@ -23,7 +23,7 @@ describe("garden document store", () => {
 	it("should load a player profile with the defaults as template", () => {
 		expect.assertions(1);
 
-		const profile = gardenStore.load("Player_133370944", [133370944]);
+		const profile = gardenStore.load("Player_133370944", [133370944]).unwrap();
 
 		expect(profile.get_data()).toEqual(gardenDocumentDefaults);
 

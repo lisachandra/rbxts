@@ -28,8 +28,15 @@ export function useDocument(
 		Log.Info(`loading document for Player: ${name}`);
 		store.documents[discriminator] = None as never;
 
-		Promise.defer<Profile<CollectionData>>((resolve) => {
-			resolve(dataStore.load(discriminator, [userId]));
+		Promise.defer<Profile<CollectionData>>((resolve, reject) => {
+			const loaded = dataStore.load(discriminator, [userId]);
+
+			if (!loaded.success) {
+				reject(loaded.error);
+				return;
+			}
+
+			resolve(loaded.value);
 		})
 			.then((profile) => {
 				if (!player?.Parent) {

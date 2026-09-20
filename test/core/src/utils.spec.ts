@@ -19,10 +19,9 @@ describe("waitForDocument", () => {
 			name: "WaitStore",
 			template: { credits: 0 },
 		} as never) as dataforge.Store<TestData>;
-		const profile = dfStore.load(
-			"Player_42",
-			[42],
-		) as unknown as import("@rbxts/dataforge").Profile<CollectionData>;
+		const profile = dfStore
+			.load("Player_42", [42])
+			.unwrap() as unknown as import("@rbxts/dataforge").Profile<CollectionData>;
 
 		configureDocumentAccessor(() => ({ document: profile }));
 

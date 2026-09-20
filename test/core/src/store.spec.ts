@@ -28,7 +28,7 @@ describe("store documents middleware", () => {
 		expect.assertions(2);
 
 		const { store: dfStore } = createTestStore();
-		const profile = dfStore.load("Player_1", [1]);
+		const profile = dfStore.load("Player_1", [1]).unwrap();
 		store.documents["Player_1"] = profile;
 
 		const server = store.server as unknown as Crate<{
@@ -69,11 +69,13 @@ describe("dataforge store integration", () => {
 		expect.assertions(4);
 
 		const { scheduler, store: dfStore } = createTestStore();
-		const profile = dfStore.load("Player_2", [2]);
+		const profile = dfStore.load("Player_2", [2]).unwrap();
 
 		expect(profile.get_data()).toEqual({ credits: 0, items: [] });
 
-		const updated = profile.update((data) => ({ ...data, credits: data.credits + 10 }));
+		const updated = profile
+			.update((data) => ({ ...data, credits: data.credits + 10 }))
+			.unwrap();
 
 		expect(updated).toBe(true);
 		expect(profile.get_data()).toEqual({ credits: 10, items: [] });
@@ -88,8 +90,8 @@ describe("dataforge store integration", () => {
 		expect.assertions(3);
 
 		const { scheduler, store: dfStore } = createTestStore();
-		const sender = dfStore.load("Player_3", [3]);
-		const receiver = dfStore.load("Player_4", [4]);
+		const sender = dfStore.load("Player_3", [3]).unwrap();
+		const receiver = dfStore.load("Player_4", [4]).unwrap();
 
 		const success = dfStore.transaction([sender, receiver], (allData) => {
 			const [senderData, receiverData] = allData as [TestData, TestData];
@@ -100,7 +102,7 @@ describe("dataforge store integration", () => {
 			];
 		});
 
-		expect(success).toBe(true);
+		expect(success.unwrap()).toBe(true);
 		expect(sender.get_data()).toEqual({ credits: -5, items: [] });
 		expect(receiver.get_data()).toEqual({ credits: 5, items: [] });
 
