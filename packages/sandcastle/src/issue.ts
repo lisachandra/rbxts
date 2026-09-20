@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { createAgent, fetchIssueLabels, issueView, skillsForPrompt } from "./agent.js";
 import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
-import { countNewCommits, resolveCommit } from "./git.js";
+import { countNewCommits, issueBranch, resolveCommit } from "./git.js";
 import { fileLogging } from "./logging.js";
 import {
 	clearMarker,
@@ -448,7 +448,7 @@ export async function runSingleIssue(
 		options?.worktree !== undefined && options.worktree !== ""
 			? validateExistingWorktree(options.worktree)
 			: undefined;
-	const branchName = suppliedWorktree?.branch ?? `sandcastle/issue-${issueNumber}`;
+	const branchName = suppliedWorktree?.branch ?? issueBranch(issueNumber);
 	const planPath = `${config.dir}/plans/${issueNumber}.md`;
 	const logPath = pathResolve(logsDir, `issue-${issueNumber}.log`);
 
