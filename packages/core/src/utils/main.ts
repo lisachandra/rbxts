@@ -257,7 +257,9 @@ export async function waitForFirst(
 export function catcher(): (err: object) => void {
 	const trace = debug.traceback("\n");
 	return (err: object) => {
-		Log.Warn(`${trace}${debug.traceback(`\n${tostring(err)}`)}`);
+		const detail = `\n${tostring(err)}`;
+
+		Log.Warn(`${trace}${debug.traceback(detail)}`);
 	};
 }
 

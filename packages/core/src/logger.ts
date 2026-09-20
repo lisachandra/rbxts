@@ -161,8 +161,10 @@ export class LogEventSFTOutputSink implements ILogEventSink {
 		const logService = getLogService();
 		if (logService !== undefined) {
 			const messageType = mapLogLevelToMessageType(message.Level);
-			// LogService.Log with MessageError throws (see LogService.yaml); pcall so
-			// Error stays non-halting while Fatal still halts via explicit error().
+			/*
+			 * LogService.Log with MessageError throws (see LogService.yaml); pcall so
+			 * Error stays non-halting while Fatal still halts via explicit error().
+			 */
 			pcall(() => logService.Log(messageType, formattedMessage));
 			if (message.Level >= LogLevel.Fatal) {
 				error(formattedMessage);

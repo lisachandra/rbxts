@@ -49,11 +49,13 @@ function legacyModelFor(backend: AgentBackend): string {
  * legacy env) wins over the workflow model.
  */
 export function resolveAgentStep(
-	configStep: AgentStepConfig | undefined,
-	cliStep: AgentStepConfig | undefined,
+	configStep: undefined | AgentStepConfig,
+	cliStep: undefined | AgentStepConfig,
 	workflow: WorkflowDefaults,
 	models: Partial<Record<AgentBackend, string>>,
 ): ResolvedAgentStep {
+	const { model: workflowModel } = workflow;
+
 	const agentBackend = cliStep?.backend ?? configStep?.backend ?? workflow.agentBackend;
 	const effort = cliStep?.effort ?? configStep?.effort ?? workflow.effort;
 	const cliModel = cliStep?.model?.trim() ?? "";
@@ -69,9 +71,9 @@ export function resolveAgentStep(
 				? (models[agentBackend]?.trim() as string)
 				: legacyModelFor(agentBackend) !== ""
 					? legacyModelFor(agentBackend)
-					: workflow.model;
+					: workflowModel;
 	} else {
-		model = workflow.model;
+		model = workflowModel;
 	}
 
 	return { agentBackend, effort, model };
@@ -96,8 +98,8 @@ export function resolveAgentSteps(
 export function phaseSteps(
 	steps: Partial<Record<AgentPhaseName, ResolvedAgentStep>>,
 	fallback: WorkflowDefaults,
-): Record<"design" | "implement" | "review", ResolvedAgentStep> {
-	const pick = (name: "design" | "implement" | "review"): ResolvedAgentStep =>
+): Record<"design" | "review" | "implement", ResolvedAgentStep> {
+	const pick = (name: "design" | "review" | "implement"): ResolvedAgentStep =>
 		steps[name] ?? {
 			agentBackend: fallback.agentBackend,
 			effort: fallback.effort,

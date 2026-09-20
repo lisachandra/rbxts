@@ -67,7 +67,7 @@ export type ValidateMetadata<T> =
 	: [T] extends [number]
 	? ["number"]
 	: ["_string", T] extends [keyof T, { _string?: infer _V }]
-	? ["map", ["string"], ValidateMetadata<// @ts-expect-error
+	? ["map", ["string"], ValidateMetadata<// @ts-expect-error: indexing a mapped type by string cannot be proven valid from this constraint
 		T[string]>]
 	: [T] extends [string]
 	? ["string"]
