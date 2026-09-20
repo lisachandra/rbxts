@@ -57,6 +57,14 @@
 			"import": "./out/utils/sound.luau",
 			"types": "./out/utils/sound.d.ts"
 		},
+		"./utils/audioEmitter": {
+			"import": "./out/utils/audioEmitter.luau",
+			"types": "./out/utils/audioEmitter.d.ts"
+		},
+		"./debug/soundDebugStats": {
+			"import": "./out/debug/soundDebugStats.luau",
+			"types": "./out/debug/soundDebugStats.d.ts"
+		},
 		"./systems": {
 			"import": "./out/systems/init.luau",
 			"types": "./out/systems/index.d.ts"

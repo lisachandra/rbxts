@@ -355,12 +355,12 @@ ragdoll(character);
 
 ```ts
 import {
-	placeCharacterAudioInWorld,
-	soundEmitterCache,
 	findFreeAudioNode,
+	placeModelAudioInWorld,
+	soundEmitterCache,
 } from "@lisachandra/matter/utils/sound";
 
-const node = placeCharacterAudioInWorld(world, entityId, soundAsset, nodeMarker);
+placeModelAudioInWorld(world, entityId, soundAsset, nodeMarker);
 ```
 
 ---

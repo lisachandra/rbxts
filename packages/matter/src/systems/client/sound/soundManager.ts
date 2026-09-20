@@ -1,15 +1,14 @@
 import type { ClientState } from "@lisachandra/core/store";
 import type { Crate } from "@rbxts/crate";
 import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
-import type ObjectCache from "@rbxts/object-cache";
-import { Workspace } from "@rbxts/services";
 
 import { Components } from "../../../components";
-import { recordNodeReturned } from "../../../debug/soundDebugStats";
-import type { placeAudioToModel } from "../../../utils/sound";
-import { soundEmitterCache } from "../../../utils/sound";
-
-type ObjectCachePart<T> = T extends ObjectCache<infer U> ? U : never;
+import {
+	assembleSoundComponent,
+	getNodeFromEmitter,
+	recycleAudioNode,
+} from "../../../utils/audioEmitter";
+import type { AudioEmitterNode } from "../../../utils/audioEmitter";
 
 function system(world: World): void {
 	for (const [entityId, record] of world.queryChanged(Components.Sound)) {
@@ -17,26 +16,12 @@ function system(world: World): void {
 			continue;
 		}
 
-		const node = world.get(entityId, Components.Node)?.model as ReturnType<
-			typeof placeAudioToModel
-		>;
+		const node = world.get(entityId, Components.Node)?.model as N<AudioEmitterNode>;
 		if (node === undefined) {
 			continue;
 		}
 
-		const emitter = node.Attachment.AudioEmitter;
-		const effects = node.Attachment.AudioEffects;
-		const player = node.Attachment.AudioPlayer;
-
-		world.insert(
-			entityId,
-			Components.Sound({
-				effects: effects.GetChildren(),
-				emitter,
-				id: record.new.id,
-				players: [player],
-			}),
-		);
+		world.insert(entityId, Components.Sound(assembleSoundComponent(node, record.new.id)));
 	}
 
 	for (const [_entityId, record] of world.queryChanged(Components.Sound)) {
@@ -49,10 +34,10 @@ function system(world: World): void {
 			continue;
 		}
 
-		const node = record.old.emitter.Parent!.Parent!;
-		node.Parent = Workspace.Caches.Sound;
-		soundEmitterCache.ReturnPart(node as ObjectCachePart<typeof soundEmitterCache>);
-		recordNodeReturned();
+		const node = getNodeFromEmitter(record.old.emitter);
+		if (node !== undefined) {
+			recycleAudioNode(node);
+		}
 	}
 }
 
