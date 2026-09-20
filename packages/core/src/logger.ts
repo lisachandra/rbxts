@@ -83,10 +83,61 @@ export const logOutput: Array<[string, string]> = [];
 
 const maxLogOutputSize = 128;
 
+/**
+ * Maps a `@rbxts/log` {@link LogLevel} to the Roblox `Enum.MessageType` used by `LogService`.
+ *
+ * @remarks
+ *   `Debugging`, `Verbose`, and `Information` map to `MessageInfo`; `Warning` maps to
+ *   `MessageWarning`; `Error` and `Fatal` map to `MessageError`. `LogService.Log` with
+ *   `MessageError` throws in the Roblox engine, so the sink pcalls the dispatch: `Error` stays
+ *   non-halting (legacy `warn()` semantics) while `Fatal` still halts via an explicit `error()`.
+ * @param level - The log level to map.
+ * @returns The corresponding `Enum.MessageType`.
+ */
+export function mapLogLevelToMessageType(level: LogLevel): Enum.MessageType {
+	switch (level) {
+		case LogLevel.Error:
+		case LogLevel.Fatal: {
+			return Enum.MessageType.MessageError;
+		}
+		case LogLevel.Warning: {
+			return Enum.MessageType.MessageWarning;
+		}
+		case LogLevel.Debugging:
+		case LogLevel.Information:
+		case LogLevel.Verbose:
+		default: {
+			return Enum.MessageType.MessageInfo;
+		}
+	}
+}
+
 const environment = RunService.IsClient() ? "Client" : "Server";
 const stackTraceLevelModule = 5;
 
-class LogEventSFTOutputSink implements ILogEventSink {
+/**
+ * Resolves the Roblox `LogService` when available outside the jest-roblox harness.
+ *
+ * @remarks
+ *   Returns `undefined` when `_G.__TEST__` is set (jest-roblox runs) or when the service cannot be
+ *   fetched, so sinks fall back to `print`/`warn`/`error` in those environments.
+ * @returns The `LogService` instance, or `undefined` in test or unsupported environments.
+ */
+function getLogService(): undefined | LogService {
+	if (_G.__TEST__) {
+		return undefined;
+	}
+
+	const [success, service] = pcall(() => game.GetService("LogService"));
+	return success && service !== undefined ? (service as LogService) : undefined;
+}
+
+/**
+ * Sink that formats log events, buffers them in {@link logOutput}, and routes them through the
+ * Roblox `LogService` (falling back to `print`/`warn`/`error` in test or unsupported
+ * environments).
+ */
+export class LogEventSFTOutputSink implements ILogEventSink {
 	public Emit(message: LogEvent): void {
 		const template = new PlainTextMessageTemplateRenderer(
 			MessageTemplateParser.GetTokens(message.Template),
@@ -107,7 +158,16 @@ class LogEventSFTOutputSink implements ILogEventSink {
 
 		logOutput.push([time, formattedMessage]);
 
-		if (message.Level >= LogLevel.Fatal) {
+		const logService = getLogService();
+		if (logService !== undefined) {
+			const messageType = mapLogLevelToMessageType(message.Level);
+			// LogService.Log with MessageError throws (see LogService.yaml); pcall so
+			// Error stays non-halting while Fatal still halts via explicit error().
+			pcall(() => logService.Log(messageType, formattedMessage));
+			if (message.Level >= LogLevel.Fatal) {
+				error(formattedMessage);
+			}
+		} else if (message.Level >= LogLevel.Fatal) {
 			error(formattedMessage);
 		} else if (message.Level >= LogLevel.Warning) {
 			warn(formattedMessage);
