@@ -3,6 +3,7 @@ export * from "./hotbar";
 export * from "./inventory";
 // Ensure builtin codecs execute registration side effects on module load.
 export * from "./item";
+export * from "./itemList";
 export * from "./items";
 export * from "./node";
 export * from "./profile";
