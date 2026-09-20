@@ -796,13 +796,16 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
+      '@lisachandra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@lisachandra/test':
         specifier: workspace:*
         version: link:../../packages/test
@@ -818,6 +821,9 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
+      '@rbxts/log':
+        specifier: 'catalog:'
+        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -1001,7 +1007,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1052,7 +1058,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1106,7 +1112,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1154,7 +1160,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1202,7 +1208,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -7280,35 +7286,6 @@ snapshots:
       - magicast
       - utf-8-validate
 
-  '@isentinel/jest-roblox@0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)':
-    dependencies:
-      '@bedrock-rbx/ocale': 0.1.0
-      '@jridgewell/trace-mapping': 0.3.31
-      arktype: 2.2.0
-      c12: 4.0.0-beta.5(dotenv@8.6.0)(jiti@2.7.0)
-      confbox: 0.2.4
-      defu: 6.1.7
-      get-tsconfig: 4.14.0
-      highlight.js: 11.11.1
-      istanbul-lib-coverage: 3.2.2
-      istanbul-lib-report: 3.0.1
-      istanbul-reports: 3.2.0
-      oxc-parser: 0.123.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
-      picomatch: 4.0.4
-      std-env: 4.1.0
-      tinyrainbow: 3.1.0
-      ws: 8.20.1
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - bufferutil
-      - chokidar
-      - dotenv
-      - giget
-      - jiti
-      - magicast
-      - utf-8-validate
-
   '@isentinel/roblox-ts@4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)':
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
@@ -9006,18 +8983,6 @@ snapshots:
     optionalDependencies:
       dotenv: 8.6.0
       jiti: 2.6.1
-
-  c12@4.0.0-beta.5(dotenv@8.6.0)(jiti@2.7.0):
-    dependencies:
-      confbox: 0.2.4
-      defu: 6.1.7
-      exsolve: 1.0.8
-      pathe: 2.0.3
-      pkg-types: 2.3.1
-      rc9: 3.0.1
-    optionalDependencies:
-      dotenv: 8.6.0
-      jiti: 2.7.0
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
