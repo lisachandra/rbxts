@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
 import { config, io } from "./runtime.js";
@@ -164,7 +164,7 @@ describe("prepareIssueWorktree", () => {
 	test("worktreePathForBranch flattens branch names", () => {
 		const path = worktreePathForBranch("sandcastle/issue-1");
 		assert.equal(path.endsWith("sandcastle-issue-1"), true);
-		assert.equal(path.includes("/"), false);
+		assert.equal(basename(path), "sandcastle-issue-1");
 	});
 
 	describe("linkSymlinks with missing junction parent", () => {

@@ -2,6 +2,7 @@ import { defineConfig } from "@isentinel/jest-roblox";
 
 export default defineConfig({
 	extends: "../../jest.shared.ts",
+	jestPath: "ReplicatedStorage/TS/rbxts_include/node_modules/@rbxts/jest/src",
 	test: {
 		projects: [
 			{
@@ -29,6 +30,5 @@ export default defineConfig({
 				},
 			},
 		],
-		setupFiles: ["@lisachandra/test/setup", "./out/test/setup"],
 	},
 });
