@@ -11,7 +11,7 @@ import type { DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals } from "@rbxts/sift/Array";
 
 import { Components, type Item } from "../../../components";
-import { getItemTool } from "../../../utils/item";
+import { getItemTool } from "../../../utils/item/lookup";
 import { meta as itemManager } from "./itemManager";
 
 function handleToolCreation(itemsToAdd: Array<Item>, hotbar: Instance): void {

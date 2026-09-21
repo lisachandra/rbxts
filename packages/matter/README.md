@@ -8,7 +8,7 @@ The ECS runtime — built on `@rbxts/matter` with components, hooks, networking,
 pnpm add @lisachandra/matter
 ```
 
-Peer dependencies: `@lisachandra/types`, `@lisachandra/core`, `@rbxts/matter`, `@rbxts/crate`, `@rbxts/janitor`, `@rbxts/lemon-signal`, `@rbxts/tether`, `@rbxts/serio`, `@rbxts/sift`, `@rbxts/services`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/object-utils`, `@rbxts/object-cache`, `@flamework/core`, `@rbxts/t`, `@rbxts/lapis`, `@rbxts/plasma`, `@rbxts/rewire`, `type-fest`
+Peer dependencies: `@lisachandra/types`, `@lisachandra/core`, `@rbxts/matter`, `@rbxts/crate`, `@rbxts/janitor`, `@rbxts/lemon-signal`, `@rbxts/tether`, `@rbxts/serio`, `@rbxts/sift`, `@rbxts/services`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/object-utils`, `@rbxts/object-cache`, `@flamework/core`, `@rbxts/t`, `@rbxts/dataforge`, `@rbxts/plasma`, `@rbxts/rewire`, `type-fest`
 
 ## Submodule Exports
 
@@ -33,7 +33,7 @@ import { store } from "@lisachandra/core/store";
 
 // Configure adapters before starting
 configureRuntimeAdapters({
-	document: { collection: myLapisCollection },
+	document: { store: myDataforgeStore },
 	playerLifecycle: {
 		postSpawn(world, player, entityId) {
 			print(`Player ${player.Name} spawned as entity ${entityId}`);
@@ -355,12 +355,12 @@ ragdoll(character);
 
 ```ts
 import {
-	placeCharacterAudioInWorld,
-	soundEmitterCache,
 	findFreeAudioNode,
+	placeModelAudioInWorld,
+	soundEmitterCache,
 } from "@lisachandra/matter/utils/sound";
 
-const node = placeCharacterAudioInWorld(world, entityId, soundAsset, nodeMarker);
+placeModelAudioInWorld(world, entityId, soundAsset, nodeMarker);
 ```
 
 ---
@@ -407,7 +407,7 @@ configureRuntimeAdapters({
 		},
 	},
 	document: {
-		collection: myCollection,
+		store: myStore,
 		persistedComponents: { Hotbar: "hotbar", Inventory: "inventory" },
 	},
 });
@@ -433,7 +433,7 @@ configureRuntimeAdapters({
 - `item/toolManager` — Tool creation and cleanup
 - `item/hotbarManager` — Hotbar equip/unequip management
 - `player/playerManager` — Player join/leave lifecycle
-- `player/documentManager` — Persist components to Lapis documents
+- `player/documentManager` — Persist components to Dataforge profiles
 - `sound/soundManager` — Server-side audio setup
 - `network/replicationManager` — Serialize and send component changes
 

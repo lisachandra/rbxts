@@ -21,8 +21,8 @@ import { catcher } from "@lisachandra/core/utils/main";
  *   + entity despawn). Useful for saving game-specific state.
  */
 import type { Crate } from "@rbxts/crate";
+import type { Store } from "@rbxts/dataforge";
 import { Janitor } from "@rbxts/janitor";
-import type { Collection } from "@rbxts/lapis";
 import Log from "@rbxts/log";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { useEvent } from "@rbxts/matter";
@@ -51,7 +51,7 @@ let internalDebugging = false;
 
 function debugPrint(message: string): void {
 	if (internalDebugging) {
-		print(message);
+		Log.Info(message);
 	}
 }
 
@@ -69,7 +69,7 @@ async function syncWithEventQueue(): Promise<void> {
  */
 async function waitForPlayerLoaded(
 	player: Player,
-	collection: Collection<any, any>,
+	dataStore: Store<any>,
 ): Promise<Required<ReturnType<typeof useDocument>>> {
 	return new Promise((resolve, reject) => {
 		debugPrint(`[playerManager] waitForPlayerLoaded start ${player.Name}`);
@@ -106,7 +106,7 @@ async function waitForPlayerLoaded(
 						break;
 					}
 
-					const data = useDocument(collection, player.UserId, player);
+					const data = useDocument(dataStore, player.UserId, player);
 					debugPrint(`[playerManager] polling document ${player.Name}`);
 					if (data.document) {
 						const { document } = data;
@@ -166,7 +166,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 	const hooks = getPlayerLifecycleHooks();
 	const documentConfig = getDocumentConfig();
-	const collection = documentConfig?.collection;
+	const dataStore = documentConfig?.store ?? documentConfig?.collection;
 
 	debugPrint(`[playerManager] queued sync ${player.Name}`);
 
@@ -209,9 +209,9 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 			let playerJanitor: Janitor;
 
-			if (collection !== undefined) {
+			if (dataStore !== undefined) {
 				debugPrint(`[playerManager] awaiting loaded ${player.Name}`);
-				const [status, data] = waitForPlayerLoaded(player, collection).await();
+				const [status, data] = waitForPlayerLoaded(player, dataStore).await();
 				if (!status) {
 					debugPrint(`[playerManager] await failed ${player.Name}`);
 					player.Kick("Load timeout, please rejoin and try again!");
@@ -223,7 +223,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 
 				playerJanitor = new Janitor();
 				playerJanitor.Add(async () => {
-					data.document.close().await();
+					data.document.unload();
 				});
 			} else {
 				Log.Info(`spawning player (no document): ${player.Name}`);

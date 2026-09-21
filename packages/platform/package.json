@@ -52,6 +52,10 @@
 			"import": "./out/centurion/commands/init.luau",
 			"types": "./out/centurion/commands/index.d.ts"
 		},
+		"./centurion/commands/document": {
+			"import": "./out/centurion/commands/document.luau",
+			"types": "./out/centurion/commands/document.d.ts"
+		},
 		"./centurion/types": {
 			"import": "./out/centurion/types/init.luau",
 			"types": "./out/centurion/types/index.d.ts"
@@ -93,8 +97,7 @@
 		"@rbxts/boba": "catalog:",
 		"@rbxts/centurion": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
-		"@rbxts/lapis": "catalog:",
-		"@rbxts/lapis-mockdatastore": "catalog:",
+		"@rbxts/dataforge": "catalog:",
 		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",
 		"@rbxts/matter": "catalog:",
@@ -117,8 +120,7 @@
 		"@lisachandra/types": "*",
 		"@rbxts/boba": "*",
 		"@rbxts/centurion": "*",
-		"@rbxts/lapis": "*",
-		"@rbxts/lapis-mockdatastore": "*",
+		"@rbxts/dataforge": "*",
 		"@rbxts/log": "*",
 		"@rbxts/matter": "*",
 		"@rbxts/object-utils": "*",

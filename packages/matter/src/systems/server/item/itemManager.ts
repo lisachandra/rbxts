@@ -22,7 +22,13 @@ import type { ChangeRecord } from "../../../components";
 import { Components, isComponent } from "../../../components";
 import { useMessage } from "../../../hooks";
 import { Message, messaging } from "../../../network";
-import { getItemFromGUID, getItemTool, moveItem, removeItem, spawnItem } from "../../../utils/item";
+import { getItemTool } from "../../../utils/item/lookup";
+import { getItemFromGUID, moveItem, removeItem, spawnItem } from "../../../utils/item/state";
+import {
+	encodeItemPointer,
+	itemEntityId as itemPointerEntityId,
+	parseItemPointer,
+} from "../../../utils/itemPointer";
 
 const loadTimeout = 30;
 const maxItems = 65535;
@@ -76,12 +82,13 @@ function moveItemTo(
 	guid: string,
 	destination: boolean,
 ): N<ServerState["itemPointers"]> {
-	const [itemEntityIdStr, location] = itemPointers[guid]!.split("_") as [
-		string,
-		N<"Hotbar" | "Inventory">,
-	];
-	const itemEntityId = tonumber(itemEntityIdStr) as AnyEntity;
-	const item = getItemFromGUID(guid)!;
+	const pointer = parseItemPointer(itemPointers[guid]);
+	if (pointer === undefined) {
+		return;
+	}
+
+	const { container: location, entityId: pointerEntityId } = pointer;
+	const item = getItemFromGUID(world, guid)!;
 
 	const arrival = destination ? "Inventory" : "Hotbar";
 
@@ -98,35 +105,35 @@ function moveItemTo(
 
 	if (
 		humanoid &&
-		itemEntityId !== entityId &&
-		!validateItemPickup(world, humanoid, itemEntityId, ITEM_PICKUP_RANGE)
+		pointerEntityId !== entityId &&
+		!validateItemPickup(world, humanoid, pointerEntityId, ITEM_PICKUP_RANGE)
 	) {
 		return;
 	}
 
-	moveItem(entityId, guid, arrival);
-	return { ...itemPointers, [guid]: `${itemEntityIdStr}_${arrival}` };
+	moveItem(world, entityId, guid, arrival);
+	return { ...itemPointers, [guid]: encodeItemPointer(pointerEntityId, arrival) };
 }
 
 /* Drops an item from the player's inventory or hotbar into the world. */
 function dropItem(
+	world: World,
 	entityId: AnyEntity,
 	humanoid: Humanoid,
 	itemPointers: ServerState["itemPointers"],
 	guid: string,
 	amount: number,
 ): N<ServerState["itemPointers"]> {
-	const [itemEntityIdStr] = itemPointers[guid]!.split("_") as [string, N<"Hotbar" | "Inventory">];
-
-	if (tonumber(itemEntityIdStr)! !== entityId) {
+	const pointerEntityId = itemPointerEntityId(itemPointers[guid]);
+	if (pointerEntityId !== entityId) {
 		return;
 	}
 
-	const item = removeItem(guid, amount)!;
+	const item = removeItem(world, guid, amount)!;
 	const cf = humanoid.RootPart!.CFrame.mul(new CFrame(0, 0, -1));
 
-	const itemEntityId = spawnItem(item, cf);
-	return { ...itemPointers, [guid]: `${itemEntityId}` };
+	const spawnedEntityId = spawnItem(world, item, cf);
+	return { ...itemPointers, [guid]: encodeItemPointer(spawnedEntityId) };
 }
 
 function handlePlayerToolEquip(profile: Components["Profile"], equippedTool: N<Tool>): void {
@@ -182,7 +189,7 @@ function cleanupItemPointers(
 }
 
 function determineItemPointer(entityId: AnyEntity, name: "Items" | "Hotbar" | "Inventory"): string {
-	return name === "Items" ? `${entityId}` : `${entityId}_${name}`;
+	return encodeItemPointer(entityId, name);
 }
 
 function filterItemsToAdd(
@@ -283,6 +290,7 @@ function handleMoveItemPacket(
 }
 
 function handleDropItemPacket(
+	world: World,
 	newItemPointers: ServerState["itemPointers"],
 	player: Player,
 	flippedItemGUIDMap: Record<string, string>,
@@ -296,7 +304,9 @@ function handleDropItemPacket(
 	const entityId = player.GetAttribute<AnyEntity>("serverEntityId")!;
 	const guid = flippedItemGUIDMap[data.guid]!;
 
-	return dropItem(entityId, humanoid, newItemPointers, guid, data.amount) ?? newItemPointers;
+	return (
+		dropItem(world, entityId, humanoid, newItemPointers, guid, data.amount) ?? newItemPointers
+	);
 }
 
 function updateItemPointers(
@@ -359,7 +369,7 @@ function system(world: World, crate: Crate<ServerState>): void {
 
 	for (const [_, player, data] of useMessage(messaging.server, Message.DropItem)) {
 		newItemPointers =
-			handleDropItemPacket(newItemPointers, player, flippedItemGUIDMap, data) ??
+			handleDropItemPacket(world, newItemPointers, player, flippedItemGUIDMap, data) ??
 			newItemPointers;
 	}
 

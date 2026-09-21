@@ -12,7 +12,7 @@ import { None, useEvent } from "@rbxts/matter";
 
 import { Components } from "../../../components";
 import { getEntityHumanoid } from "../../../utils/entity";
-import { getItemFromGUID } from "../../../utils/item";
+import { getItemFromGUID } from "../../../utils/item/state";
 import { meta as toolManager } from "./toolManager";
 
 function handleToolEquip(
@@ -34,7 +34,7 @@ function handleToolEquip(
 		toolGrip.Part1 = tool.FindFirstChild<BasePart>("Attach");
 	});
 
-	const item = getItemFromGUID(tool.GetAttribute<string>("guid")!);
+	const item = getItemFromGUID(world, tool.GetAttribute<string>("guid")!);
 
 	const hotbar = world.get(entityId, Components.Hotbar);
 	if (hotbar) {

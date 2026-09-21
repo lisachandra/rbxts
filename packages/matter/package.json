@@ -42,8 +42,20 @@
 			"types": "./out/items/index.d.ts"
 		},
 		"./utils/item": {
-			"import": "./out/utils/item.luau",
-			"types": "./out/utils/item.d.ts"
+			"import": "./out/utils/item/init.luau",
+			"types": "./out/utils/item/index.d.ts"
+		},
+		"./utils/item/lookup": {
+			"import": "./out/utils/item/lookup.luau",
+			"types": "./out/utils/item/lookup.d.ts"
+		},
+		"./utils/item/state": {
+			"import": "./out/utils/item/state.luau",
+			"types": "./out/utils/item/state.d.ts"
+		},
+		"./utils/itemPointer": {
+			"import": "./out/utils/itemPointer.luau",
+			"types": "./out/utils/itemPointer.d.ts"
 		},
 		"./utils/entity": {
 			"import": "./out/utils/entity.luau",
@@ -56,6 +68,14 @@
 		"./utils/sound": {
 			"import": "./out/utils/sound.luau",
 			"types": "./out/utils/sound.d.ts"
+		},
+		"./utils/audioEmitter": {
+			"import": "./out/utils/audioEmitter.luau",
+			"types": "./out/utils/audioEmitter.d.ts"
+		},
+		"./debug/soundDebugStats": {
+			"import": "./out/debug/soundDebugStats.luau",
+			"types": "./out/debug/soundDebugStats.d.ts"
 		},
 		"./systems": {
 			"import": "./out/systems/init.luau",
@@ -117,9 +137,9 @@
 		"@lisachandra/types": "workspace:*",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/crate": "catalog:",
+		"@rbxts/dataforge": "catalog:",
 		"@rbxts/iris": "catalog:",
 		"@rbxts/janitor": "catalog:",
-		"@rbxts/lapis": "catalog:",
 		"@rbxts/lemon-signal": "catalog:",
 		"@rbxts/log": "catalog:",
 		"@rbxts/luau-polyfill": "catalog:",
@@ -144,9 +164,9 @@
 		"@lisachandra/core": "*",
 		"@lisachandra/types": "*",
 		"@rbxts/crate": "*",
+		"@rbxts/dataforge": "*",
 		"@rbxts/iris": "*",
 		"@rbxts/janitor": "*",
-		"@rbxts/lapis": "*",
 		"@rbxts/lemon-signal": "*",
 		"@rbxts/log": "*",
 		"@rbxts/luau-polyfill": "*",

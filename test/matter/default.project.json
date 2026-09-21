@@ -13,10 +13,7 @@
 				"node_modules": {
 					"$className": "Folder",
 					"@lisachandra": {
-						"$path": "node_modules/@lisachandra",
-						"matter": {
-							"$path": "../../packages/matter/out"
-						}
+						"$path": "node_modules/@lisachandra"
 					},
 					"@rbxts-js": {
 						"$path": "node_modules/@rbxts-js"
@@ -24,6 +21,30 @@
 					"@rbxts": {
 						"$path": "node_modules/@rbxts"
 					}
+				}
+			},
+			"Models": {
+				"$className": "Folder",
+				"Items": {
+					"$className": "Folder"
+				}
+			},
+			"Tools": {
+				"$className": "Folder"
+			},
+			"Animations": {
+				"$className": "Folder",
+				"Tools": {
+					"$className": "Folder"
+				}
+			}
+		},
+		"Workspace": {
+			"$className": "Workspace",
+			"Caches": {
+				"$className": "Folder",
+				"Sound": {
+					"$className": "Folder"
 				}
 			}
 		},

@@ -81,12 +81,8 @@ describe("sequential issue workflow", () => {
 					return "1";
 				}
 
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "title";
+					return JSON.stringify({ labels: [], title: "title" });
 				}
 
 				return "";
@@ -150,12 +146,8 @@ describe("sequential issue workflow", () => {
 					return "1";
 				}
 
-				if (command.includes("gh issue view") && command.includes("labels")) {
-					return JSON.stringify({ labels: [] });
-				}
-
 				if (command.includes("gh issue view")) {
-					return "title";
+					return JSON.stringify({ labels: [], title: "title" });
 				}
 
 				return "";

@@ -1,4 +1,4 @@
-import type { Document } from "@rbxts/lapis";
+import type { Profile } from "@rbxts/dataforge";
 import type { Signal } from "@rbxts/lemon-signal";
 import Log from "@rbxts/log";
 import { Error } from "@rbxts/luau-polyfill";
@@ -13,7 +13,7 @@ import type { ConnectionLike, EventLike } from "./type";
 const CHARACTER_TIMEOUT = 120;
 const DOCUMENT_TIMEOUT = 120;
 
-type DocumentAccessor = (userId: number) => { document?: Document<CollectionData> };
+type DocumentAccessor = (userId: number) => { document?: Profile<CollectionData> };
 
 let useDocumentAccessor: undefined | DocumentAccessor;
 
@@ -211,7 +211,7 @@ export async function waitForDocument(
 	this: void,
 	userId: number,
 	timeout = DOCUMENT_TIMEOUT,
-): Promise<Document<CollectionData>> {
+): Promise<Profile<CollectionData>> {
 	if (!RunService.IsServer()) {
 		throw new Error(Log.Error("WaitForDocument() must be called from the server!"));
 	}
@@ -257,7 +257,9 @@ export async function waitForFirst(
 export function catcher(): (err: object) => void {
 	const trace = debug.traceback("\n");
 	return (err: object) => {
-		Log.Warn(`${trace}${debug.traceback(`\n${tostring(err)}`)}`);
+		const detail = `\n${tostring(err)}`;
+
+		Log.Warn(`${trace}${debug.traceback(detail)}`);
 	};
 }
 

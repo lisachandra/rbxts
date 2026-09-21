@@ -12,6 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { issueBranch } from "./git.js";
 import { io } from "./runtime.js";
 import type { PhaseStatus } from "./types.js";
 
@@ -145,7 +146,7 @@ export function makeState(
 	};
 } {
 	return {
-		branch: `sandcastle/issue-${issue}`,
+		branch: issueBranch(issue),
 		effort: "xhigh",
 		issue,
 		model: overrides.model ?? "test-model",
