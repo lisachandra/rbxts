@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/core",
-	"version": "0.1.1",
+	"version": "1.0.0",
 	"private": false,
 	"description": "Core runtime, utilities, logger, and shared primitives for @lisachandra rbxts packages",
 	"keywords": [

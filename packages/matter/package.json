@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/matter",
-	"version": "0.1.2",
+	"version": "1.0.0",
 	"private": false,
 	"description": "Matter runtime, hooks, components, and systems composition for @lisachandra",
 	"keywords": [
