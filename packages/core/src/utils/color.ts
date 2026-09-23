@@ -1,3 +1,5 @@
+import Log from "@rbxts/log";
+
 /**
  * Iteratively interpolates across an array of Color3 values. Starts with the first color, then
  * lerps the result with the second, then the result with the third, and so on, using the same t
@@ -16,7 +18,7 @@ export function iterativeLerpColorArray(colors: Array<Color3>, t: number): Color
 		 * No colors - return black or throw an error
 		 * Example: return Color3.Black(); // or new Color3(0, 0, 0);
 		 */
-		warn("iterativeLerpColorArray called with no colors.");
+		Log.Warn("iterativeLerpColorArray called with no colors.");
 		return new Color3(0, 0, 0); // Defaulting to black
 	}
 

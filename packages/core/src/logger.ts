@@ -1,6 +1,7 @@
 import Log, { Logger, LogLevel } from "@rbxts/log";
 import type { ILogEventSink, LogEvent } from "@rbxts/log/Core";
 import { MessageTemplateParser, PlainTextMessageTemplateRenderer } from "@rbxts/message-templates";
+import type { LogService } from "@rbxts/services";
 import { RunService } from "@rbxts/services";
 
 import { iterate } from "./utils/type";
@@ -161,14 +162,7 @@ export class LogEventSFTOutputSink implements ILogEventSink {
 		const logService = getLogService();
 		if (logService !== undefined) {
 			const messageType = mapLogLevelToMessageType(message.Level);
-			/*
-			 * LogService.Log with MessageError throws (see LogService.yaml); pcall so
-			 * Error stays non-halting while Fatal still halts via explicit error().
-			 */
-			pcall(() => logService.Log(messageType, formattedMessage));
-			if (message.Level >= LogLevel.Fatal) {
-				error(formattedMessage);
-			}
+			logService.Log(messageType, formattedMessage);
 		} else if (message.Level >= LogLevel.Fatal) {
 			error(formattedMessage);
 		} else if (message.Level >= LogLevel.Warning) {

@@ -1,3 +1,5 @@
+import Log from "@rbxts/log";
+
 import type { MatterPackageDescriptor, ResolvedMatterPackageGraph } from "./types";
 
 export function resolvePackageGraph<
@@ -19,14 +21,14 @@ export function resolvePackageGraph<
 		}
 
 		if (visiting.has(id)) {
-			error(
+			Log.Fatal(
 				`[matter/packages] Cyclic package dependency detected: ${[...path, id].join(" -> ")}`,
 			);
 		}
 
 		const pkg = packages.get(id);
 		if (!pkg) {
-			error(`[matter/packages] Missing package dependency '${id}'.`);
+			Log.Fatal(`[matter/packages] Missing package dependency '${id}'.`);
 		}
 
 		visiting.add(id);

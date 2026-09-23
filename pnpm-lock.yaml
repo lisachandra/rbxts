@@ -243,7 +243,7 @@ patchedDependencies:
   '@rbxts/centurion': d921b22690ae9df45456a8e5e927e1aace6d344631c9639f0f36b12489e67332
   '@rbxts/compiler-types': 0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def
   '@rbxts/jest-globals@3.16.0-ts.1': d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0
-  '@rbxts/log@0.6.3': bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051
+  '@rbxts/log': 4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135
   '@rbxts/serio': 66d5d7ff0f5ae2d84e005916baa360a7a7e138ea185487edeebb094718e44123
   '@rbxts/sift@0.0.11': 7b96b6bae29d8b99cfb3e61af05324b11901930a6ca4159d411a19c54d4463a8
   '@rbxts/tether@1.4.17': 452b4940483a1c3c0006a89a3d7a9c5fba8c336f7a987050f73d38014b87c73f
@@ -378,7 +378,7 @@ importers:
         version: 1.2.0
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/luau-polyfill':
         specifier: 'catalog:'
         version: 1.1.3
@@ -453,7 +453,7 @@ importers:
         version: 1.2.0
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/luau-polyfill':
         specifier: 'catalog:'
         version: 1.1.3
@@ -534,7 +534,7 @@ importers:
         version: 0.2.0
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/luau-polyfill':
         specifier: 'catalog:'
         version: 1.1.3
@@ -624,7 +624,7 @@ importers:
         version: 3.0.0-types.0(patch_hash=0d8d8eb4669cdbb61dfb75f418335f53dded4eeb9a5780274767148143949def)
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/react':
         specifier: 'catalog:'
         version: 17.3.7-ts.2
@@ -790,7 +790,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -823,7 +823,7 @@ importers:
         version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -901,7 +901,7 @@ importers:
         version: 1.2.0
       '@rbxts/log':
         specifier: 'catalog:'
-        version: 0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)
+        version: 0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)
       '@rbxts/luau-polyfill':
         specifier: 'catalog:'
         version: 1.1.3
@@ -1004,7 +1004,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1058,7 +1058,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1115,7 +1115,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1163,7 +1163,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -1211,7 +1211,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.6.1)
+        version: 0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)
       '@isentinel/roblox-ts':
         specifier: 'catalog:'
         version: 4.0.11(patch_hash=a85a67d36212b3d5b664aa95b0d5f467998bfee93187f4912ee42df25634cb9d)
@@ -2060,12 +2060,12 @@ packages:
     resolution: {integrity: sha512-t2IEY+unGHOzAaVM5Xx6DEWKeXlDDcNPeDyUpsRc6CUhBfU3VQOEl+Vssh7VNp1dR8MdUJBWhuObjXCsVpjN5g==}
     engines: {node: '>=18'}
 
-  '@isentinel/dict-rbxts@1.0.23':
-    resolution: {integrity: sha512-vSH8tgBITZNjYxw49aD8IXk2liqO9Rpu/lUk3MIQvp0RKBg5OQSmrNRvy7XKFk481XUkMaA9rAwmfJIV11HuWw==}
+  '@isentinel/dict-rbxts@1.0.24':
+    resolution: {integrity: sha512-UnBvOYjv6pV1cr5Gi9GqwCRfP62QFuhW+N/TsmcfGrwJzfoHCzU6AwONZQNzg1JTE9SH5zAIVM+vjUWZzCf1sA==}
     engines: {node: '>=22'}
 
-  '@isentinel/dict-roblox@1.0.16':
-    resolution: {integrity: sha512-L4EMB+7V57qljfBbqctWBgq4ywLJ9mS7gj0t44bAZ9OCjJaieNuY2LADNsOgOgy7nQqo/jK2/JSZuLPJmcsDww==}
+  '@isentinel/dict-roblox@1.0.17':
+    resolution: {integrity: sha512-TkHs9srgpspvO61G99tMM0Hb3nKkuFcIHGqiVDclkBN7Wn8Z5uFlKggYtZrjL+WyOvvgNcvFH1yKI8SWjFp50Q==}
     engines: {node: '>=20.18.0'}
 
   '@isentinel/eslint-config@6.0.0-beta.11':
@@ -7180,9 +7180,9 @@ snapshots:
 
   '@inquirer/figures@1.0.15': {}
 
-  '@isentinel/dict-rbxts@1.0.23': {}
+  '@isentinel/dict-rbxts@1.0.24': {}
 
-  '@isentinel/dict-roblox@1.0.16': {}
+  '@isentinel/dict-roblox@1.0.17': {}
 
   '@isentinel/eslint-config@6.0.0-beta.11(0b993c4fb3a61dae47c47b3c3cec5822)':
     dependencies:
@@ -7192,8 +7192,8 @@ snapshots:
       '@e18e/eslint-plugin': 0.5.1(eslint@10.8.0(jiti@2.6.1)(supports-color@7.2.0))(oxlint@1.73.0(oxlint-tsgolint@0.24.0))
       '@eslint-community/eslint-plugin-eslint-comments': 4.7.2(eslint@10.8.0(jiti@2.6.1)(supports-color@7.2.0))
       '@eslint/markdown': 8.0.3(supports-color@7.2.0)
-      '@isentinel/dict-rbxts': 1.0.23
-      '@isentinel/dict-roblox': 1.0.16
+      '@isentinel/dict-rbxts': 1.0.24
+      '@isentinel/dict-roblox': 1.0.17
       '@oxlint/plugins': 1.74.0
       '@pobammer-ts/small-rules': 2.7.0(typescript@6.0.3)
       '@stylistic/eslint-plugin': 5.10.0(eslint@10.8.0(jiti@2.6.1)(supports-color@7.2.0))
@@ -7261,6 +7261,35 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       arktype: 2.2.0
       c12: 4.0.0-beta.5(dotenv@8.6.0)(jiti@2.6.1)
+      confbox: 0.2.4
+      defu: 6.1.7
+      get-tsconfig: 4.14.0
+      highlight.js: 11.11.1
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-reports: 3.2.0
+      oxc-parser: 0.123.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
+      picomatch: 4.0.4
+      std-env: 4.1.0
+      tinyrainbow: 3.1.0
+      ws: 8.20.1
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+      - bufferutil
+      - chokidar
+      - dotenv
+      - giget
+      - jiti
+      - magicast
+      - utf-8-validate
+
+  '@isentinel/jest-roblox@0.3.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(dotenv@8.6.0)(jiti@2.7.0)':
+    dependencies:
+      '@bedrock-rbx/ocale': 0.1.0
+      '@jridgewell/trace-mapping': 0.3.31
+      arktype: 2.2.0
+      c12: 4.0.0-beta.5(dotenv@8.6.0)(jiti@2.7.0)
       confbox: 0.2.4
       defu: 6.1.7
       get-tsconfig: 4.14.0
@@ -8289,7 +8318,7 @@ snapshots:
 
   '@rbxts/lemon-signal@1.2.0': {}
 
-  '@rbxts/log@0.6.3(patch_hash=bf40352586e3f489dc7073cbc83f556136cb6ce4a630d1578f759750e63a4051)':
+  '@rbxts/log@0.6.3(patch_hash=4e8d97081bed062b67e35a6f562f562cb57e97ca22ed9868664117d684b63135)':
     dependencies:
       '@rbxts/message-templates': 0.3.2
 
@@ -8977,6 +9006,18 @@ snapshots:
     optionalDependencies:
       dotenv: 8.6.0
       jiti: 2.6.1
+
+  c12@4.0.0-beta.5(dotenv@8.6.0)(jiti@2.7.0):
+    dependencies:
+      confbox: 0.2.4
+      defu: 6.1.7
+      exsolve: 1.0.8
+      pathe: 2.0.3
+      pkg-types: 2.3.1
+      rc9: 3.0.1
+    optionalDependencies:
+      dotenv: 8.6.0
+      jiti: 2.7.0
 
   call-bind-apply-helpers@1.0.2:
     dependencies:

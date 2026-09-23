@@ -1,7 +1,6 @@
 import type { Profile } from "@rbxts/dataforge";
 import type { Signal } from "@rbxts/lemon-signal";
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import { RunService, TweenService } from "@rbxts/services";
 import { promiseTree } from "@rbxts/validate-tree";
 
@@ -45,7 +44,7 @@ export function lazyConnect(event: EventLike, callback: Callback): ConnectionLik
 		return event.subscribe(callback);
 	}
 
-	throw new Error(Log.Error("Event-like object does not have a supported connect method."));
+	Log.Fatal("Event-like object does not have a supported connect method.");
 }
 
 export function lazyDisconnect(connection: ConnectionLike): void {
@@ -56,9 +55,7 @@ export function lazyDisconnect(connection: ConnectionLike): void {
 	} else if ("disconnect" in connection) {
 		connection.disconnect();
 	} else {
-		throw new Error(
-			Log.Error("Connection-like object does not have a supported disconnect method."),
-		);
+		Log.Fatal("Connection-like object does not have a supported disconnect method.");
 	}
 }
 
@@ -162,7 +159,7 @@ export async function loadAnimation(
 
 export async function loadFlag(flag: string): Promise<boolean> {
 	if (!RunService.IsClient()) {
-		throw new Error(Log.Error("LoadFlag() must be called from the client!"));
+		Log.Fatal("LoadFlag() must be called from the client!");
 	}
 
 	const [success, result] = pcall(() => UserSettings().IsUserFeatureEnabled(flag));
@@ -213,13 +210,11 @@ export async function waitForDocument(
 	timeout = DOCUMENT_TIMEOUT,
 ): Promise<Profile<CollectionData>> {
 	if (!RunService.IsServer()) {
-		throw new Error(Log.Error("WaitForDocument() must be called from the server!"));
+		Log.Fatal("WaitForDocument() must be called from the server!");
 	}
 
 	if (!useDocumentAccessor) {
-		throw new Error(
-			Log.Error("WaitForDocument() requires configureDocumentAccessor() before first use."),
-		);
+		Log.Fatal("WaitForDocument() requires configureDocumentAccessor() before first use.");
 	}
 
 	const stamp = os.time();
@@ -233,7 +228,7 @@ export async function waitForDocument(
 		task.wait(1);
 	}
 
-	throw new Error(Log.Error(`Document timed out for user: ${userId}`));
+	Log.Fatal(`Document timed out for user: ${userId}`);
 }
 
 export async function waitForFirst(

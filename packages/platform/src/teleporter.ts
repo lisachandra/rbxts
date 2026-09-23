@@ -2,7 +2,6 @@ import { catcher } from "@lisachandra/core/utils/main";
 import { typeAssertIs } from "@lisachandra/core/utils/type";
 import { Boba } from "@rbxts/boba";
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import HashLib from "@rbxts/rbxts-hashlib";
 import { TeleportService } from "@rbxts/services";
 
@@ -200,9 +199,7 @@ TeleportService.TeleportInitFailed.Connect(
 		} else if (teleportResult === Enum.TeleportResult.Failure) {
 			task.wait(teleportConfig.retry_delay);
 		} else {
-			throw new Error(
-				Log.Error(`Invalid teleport [${teleportResult.Name}]: ${errorMessage}`),
-			);
+			Log.Fatal(`Invalid teleport [${teleportResult.Name}]: ${errorMessage}`);
 		}
 
 		teleport(targetPlaceId, [player], teleportOptions).catch(catcher());

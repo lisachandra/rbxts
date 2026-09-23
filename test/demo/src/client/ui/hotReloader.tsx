@@ -1,5 +1,4 @@
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import React, { StrictMode } from "@rbxts/react";
 import { createPortal, createRoot } from "@rbxts/react-roblox";
 import { HotReloader } from "@rbxts/rewire";
@@ -34,9 +33,7 @@ export function loadApp(module: ModuleScript): void {
 	let [success, app] = pcall(require, module) as LuaTuple<[true, App]>;
 
 	if (!success) {
-		throw new Error(
-			Log.Error("Error when hot-reloading app: {DebugName} {App}", debugName, app),
-		);
+		Log.Fatal("Error when hot-reloading app: {DebugName} {App}", debugName, app);
 	}
 
 	if (module.Name !== "app") {

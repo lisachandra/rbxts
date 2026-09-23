@@ -241,7 +241,7 @@ export function createDataStoreValidator<T, A extends boolean>(
 			break;
 		}
 		default: {
-			Log.Error(
+			Log.Fatal(
 				`[validateDataStoreSchema]: Cannot serialize unknown schema type '${schema[0]}'`,
 			);
 		}

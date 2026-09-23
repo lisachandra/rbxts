@@ -1,4 +1,5 @@
 import ReactTemplate from "@lisachandra/react-template";
+import Log from "@rbxts/log";
 import { useBindingListener } from "@rbxts/pretty-react-hooks";
 import type { Binding } from "@rbxts/react";
 import { useMemo, useState } from "@rbxts/react";
@@ -47,7 +48,7 @@ export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 				}
 
 				if (!typeIs(udimOrPxFunction, "UDim")) {
-					error(`px.fromUDim: invalid UDim argument: ${udimOrPxFunction}`);
+					Log.Fatal(`px.fromUDim: invalid UDim argument: ${udimOrPxFunction}`);
 				}
 
 				func ??= (number: number) => pxCall(number);
@@ -66,7 +67,7 @@ export function usePx(viewportBinding: Binding<Vector2>): PxWithMethods {
 				}
 
 				if (!typeIs(udim2OrPxFunction, "UDim2")) {
-					error(`px.fromUDim2: invalid UDim2 argument: ${udim2OrPxFunction}`);
+					Log.Fatal(`px.fromUDim2: invalid UDim2 argument: ${udim2OrPxFunction}`);
 				}
 
 				func ??= (number: number) => pxCall(number);

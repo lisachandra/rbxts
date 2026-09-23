@@ -1,6 +1,5 @@
 import { store } from "@lisachandra/core/store";
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import type { AnyEntity, Component, World } from "@rbxts/matter";
 import { HttpService, Workspace } from "@rbxts/services";
 import { removeValue } from "@rbxts/sift/Array";
@@ -343,7 +342,7 @@ export function spawnItem<P extends ValidItemPath>(
 	const model = getItemModel(item.id)?.Clone();
 
 	if (!model) {
-		throw new Error(Log.Error("spawnItem(): Model not found"));
+		Log.Fatal("spawnItem(): Model not found");
 	}
 
 	const entityId = world.spawn(

@@ -77,7 +77,7 @@ function cleanup(storage: PartialStorage): void {
  * 	```ts
  * 	for (const [index, event] of useStream(entityId)) {
  * 	if (event.adding) {
- * 	print(`Instance added: ${event.instance.Name}`);
+ * 	Log.Info(`Instance added: ${event.instance.Name}`);
  * 	}
  * 	}
  * 	```

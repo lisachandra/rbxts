@@ -12,7 +12,6 @@ import { catcher } from "@lisachandra/core/utils/main";
 import { typeAssertIs } from "@lisachandra/core/utils/type";
 import type { Crate } from "@rbxts/crate";
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import type {
 	AnyComponent,
 	AnyEntity,
@@ -143,13 +142,11 @@ function deserializeSingleComponent<T extends ComponentKey>(
 ): N<AnyComponent> {
 	const [success, deserialized] = pcall(deserializer, data, serverEntityId, clientEntityId);
 	if (!success) {
-		throw new Error(
-			Log.Error(
-				"Error while deserializing {ComponentName}: {@Deserialized} {@Data}",
-				componentName,
-				deserialized,
-				data,
-			),
+		Log.Fatal(
+			"Error while deserializing {ComponentName}: {@Deserialized} {@Data}",
+			componentName,
+			deserialized,
+			data,
 		);
 	}
 

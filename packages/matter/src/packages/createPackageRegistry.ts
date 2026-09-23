@@ -1,3 +1,5 @@
+import Log from "@rbxts/log";
+
 import { resolvePackageGraph } from "./resolvePackageGraph";
 import type { MatterPackageDescriptor, MatterPackageRegistry } from "./types";
 
@@ -40,7 +42,7 @@ export function createPackageRegistry<
 		},
 		register(pkg) {
 			if (packages.has(pkg.id)) {
-				error(`[matter/packages] Package '${pkg.id}' is already registered.`);
+				Log.Fatal(`[matter/packages] Package '${pkg.id}' is already registered.`);
 			}
 
 			packages.set(pkg.id, pkg);

@@ -23,7 +23,7 @@ export interface RouteMatchOptions extends PathMatchOptions {
  * 	```ts
  * 	const match = useRouteMatch({ path: "/users/:userId" });
  * 	if (match) {
- * 		print(match.userId);
+ * 		Log.Info(match.userId);
  * 	}
  * 	```;
  *

@@ -1,3 +1,4 @@
+import Log from "@rbxts/log";
 import type { SystemStruct } from "@rbxts/matter";
 import { RunService } from "@rbxts/services";
 
@@ -15,7 +16,7 @@ function ensureUniqueKeys(systems: ReadonlyArray<TemplateSystem>, owner: string)
 	const seen = new Set<string>();
 	for (const { key } of systems) {
 		if (seen.has(key)) {
-			error(`Duplicate system key '${key}' in '${owner}'`);
+			Log.Fatal(`Duplicate system key '${key}' in '${owner}'`);
 		}
 
 		seen.add(key);
@@ -46,12 +47,12 @@ export function createPipeline(): PipelineBuilder {
 			}
 
 			if (visiting.has(name)) {
-				error(`Cyclic template dependency detected at '${name}'`);
+				Log.Fatal(`Cyclic template dependency detected at '${name}'`);
 			}
 
 			const template = templates.get(name);
 			if (!template) {
-				error(`Missing template dependency '${name}'`);
+				Log.Fatal(`Missing template dependency '${name}'`);
 			}
 
 			visiting.add(name);
@@ -82,7 +83,7 @@ export function createPipeline(): PipelineBuilder {
 
 			const template = templateOrExtension;
 			if (templates.has(template.name)) {
-				error(`Template '${template.name}' is already registered`);
+				Log.Fatal(`Template '${template.name}' is already registered`);
 			}
 
 			ensureUniqueKeys(template.systems, template.name);
@@ -130,7 +131,7 @@ export function createPipeline(): PipelineBuilder {
 			const definedKeys = new Set<string>(allSystems.map((entry) => entry.key));
 			for (const [key] of overrides) {
 				if (!definedKeys.has(key)) {
-					error(`Override key '${key}' does not match any registered system`);
+					Log.Fatal(`Override key '${key}' does not match any registered system`);
 				}
 			}
 

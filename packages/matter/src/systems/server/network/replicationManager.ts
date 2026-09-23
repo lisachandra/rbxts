@@ -89,11 +89,10 @@ function serializeSingleComponent(
 	});
 
 	if (!success) {
-		Log.Error(
+		Log.Fatal(
 			`Error while serializing ${componentKey} for ${viewerEntityId}: ${serialized}`,
 			record,
 		);
-		return;
 	}
 
 	return serialized;

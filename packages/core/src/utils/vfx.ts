@@ -1,5 +1,4 @@
 import Log from "@rbxts/log";
-import { Error } from "@rbxts/luau-polyfill";
 import { Debris, Workspace } from "@rbxts/services";
 
 import type { Character } from "../schemas";
@@ -206,18 +205,14 @@ export function vfxAnimationMarkerReached(
 	parameters?: string,
 ): void {
 	if (parameters === undefined) {
-		throw new Error(
-			Log.Error(`Missing VFX parameters for animation: ${track.Animation?.AnimationId}`),
-		);
+		Log.Fatal(`Missing VFX parameters for animation: ${track.Animation?.AnimationId}`);
 	}
 
 	const [name, emitType, duration] = parameters.split(",") as VFXAnimationMarkerParameters<Part>;
 	const vfxAttachment = vfx.FindFirstChild<Attachment>(name);
 	if (!vfxAttachment) {
-		throw new Error(
-			Log.Error(
-				`Missing VFX attachment for animation: ${track.Animation?.AnimationId} (${name as string})`,
-			),
+		Log.Fatal(
+			`Missing VFX attachment for animation: ${track.Animation?.AnimationId} (${name as string})`,
 		);
 	}
 
@@ -233,10 +228,8 @@ export function vfxAnimationMarkerReached(
 			break;
 		}
 		default: {
-			throw new Error(
-				Log.Error(
-					`Invalid VFX type for animation: ${track.Animation?.AnimationId} (${emitType})`,
-				),
+			Log.Fatal(
+				`Invalid VFX type for animation: ${track.Animation?.AnimationId} (${emitType})`,
 			);
 		}
 	}

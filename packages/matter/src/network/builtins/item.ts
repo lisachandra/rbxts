@@ -80,14 +80,12 @@ function isItemReplicateSafe(
 ): [safe: false] | [safe: true, itemId: number, guidId: number] {
 	const itemId = getNumericItemIdFromId(item.id);
 	if (itemId === undefined) {
-		Log.Error("Numeric itemId is nil for", item);
-		return [false];
+		Log.Fatal("Numeric itemId is nil for", item);
 	}
 
 	const guidId = reader.getItemGUIDMap()[item.guid];
 	if (guidId === undefined) {
-		Log.Error("GUIDId does not exist for item:", item);
-		return [false];
+		Log.Fatal("GUIDId does not exist for item:", item);
 	}
 
 	return [true, itemId, guidId];

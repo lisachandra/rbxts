@@ -105,7 +105,7 @@ patchedDependencies:
     "@rbxts/centurion": patches/@rbxts__centurion.patch
     "@rbxts/compiler-types": patches/@rbxts__compiler-types@3.0.0-types.0.patch
     "@rbxts/jest-globals@3.16.0-ts.1": patches/@rbxts__jest-globals@3.16.0-ts.1.patch
-    "@rbxts/log@0.6.3": patches/@rbxts__log@0.6.3.patch
+    "@rbxts/log": patches/@rbxts__log.patch
     "@rbxts/serio": patches/@rbxts__serio.patch
     "@rbxts/tether@1.4.17": patches/@rbxts__tether@1.4.17.patch
     "@rbxts/sift@0.0.11": patches/@rbxts__sift@0.0.11.patch

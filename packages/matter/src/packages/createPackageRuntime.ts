@@ -1,3 +1,5 @@
+import Log from "@rbxts/log";
+
 import type { ReplicationCodecRegistration, ReplicationCodecRegistry } from "../network/registry";
 import type { PipelineRegistration } from "../pipeline";
 import { createPipeline } from "../pipeline";
@@ -16,7 +18,7 @@ function createStateManager<TCrateState extends object, TStateKey extends string
 			const collected = {} as Record<TStateKey, unknown>;
 			for (const slice of stateSlices) {
 				if (slice.key in collected) {
-					error(`[matter/packages] Duplicate package state key '${slice.key}'.`);
+					Log.Fatal(`[matter/packages] Duplicate package state key '${slice.key}'.`);
 				}
 
 				collected[slice.key] = slice.create(crate);

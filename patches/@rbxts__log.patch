@@ -1,0 +1,47 @@
+diff --git a/out/Logger.d.ts b/out/Logger.d.ts
+index ac8080520b5962da2a3b5255f5eaf7e0161ad453..096f66cc61726b585102bfcc6ba70a2278f8e1d8 100644
+--- a/out/Logger.d.ts
++++ b/out/Logger.d.ts
+@@ -63,7 +63,7 @@ export declare class Logger {
+      * @param template The template message using the [Message Templates](https://messagetemplates.org/) spec.
+      * @param args The values to apply to the template
+      */
+-    Fatal(template: string, ...args: unknown[]): string;
++    Fatal(template: string, ...args: unknown[]): never;
+     /**
+      * Creates a copy of this logger, and allows you to configure it
+      * @returns The configuration for a copy of this logger
+diff --git a/out/index.d.ts b/out/index.d.ts
+index ffb849bd0efce729ef72df1be810a6fde40af397..f34d57574dac38a289d5fce117f5a3410bff3abc 100644
+--- a/out/index.d.ts
++++ b/out/index.d.ts
+@@ -29,7 +29,7 @@ declare namespace Log {
+      * @param template
+      * @param args
+      */
+-    function Fatal(template: string, ...args: unknown[]): string;
++    function Fatal(template: string, ...args: unknown[]): never;
+     /**
+      * Write a "Verbose" message to the default logger
+      * @param template
+diff --git a/package.json b/package.json
+index 56fa8ae43e7eff5ed3014df5839e86462c042718..d57a92a94e1ed717d425c2824ddaae08148d6abe 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,16 @@
+ {
+   "name": "@rbxts/log",
+   "version": "0.6.3",
++  "exports": {
++    ".": {
++      "import": "./out/init.lua",
++      "types": "./out/index.d.ts"
++    },
++    "./Core": {
++      "import": "./out/Core/init.lua",
++      "types": "./out/Core/index.d.ts"
++    }
++  },
+   "description": "Structured logging library for Roblox",
+   "main": "out/init.lua",
+   "scripts": {

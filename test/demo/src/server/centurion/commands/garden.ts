@@ -4,6 +4,7 @@ import { Components } from "@lisachandra/matter";
 import { adminOrDeveloper } from "@lisachandra/platform";
 import type { CommandContext } from "@rbxts/centurion";
 import { Command, Guard, Register } from "@rbxts/centurion";
+import Log from "@rbxts/log";
 
 import { applyPlotVisual, pushNotification, setCarryState } from "server/game/helpers";
 import { GARDEN_DECAY_TIME } from "shared/game/constants";
@@ -78,7 +79,7 @@ export class GardenProgressCommand {
 	public gardenprogress(_context: CommandContext): void {
 		// oxlint-disable-next-line eslint/no-unreachable-loop -- at most one progress entity exists
 		for (const [, progress] of store.world.query(Components.GardenProgress)) {
-			print(
+			Log.Info(
 				`Garden health=${tostring(progress.health)} restored=${tostring(progress.restoredPlots)}/${tostring(progress.totalPlots)} harvested=${tostring(progress.harvested)}`,
 			);
 			return;
