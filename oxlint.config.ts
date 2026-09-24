@@ -422,4 +422,50 @@ export default isentinel(
 			"unicorn/filename-case": "off",
 		},
 	},
+	/*
+	 * Logging policy: `@rbxts/log` is the only logging surface, and `Log.Fatal` is the only
+	 * halting level (typed `never` through `patches/@rbxts__log.patch`). This block is ordered
+	 * after the presets so its options win; see the Logging section in AGENTS.md.
+	 */
+	{
+		files: [GLOB_TS, GLOB_TSX],
+		name: "project/logging",
+		rules: {
+			"eslint-js/no-restricted-syntax": [
+				"error",
+				{
+					message:
+						"Use `Log.Info` from @rbxts/log instead of `print`.\nSee the Logging section in AGENTS.md.",
+					selector: "CallExpression[callee.name='print']",
+				},
+				{
+					message:
+						"Use `Log.Warn` from @rbxts/log instead of `warn`.\nSee the Logging section in AGENTS.md.",
+					selector: "CallExpression[callee.name='warn']",
+				},
+				{
+					message:
+						"Use `Log.Fatal` (halts) or `Log.Warn` (recovers) instead of a bare `error()`.\nSee the Logging section in AGENTS.md.",
+					selector: "CallExpression[callee.name='error']",
+				},
+				{
+					message:
+						"`Log.Error` is a non-halting record; use `Log.Fatal` to halt or `Log.Warn` to continue.\nDisable this line with a reason when an error-severity record is genuinely intended.",
+					selector: "MemberExpression[object.name='Log'][property.name='Error']",
+				},
+			],
+		},
+	},
+	// Specs assert by throwing (`error(...)`); keep the preset selectors, skip the logging rules.
+	{
+		files: GLOB_TESTS,
+		name: "project/logging-tests",
+		rules: {
+			"eslint-js/no-restricted-syntax": [
+				"error",
+				"TSEnumDeclaration[const=true]",
+				"TSExportAssignment",
+			],
+		},
+	},
 );

@@ -176,6 +176,25 @@ Document-based data with JSON Schema validation for persisting player/entity dat
 
 ---
 
+## Logging
+
+- `@rbxts/log` is the only logging surface. `print`, `warn`, and `error` are used **only** inside
+  `LogEventSFTOutputSink` (`packages/core/src/logger.ts`), which falls back to them outside Roblox;
+  those call sites carry an `oxlint-disable-next-line` with a reason.
+- Levels: `Log.Debug`/`Log.Verbose` for diagnostics, `Log.Info` for lifecycle events, `Log.Warn` for
+  recoverable or degraded problems, `Log.Fatal` when control flow must stop.
+- `Log.Fatal` is the halting level and is typed `never` (see `patches/README.md`), so delete
+  unreachable code after it instead of adding `return`/`break` statements.
+- Never wrap `Log.*` (or the sink's `LogService.Log`) in `pcall`; the sink owns error mapping.
+- Enforced by the `project/logging` block in `oxlint.config.ts`.
+
+## Upstream patches
+
+- `patches/*.patch` are hand-maintained pnpm patches (see `patchedDependencies` in
+  `pnpm-workspace.yaml`). Read `patches/README.md` before bumping a patched dependency: it records
+  why each patch exists and the invariants the repo depends on.
+
+
 ## Naming Conventions
 
 - Package names: `@lisachandra/<name>`

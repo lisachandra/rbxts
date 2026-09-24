@@ -90,8 +90,9 @@ const maxLogOutputSize = 128;
  * @remarks
  *   `Debugging`, `Verbose`, and `Information` map to `MessageInfo`; `Warning` maps to
  *   `MessageWarning`; `Error` and `Fatal` map to `MessageError`. `LogService.Log` with
- *   `MessageError` throws in the Roblox engine, so the sink pcalls the dispatch: `Error` stays
- *   non-halting (legacy `warn()` semantics) while `Fatal` still halts via an explicit `error()`.
+ *   `MessageError` throws in the Roblox engine, so the sink wraps only the `Error` level in
+ *   `pcall`: `Error` stays a non-halting record while `Fatal` halts by letting the throw
+ *   propagate.
  * @param level - The log level to map.
  * @returns The corresponding `Enum.MessageType`.
  */
@@ -162,12 +163,23 @@ export class LogEventSFTOutputSink implements ILogEventSink {
 		const logService = getLogService();
 		if (logService !== undefined) {
 			const messageType = mapLogLevelToMessageType(message.Level);
-			logService.Log(messageType, formattedMessage);
+			/*
+			 * `LogService.Log` with `MessageError` throws (see `LogService.yaml`); only the `Error`
+			 * level is pcall'd so `Error` stays a non-halting record while `Fatal` halts.
+			 */
+			if (message.Level === LogLevel.Error) {
+				pcall(() => logService.Log(messageType, formattedMessage));
+			} else {
+				logService.Log(messageType, formattedMessage);
+			}
 		} else if (message.Level >= LogLevel.Fatal) {
+			// oxlint-disable-next-line eslint-js/no-restricted-syntax -- sink fallback outside Roblox
 			error(formattedMessage);
 		} else if (message.Level >= LogLevel.Warning) {
+			// oxlint-disable-next-line eslint-js/no-restricted-syntax -- sink fallback outside Roblox
 			warn(formattedMessage);
 		} else {
+			// oxlint-disable-next-line eslint-js/no-restricted-syntax -- sink fallback outside Roblox
 			print(formattedMessage);
 		}
 	}
