@@ -78,6 +78,10 @@ export interface SandcastleConfig {
 	};
 	/** Per-phase prompt files; repo-relative paths resolve from the repo root. */
 	prompts: Partial<Record<PromptFileKey, string>>;
+	/** Queue manifest path configuration; the manifest stores what GitHub cannot express. */
+	queue: {
+		file: string;
+	};
 	/** Machine-readable review marker prefix written as `<marker>: APPROVED|BLOCKED`. */
 	reviewMarker: string;
 	/** Shell commands run once in a fresh worktree before phase agents start. */
@@ -159,6 +163,11 @@ export const sandcastleConfigSchema = z
 			})
 			.optional(),
 		prompts: promptFileSchema,
+		queue: z
+			.object({
+				file: z.string().min(1).optional(),
+			})
+			.optional(),
 		reviewMarker: z.string().optional(),
 		setupCommands: z.array(z.string()).optional(),
 		skills: z
@@ -216,6 +225,7 @@ const defaultConfig: SandcastleConfig = {
 		readyForAgent: "ready-for-agent",
 	},
 	prompts: {},
+	queue: { file: "sandcastle.queue.json" },
 	reviewMarker: "Sandcastle-Review",
 	setupCommands: [],
 	skills: {
@@ -302,6 +312,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 			readyForAgent: parsed.labels?.readyForAgent ?? defaultConfig.labels.readyForAgent,
 		},
 		prompts: parsed.prompts ?? {},
+		queue: { file: parsed.queue?.file ?? defaultConfig.queue.file },
 		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
 		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,
 		skills: {

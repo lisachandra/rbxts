@@ -31,6 +31,7 @@ import {
 	runNewIntegration,
 } from "./integrations.js";
 import { runAll, runSingleIssue } from "./issue.js";
+import { runQueueCommand } from "./queue/commands.js";
 import { io, normalizedPath } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
@@ -54,6 +55,11 @@ export * from "./git.js";
 export * from "./integrations.js";
 export * from "./issue.js";
 export * from "./logging.js";
+export * from "./queue/commands.js";
+export * from "./queue/live.js";
+export * from "./queue/manifest.js";
+export * from "./queue/mutations.js";
+export * from "./queue/render.js";
 export * from "./retry.js";
 export { config, io, normalizedPath, packageRoot, repoRoot } from "./runtime.js";
 export * from "./sequential.js";
@@ -254,6 +260,11 @@ export async function main(): Promise<void> {
 			options.skipSetup,
 			options.steps,
 		);
+		return;
+	}
+
+	if (options.command === "queue") {
+		runQueueCommand(options);
 		return;
 	}
 

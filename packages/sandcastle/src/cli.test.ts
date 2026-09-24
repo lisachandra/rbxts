@@ -298,6 +298,133 @@ describe("commaSeparated / parseArgs", () => {
 			assert.throws(() => parseArgs(["--issue", "1", "--resolve-model"]), /requires a value/);
 		});
 	});
+
+	describe("queue command", () => {
+		test("parseArgs parses queue subcommands and placement flags", () => {
+			const add = parseArgs([
+				"queue",
+				"add",
+				"--issue",
+				"5",
+				"--sequence",
+				"U2",
+				"--after",
+				"4",
+			]);
+			assert.equal(add.command, "queue");
+			assert.equal(add.queueSubcommand, "add");
+			assert.equal(add.issueNumber, "5");
+			assert.equal(add.queueSequence, "U2");
+			assert.equal(add.after, "4");
+			// Parsing a queue command succeeds without any model configuration.
+
+			const gated = parseArgs([
+				"queue",
+				"add",
+				"--issue",
+				"6",
+				"--gated",
+				"--reason",
+				"blocked",
+			]);
+			assert.equal(gated.queueBucket, "gated");
+			assert.equal(gated.reason, "blocked");
+
+			const human = parseArgs([
+				"queue",
+				"add",
+				"--issue",
+				"7",
+				"--human",
+				"--reason",
+				"decide",
+			]);
+			assert.equal(human.queueBucket, "human");
+
+			const sequence = parseArgs([
+				"queue",
+				"sequence",
+				"--name",
+				"U2",
+				"--issues",
+				"1,2",
+				"--merge-name",
+				"sandcastle/issue-1",
+				"--notes",
+				"order matters",
+			]);
+			assert.equal(sequence.queueSubcommand, "sequence");
+			assert.equal(sequence.integrationName, "U2");
+			assert.deepEqual(sequence.issueNumbers, ["1", "2"]);
+			assert.equal(sequence.mergeName, "sandcastle/issue-1");
+			assert.equal(sequence.notes, "order matters");
+
+			const rule = parseArgs([
+				"queue",
+				"rule",
+				"--name",
+				"R1",
+				"--issues",
+				"1,2",
+				"--reason",
+				"same file",
+			]);
+			assert.equal(rule.queueSubcommand, "rule");
+			assert.equal(rule.reason, "same file");
+
+			const remove = parseArgs(["queue", "remove", "--issue", "8"]);
+			assert.equal(remove.queueSubcommand, "remove");
+
+			const list = parseArgs(["queue", "list", "--json"]);
+			assert.equal(list.queueSubcommand, "list");
+			assert.equal(list.jsonOut, true);
+		});
+
+		test("parseArgs enforces queue subcommand and flag rules", () => {
+			assert.throws(() => parseArgs(["queue"]), /queue requires a subcommand/);
+			assert.throws(() => parseArgs(["queue", "bogus"]), /Unknown queue subcommand/);
+			assert.throws(
+				() => parseArgs(["queue", "add", "--issue", "5"]),
+				/requires a placement/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "add", "--sequence", "U2"]),
+				/requires --issue <number>/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "add", "--issue", "5", "--gated"]),
+				/requires --reason <text>/,
+			);
+			assert.throws(
+				() =>
+					parseArgs([
+						"queue",
+						"add",
+						"--issue",
+						"5",
+						"--gated",
+						"--reason",
+						"x",
+						"--after",
+						"4",
+					]),
+				/--after requires --sequence/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "add", "--issue", "5", "--gated", "--human"]),
+				/either --gated or --human/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "sequence", "--issues", "1,2"]),
+				/requires --name <batch>/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "rule", "--reason", "x"]),
+				/queue rule requires/,
+			);
+			assert.throws(() => parseArgs(["queue", "remove"]), /queue remove requires --issue/);
+		});
+	});
 });
 
 test("printHelp prints usage without throwing", () => {

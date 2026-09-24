@@ -77,6 +77,7 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 | `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                                                     |
 | `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                                                             |
 | `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                                                    |
+| `queue.file`           | `sandcastle.queue.json` | Queue manifest path (repo-relative) used by the `sandcastle queue` command group                                                               |
 | `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                                                         |
 | `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                                                    |
 | `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                                                        |
@@ -183,6 +184,36 @@ finishes by creating a scoped `.completed` marker as its final action; the runne
 clean exit without that marker as a phase failure. The runner never closes issues, merges
 branches, or publishes releases; the final human merge is yours.
 
+## Queue (`sandcastle queue`)
+
+Reviews regularly surface follow-up work: new issues that get filed on GitHub but never make
+it into the batch plan. The queue command group closes that gap. GitHub issues stay the
+canonical store for issue state (open/closed, labels, blocked-by edges — always fetched
+live); the queue manifest (default `sandcastle.queue.json`, at the repository root,
+git-tracked) records only what GitHub cannot express — batch composition and run order,
+same-file serialization rules, and gate conditions:
+
+```bash
+sandcastle queue add --issue 42 --sequence U2                    # append to a batch
+sandcastle queue add --issue 42 --sequence U2 --after 41         # insert after issue 41
+sandcastle queue add --issue 43 --gated --reason "waiting on issue 41"
+sandcastle queue add --issue 44 --human --reason "needs a human decision session"
+sandcastle queue sequence --name U2 --issues 40,41,42 --merge-name sandcastle/issue-40
+sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
+sandcastle queue remove --issue 43
+sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
+sandcastle queue check      # same view; exits non-zero while drift exists
+```
+
+`queue list` / `queue check` fetch live issue state (`gh issue list` plus one batched
+GraphQL call for blocked-by edges) and render the visualization: per-batch READY/GATED with
+reasons, gated issues that are now promotable, and drift — unplaced ready-for-agent issues,
+closed-but-referenced issues, and referenced-but-missing issues. `queue check` is safe to
+run after any review that files follow-up issues: it must report no drift before a review
+completes. The bundled review prompts reference these commands; repos that override
+`prompts.review` / `prompts.reviewIntegration` should keep that contract.
+
+
 ## Backends
 
 Sandcastle supports `dirac` (default), `pi`, `codex`, `claude-code`, `cursor`, `opencode`,
@@ -218,6 +249,7 @@ that re-exports the public API:
 - `steps.ts` — per-step resolution (CLI flag over `agents.steps` over workflow default)
 - `issue.ts` / `sequential.ts` — single-issue and sequential workflows
 - `integrations.ts` — integration composition and merge-conflict resolution
+- `queue/` — queue manifest, live GitHub state, and the `sandcastle queue` command group
 - `evaluate.ts` / `state.ts` — phase decisions and persisted issue state (`phasesConfig`)
 - `agent.ts` / `worktree.ts` / `git.ts` / `retry.ts` — agent providers, worktrees, git, retries
 

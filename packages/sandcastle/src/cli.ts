@@ -8,6 +8,7 @@
 
 import { resolve as pathResolve } from "node:path";
 
+import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
 import { config } from "./runtime.js";
 import { agentStepNames, resolveAgentSteps } from "./steps.js";
 import type {
@@ -23,6 +24,7 @@ export type CliCommand =
 	| "issue"
 	| "merge"
 	| "setup"
+	| "queue"
 	| "issue-sequence"
 	| "integration-abort"
 	| "merge-integrations"
@@ -31,6 +33,7 @@ export type CliCommand =
 	| "integration-cleanup";
 
 export interface CliOptions {
+	readonly after?: string;
 	readonly agentBackend: AgentBackend;
 	readonly allowUnreviewed: boolean;
 	readonly base: string;
@@ -46,9 +49,16 @@ export interface CliOptions {
 	readonly integrationNames: Array<string>;
 	readonly issueNumber: string;
 	readonly issueNumbers: Array<string>;
+	readonly jsonOut: boolean;
+	readonly mergeName?: string;
 	readonly model: string;
+	readonly notes?: string;
 	readonly phase?: PhaseName;
 	readonly quarantineDrift?: boolean;
+	readonly queueBucket?: "gated" | "human";
+	readonly queueSequence?: string;
+	readonly queueSubcommand?: QueueSubcommand;
+	readonly reason?: string;
 	readonly resume: boolean;
 	readonly sequentialIssues: Array<string>;
 	readonly skipSetup?: boolean;
@@ -74,6 +84,7 @@ export function commaSeparated(value: string | undefined, flag: string): Array<s
 }
 
 interface ParsedArgState {
+	after: string | undefined;
 	agentBackend: AgentBackend;
 	allowUnreviewed: boolean;
 	base: string;
@@ -89,9 +100,16 @@ interface ParsedArgState {
 	integrationNames: Array<string>;
 	issueNumber: string | undefined;
 	issueNumbers: Array<string>;
+	jsonOut: boolean;
+	mergeName: string | undefined;
 	model: string | undefined;
+	notes: string | undefined;
 	phase: PhaseName | undefined;
 	quarantineDrift: boolean;
+	queueBucket: "gated" | "human" | undefined;
+	queueSequence: string | undefined;
+	queueSubcommand: undefined | QueueSubcommand;
+	reason: string | undefined;
 	resume: boolean;
 	sequentialIssues: Array<string>;
 	skipSetup: boolean;
@@ -102,6 +120,7 @@ interface ParsedArgState {
 
 function createParsedArgState(): ParsedArgState {
 	return {
+		after: undefined,
 		agentBackend: config.agents.default,
 		allowUnreviewed: false,
 		base: config.baseBranch,
@@ -117,9 +136,16 @@ function createParsedArgState(): ParsedArgState {
 		integrationNames: [],
 		issueNumber: undefined,
 		issueNumbers: [],
+		jsonOut: false,
+		mergeName: undefined,
 		model: undefined,
+		notes: undefined,
 		phase: undefined,
 		quarantineDrift: false,
+		queueBucket: undefined,
+		queueSequence: undefined,
+		queueSubcommand: undefined,
+		reason: undefined,
 		resume: false,
 		sequentialIssues: [],
 		skipSetup: false,
@@ -168,7 +194,7 @@ function isIntegrationCommand(value: string): value is CliCommand {
 }
 
 function isCliCommand(value: string): value is CliCommand {
-	return value === "setup" || isIntegrationCommand(value);
+	return value === "queue" || value === "setup" || isIntegrationCommand(value);
 }
 
 type ArgHandler = (state: ParsedArgState, next: string | undefined, index: number) => number;
@@ -215,6 +241,14 @@ function setStepEffort(
 }
 
 const valueArgHandlers: Record<string, ArgHandler> = {
+	"--after": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--after requires a value");
+		}
+
+		state.after = next;
+		return index + 1;
+	},
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
 			throw new Error(
@@ -306,12 +340,28 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.issueNumbers.push(...commaSeparated(next, "--issues"));
 		return index + 1;
 	},
+	"--merge-name": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--merge-name requires a value");
+		}
+
+		state.mergeName = next;
+		return index + 1;
+	},
 	"--model": (state, next, index) => {
 		state.model = next;
 		return index + 1;
 	},
 	"--name": (state, next, index) => {
 		state.integrationName = next;
+		return index + 1;
+	},
+	"--notes": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--notes requires a value");
+		}
+
+		state.notes = next;
 		return index + 1;
 	},
 	"--phase": (state, next, index) => {
@@ -332,6 +382,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--planner-model": (state, next, index) => {
 		setStepModel(state, "planner", "--planner-model", next);
+		return index + 1;
+	},
+	"--reason": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--reason requires a value");
+		}
+
+		state.reason = next;
 		return index + 1;
 	},
 	"--resolve-agent": (state, next, index) => {
@@ -356,6 +414,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--review-model": (state, next, index) => {
 		setStepModel(state, "review", "--review-model", next);
+		return index + 1;
+	},
+	"--sequence": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--sequence requires a value");
+		}
+
+		state.queueSequence = next;
 		return index + 1;
 	},
 	"--sequential": (state, next, index) => {
@@ -387,11 +453,28 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--dry-run": (state) => {
 		state.dryRun = true;
 	},
+	"--gated": (state) => {
+		if (state.queueBucket !== undefined) {
+			throw new Error("Choose either --gated or --human, not both.");
+		}
+
+		state.queueBucket = "gated";
+	},
 	"--help": (state) => {
 		state.help = true;
 	},
+	"--human": (state) => {
+		if (state.queueBucket !== undefined) {
+			throw new Error("Choose either --gated or --human, not both.");
+		}
+
+		state.queueBucket = "human";
+	},
 	"--ignore-setup": (state) => {
 		state.ignoreSetup = true;
+	},
+	"--json": (state) => {
+		state.jsonOut = true;
 	},
 	"--quarantine-drift": (state) => {
 		state.quarantineDrift = true;
@@ -438,6 +521,17 @@ function applyParsedArgument(
 	const valueHandler = valueArgHandlers[arg];
 	if (valueHandler !== undefined) {
 		return valueHandler(state, next, index);
+	}
+
+	if (state.command === "queue" && state.queueSubcommand === undefined && !arg.startsWith("-")) {
+		if (!isQueueSubcommand(arg)) {
+			throw new Error(
+				`Unknown queue subcommand: ${arg} (expected one of: ${queueSubcommands.join(", ")})`,
+			);
+		}
+
+		state.queueSubcommand = arg;
+		return index;
 	}
 
 	if (state.issueNumber === undefined && state.command === "issue" && !arg.startsWith("-")) {
@@ -492,6 +586,50 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		throw new Error("--worktree cannot be used with --issue all.");
 	}
 
+	if (state.command === "queue") {
+		if (state.queueSubcommand === undefined) {
+			throw new Error(`queue requires a subcommand: ${queueSubcommands.join(", ")}`);
+		}
+
+		if (state.queueBucket !== undefined && state.queueSequence !== undefined) {
+			throw new Error("Choose either --sequence or --gated/--human, not both.");
+		}
+
+		if (state.queueSubcommand === "add") {
+			if (state.issueNumber === undefined) {
+				throw new Error("queue add requires --issue <number>.");
+			}
+
+			if (state.queueSequence === undefined && state.queueBucket === undefined) {
+				throw new Error(
+					"queue add requires a placement: --sequence <name> or --gated/--human.",
+				);
+			}
+
+			if (state.queueBucket !== undefined && state.reason === undefined) {
+				throw new Error("queue add with --gated/--human requires --reason <text>.");
+			}
+
+			if (state.after !== undefined && state.queueSequence === undefined) {
+				throw new Error("--after requires --sequence <name>.");
+			}
+		} else if (
+			state.queueSubcommand === "sequence" &&
+			(state.integrationName === undefined || state.issueNumbers.length === 0)
+		) {
+			throw new Error("queue sequence requires --name <batch> and --issues <a,b,c>.");
+		} else if (
+			state.queueSubcommand === "rule" &&
+			(state.issueNumbers.length === 0 || state.reason === undefined)
+		) {
+			throw new Error("queue rule requires --issues <a,b> and --reason <text>.");
+		}
+
+		if (state.queueSubcommand === "remove" && state.issueNumber === undefined) {
+			throw new Error("queue remove requires --issue <number>.");
+		}
+	}
+
 	if (!isAgentBackend(state.agentBackend)) {
 		throw new Error(`SANDCASTLE_AGENT must be one of: ${config.agents.enabled.join(", ")}`);
 	}
@@ -525,7 +663,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		}
 	}
 
-	if (!state.help && state.command !== "setup") {
+	if (!state.help && state.command !== "setup" && state.command !== "queue") {
 		for (const step of agentStepNames) {
 			if (steps[step].model === "") {
 				throw new Error(
@@ -542,6 +680,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 	}
 
 	return {
+		after: state.after,
 		agentBackend: state.agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
@@ -557,9 +696,16 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		integrationNames: state.integrationNames,
 		issueNumber: state.issueNumber ?? "",
 		issueNumbers: state.issueNumbers,
+		jsonOut: state.jsonOut,
+		mergeName: state.mergeName,
 		model: model ?? "",
+		notes: state.notes,
 		phase: state.phase,
 		quarantineDrift: state.quarantineDrift,
+		queueBucket: state.queueBucket,
+		queueSequence: state.queueSequence,
+		queueSubcommand: state.queueSubcommand,
+		reason: state.reason,
 		resume: state.resume,
 		sequentialIssues: state.sequentialIssues,
 		skipSetup: state.skipSetup,
@@ -613,6 +759,18 @@ Setup workflow (harness / manual worktrees):
   Prepares a worktree for agent runs: creates .sandcastle state dirs, copies .env,
   runs setupCommands, and links symlinks. No flags prepares the current directory
   (e.g. a clean paseo worktree). Idempotent; safe to re-run.
+Queue workflow (batch manifest + live view):
+  pnpm sandcastle:issue -- queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>]
+  pnpm sandcastle:issue -- queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes <text>]
+  pnpm sandcastle:issue -- queue rule [--name <R#>] --issues <a,b> --reason <text>
+  pnpm sandcastle:issue -- queue remove --issue <n>
+  pnpm sandcastle:issue -- queue list [--json]
+  pnpm sandcastle:issue -- queue check [--json]
+
+  The queue manifest (default sandcastle.queue.json, git-tracked) stores only what
+  GitHub cannot express: sequence composition/run order, serialization rules, gates.
+  Issue state is fetched live; queue check reports drift (unplaced ready issues,
+  closed-but-listed, referenced-but-missing) and exits non-zero.
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
 	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi (default: dirac)
