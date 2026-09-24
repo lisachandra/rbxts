@@ -194,6 +194,15 @@ Document-based data with JSON Schema validation for persisting player/entity dat
   `pnpm-workspace.yaml`). Read `patches/README.md` before bumping a patched dependency: it records
   why each patch exists and the invariants the repo depends on.
 
+## References
+
+- `docs/agents/coding-standards.md` — TSDoc, interface design, error/logging policy, testing style.
+- `docs/agents/release.md` — Changesets rules, bump policy, the manual release workflow.
+- `docs/agents/testing-apis.md` — how to verify a change (repo checks, Jest Roblox, Studio APIs).
+- `docs/agents/issue-tracker.md` — issue metadata contract, wayfinding maps/tickets.
+- `docs/agents/triage-labels.md` — label vocabulary and the `ready-for-agent` gate.
+- `docs/agents/domain.md` — where domain vocabulary lives and how to treat shipped contracts.
+- `patches/README.md` — why each pnpm patch exists and the invariants behind it.
 
 ## Naming Conventions
 
