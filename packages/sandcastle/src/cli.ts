@@ -8,6 +8,7 @@
 
 import { resolve as pathResolve } from "node:path";
 
+import { type HelpTopicKey, renderHelpTopic } from "./help.js";
 import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
 import { config } from "./runtime.js";
 import { agentStepNames, resolveAgentSteps } from "./steps.js";
@@ -58,6 +59,7 @@ export interface CliOptions {
 	readonly quarantineDrift?: boolean;
 	readonly queueApply?: boolean;
 	readonly queueBucket?: "gated" | "human";
+	readonly queueClosed?: boolean;
 	readonly queueCommit?: boolean;
 	readonly queueEnabled?: boolean;
 	readonly queueKeepEntries?: boolean;
@@ -115,6 +117,7 @@ interface ParsedArgState {
 	quarantineDrift: boolean;
 	queueApply: boolean;
 	queueBucket: "gated" | "human" | undefined;
+	queueClosed: boolean;
 	queueCommit: boolean | undefined;
 	queueEnabled: boolean | undefined;
 	queueKeepEntries: boolean;
@@ -157,6 +160,7 @@ function createParsedArgState(): ParsedArgState {
 		quarantineDrift: false,
 		queueApply: false,
 		queueBucket: undefined,
+		queueClosed: false,
 		queueCommit: undefined,
 		queueEnabled: undefined,
 		queueKeepEntries: false,
@@ -480,6 +484,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--apply": (state) => {
 		state.queueApply = true;
 	},
+	"--closed": (state) => {
+		state.queueClosed = true;
+	},
 	"--dry-run": (state) => {
 		state.dryRun = true;
 	},
@@ -634,7 +641,12 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		throw new Error("--worktree cannot be used with --issue all.");
 	}
 
-	if (state.command === "queue") {
+	/*
+	 * `--help` short-circuits every requirement check below: asking what a command needs must never
+	 * fail because it was not given. Skipping the block leaves `queueSubcommand` as parsed, which is
+	 * exactly what `helpTopicKey` needs.
+	 */
+	if (state.command === "queue" && !state.help) {
 		if (state.queueSubcommand === undefined) {
 			throw new Error(`queue requires a subcommand: ${queueSubcommands.join(", ")}`);
 		}
@@ -679,6 +691,12 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		) {
 			throw new Error(
 				"queue run does not accept --gated/--human/--sequence; place issues with `queue add`.",
+			);
+		}
+
+		if (state.queueSubcommand === "prune" && state.queueClosed !== true) {
+			throw new Error(
+				"queue prune requires --closed: it only removes references to closed issues.",
 			);
 		}
 
@@ -762,6 +780,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		quarantineDrift: state.quarantineDrift,
 		queueApply: state.queueApply,
 		queueBucket: state.queueBucket,
+		queueClosed: state.queueClosed,
 		queueCommit: state.queueCommit,
 		queueEnabled: state.queueEnabled,
 		queueKeepEntries: state.queueKeepEntries,
@@ -793,7 +812,12 @@ export function parseArgs(argv: ReadonlyArray<string>): CliOptions {
 	return finalizeParsedArgs(state);
 }
 
-export function printHelp(): void {
+export function printHelp(topic?: HelpTopicKey): void {
+	if (topic !== undefined) {
+		console.log(renderHelpTopic(topic));
+		return;
+	}
+
 	console.log(`Three-phase Sandcastle runner: Design → Implement → Review.
 
 Issue workflow:
@@ -827,6 +851,7 @@ Queue workflow (batch manifest + live view):
   pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes <text>]
   pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>
   pnpm sandcastle queue remove --issue <n>
+  pnpm sandcastle queue prune --closed [--json]
   pnpm sandcastle queue list [--json] [--strict-gates]
   pnpm sandcastle queue check [--json] [--strict-gates]
   pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]

@@ -48,7 +48,7 @@ Leave a concise review summary as a comment on the issue with:
 - a machine-readable status line, exactly `Sandcastle-Review: APPROVED` or `Sandcastle-Review: BLOCKED`,
 - risks,
 - missing validation,
-- suggested follow-up issues, each filed AND registered via `sandcastle queue add` (see below).
+- suggested follow-up issues, each filed AND registered via `pnpm sandcastle queue add` (see below).
 
 ## Follow-up issue registration
 

@@ -7,11 +7,14 @@
  */
 
 import type { CliOptions } from "../cli.js";
+import { config } from "../runtime.js";
+import { fetchLiveQueueState } from "./live.js";
 import {
 	describePlacement,
 	locateIssue,
 	type QueueManifest,
 	readQueueManifest,
+	referencedIssues,
 } from "./manifest.js";
 import { addRule, addToSequence, defineSequence, placeIssue, removeIssue } from "./mutations.js";
 import { persistQueueManifest } from "./persist.js";
@@ -103,4 +106,40 @@ export function runQueueRemove(options: CliOptions): void {
 	const next = removeIssue(readQueueManifest(), issue);
 	persistQueueManifest(next, `remove #${issue} from the queue`, options);
 	console.log(`  ✓ Removed #${issue} from the queue manifest`);
+}
+
+/**
+ * - Drops references to CLOSED issues, which otherwise gate their batch forever.
+ * - @param options - Parsed CLI options; `--closed` is required, `--dry-run` reports only.
+ * - @remarks `human` entries are kept — a finished decision session is still a record — and
+ *   referenced-but-missing issues are left as drift for a human to investigate.
+ */
+export function runQueuePrune(options: CliOptions): void {
+	const manifest = readQueueManifest();
+	const live = fetchLiveQueueState({
+		numbers: referencedIssues(manifest),
+		readyLabel: config.labels.readyForAgent,
+	});
+	const human = new Set(manifest.human.map((entry) => entry.issue));
+	const closed = [...referencedIssues(manifest)].filter(
+		(issue) => !human.has(issue) && live.issues.get(issue)?.state === "CLOSED",
+	);
+
+	if (closed.length === 0) {
+		console.log("  ✓ Nothing to prune: no closed issues are referenced.");
+		return;
+	}
+
+	console.log(`  ⌫ Pruning ${closed.length} closed issue(s): ${closed.join(", ")}`);
+	if (options.dryRun) {
+		console.log("  (dry run — manifest not written)");
+		return;
+	}
+
+	let next = manifest;
+	for (const issue of closed) {
+		next = removeIssue(next, issue);
+	}
+
+	persistQueueManifest(next, `prune ${closed.length} closed issue(s)`, options);
 }

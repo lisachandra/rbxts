@@ -22,6 +22,7 @@ import { piProvider } from "./providers/pi.js";
 import type { AgentBackend, SandcastleEffort } from "./types.js";
 
 export { fetchIssueLabels, issueMetadata, issueView } from "./issue-metadata.js";
+export { queueRulesForPrompt } from "./prompts/queue.js";
 export { skillsForPrompt, uniqueSkills } from "./prompts/skills.js";
 export { diracProvider as diracAgent } from "./providers/dirac.js";
 export { withMarkerCompletion } from "./providers/marker.js";

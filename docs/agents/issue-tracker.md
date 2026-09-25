@@ -12,7 +12,8 @@ GitHub Issues are source of truth for PRDs, roadmap slices, AFK handoff. Use `gh
 5. Apply labels from `docs/agents/triage-labels.md` and the metadata contract below.
 6. Add `ready-for-agent` only after the issue passes the readiness review.
 7. Sandcastle (`packages/sandcastle`, root `pnpm sandcastle:issue`) picks up a `ready-for-agent`
-   issue in an isolated worktree. `pnpm issues:agent-ready` lists the queue.
+   issue in an isolated worktree. `pnpm sandcastle queue list` is the runnable view (raw backlog
+   query: `gh issue list --state open --label ready-for-agent`).
 8. Human reviews/validates before merge.
 
 ## Issue Metadata Contract

@@ -6,7 +6,7 @@
 	"scripts": {
 		"changeset": "changeset",
 		"commit": "cz",
-		"issues:agent-ready": "gh issue list --state open --label \"ready-for-agent\" --json number,title,labels,url",
+		"issues:agent-ready": "sandcastle queue list",
 		"issues:audit": "gh issue list --state open --limit 200 --json number,title,labels,url",
 		"issues:labels": "gh label list --limit 200",
 		"lint": "oxfmt --check && oxlint",

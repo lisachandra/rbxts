@@ -23,6 +23,7 @@ import { resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type CliOptions, parseArgs, printHelp } from "./cli.js";
+import { helpTopicKey } from "./help.js";
 import {
 	abortIntegration,
 	cleanupIntegration,
@@ -148,7 +149,7 @@ export async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 
 	if (options.help) {
-		printHelp();
+		printHelp(helpTopicKey(options));
 		io.exit(0);
 	}
 
@@ -199,7 +200,7 @@ export async function main(): Promise<void> {
 
 	if (options.command === "issue") {
 		if (!options.issueNumber) {
-			printHelp();
+			printHelp("issue");
 			throw new Error("A numeric GitHub issue number (or 'all') is required.");
 		}
 
@@ -247,7 +248,7 @@ export async function main(): Promise<void> {
 
 	if (options.command === "issue-sequence") {
 		if (options.sequentialIssues.length === 0) {
-			printHelp();
+			printHelp("issue-sequence");
 			throw new Error(
 				"--sequential is required for issue-sequence command (comma-separated issue numbers)",
 			);

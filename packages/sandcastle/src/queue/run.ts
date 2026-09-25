@@ -8,7 +8,7 @@
  */
 
 import type { CliOptions } from "../cli.js";
-import { config } from "../runtime.js";
+import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
 import { applyBootstrap, proposeBootstrap } from "./bootstrap.js";
@@ -114,12 +114,30 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 			view,
 		});
 		if (decision.kind === "done") {
-			console.log(`  ⏹ Nothing to run: ${decision.reason}`);
+			if (options.jsonOut) {
+				console.log(
+					JSON.stringify({ decision: "done", reason: decision.reason }, undefined, 2),
+				);
+			} else {
+				console.log(`  ⏹ Nothing to run: ${decision.reason}`);
+			}
+
+			/*
+			 * Exit 1: "nothing can fire" is a failure for a dispatcher — a typo in --name and an exhausted
+			 * queue both need to be visible to whatever scripted the run.
+			 */
+			io.exit(1);
 			return;
 		}
 
-		const members = decision.issues.map((issue) => `#${issue}`).join(" → ");
-		console.log(`\n▶ Firing sequence "${decision.name}": ${members}`);
+		if (options.jsonOut) {
+			const payload = { batch: decision.name, issues: decision.issues, kind: "sequence" };
+			console.log(JSON.stringify(payload));
+		} else {
+			const members = decision.issues.map((issue) => `#${issue}`).join(" → ");
+			console.log(`\n▶ Firing sequence "${decision.name}": ${members}`);
+		}
+
 		if (options.dryRun) {
 			console.log("  (dry run — nothing dispatched)");
 			return;

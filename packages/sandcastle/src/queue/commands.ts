@@ -11,7 +11,13 @@ import type { CliOptions } from "../cli.js";
 import { config, io } from "../runtime.js";
 import { fetchLiveQueueState } from "./live.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
-import { runQueueAdd, runQueueRemove, runQueueRule, runQueueSequence } from "./ops.js";
+import {
+	runQueueAdd,
+	runQueuePrune,
+	runQueueRemove,
+	runQueueRule,
+	runQueueSequence,
+} from "./ops.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
 
@@ -21,6 +27,7 @@ export type QueueSubcommand =
 	| "list"
 	| "rule"
 	| "check"
+	| "prune"
 	| "remove"
 	| "sequence"
 	| "bootstrap";
@@ -30,6 +37,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"bootstrap",
 	"check",
 	"list",
+	"prune",
 	"remove",
 	"rule",
 	"run",
@@ -46,6 +54,7 @@ export function isQueueSubcommand(value: string | undefined): value is QueueSubc
 const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
 	"add",
 	"bootstrap",
+	"prune",
 	"remove",
 	"rule",
 	"run",
@@ -101,6 +110,10 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 		}
 		case "list": {
 			runQueueList(options);
+			break;
+		}
+		case "prune": {
+			runQueuePrune(options);
 			break;
 		}
 		case "remove": {
