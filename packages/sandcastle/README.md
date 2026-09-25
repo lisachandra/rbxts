@@ -70,24 +70,26 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 
 ### Options
 
-| Option                 | Default                 | Purpose                                                                                                                        |
-| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory                                                                      |
-| `baseBranch`           | `main`                  | Diff base for implementation and review                                                                                        |
-| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                                                     |
-| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                                                             |
-| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                                                    |
-| `queue.file`           | `sandcastle.queue.json` | Queue manifest path (repo-relative) used by the `sandcastle queue` command group                                                               |
-| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                                                         |
-| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                                                    |
-| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                                                        |
-| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                                                                                     | BLOCKED`) |
-| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                                                                                      |
-| `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`)                                |
-| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                                                      |
-| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                                                   |
-| `agents.steps`         | `{}`                    | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview` |
-| `effort`               | `xhigh`                 | Default reasoning effort                                                                                                       |
+| Option                 | Default                 | Purpose                                                                                                                                                       |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dir`                  | `.sandcastle`           | State, plans, logs, worktrees, and integrations directory                                                                                                     |
+| `baseBranch`           | `main`                  | Diff base for implementation and review                                                                                                                       |
+| `setupCommands`        | `[]`                    | Shell commands run in a fresh worktree before phase agents                                                                                                    |
+| `symlinks`             | `[]`                    | Repository directories linked into fresh worktrees                                                                                                            |
+| `prompts`              | package defaults        | Per-phase prompt file paths (repo-relative)                                                                                                                   |
+| `queue.file`           | `sandcastle.queue.json` | Queue manifest path (repo-relative) used by the `sandcastle queue` command group                                                                              |
+| `queue.enabled`        | `true`                  | Set `false` to bypass the queue workflow entirely (no gates, reviews report follow-ups in the comment only); `--no-queue` / `--queue` override per invocation |
+| `queue.commit`         | `false`                 | Commit the manifest after each mutating queue command (never pushes)                                                                                          |
+| `skills.defaults`      | phase defaults          | Skills injected into each phase prompt                                                                                                                        |
+| `skills.labels`        | `{}`                    | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                                                                                   |
+| `labels.readyForAgent` | `ready-for-agent`       | Issue label that marks AFK-ready issues                                                                                                                       |
+| `reviewMarker`         | `Sandcastle-Review`     | Comment marker prefix (`<marker>: APPROVED                                                                                                                    | BLOCKED`) |
+| `issueCommand`         | `gh issue view {issue}` | Command template used to fetch issue data                                                                                                                     |
+| `agents.enabled`       | all supported backends  | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`)                                                               |
+| `agents.default`       | `dirac`                 | Backend used when `--agent` is not passed                                                                                                                     |
+| `agents.models`        | `{}`                    | Default model per backend, used when `--model` is not passed                                                                                                  |
+| `agents.steps`         | `{}`                    | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview`                                |
+| `effort`               | `xhigh`                 | Default reasoning effort                                                                                                                                      |
 
 Precedence for every step is CLI flag (`--design-model`, `--implement-agent`, `--review-effort`, `--planner-*`, `--resolve-*`, `--integration-review-*`) over `agents.steps` config over the workflow default (`--agent` / `--model` / `--effort` plus `agents.models`). When a step selects a different backend without its own model, the mapped `agents.models[backend]` wins over the workflow model.
 
@@ -203,6 +205,8 @@ sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
+sandcastle queue run --name U2  # fire the next READY batch; re-reads the manifest after each one
+sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
 ```
 
 `queue list` / `queue check` fetch live issue state (`gh issue list` plus one batched
@@ -213,6 +217,13 @@ run after any review that files follow-up issues: it must report no drift before
 completes. The bundled review prompts reference these commands; repos that override
 `prompts.review` / `prompts.reviewIntegration` should keep that contract.
 
+`queue run` dispatches the next READY sequence, re-reads the manifest after every batch, and prunes
+landed entries (`--keep-entries` to keep them), so a review that registers a follow-up changes what
+runs next inside the same invocation; `--max-issues <n>` caps one invocation. `queue bootstrap`
+proposes placements for the unplaced backlog grouped by title scope. Repositories that do not want
+the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappears and reviews only
+report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the
+manifest themselves; otherwise commit it yourself, or the registration dies with the worktree.
 
 ## Backends
 

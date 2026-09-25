@@ -76,6 +76,14 @@ describe("queue mutations", () => {
 		assert.deepEqual(next.sequences[0]?.issues, ["1", "2", "3"]);
 	});
 
+	test("addToSequence rejects --after pointing at the issue being moved", () => {
+		const start = defineSequence(base(), { issues: ["1", "2", "3"], name: "U2" });
+
+		assert.throws(() => {
+			addToSequence(start, { after: "2", issue: "2", sequence: "U2" });
+		}, /cannot be inserted after itself/u);
+	});
+
 	test("addToSequence throws when the sequence is not defined", () => {
 		assert.throws(() => {
 			addToSequence(base(), { issue: "1", sequence: "missing" });

@@ -50,13 +50,19 @@ export interface CliOptions {
 	readonly issueNumber: string;
 	readonly issueNumbers: Array<string>;
 	readonly jsonOut: boolean;
+	readonly maxIssues?: number;
 	readonly mergeName?: string;
 	readonly model: string;
 	readonly notes?: string;
 	readonly phase?: PhaseName;
 	readonly quarantineDrift?: boolean;
+	readonly queueApply?: boolean;
 	readonly queueBucket?: "gated" | "human";
+	readonly queueCommit?: boolean;
+	readonly queueEnabled?: boolean;
+	readonly queueKeepEntries?: boolean;
 	readonly queueSequence?: string;
+	readonly queueStrictGates?: boolean;
 	readonly queueSubcommand?: QueueSubcommand;
 	readonly reason?: string;
 	readonly resume: boolean;
@@ -101,13 +107,19 @@ interface ParsedArgState {
 	issueNumber: string | undefined;
 	issueNumbers: Array<string>;
 	jsonOut: boolean;
+	maxIssues: number | undefined;
 	mergeName: string | undefined;
 	model: string | undefined;
 	notes: string | undefined;
 	phase: PhaseName | undefined;
 	quarantineDrift: boolean;
+	queueApply: boolean;
 	queueBucket: "gated" | "human" | undefined;
+	queueCommit: boolean | undefined;
+	queueEnabled: boolean | undefined;
+	queueKeepEntries: boolean;
 	queueSequence: string | undefined;
+	queueStrictGates: boolean;
 	queueSubcommand: undefined | QueueSubcommand;
 	reason: string | undefined;
 	resume: boolean;
@@ -137,13 +149,19 @@ function createParsedArgState(): ParsedArgState {
 		issueNumber: undefined,
 		issueNumbers: [],
 		jsonOut: false,
+		maxIssues: undefined,
 		mergeName: undefined,
 		model: undefined,
 		notes: undefined,
 		phase: undefined,
 		quarantineDrift: false,
+		queueApply: false,
 		queueBucket: undefined,
+		queueCommit: undefined,
+		queueEnabled: undefined,
+		queueKeepEntries: false,
 		queueSequence: undefined,
+		queueStrictGates: false,
 		queueSubcommand: undefined,
 		reason: undefined,
 		resume: false,
@@ -340,6 +358,15 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.issueNumbers.push(...commaSeparated(next, "--issues"));
 		return index + 1;
 	},
+	"--max-issues": (state, next, index) => {
+		const parsed = Number(next);
+		if (next === undefined || next === "" || !Number.isInteger(parsed) || parsed < 1) {
+			throw new Error("--max-issues requires a positive integer");
+		}
+
+		state.maxIssues = parsed;
+		return index + 1;
+	},
 	"--merge-name": (state, next, index) => {
 		if (next === undefined || next === "" || next.startsWith("-")) {
 			throw new Error("--merge-name requires a value");
@@ -450,6 +477,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--allow-unreviewed": (state) => {
 		state.allowUnreviewed = true;
 	},
+	"--apply": (state) => {
+		state.queueApply = true;
+	},
 	"--dry-run": (state) => {
 		state.dryRun = true;
 	},
@@ -476,8 +506,23 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--json": (state) => {
 		state.jsonOut = true;
 	},
+	"--keep-entries": (state) => {
+		state.queueKeepEntries = true;
+	},
+	"--no-queue": (state) => {
+		state.queueEnabled = false;
+	},
+	"--no-queue-commit": (state) => {
+		state.queueCommit = false;
+	},
 	"--quarantine-drift": (state) => {
 		state.quarantineDrift = true;
+	},
+	"--queue": (state) => {
+		state.queueEnabled = true;
+	},
+	"--queue-commit": (state) => {
+		state.queueCommit = true;
 	},
 	"--resume": (state) => {
 		state.resume = true;
@@ -487,6 +532,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--status": (state) => {
 		state.status = true;
+	},
+	"--strict-gates": (state) => {
+		state.queueStrictGates = true;
 	},
 	"-h": (state) => {
 		state.help = true;
@@ -625,6 +673,15 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("queue rule requires --issues <a,b> and --reason <text>.");
 		}
 
+		if (
+			state.queueSubcommand === "run" &&
+			(state.queueBucket !== undefined || state.queueSequence !== undefined)
+		) {
+			throw new Error(
+				"queue run does not accept --gated/--human/--sequence; place issues with `queue add`.",
+			);
+		}
+
 		if (state.queueSubcommand === "remove" && state.issueNumber === undefined) {
 			throw new Error("queue remove requires --issue <number>.");
 		}
@@ -697,13 +754,19 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		issueNumber: state.issueNumber ?? "",
 		issueNumbers: state.issueNumbers,
 		jsonOut: state.jsonOut,
+		maxIssues: state.maxIssues,
 		mergeName: state.mergeName,
 		model: model ?? "",
 		notes: state.notes,
 		phase: state.phase,
 		quarantineDrift: state.quarantineDrift,
+		queueApply: state.queueApply,
 		queueBucket: state.queueBucket,
+		queueCommit: state.queueCommit,
+		queueEnabled: state.queueEnabled,
+		queueKeepEntries: state.queueKeepEntries,
 		queueSequence: state.queueSequence,
+		queueStrictGates: state.queueStrictGates,
 		queueSubcommand: state.queueSubcommand,
 		reason: state.reason,
 		resume: state.resume,
@@ -760,17 +823,28 @@ Setup workflow (harness / manual worktrees):
   runs setupCommands, and links symlinks. No flags prepares the current directory
   (e.g. a clean paseo worktree). Idempotent; safe to re-run.
 Queue workflow (batch manifest + live view):
-  pnpm sandcastle:issue -- queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>]
-  pnpm sandcastle:issue -- queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes <text>]
-  pnpm sandcastle:issue -- queue rule [--name <R#>] --issues <a,b> --reason <text>
-  pnpm sandcastle:issue -- queue remove --issue <n>
-  pnpm sandcastle:issue -- queue list [--json]
-  pnpm sandcastle:issue -- queue check [--json]
+  pnpm sandcastle queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>]
+  pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes <text>]
+  pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>
+  pnpm sandcastle queue remove --issue <n>
+  pnpm sandcastle queue list [--json] [--strict-gates]
+  pnpm sandcastle queue check [--json] [--strict-gates]
+  pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]
+  pnpm sandcastle queue bootstrap [--apply] [--dry-run]
 
   The queue manifest (default sandcastle.queue.json, git-tracked) stores only what
   GitHub cannot express: sequence composition/run order, serialization rules, gates.
   Issue state is fetched live; queue check reports drift (unplaced ready issues,
-  closed-but-listed, referenced-but-missing) and exits non-zero.
+  closed-but-listed, referenced-but-missing) and exits 1, or 2 when --strict-gates also
+  counts an unresolved gate. queue run fires the next READY sequence and re-reads the
+  manifest after every batch, so a review that registered a follow-up changes what runs
+  next inside the same invocation; landed entries are pruned unless --keep-entries.
+  queue bootstrap proposes placements for the unplaced backlog; --apply writes them.
+
+  Bypass for repositories that do not want the queue workflow: set queue.enabled: false in
+  sandcastle.config.ts (or pass --no-queue). Reviews then report follow-ups in the issue
+  comment only. --queue re-enables it per invocation, and --queue-commit commits the
+  manifest after every mutation (never pushes).
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
 	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi (default: dirac)

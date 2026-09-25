@@ -40,6 +40,8 @@ export interface QueueView {
 	rules: QueueManifest["serialized"];
 	sequences: Array<QueueSequenceView>;
 	unplaced: Array<{ number: string; title: string }>;
+	/** Referenced issues that a truncated `gh issue list` page could not confirm either way. */
+	unscanned: Array<{ issue: string; where: string }>;
 	updated: string;
 }
 
@@ -60,8 +62,17 @@ function viewFor(live: LiveQueueState, number: string): QueueIssueView {
  * Computes the live queue view: per-sequence READY/GATED with reasons, gated entries with promotion
  * status, and every drift case the freshness pass used to do by hand (unplaced ready issues,
  * closed-but-listed, referenced-but-missing).
+ *
+ * @param manifest - The queue manifest.
+ * @param live - Fresh GitHub state for the referenced numbers plus the ready backlog.
+ * @param options - `strictGates` turns promotable gates into drift, so a stale gate fails a check
+ *   instead of only printing a hint.
  */
-export function computeQueueView(manifest: QueueManifest, live: LiveQueueState): QueueView {
+export function computeQueueView(
+	manifest: QueueManifest,
+	live: LiveQueueState,
+	options: { strictGates?: boolean } = {},
+): QueueView {
 	const sequences: Array<QueueSequenceView> = manifest.sequences.map((sequence) => {
 		const issues = sequence.issues.map((number) => viewFor(live, number));
 		const reasons: Array<string> = [];
@@ -117,10 +128,17 @@ export function computeQueueView(manifest: QueueManifest, live: LiveQueueState):
 
 	const closed: Array<{ issue: string; where: string }> = [];
 	const missing: Array<{ issue: string; where: string }> = [];
+	const unscanned: Array<{ issue: string; where: string }> = [];
 	const inspectPlacement = (number: string, where: string, includeClosed: boolean): void => {
 		const issue = live.issues.get(number);
 		if (issue === undefined || !issue.found) {
-			missing.push({ issue: number, where });
+			// A truncated page hides old issues; that is "not scanned", never "not found".
+			if (live.truncated) {
+				unscanned.push({ issue: number, where });
+			} else {
+				missing.push({ issue: number, where });
+			}
+
 			return;
 		}
 
@@ -166,6 +184,20 @@ export function computeQueueView(manifest: QueueManifest, live: LiveQueueState):
 		drift.push(`#${item.issue} is referenced (${item.where}) but not found on GitHub`);
 	}
 
+	if (unscanned.length > 0) {
+		drift.push(
+			`${unscanned.length} referenced issue(s) were not scanned: gh issue list is capped at one page`,
+		);
+	}
+
+	if (options.strictGates === true) {
+		for (const entry of gated) {
+			if (entry.promotable) {
+				drift.push(`#${entry.issue} is gated but promotable — promote it or re-gate it`);
+			}
+		}
+	}
+
 	return {
 		closed,
 		drift,
@@ -175,6 +207,7 @@ export function computeQueueView(manifest: QueueManifest, live: LiveQueueState):
 		rules: manifest.serialized,
 		sequences,
 		unplaced,
+		unscanned,
 		updated: manifest.updatedAt,
 	};
 }
@@ -245,6 +278,15 @@ export function renderQueueText(view: QueueView): string {
 		}
 
 		lines.push(...humanLines);
+	}
+
+	if (view.unscanned.length > 0) {
+		const unscannedLines: Array<string> = ["", "  Unscanned (issue list truncated):"];
+		for (const entry of view.unscanned) {
+			unscannedLines.push(`    ? #${entry.issue} (${entry.where})`);
+		}
+
+		lines.push(...unscannedLines);
 	}
 
 	if (view.drift.length > 0) {

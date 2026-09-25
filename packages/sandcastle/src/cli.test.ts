@@ -424,6 +424,38 @@ describe("commaSeparated / parseArgs", () => {
 			);
 			assert.throws(() => parseArgs(["queue", "remove"]), /queue remove requires --issue/);
 		});
+
+		test("parseArgs parses queue run, budget, and bypass flags", () => {
+			const run = parseArgs([
+				"queue",
+				"run",
+				"--name",
+				"U2",
+				"--max-issues",
+				"3",
+				"--keep-entries",
+				"--strict-gates",
+			]);
+			assert.equal(run.queueSubcommand, "run");
+			assert.equal(run.integrationName, "U2");
+			assert.equal(run.maxIssues, 3);
+			assert.equal(run.queueKeepEntries, true);
+			assert.equal(run.queueStrictGates, true);
+
+			assert.equal(parseArgs(["queue", "list", "--no-queue"]).queueEnabled, false);
+			assert.equal(parseArgs(["queue", "list", "--queue"]).queueEnabled, true);
+			assert.equal(parseArgs(["queue", "list", "--queue-commit"]).queueCommit, true);
+			assert.equal(parseArgs(["queue", "bootstrap", "--apply"]).queueApply, true);
+
+			assert.throws(
+				() => parseArgs(["queue", "run", "--gated"]),
+				/queue run does not accept/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "run", "--max-issues", "0"]),
+				/positive integer/u,
+			);
+		});
 	});
 });
 

@@ -6,16 +6,22 @@
  * manifest records only what GitHub cannot express: sequence composition and
  * run order, same-file serialization rules, and gate conditions.
  *
- * The default file lives at the repository root (`sandcastle.queue.json`) so it
- * is versioned with the repo; override it with `queue.file` in
- * `sandcastle.config.ts`.
+ * The default file lives at the primary checkout's root (`sandcastle.queue.json`) so
+ * it is versioned with the repo and shared by every worktree; override it with
+ * `queue.file` in `sandcastle.config.ts`.
+ *
+ * It resolves against the *primary* checkout rather than the process working
+ * directory: a review agent running inside `.sandcastle/worktrees/<branch>` must
+ * update the queue where it lives, not a branch-local copy that dies with the
+ * worktree.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
-import { config, repoRoot } from "../runtime.js";
+import { primaryRepoRoot } from "../git.js";
+import { config, normalizedPath, repoRoot } from "../runtime.js";
 
 const issueNumberSchema = z.string().regex(/^\d+$/u, "must be a numeric GitHub issue number");
 
@@ -59,9 +65,14 @@ export type QueueManifest = z.output<typeof queueManifestSchema>;
 /** Default, relative to the repository root; git-tracked, unlike `.sandcastle/`. */
 export const defaultQueueFile = "sandcastle.queue.json";
 
-/** Absolute path of the queue manifest for the current repository/config. */
+/** Absolute path of the queue manifest, resolved against the primary checkout. */
 export function queueManifestPath(): string {
-	return pathResolve(repoRoot, config.queue.file);
+	return pathResolve(primaryRepoRoot(), config.queue.file);
+}
+
+/** Whether the process runs in the primary checkout rather than a linked worktree. */
+export function inPrimaryWorktree(): boolean {
+	return normalizedPath(repoRoot) === normalizedPath(primaryRepoRoot());
 }
 
 export function emptyQueueManifest(): QueueManifest {

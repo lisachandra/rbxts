@@ -31,12 +31,7 @@ Sources:
 - Fix findings directly on this branch when a safe correction is clear.
 - Commit every correction with a Conventional Commit message.
 - Run relevant validation after corrections.
-- Findings that spawn new work (regressions, scope gaps) must be filed as follow-up issues
-  AND registered in the Sandcastle queue with the `sandcastle queue` command group —
-  `sandcastle queue add --issue <N> --sequence <batch>` for an existing batch,
-  `--gated --reason "..."` when blocked, `--human --reason "..."` when a human decision
-  session is needed. Then run `sandcastle queue check` (no drift allowed). Do not leave
-  newly-filed issues invisible to the queue.
+  {{QUEUE_RULES}}
 
 - Do not merge this branch into the base branch and do not close issues.
 - Do not leave uncommitted changes, conflict markers, or an in-progress merge.

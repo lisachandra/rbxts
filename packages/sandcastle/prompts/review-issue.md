@@ -50,25 +50,9 @@ Leave a concise review summary as a comment on the issue with:
 - missing validation,
 - suggested follow-up issues, each filed AND registered via `sandcastle queue add` (see below).
 
-## Follow-up issue registration (mandatory when follow-ups exist)
+## Follow-up issue registration
 
-If your review found extra issues beyond this diff's scope, you MUST register them in the
-repo's Sandcastle queue before completion — not just list them in this comment:
-
-1. File each follow-up as a GitHub issue (`gh issue create`) with the repo's conventional
-   title prefix, milestone, labels, and parent/blocker edges per the repo's issue-tracker doc.
-2. Register each new issue in the Sandcastle queue — the runnable artifact — with the
-   `sandcastle queue` command group (never hand-edit a queue markdown doc):
-   `sandcastle queue add --issue <N> --sequence <existing batch>` when it belongs in an
-   existing batch, `sandcastle queue add --issue <N> --gated --reason "<blocking condition>"`
-   when it cannot start yet, or `--human --reason "..."` when it needs a human decision
-   session. Then run `sandcastle queue check` — it must report no drift.
-3. List the created issue numbers in this review comment under `Suggested follow-up issues`.
-
-A review that lists follow-ups in the comment but leaves the queue untouched is incomplete —
-the queue is the runnable artifact; the comment is only the report.
-
-If there are no follow-ups, write `No follow-up issues.` in the review comment instead.
+{{QUEUE_RULES}}
 
 The status line must be on its own line. Do not use `BLOCKED` in prose as a substitute for this marker.
 

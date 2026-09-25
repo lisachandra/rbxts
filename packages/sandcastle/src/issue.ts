@@ -22,6 +22,7 @@ import {
 	markerPromptArgs,
 	runMarkerPhase,
 } from "./markers.js";
+import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
@@ -513,6 +514,8 @@ export async function runSingleIssue(
 		ISSUE_NUMBER: issueNumber,
 		ISSUE_TITLE: issueTitle,
 		PLAN_PATH: planPath,
+
+		QUEUE_RULES: queueRulesForPrompt(),
 		SKILLS: skillsForPrompt("design", issueLabels),
 	};
 
@@ -596,6 +599,8 @@ export async function runAll(
 			ISSUE_TITLE: "",
 			...markerPromptArgs(marker),
 			PLAN_PATH: "",
+
+			QUEUE_RULES: queueRulesForPrompt(),
 			READY_LABEL: config.labels.readyForAgent,
 			SKILLS: skillsForPrompt("design"),
 		},

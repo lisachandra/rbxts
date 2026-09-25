@@ -87,10 +87,20 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 		}
 
 		const withoutIssue = entry.issues.filter((member) => member !== params.issue);
-		const insertAt =
-			params.after === undefined
-				? withoutIssue.length
-				: withoutIssue.indexOf(params.after) + 1;
+		const anchorIndex =
+			params.after === undefined ? undefined : withoutIssue.indexOf(params.after);
+		/*
+		 * `--after` was validated against the sequence before the issue was filtered out, so a
+		 * missing anchor here is always self-reference. Without this guard `indexOf` returns -1,
+		 * `insertAt` becomes 0, and the issue silently jumps to the head of the batch.
+		 */
+		if (params.after !== undefined && anchorIndex === -1) {
+			throw new Error(
+				`--after ${params.after} is the issue being moved; an issue cannot be inserted after itself.`,
+			);
+		}
+
+		const insertAt = anchorIndex === undefined ? withoutIssue.length : anchorIndex + 1;
 		const issues = [
 			...withoutIssue.slice(0, insertAt),
 			params.issue,

@@ -16,6 +16,7 @@ import { resolve as pathResolve } from "node:path";
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
 import { fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
+import { queueRulesForPrompt } from "../prompts/queue.js";
 import { skillsForPrompt } from "../prompts/skills.js";
 import { config, io, logsDir } from "../runtime.js";
 import type {
@@ -102,6 +103,8 @@ export async function runConflictResolver(
 			INTEGRATION_NAME: manifest.name,
 			SKILLS: "- resolving-merge-conflicts",
 			SOURCE_CONTEXT: sourceContext,
+
+			QUEUE_RULES: queueRulesForPrompt(),
 			SOURCE_NAME: source.name,
 		},
 		promptFile: config.prompts.resolveConflicts,
@@ -144,6 +147,8 @@ export async function runIntegrationReview(
 			BASE_REF: manifest.base.ref,
 			BRANCH: manifest.branch,
 			INTEGRATION_NAME: manifest.name,
+			QUEUE_RULES: queueRulesForPrompt(),
+
 			SKILLS: skillsForPrompt("review"),
 			SOURCES: sourceContext,
 		},

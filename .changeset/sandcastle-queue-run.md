@@ -1,0 +1,5 @@
+---
+"@lisachandra/sandcastle": minor
+---
+
+Make the queue workflow runnable end to end. `sandcastle queue run` dispatches the next READY sequence, re-reads the manifest after every batch (so a review that registered a follow-up changes what runs next inside the same invocation), prunes landed entries unless `--keep-entries`, and caps one invocation with `--max-issues <n>`. `sandcastle queue bootstrap [--apply]` proposes placements for the unplaced backlog grouped by title scope. Add a bypass for repositories that do not want the queue workflow — `queue.enabled: false` in `sandcastle.config.ts`, or `--no-queue` / `--queue` per invocation — backed by `queueRulesForPrompt()` instead of hard-coded queue instructions in the review prompts, and `queue.commit` (`--queue-commit`) so a review's registration is committed instead of dying with its worktree. The manifest now resolves against the primary checkout, `queue check --strict-gates` exits 2 when a gate is promotable, and the CLI accepts `--apply`, `--keep-entries`, `--max-issues`, `--queue`, `--no-queue`, `--queue-commit`, and `--strict-gates`.

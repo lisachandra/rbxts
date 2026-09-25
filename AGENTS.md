@@ -48,6 +48,8 @@ Co-Authored-By: (the agent's name and attribution byline)
 - One commit may have many changesets when user-facing behaviors differ.
 - After work: create/update issues for material follow-up. Do not bury follow-up
   in chat.
+- Scratch and throwaway artifacts (reports, plans, one-off scripts) belong in `.tmp/`, which is
+  gitignored. Do not commit them and do not leave them in tracked paths.
 
 ## Verification
 

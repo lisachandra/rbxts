@@ -30,6 +30,11 @@ export interface LiveQueueState {
 	issues: Map<string, LiveIssue>;
 	/** Every open, ready-for-agent issue in the repository (drives unplaced detection). */
 	readyIssues: Array<{ number: string; title: string }>;
+	/**
+	 * True when `gh issue list` returned a full page, so issues older than the page are absent from
+	 * `issues` rather than deleted. Drives "not scanned" instead of "not found" below.
+	 */
+	truncated: boolean;
 }
 
 const issueListSchema = z.array(
@@ -112,10 +117,15 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 	const gh = params.gh ?? defaultGhRunner;
 	const graphql = params.graphql ?? defaultGraphqlRunner;
 
+	// Single page: a full page means older issues were not returned, so absence is not deletion.
+	const issueListLimit = 1000;
+
 	let listPayload: unknown;
 	try {
 		listPayload = JSON.parse(
-			gh("gh issue list --state all --limit 1000 --json number,state,title,labels"),
+			gh(
+				`gh issue list --state all --limit ${issueListLimit} --json number,state,title,labels`,
+			),
 		) as unknown;
 	} catch (err) {
 		throw new Error(`Could not list repository issues via gh: ${String(err)}`);
@@ -127,6 +137,9 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 			`gh issue list returned an unexpected payload: ${parsedList.error.message}`,
 		);
 	}
+
+	// A full page means older issues are missing from the payload, not deleted from the repo.
+	const truncated = parsedList.data.length >= issueListLimit;
 
 	const issues = new Map<string, LiveIssue>();
 	const readyIssues: Array<{ number: string; title: string }> = [];
@@ -170,7 +183,10 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 
 		const repository = parsedGraphql.data.data?.repository;
 		for (const number of referenced) {
-			const node = repository === undefined || repository === null ? undefined : repository[`i${number}`];
+			const node =
+				repository === undefined || repository === null
+					? undefined
+					: repository[`i${number}`];
 			const parsedNode = issueNodeSchema.safeParse(node);
 			if (!parsedNode.success || parsedNode.data === undefined || parsedNode.data === null) {
 				continue;
@@ -190,7 +206,7 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 		}
 	}
 
-	return { issues, readyIssues };
+	return { issues, readyIssues, truncated };
 }
 
 function parseRepositoryIdentifiers(gh: GhRunner): { name: string; owner: string } {

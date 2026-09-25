@@ -27,7 +27,11 @@ function live(...entries: Array<LiveIssue>): LiveQueueState {
 		issues.set(entry.number, entry);
 	}
 
-	return { issues, readyIssues: [] };
+	return { issues, readyIssues: [], truncated: false };
+}
+
+function liveTruncated(...entries: Array<LiveIssue>): LiveQueueState {
+	return { ...live(...entries), truncated: true };
 }
 
 function manifest(overrides: Partial<QueueManifest> = {}): QueueManifest {
@@ -149,6 +153,29 @@ describe("queue view computation", () => {
 		assert.deepEqual(view.closed, []);
 		assert.deepEqual(view.drift, []);
 	});
+
+	test("a truncated issue list reports referenced issues as unscanned, not missing", () => {
+		const view = computeQueueView(
+			manifest({ sequences: [{ issues: ["1", "2"], name: "U2" }] }),
+			liveTruncated(issue("1")),
+		);
+
+		assert.deepEqual(view.missing, []);
+		assert.deepEqual(view.unscanned, [{ issue: "2", where: 'sequence "U2"' }]);
+		assert.equal(view.drift.length, 1);
+		assert.match(view.drift[0] ?? "", /not scanned/u);
+		assert.match(renderQueueText(view), /Unscanned \(issue list truncated\):/u);
+	});
+
+	test("strict gates report a promotable gate as drift", () => {
+		const queue = manifest({ gated: [{ issue: "1", reason: "waiting on review" }] });
+		const state = live(issue("1"));
+
+		assert.deepEqual(computeQueueView(queue, state).drift, []);
+		assert.deepEqual(computeQueueView(queue, state, { strictGates: true }).drift, [
+			"#1 is gated but promotable — promote it or re-gate it",
+		]);
+	});
 });
 
 describe("queue text rendering", () => {
@@ -188,6 +215,17 @@ describe("queue text rendering", () => {
 		const text = renderQueueText(computeQueueView(manifest({ updatedAt: "" }), live()));
 
 		assert.match(text, /Manifest updated: never/u);
+		assert.ok(!text.includes("Drift:"));
+	});
+
+	test("a promotable gate renders as a hint without being drift", () => {
+		const view = computeQueueView(
+			manifest({ gated: [{ issue: "1", reason: "waiting" }] }),
+			live(issue("1")),
+		);
+
+		const text = renderQueueText(view);
+		assert.match(text, /Promotable now/u);
 		assert.ok(!text.includes("Drift:"));
 	});
 });

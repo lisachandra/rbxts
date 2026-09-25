@@ -78,8 +78,12 @@ export interface SandcastleConfig {
 	};
 	/** Per-phase prompt files; repo-relative paths resolve from the repo root. */
 	prompts: Partial<Record<PromptFileKey, string>>;
-	/** Queue manifest path configuration; the manifest stores what GitHub cannot express. */
+	/** Queue manifest configuration; the manifest stores what GitHub cannot express. */
 	queue: {
+		/** Commit the manifest after every successful mutation (never pushes). */
+		commit: boolean;
+		/** When false, the queue workflow is bypassed: no gating, no prompt contract. */
+		enabled: boolean;
 		file: string;
 	};
 	/** Machine-readable review marker prefix written as `<marker>: APPROVED|BLOCKED`. */
@@ -165,6 +169,8 @@ export const sandcastleConfigSchema = z
 		prompts: promptFileSchema,
 		queue: z
 			.object({
+				commit: z.boolean().optional(),
+				enabled: z.boolean().optional(),
 				file: z.string().min(1).optional(),
 			})
 			.optional(),
@@ -225,7 +231,7 @@ const defaultConfig: SandcastleConfig = {
 		readyForAgent: "ready-for-agent",
 	},
 	prompts: {},
-	queue: { file: "sandcastle.queue.json" },
+	queue: { commit: false, enabled: true, file: "sandcastle.queue.json" },
 	reviewMarker: "Sandcastle-Review",
 	setupCommands: [],
 	skills: {
@@ -312,7 +318,11 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 			readyForAgent: parsed.labels?.readyForAgent ?? defaultConfig.labels.readyForAgent,
 		},
 		prompts: parsed.prompts ?? {},
-		queue: { file: parsed.queue?.file ?? defaultConfig.queue.file },
+		queue: {
+			commit: parsed.queue?.commit ?? defaultConfig.queue.commit,
+			enabled: parsed.queue?.enabled ?? defaultConfig.queue.enabled,
+			file: parsed.queue?.file ?? defaultConfig.queue.file,
+		},
 		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
 		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,
 		skills: {

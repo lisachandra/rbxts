@@ -18,6 +18,7 @@ const config: SandcastleUserConfig = {
 	dir: ".sandcastle",
 	issueCommand: "gh issue view {issue}",
 	labels: { readyForAgent: "ready-for-agent" },
+	queue: { commit: true },
 	reviewMarker: "Sandcastle-Review",
 	setupCommands: ["pnpm setup"],
 	skills: {

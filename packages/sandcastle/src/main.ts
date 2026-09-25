@@ -157,6 +157,11 @@ export async function main(): Promise<void> {
 		return;
 	}
 
+	if (options.command === "queue") {
+		await runQueueCommand(options);
+		return;
+	}
+
 	if (options.dryRun) {
 		console.log(
 			JSON.stringify(
@@ -260,11 +265,6 @@ export async function main(): Promise<void> {
 			options.skipSetup,
 			options.steps,
 		);
-		return;
-	}
-
-	if (options.command === "queue") {
-		runQueueCommand(options);
 		return;
 	}
 

@@ -4,7 +4,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
+import { dirname, resolve as pathResolve } from "node:path";
 
 import { io, repoRoot } from "./runtime.js";
 
@@ -30,6 +30,28 @@ export function gitTry(args: ReadonlyArray<string>, cwd = repoRoot): string | un
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * - Root of the primary checkout, even when the process runs inside a linked worktree.
+ * - @param cwd - Directory to inspect; defaults to the process working directory.
+ * - @returns Absolute path of the primary checkout, or `repoRoot` when git cannot report it.
+ * - @remarks `repoRoot` is the process working directory, so a run inside
+ *   `.sandcastle/worktrees/<branch>` would otherwise resolve shared, repo-root paths (such as the
+ *   queue manifest) to a branch-local copy. Every worktree of a repository reports the same `.git`
+ *   common directory, and its parent is the checkout that owns that shared state.
+ */
+export function primaryRepoRoot(cwd = repoRoot): string {
+	const common = gitTry(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
+	if (common === undefined || common === "") {
+		return repoRoot;
+	}
+
+	const absolute =
+		/^[A-Za-z]:[\\/]/u.test(common) || common.startsWith("/")
+			? common
+			: pathResolve(cwd, common);
+	return dirname(pathResolve(absolute));
 }
 
 export function resolveCommit(ref: string, cwd = repoRoot): string {
