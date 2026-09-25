@@ -10,7 +10,8 @@
 
 import type { CliOptions } from "../cli.js";
 import { config } from "../runtime.js";
-import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
+import { promotableGates, scopeOf } from "./bootstrap.js";
+import { fetchLiveQueueState, type LiveIssue, type LiveQueueState } from "./live.js";
 import {
 	describePlacement,
 	locateIssue,
@@ -18,7 +19,15 @@ import {
 	readQueueManifest,
 	referencedIssues,
 } from "./manifest.js";
-import { addRule, addToSequence, defineSequence, placeIssue, removeIssue } from "./mutations.js";
+import {
+	addRule,
+	addToSequence,
+	defineSequence,
+	deleteSequence,
+	placeIssue,
+	promoteIssue,
+	removeIssue,
+} from "./mutations.js";
 import { transactQueueManifest } from "./persist.js";
 
 function requireIssueNumber(options: CliOptions, subcommand: string): string {
@@ -57,15 +66,24 @@ export function runQueueAdd(options: CliOptions): void {
 	});
 }
 
-/** Creates or replaces a batch definition. */
+/** Creates, replaces, or deletes a batch definition. */
 export function runQueueSequence(options: CliOptions): void {
 	const name = options.integrationName ?? "";
 	if (name === "") {
 		throw new Error("queue sequence requires --name <batch-name>");
 	}
 
+	if (options.queueDelete === true) {
+		transactQueueManifest(options, (manifest) => ({
+			message: `  ✓ Deleted sequence "${name}"`,
+			next: deleteSequence(manifest, name),
+			summary: `delete sequence "${name}"`,
+		}));
+		return;
+	}
+
 	if (options.issueNumbers.length === 0) {
-		throw new Error("queue sequence requires --issues <a,b,c>");
+		throw new Error("queue sequence requires --issues <a,b,c> (or --delete to remove it)");
 	}
 
 	const memberCount = options.issueNumbers.length;
@@ -159,10 +177,109 @@ export function runQueuePrune(options: CliOptions): void {
 			next = removeIfPlaced(next, issue);
 		}
 
+		/*
+		 * Drop sequences this prune emptied: an empty batch is drift (`queue check` fails on it) and
+		 * nothing else would ever remove it.
+		 */
+		const emptied = next.sequences
+			.filter((entry) => entry.issues.length === 0)
+			.map((entry) => entry.name);
+		for (const entry of emptied) {
+			next = deleteSequence(next, entry);
+		}
+
+		const dropped = emptied.length === 0 ? "" : ` and ${emptied.length} now-empty sequence(s)`;
 		return {
-			message: `  ⌫ Pruned ${closed.length} closed issue(s): ${closed.join(", ")}`,
+			message: `  ⌫ Pruned ${closed.length} closed issue(s)${dropped}: ${closed.join(", ")}`,
 			next,
 			summary: `prune ${closed.length} closed issue(s)`,
+		};
+	});
+}
+
+/** Why a gated issue cannot be promoted yet, in the words of the view that would show it. */
+function describeGate(state: LiveIssue | undefined): string {
+	if (state === undefined || !state.found) {
+		return "not found on GitHub";
+	}
+
+	if (state.state === "CLOSED") {
+		return "closed";
+	}
+
+	if (!state.ready) {
+		return "missing ready-for-agent";
+	}
+
+	if (state.openBlockers.length > 0) {
+		const blockers = state.openBlockers.map((blocker) => `#${blocker}`).join(", ");
+		return `blocked by open ${blockers}`;
+	}
+
+	return "promotable";
+}
+
+/**
+ * - Promotes gated issues whose conditions have resolved into their scope sequences.
+ * - @param options - `--issue <n>` promotes one gate; `--apply` promotes every promotable gate.
+ * - @throws {Error} When the named issue is not gated, or its condition is still open.
+ * - @remarks Promotion is the CLI exit from a gate: without it the only way out was to remove the
+ *   issue and re-add it into a sequence, which threw away the gate's recorded reason.
+ */
+export function runQueuePromote(options: CliOptions): void {
+	const live = fetchLiveQueueState({
+		numbers: referencedIssues(readQueueManifest()),
+		readyLabel: config.labels.readyForAgent,
+	});
+
+	if (options.queueApply === true) {
+		transactQueueManifest(options, (manifest) => {
+			const promotions = promotableGates({ live, manifest });
+			if (promotions.length === 0) {
+				return {
+					message: "  ✓ Nothing to promote: no gate is promotable.",
+					next: manifest,
+					summary: "promote gates",
+				};
+			}
+
+			let next = manifest;
+			for (const promotion of promotions) {
+				next = promoteIssue(next, promotion);
+			}
+
+			const described = promotions
+				.map((promotion) => `#${promotion.issue} → ${promotion.sequence}`)
+				.join(", ");
+			return {
+				message: `  ✓ Promoted ${promotions.length} gate(s): ${described}`,
+				next,
+				summary: `promote ${promotions.length} gate(s)`,
+			};
+		});
+		return;
+	}
+
+	const issue = requireIssueNumber(options, "promote");
+	transactQueueManifest(options, (manifest) => {
+		const entry = manifest.gated.find((candidate) => candidate.issue === issue);
+		if (entry === undefined) {
+			throw new Error(`Issue #${issue} is not gated; nothing to promote.`);
+		}
+
+		const state = live.issues.get(issue);
+		const reason = describeGate(state);
+		if (reason !== "promotable") {
+			throw new Error(
+				`Issue #${issue} is not promotable yet (${reason}); resolve the condition or re-gate it with \`pnpm sandcastle queue add --issue ${issue} --gated --reason "..."\`.`,
+			);
+		}
+
+		const sequence = options.queueSequence ?? scopeOf(state?.title ?? "");
+		return {
+			message: `  ✓ Promoted #${issue} → sequence "${sequence}" (was gated: ${entry.reason})`,
+			next: promoteIssue(manifest, { issue, sequence }),
+			summary: `promote #${issue}`,
 		};
 	});
 }

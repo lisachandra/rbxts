@@ -233,3 +233,50 @@ export function removeIssue(manifest: QueueManifest, issue: string): QueueManife
 
 	return next;
 }
+
+/** Removes a sequence definition; the members keep whatever placement remains. */
+export function deleteSequence(manifest: QueueManifest, name: string): QueueManifest {
+	if (!manifest.sequences.some((entry) => entry.name === name)) {
+		throw new Error(`Sequence "${name}" is not defined.`);
+	}
+
+	return {
+		...manifest,
+		sequences: manifest.sequences.filter((entry) => entry.name !== name),
+	};
+}
+
+export interface PromoteIssueParams {
+	issue: string;
+	/** Target sequence; typically the issue's conventional-commit scope. */
+	sequence: string;
+}
+
+/**
+ * - Lifts a gated issue into a sequence, creating that sequence when it does not exist yet.
+ * - @param manifest - The queue manifest.
+ * - @param params - The gated issue and its target sequence.
+ * - @returns A manifest with the issue removed from `gated` and appended to the sequence.
+ * - @throws {Error} When the issue is not gated, so promotion cannot silently rewrite a placement.
+ */
+export function promoteIssue(manifest: QueueManifest, params: PromoteIssueParams): QueueManifest {
+	if (!manifest.gated.some((entry) => entry.issue === params.issue)) {
+		throw new Error(
+			`Issue #${params.issue} is not gated; use \`sandcastle queue add --issue ${params.issue} --sequence ${params.sequence}\` instead.`,
+		);
+	}
+
+	const stripped: QueueManifest = {
+		...manifest,
+		gated: manifest.gated.filter((entry) => entry.issue !== params.issue),
+	};
+
+	if (!stripped.sequences.some((entry) => entry.name === params.sequence)) {
+		return {
+			...stripped,
+			sequences: [...stripped.sequences, { issues: [params.issue], name: params.sequence }],
+		};
+	}
+
+	return addToSequence(stripped, { issue: params.issue, sequence: params.sequence });
+}

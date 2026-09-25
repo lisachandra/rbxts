@@ -22,11 +22,11 @@ import type { CliOptions } from "../cli.js";
 import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
-import { applyBootstrap, proposeBootstrap } from "./bootstrap.js";
+import { applyBootstrap, promotableGates, proposeBootstrap } from "./bootstrap.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, runLockName } from "./lock.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
-import { removeIssue } from "./mutations.js";
+import { promoteIssue, removeIssue } from "./mutations.js";
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
 import { computeQueueView } from "./render.js";
@@ -167,6 +167,7 @@ export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}):
 async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promise<void> {
 	const seen = new Set<string>();
 	const resume = options.noResume !== true;
+	let promotedGates = false;
 	const maxIssues = options.maxIssues ?? Number.POSITIVE_INFINITY;
 	let dispatched = 0;
 	let warnedDrift = false;
@@ -177,6 +178,17 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 			readyLabel: config.labels.readyForAgent,
 		});
 		const view = computeQueueView(manifest, live, { strictGates: true });
+
+		/*
+		 * Opt-in, and once per invocation: promoting gates changes what the queue will run unattended,
+		 * and a helper that re-promoted its own output on every iteration would spin.
+		 */
+		if (options.queuePromoteGates === true && !promotedGates) {
+			promotedGates = true;
+			if (promoteGatesOnce(options, live) > 0) {
+				continue;
+			}
+		}
 
 		if (view.drift.length > 0) {
 			if (options.queueRequireClean === true) {
@@ -280,4 +292,29 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 			return;
 		}
 	}
+}
+
+/** Promotes every promotable gate once, returning how many moved. */
+function promoteGatesOnce(options: CliOptions, live: LiveQueueState): number {
+	let promoted = 0;
+	transactQueueManifest(options, (manifest) => {
+		const promotions = promotableGates({ live, manifest });
+		if (promotions.length === 0) {
+			return { next: manifest, summary: "promote gates" };
+		}
+
+		let next = manifest;
+		for (const promotion of promotions) {
+			next = promoteIssue(next, promotion);
+		}
+
+		promoted = promotions.length;
+		return {
+			message: `  ✓ Promoted ${promotions.length} gate(s) into sequences.`,
+			next,
+			summary: `promote ${promotions.length} gate(s)`,
+		};
+	});
+
+	return promoted;
 }

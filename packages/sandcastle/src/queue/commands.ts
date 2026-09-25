@@ -14,6 +14,7 @@ import { readQueueManifest, referencedIssues } from "./manifest.js";
 import {
 	runQueueAdd,
 	runQueuePrune,
+	runQueuePromote,
 	runQueueRemove,
 	runQueueRule,
 	runQueueSequence,
@@ -28,6 +29,7 @@ export type QueueSubcommand =
 	| "rule"
 	| "check"
 	| "prune"
+	| "promote"
 	| "remove"
 	| "sequence"
 	| "bootstrap";
@@ -38,6 +40,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"check",
 	"list",
 	"prune",
+	"promote",
 	"remove",
 	"rule",
 	"run",
@@ -55,6 +58,7 @@ const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
 	"add",
 	"bootstrap",
 	"prune",
+	"promote",
 	"remove",
 	"rule",
 	"run",
@@ -110,6 +114,10 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 		}
 		case "list": {
 			runQueueList(options);
+			break;
+		}
+		case "promote": {
+			runQueuePromote(options);
 			break;
 		}
 		case "prune": {

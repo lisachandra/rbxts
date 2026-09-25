@@ -72,6 +72,11 @@ export function selectNextBatch(params: ScheduleParams): ScheduleDecision {
 			continue;
 		}
 
+		if (sequence.issues.length === 0) {
+			reasons.push(`sequence "${sequence.name}" has no members`);
+			continue;
+		}
+
 		if (sequence.issues.every((issue) => seen.has(issue.number))) {
 			continue;
 		}

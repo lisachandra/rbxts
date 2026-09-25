@@ -82,6 +82,11 @@ export interface SandcastleConfig {
 	queue: {
 		/** Commit the manifest after every successful mutation (never pushes). */
 		commit: boolean;
+		/**
+		 * Branch the primary checkout must be on for that commit; defaults to `baseBranch`. A checkout
+		 * on any other branch is reported and skipped, so a registration never lands on unrelated work.
+		 */
+		commitBranch: string;
 		/** When false, the queue workflow is bypassed: no gating, no prompt contract. */
 		enabled: boolean;
 		file: string;
@@ -170,6 +175,7 @@ export const sandcastleConfigSchema = z
 		queue: z
 			.object({
 				commit: z.boolean().optional(),
+				commitBranch: z.string().min(1).optional(),
 				enabled: z.boolean().optional(),
 				file: z.string().min(1).optional(),
 			})
@@ -231,7 +237,7 @@ const defaultConfig: SandcastleConfig = {
 		readyForAgent: "ready-for-agent",
 	},
 	prompts: {},
-	queue: { commit: false, enabled: true, file: "sandcastle.queue.json" },
+	queue: { commit: false, commitBranch: "main", enabled: true, file: "sandcastle.queue.json" },
 	reviewMarker: "Sandcastle-Review",
 	setupCommands: [],
 	skills: {
@@ -320,6 +326,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 		prompts: parsed.prompts ?? {},
 		queue: {
 			commit: parsed.queue?.commit ?? defaultConfig.queue.commit,
+			commitBranch: parsed.queue?.commitBranch ?? parsed.baseBranch ?? defaultConfig.queue.commitBranch,
 			enabled: parsed.queue?.enabled ?? defaultConfig.queue.enabled,
 			file: parsed.queue?.file ?? defaultConfig.queue.file,
 		},

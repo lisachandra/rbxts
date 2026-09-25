@@ -97,6 +97,7 @@ describe("queue bootstrap proposal", () => {
 		const next = applyBootstrap(start, {
 			gated: [{ issue: "2", reason: "blocked" }],
 			human: [],
+			promotions: [],
 			sequences: [{ issues: ["5"], name: "sandcastle" }],
 		});
 

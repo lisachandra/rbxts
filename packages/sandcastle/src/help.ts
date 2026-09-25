@@ -227,6 +227,21 @@ const topics = {
 			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>]",
 		],
 	},
+	"promote": {
+		flags: [
+			"--apply            Promote every promotable gate (default: one --issue)",
+			"--issue <n>        Promote this gate",
+			"--sequence <name>  Target sequence (default: the scope in the issue title)",
+		],
+		notes: [
+			"Promotable = open, ready-for-agent, and no open blocker left.",
+			"An issue that is not gated, or still blocked, is refused; use queue add to place it.",
+		],
+		usage: [
+			"pnpm sandcastle queue promote --apply",
+			"pnpm sandcastle queue promote --issue <n> [--sequence <batch>]",
+		],
+	},
 	"setup": {
 		flags: [
 			"--worktree <path>  Prepare this worktree",
@@ -265,6 +280,7 @@ const queueTopics: ReadonlySet<string> = new Set([
 	"bootstrap",
 	"check",
 	"list",
+	"promote",
 	"prune",
 	"queue",
 	"remove",

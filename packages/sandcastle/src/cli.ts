@@ -63,6 +63,7 @@ export interface CliOptions {
 	readonly queueClosed?: boolean;
 	readonly queueCommit?: boolean;
 	readonly queueCommitAny?: boolean;
+	readonly queueDelete?: boolean;
 	readonly queueEnabled?: boolean;
 	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
@@ -126,6 +127,7 @@ interface ParsedArgState {
 	queueClosed: boolean;
 	queueCommit: boolean | undefined;
 	queueCommitAny: boolean | undefined;
+	queueDelete: boolean;
 	queueEnabled: boolean | undefined;
 	queueIncludeHuman: boolean;
 	queueKeepEntries: boolean;
@@ -174,6 +176,7 @@ function createParsedArgState(): ParsedArgState {
 		queueClosed: false,
 		queueCommit: undefined,
 		queueCommitAny: undefined,
+		queueDelete: false,
 		queueEnabled: undefined,
 		queueIncludeHuman: false,
 		queueKeepEntries: false,
@@ -499,6 +502,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--apply": (state) => {
 		state.queueApply = true;
 	},
+	"--delete": (state) => {
+		state.queueDelete = true;
+	},
 	"--closed": (state) => {
 		state.queueClosed = true;
 	},
@@ -814,6 +820,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueClosed: state.queueClosed,
 		queueCommit: state.queueCommit,
 		queueCommitAny: state.queueCommitAny,
+		queueDelete: state.queueDelete,
 		queueEnabled: state.queueEnabled,
 		queueIncludeHuman: state.queueIncludeHuman,
 		queueKeepEntries: state.queueKeepEntries,

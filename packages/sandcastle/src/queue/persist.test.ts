@@ -33,6 +33,10 @@ function stubGit(
 	gitStub({
 		file: (args, cwd) => {
 			calls.push({ args: [...args], cwd });
+			if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+				return "main";
+			}
+
 			if (args[0] === "rev-parse") {
 				return join(primary, ".git");
 			}

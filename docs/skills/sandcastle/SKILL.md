@@ -41,7 +41,10 @@ pnpm sandcastle queue run --help     # one topic per command and queue subcomman
 ```bash
 pnpm sandcastle queue list                                   # live READY/GATED view + drift (read-only)
 pnpm sandcastle queue check [--strict-gates]                  # exits 1 on drift, 2 with stale gates
-pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] # fire the next READY batch
+pnpm sandcastle queue run [--name <batch>] [--max-issues <n>]  # fire the next READY batch
+pnpm sandcastle queue run --require-clean                     # refuse while drift exists
+pnpm sandcastle queue run --promote-gates                     # promote ready gates first
+pnpm sandcastle queue run --no-resume                         # re-run landed members
 pnpm sandcastle queue run --dry-run                           # print the decision, dispatch nothing
 pnpm sandcastle queue bootstrap [--apply]                     # propose placements for the backlog
 pnpm sandcastle queue add --issue <n> --sequence <batch> [--after <m>]
@@ -50,6 +53,9 @@ pnpm sandcastle queue add --issue <n> --human --reason "..."  # human decision s
 pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes "..."]
 pnpm sandcastle queue rule --name R<n> --issues <a,b> --reason "..."   # same-file serialization
 pnpm sandcastle queue remove --issue <n>                      # deliberate move between batches
+pnpm sandcastle queue promote --issue <n> [--sequence <batch>] # un-gate into a batch
+pnpm sandcastle queue promote --apply                         # promote every promotable gate
+pnpm sandcastle queue sequence --name <batch> --delete         # drop a sequence definition
 pnpm sandcastle queue prune --closed                          # drop references to CLOSED issues
 ```
 
@@ -117,3 +123,24 @@ Repositories that do not want the queue workflow set `queue.enabled: false` in
 issue comment only, and no queue gate applies — the review prompts switch contracts through
 `prompts/queue.ts` (`{{QUEUE_RULES}}`), so never hard-code queue instructions in a prompt
 override without that placeholder.
+
+## Dispatch safety (what a `queue run` guarantees)
+
+- **One dispatcher per checkout.** `queue run` holds a run lock, so two runs cannot overlap; its
+  in-memory record of dispatched issues is therefore complete, and a numbered rule (R\<n\>) cannot
+  be broken by a second run starting mid-batch. Cross-machine runs are not guarded — one checkout
+  owns the queue.
+- **Every manifest write is one locked transaction.** A review registering a follow-up inside a batch
+  (`.sandcastle/worktrees/<branch>`) writes the manifest in the primary checkout under a short lock,
+  so it never waits on the dispatcher and never loses a change made in another terminal. The file is
+  replaced atomically, so `queue list` cannot read a half-written manifest.
+- **Dispatch resumes.** A sequence that grew a tail member re-fires, and members already complete
+  with an APPROVED review are skipped while their branch still chains as the next base (`--no-resume`
+  to re-run them). The skipped/landed decision uses `.sandcastle/state`, so it is per-checkout.
+- **Batches are atomic.** `--max-issues <n>` refuses a batch that would exceed the remaining budget
+  rather than trimming it, because each member's branch is the next member's base.
+- **`--json` owns stdout.** Single-shot subcommands print one object; `queue run` prints one object
+  per decision. Progress, drift warnings, and commit notices go to stderr.
+- **Commit discipline.** With `queue.commit` (or `--queue-commit`) the manifest is committed in the
+  primary checkout only when that checkout is on `queue.commitBranch` (default `baseBranch`), and
+  never pushed; any other branch is reported and skipped unless `--queue-commit-any` is passed.

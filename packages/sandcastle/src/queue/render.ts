@@ -23,7 +23,7 @@ export interface QueueSequenceView {
 	name: string;
 	notes: string | undefined;
 	reasons: Array<string>;
-	status: "GATED" | "READY";
+	status: "EMPTY" | "GATED" | "READY";
 }
 
 export interface QueueView {
@@ -100,13 +100,19 @@ export function computeQueueView(
 			}
 		}
 
+		/*
+		 * An empty sequence is EMPTY, not READY: `[].every(...)` is vacuously true, so a batch whose
+		 * members landed and were pruned used to read as runnable forever.
+		 */
+		const status: QueueSequenceView["status"] =
+			sequence.issues.length === 0 ? "EMPTY" : reasons.length === 0 ? "READY" : "GATED";
 		return {
 			issues,
 			mergeName: sequence.mergeName,
 			name: sequence.name,
 			notes: sequence.notes,
 			reasons,
-			status: reasons.length === 0 ? "READY" : "GATED",
+			status,
 		};
 	});
 
@@ -184,6 +190,14 @@ export function computeQueueView(
 		drift.push(`#${item.issue} is referenced (${item.where}) but not found on GitHub`);
 	}
 
+	for (const sequence of manifest.sequences) {
+		if (sequence.issues.length === 0) {
+			drift.push(
+				`sequence "${sequence.name}" has no members — delete it with \`sandcastle queue sequence --delete ${sequence.name}\``,
+			);
+		}
+	}
+
 	if (unscanned.length > 0) {
 		drift.push(
 			`${unscanned.length} referenced issue(s) were not scanned: gh issue list is capped at one page`,
@@ -222,7 +236,7 @@ export function renderQueueText(view: QueueView): string {
 	);
 
 	for (const sequence of view.sequences) {
-		const icon = sequence.status === "READY" ? "✓" : "⏸";
+		const icon = { EMPTY: "∅", GATED: "⏸", READY: "✓" }[sequence.status];
 		lines.push(
 			`  ${icon} ${sequence.status.padEnd(5)}  ${sequence.name} (${sequence.issues.length} issue(s))`,
 		);

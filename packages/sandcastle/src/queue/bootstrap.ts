@@ -9,6 +9,7 @@
  */
 
 import type { LiveQueueState } from "./live.js";
+import { promoteIssue } from "./mutations.js";
 import type { QueueEntry, QueueManifest, QueueSequence } from "./manifest.js";
 
 export interface BootstrapParams {
@@ -18,11 +19,45 @@ export interface BootstrapParams {
 	notes?: string;
 }
 
+export interface BootstrapPromotion {
+	issue: string;
+	/** Sequence the promoted issue joins: the conventional scope of its title. */
+	sequence: string;
+}
+
 export interface BootstrapProposal {
 	gated: Array<QueueEntry>;
 	/** `wayfinder:*` tickets, which are human decision sessions, never agent runs. */
 	human: Array<QueueEntry>;
+	/** Gated issues whose conditions have since resolved. */
+	promotions: Array<BootstrapPromotion>;
 	sequences: Array<QueueSequence>;
+}
+
+/**
+ * - Gated issues whose blocking conditions have resolved.
+ * - @param params - Live GitHub state and the current manifest.
+ * - @returns One promotion per gate that is open, `ready-for-agent`, and has no open blocker.
+ * - @remarks This is the other half of the gate dead end: before it, a gate could only ever be
+ *   cleared by hand, so `bootstrap` skipped gated entries forever. `wayfinder:*` gates are left
+ *   alone - they need a human session, not a sequence.
+ */
+export function promotableGates(params: BootstrapParams): Array<BootstrapPromotion> {
+	const promotions: Array<BootstrapPromotion> = [];
+	for (const entry of params.manifest.gated) {
+		const issue = params.live.issues.get(entry.issue);
+		if (issue === undefined || !issue.found || issue.state !== "OPEN") {
+			continue;
+		}
+
+		if (!issue.ready || issue.openBlockers.length > 0 || issue.wayfinder) {
+			continue;
+		}
+
+		promotions.push({ issue: entry.issue, sequence: scopeOf(issue.title) });
+	}
+
+	return promotions;
 }
 
 const scopePattern = /^[a-z]+\(([^)]+)\):/u;
@@ -109,7 +144,7 @@ export function proposeBootstrap(params: BootstrapParams): BootstrapProposal {
 			notes: params.notes ?? "bootstrap proposal",
 		}));
 
-	return { gated, human, sequences };
+	return { gated, human, promotions: promotableGates(params), sequences };
 }
 
 /** Merges a proposal into the manifest — the write behind `queue bootstrap --apply`. */
@@ -117,10 +152,17 @@ export function applyBootstrap(
 	manifest: QueueManifest,
 	proposal: BootstrapProposal,
 ): QueueManifest {
-	return {
+	const merged: QueueManifest = {
 		...manifest,
 		gated: [...manifest.gated, ...proposal.gated],
 		human: [...manifest.human, ...proposal.human],
 		sequences: [...manifest.sequences, ...proposal.sequences],
 	};
+
+	let next = merged;
+	for (const promotion of proposal.promotions) {
+		next = promoteIssue(next, promotion);
+	}
+
+	return next;
 }

@@ -16,6 +16,7 @@ import type { CliOptions } from "../cli.js";
 import { git, gitTry, mergeInProgress, primaryRepoRoot } from "../git.js";
 import { config } from "../runtime.js";
 import { manifestLockName, withQueueLock } from "./lock.js";
+import { emitText } from "./output.js";
 import {
 	inPrimaryWorktree,
 	type QueueManifest,
@@ -40,21 +41,33 @@ export function queueCommitEnabled(options: CliOptions): boolean {
 }
 
 /** Prints where the manifest lives when the write leaves the current worktree. */
-export function notifyQueueLocation(): void {
+export function notifyQueueLocation(options: CliOptions): void {
 	if (inPrimaryWorktree()) {
 		return;
 	}
 
-	console.log(`  ↳ Manifest: ${queueManifestPath()} (primary checkout)`);
+	emitText(options, `  ↳ Manifest: ${queueManifestPath()} (primary checkout)`);
 }
 
 /** Stages and commits only the manifest; skips when the checkout is mid-merge or already clean. */
-export function commitQueueManifest(summary: string): void {
+export function commitQueueManifest(summary: string, options: CliOptions): void {
 	const root = primaryRepoRoot();
 	const path = queueManifestPath();
 	if (mergeInProgress(root)) {
 		console.warn(
 			"  ⚠ Merge in progress in the primary checkout; leaving the manifest uncommitted.",
+		);
+		return;
+	}
+
+	const branch = gitTry(["rev-parse", "--abbrev-ref", "HEAD"], root) ?? "";
+	const expected = config.queue.commitBranch;
+	if (options.queueCommitAny !== true && branch !== expected) {
+		console.error(
+			`  ⚠ Primary checkout is on "${branch}", not "${expected}"; leaving the manifest uncommitted.
+` +
+				`    Commit it yourself (\`git -C ${root} commit -m "chore(queue): ${summary}" -- ${path}\`)` +
+				` or pass --queue-commit-any.`,
 		);
 		return;
 	}
@@ -66,7 +79,7 @@ export function commitQueueManifest(summary: string): void {
 	try {
 		git(["add", "--", path], root);
 		git(["commit", "-m", `chore(queue): ${summary}`, "--", path], root);
-		console.log(`  ✓ Committed queue manifest (chore(queue): ${summary})`);
+		console.log(`  ✓ Committed queue manifest to ${branch} (chore(queue): ${summary})`);
 	} catch (err) {
 		console.warn(`  ⚠ Could not commit the queue manifest: ${String(err)}`);
 	}
@@ -86,9 +99,9 @@ export function transactQueueManifest(
 ): QueueManifest {
 	if (options.dryRun) {
 		const { message, next } = transact(readQueueManifest());
-		console.log("  (dry run — manifest not written)");
+		emitText(options, "  (dry run — manifest not written)");
 		if (message !== undefined) {
-			console.log(message);
+			emitText(options, message);
 		}
 
 		return next;
@@ -99,9 +112,9 @@ export function transactQueueManifest(
 		const { message, next, summary } = transact(current);
 		if (next !== current) {
 			writeQueueManifest(next);
-			notifyQueueLocation();
+			notifyQueueLocation(options);
 			if (queueCommitEnabled(options)) {
-				commitQueueManifest(summary);
+				commitQueueManifest(summary, options);
 			}
 		}
 
