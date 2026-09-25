@@ -54,6 +54,7 @@ export interface CliOptions {
 	readonly maxIssues?: number;
 	readonly mergeName?: string;
 	readonly model: string;
+	readonly noResume?: boolean;
 	readonly notes?: string;
 	readonly phase?: PhaseName;
 	readonly quarantineDrift?: boolean;
@@ -61,8 +62,12 @@ export interface CliOptions {
 	readonly queueBucket?: "gated" | "human";
 	readonly queueClosed?: boolean;
 	readonly queueCommit?: boolean;
+	readonly queueCommitAny?: boolean;
 	readonly queueEnabled?: boolean;
+	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
+	readonly queuePromoteGates?: boolean;
+	readonly queueRequireClean?: boolean;
 	readonly queueSequence?: string;
 	readonly queueStrictGates?: boolean;
 	readonly queueSubcommand?: QueueSubcommand;
@@ -112,6 +117,7 @@ interface ParsedArgState {
 	maxIssues: number | undefined;
 	mergeName: string | undefined;
 	model: string | undefined;
+	noResume: boolean;
 	notes: string | undefined;
 	phase: PhaseName | undefined;
 	quarantineDrift: boolean;
@@ -119,8 +125,12 @@ interface ParsedArgState {
 	queueBucket: "gated" | "human" | undefined;
 	queueClosed: boolean;
 	queueCommit: boolean | undefined;
+	queueCommitAny: boolean | undefined;
 	queueEnabled: boolean | undefined;
+	queueIncludeHuman: boolean;
 	queueKeepEntries: boolean;
+	queuePromoteGates: boolean;
+	queueRequireClean: boolean;
 	queueSequence: string | undefined;
 	queueStrictGates: boolean;
 	queueSubcommand: undefined | QueueSubcommand;
@@ -155,6 +165,7 @@ function createParsedArgState(): ParsedArgState {
 		maxIssues: undefined,
 		mergeName: undefined,
 		model: undefined,
+		noResume: false,
 		notes: undefined,
 		phase: undefined,
 		quarantineDrift: false,
@@ -162,8 +173,12 @@ function createParsedArgState(): ParsedArgState {
 		queueBucket: undefined,
 		queueClosed: false,
 		queueCommit: undefined,
+		queueCommitAny: undefined,
 		queueEnabled: undefined,
+		queueIncludeHuman: false,
 		queueKeepEntries: false,
+		queuePromoteGates: false,
+		queueRequireClean: false,
 		queueSequence: undefined,
 		queueStrictGates: false,
 		queueSubcommand: undefined,
@@ -510,6 +525,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--ignore-setup": (state) => {
 		state.ignoreSetup = true;
 	},
+	"--include-human": (state) => {
+		state.queueIncludeHuman = true;
+	},
 	"--json": (state) => {
 		state.jsonOut = true;
 	},
@@ -522,6 +540,12 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--no-queue-commit": (state) => {
 		state.queueCommit = false;
 	},
+	"--no-resume": (state) => {
+		state.noResume = true;
+	},
+	"--promote-gates": (state) => {
+		state.queuePromoteGates = true;
+	},
 	"--quarantine-drift": (state) => {
 		state.quarantineDrift = true;
 	},
@@ -530,6 +554,12 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--queue-commit": (state) => {
 		state.queueCommit = true;
+	},
+	"--queue-commit-any": (state) => {
+		state.queueCommitAny = true;
+	},
+	"--require-clean": (state) => {
+		state.queueRequireClean = true;
 	},
 	"--resume": (state) => {
 		state.resume = true;
@@ -775,6 +805,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		maxIssues: state.maxIssues,
 		mergeName: state.mergeName,
 		model: model ?? "",
+		noResume: state.noResume,
 		notes: state.notes,
 		phase: state.phase,
 		quarantineDrift: state.quarantineDrift,
@@ -782,8 +813,12 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueBucket: state.queueBucket,
 		queueClosed: state.queueClosed,
 		queueCommit: state.queueCommit,
+		queueCommitAny: state.queueCommitAny,
 		queueEnabled: state.queueEnabled,
+		queueIncludeHuman: state.queueIncludeHuman,
 		queueKeepEntries: state.queueKeepEntries,
+		queuePromoteGates: state.queuePromoteGates,
+		queueRequireClean: state.queueRequireClean,
 		queueSequence: state.queueSequence,
 		queueStrictGates: state.queueStrictGates,
 		queueSubcommand: state.queueSubcommand,

@@ -5,6 +5,17 @@
  * before picking the next one — that re-read is what lets a review's follow-ups, gate promotions, or
  * newly-filed issues change what runs next inside the same command. Gates are never fired; a
  * serialization rule (`R<n>`) that an already-dispatched issue participates in blocks a sequence.
+ *
+ * The invocation holds `runLockName` for its whole lifetime. That is what makes the in-memory `seen`
+ * set a *complete* view of what this checkout has in flight: two dispatchers cannot overlap, so a
+ * numbered rule cannot be broken by a second `queue run` starting halfway through the first.
+ * Mutations deliberately ignore that lock, so a review running inside a batch can still register the
+ * follow-ups it files.
+ *
+ * Dispatch resumes by default. A sequence that grew a new tail member re-fires the whole batch, and
+ * `sequential.ts` skips the members that already completed with an APPROVED review while chaining
+ * their branch as the next base — dropping landed members here instead would break that chaining.
+ * `--no-resume` forces a clean re-run of every member.
  */
 
 import type { CliOptions } from "../cli.js";
@@ -12,83 +23,130 @@ import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
 import { applyBootstrap, proposeBootstrap } from "./bootstrap.js";
-import { fetchLiveQueueState } from "./live.js";
+import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
+import { acquireQueueLock, runLockName } from "./lock.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
 import { removeIssue } from "./mutations.js";
-import { persistQueueManifest } from "./persist.js";
+import { emitJson, emitText } from "./output.js";
+import { transactQueueManifest } from "./persist.js";
 import { computeQueueView } from "./render.js";
 import { selectNextBatch, sequenceTail } from "./schedule.js";
 
+/** Dispatch seam: production runs the sequential workflow, tests inject a stub. */
+export type QueueDispatch = (
+	issues: Array<string>,
+	options: CliOptions,
+	resume: boolean,
+) => Promise<void>;
+
+const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
+	await runSequentialIssues(
+		issues,
+		options.base,
+		options.model,
+		options.effort,
+		options.agentBackend,
+		resume,
+		undefined,
+		options.ignoreSetup,
+		options.skipSetup,
+		options.steps,
+	);
+};
+
+export interface QueueRunDeps {
+	/** Replaces the sequential workflow for one invocation. */
+	dispatch?: QueueDispatch;
+}
+
+/** Fetches the ready backlog, then the blocked-by edges for exactly those issues. */
+function loadBacklogLive(): LiveQueueState {
+	const backlog = fetchLiveQueueState({
+		numbers: new Set<string>(),
+		readyLabel: config.labels.readyForAgent,
+	});
+	return fetchLiveQueueState({
+		numbers: new Set(backlog.readyIssues.map((issue) => issue.number)),
+		readyLabel: config.labels.readyForAgent,
+	});
+}
+
 /** Proposes — or with `--apply` writes — queue placements for the open ready backlog. */
 export function runQueueBootstrap(options: CliOptions): void {
-	const manifest = readQueueManifest();
 	/*
 	 * Two passes: the first page yields the ready backlog, the second supplies blocked-by edges for
 	 * exactly those numbers, because `fetchLiveQueueState` only fetches edges for the numbers it is
 	 * handed.
 	 */
-	const backlog = fetchLiveQueueState({
-		numbers: new Set<string>(),
-		readyLabel: config.labels.readyForAgent,
-	});
-	const live = fetchLiveQueueState({
-		numbers: new Set(backlog.readyIssues.map((issue) => issue.number)),
-		readyLabel: config.labels.readyForAgent,
-	});
-	const proposal = proposeBootstrap({ live, manifest });
+	const live = loadBacklogLive();
+	const proposal = proposeBootstrap({ live, manifest: readQueueManifest() });
 	if (options.jsonOut) {
-		console.log(JSON.stringify(proposal, undefined, 2));
+		emitJson(proposal);
 	}
 
-	const counts = `${proposal.sequences.length} sequence(s), ${proposal.gated.length} gate(s), ${proposal.human.length} human item(s)`;
-	console.log(`  Proposal: ${counts}`);
+	emitText(
+		options,
+		`  Proposal: ${proposal.sequences.length} sequence(s), ${proposal.gated.length} gate(s), ${proposal.human.length} human item(s)`,
+	);
 	for (const sequence of proposal.sequences) {
-		console.log(`    ${sequence.name}: ${sequence.issues.join(", ")}`);
+		emitText(options, `    ${sequence.name}: ${sequence.issues.join(", ")}`);
 	}
 
 	if (options.queueApply !== true) {
-		console.log("  (proposal only — pass --apply to write it)");
+		emitText(options, "  (proposal only — pass --apply to write it)");
 		return;
 	}
 
-	persistQueueManifest(applyBootstrap(manifest, proposal), "bootstrap the queue", options);
-	console.log(`  ✓ Applied bootstrap: ${proposal.sequences.length} sequence(s)`);
+	transactQueueManifest(options, (manifest) => {
+		// Proposed again inside the lock so a concurrent write cannot be applied against stale state.
+		const applied = proposeBootstrap({ live, manifest });
+		return {
+			message: `  ✓ Applied bootstrap: ${applied.sequences.length} sequence(s)`,
+			next: applyBootstrap(manifest, applied),
+			summary: "bootstrap the queue",
+		};
+	});
+}
+
+/** Whether an issue landed: every phase complete and the review approved. */
+function isLanded(issue: string): boolean {
+	return isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED";
 }
 
 /** Removes completed, APPROVED members so `queue check` stays green after a batch lands. */
 function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
-	const manifest = readQueueManifest();
-	const landed: Array<string> = [];
-	for (const issue of issues) {
-		if (isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED") {
-			landed.push(issue);
-		}
-	}
-
+	const landed = issues.filter((issue) => isLanded(issue));
 	if (landed.length === 0) {
 		return;
 	}
 
-	let next = manifest;
-	for (const issue of landed) {
-		try {
-			next = removeIssue(next, issue);
-		} catch {
-			// Already absent; nothing to prune.
+	transactQueueManifest(options, (manifest) => {
+		let next = manifest;
+		for (const issue of landed) {
+			try {
+				next = removeIssue(next, issue);
+			} catch {
+				// Already absent; nothing to prune.
+			}
 		}
-	}
 
-	persistQueueManifest(next, `prune landed ${landed.join(", ")}`, options);
-	console.log(`  ✓ Pruned landed issue(s): ${landed.join(", ")}`);
+		return {
+			message: `  ✓ Pruned landed issue(s): ${landed.join(", ")}`,
+			next,
+			summary: `prune landed ${landed.join(", ")}`,
+		};
+	});
 }
 
 /**
  * Fires ready sequences until nothing is runnable, the budget is spent, or a batch fails.
  *
  * @param options - Parsed CLI options.
- * @rejects {Error} When no model is configured, or a batch's sequential run fails.
+ * @param deps - Dispatch seam; defaults to the sequential workflow.
+ * @rejects {Error} When no model is configured, another dispatcher holds the run lock, or a batch's
+ * sequential run fails.
  */
-export async function runQueueRun(options: CliOptions): Promise<void> {
+export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}): Promise<void> {
 	for (const step of Object.values(options.steps)) {
 		if (step.model === "") {
 			throw new Error(
@@ -97,9 +155,21 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 		}
 	}
 
+	const release = acquireQueueLock({ name: runLockName });
+	try {
+		await runQueueLoop(options, deps.dispatch ?? defaultDispatch);
+	} finally {
+		release();
+	}
+}
+
+/** The dispatch loop itself, with the lock already held. */
+async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promise<void> {
 	const seen = new Set<string>();
+	const resume = options.noResume !== true;
 	const maxIssues = options.maxIssues ?? Number.POSITIVE_INFINITY;
 	let dispatched = 0;
+	let warnedDrift = false;
 	for (;;) {
 		const manifest = readQueueManifest();
 		const live = fetchLiveQueueState({
@@ -107,6 +177,30 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 			readyLabel: config.labels.readyForAgent,
 		});
 		const view = computeQueueView(manifest, live, { strictGates: true });
+
+		if (view.drift.length > 0) {
+			if (options.queueRequireClean === true) {
+				for (const line of view.drift) {
+					emitText(options, `  ✗ ${line}`);
+				}
+
+				emitText(
+					options,
+					`  ✗ Queue drift: ${view.drift.length} problem(s); resolve them or drop --require-clean.`,
+				);
+				io.exit(1);
+				return;
+			}
+
+			if (!warnedDrift) {
+				warnedDrift = true;
+				emitText(
+					options,
+					`  ⚠ ${view.drift.length} drift item(s) — \`pnpm sandcastle queue check\` for details.`,
+				);
+			}
+		}
+
 		const decision = selectNextBatch({
 			batch: options.integrationName,
 			manifest,
@@ -115,11 +209,9 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 		});
 		if (decision.kind === "done") {
 			if (options.jsonOut) {
-				console.log(
-					JSON.stringify({ decision: "done", reason: decision.reason }, undefined, 2),
-				);
+				emitJson({ decision: "done", reason: decision.reason });
 			} else {
-				console.log(`  ⏹ Nothing to run: ${decision.reason}`);
+				emitText(options, `  ⏹ Nothing to run: ${decision.reason}`);
 			}
 
 			/*
@@ -130,31 +222,41 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 			return;
 		}
 
-		if (options.jsonOut) {
-			const payload = { batch: decision.name, issues: decision.issues, kind: "sequence" };
-			console.log(JSON.stringify(payload));
-		} else {
-			const members = decision.issues.map((issue) => `#${issue}`).join(" → ");
-			console.log(`\n▶ Firing sequence "${decision.name}": ${members}`);
-		}
-
-		if (options.dryRun) {
-			console.log("  (dry run — nothing dispatched)");
+		/*
+		 * A sequence is atomic: each member's branch becomes the next member's base, so trimming one to
+		 * fit the budget would break the chain. Refuse the batch instead of overrunning.
+		 */
+		if (dispatched + decision.issues.length > maxIssues) {
+			emitText(
+				options,
+				`  ⏹ --max-issues ${maxIssues}: sequence "${decision.name}" (${decision.issues.length} issue(s)) exceeds the remaining budget (${maxIssues - dispatched}); stopping.`,
+			);
 			return;
 		}
 
-		await runSequentialIssues(
-			decision.issues,
-			options.base,
-			options.model,
-			options.effort,
-			options.agentBackend,
-			options.resume,
-			undefined,
-			options.ignoreSetup,
-			options.skipSetup,
-			options.steps,
-		);
+		if (options.jsonOut) {
+			emitJson({ batch: decision.name, issues: decision.issues, kind: "sequence", resume });
+		} else {
+			const members = decision.issues.map((issue) => `#${issue}`).join(" → ");
+			emitText(options, `\n▶ Firing sequence "${decision.name}": ${members}`);
+			if (resume) {
+				const landed = decision.issues.filter((issue) => isLanded(issue));
+				if (landed.length > 0) {
+					const skipped = landed.map((issue) => `#${issue}`).join(", ");
+					emitText(
+						options,
+						`  ⏭ Resuming: ${skipped} already landed and will be skipped.`,
+					);
+				}
+			}
+		}
+
+		if (options.dryRun) {
+			emitText(options, "  (dry run — nothing dispatched)");
+			return;
+		}
+
+		await dispatch(decision.issues, options, resume);
 
 		for (const issue of decision.issues) {
 			seen.add(issue);
@@ -167,14 +269,14 @@ export async function runQueueRun(options: CliOptions): Promise<void> {
 
 		const sequence = manifest.sequences.find((entry) => entry.name === decision.name);
 		if (sequence?.mergeName !== undefined && sequence.mergeName !== "") {
-			const tail = sequenceTail(decision.issues);
-			console.log(
-				`  Merge hint: pnpm sandcastle merge --name ${sequence.mergeName} --issues ${tail}`,
+			emitText(
+				options,
+				`  Merge hint: pnpm sandcastle merge --name ${sequence.mergeName} --issues ${sequenceTail(decision.issues)}`,
 			);
 		}
 
 		if (dispatched >= maxIssues) {
-			console.log(`  ⏹ Reached --max-issues ${maxIssues}; stopping.`);
+			emitText(options, `  ⏹ Reached --max-issues ${maxIssues}; stopping.`);
 			return;
 		}
 	}

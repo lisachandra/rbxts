@@ -16,7 +16,7 @@
  * worktree.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
@@ -128,7 +128,13 @@ export function writeQueueManifest(
 ): void {
 	const stamped: QueueManifest = { ...manifest, updatedAt: new Date().toISOString() };
 	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify(stamped, null, "\t")}\n`, "utf-8");
+	/*
+	 * Write-then-rename: a concurrent `queue list` must never read a half-written manifest, and a
+	 * crash between the two calls leaves the previous manifest intact instead of a truncated one.
+	 */
+	const temporary = `${path}.tmp-${String(process.pid)}`;
+	writeFileSync(temporary, `${JSON.stringify(stamped, null, "\t")}\n`, "utf-8");
+	renameSync(temporary, path);
 }
 
 /** Every issue number referenced anywhere in the manifest. */

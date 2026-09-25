@@ -9,7 +9,7 @@ import { primaryRepoRoot } from "../git.js";
 import { config } from "../runtime.js";
 import { gitStub, registerTestHooks, repositoryRoot, tmpRoot } from "../test-helpers.js";
 import { emptyQueueManifest, readQueueManifest } from "./manifest.js";
-import { persistQueueManifest, queueCommitEnabled } from "./persist.js";
+import { queueCommitEnabled, transactQueueManifest } from "./persist.js";
 
 registerTestHooks();
 
@@ -70,10 +70,10 @@ describe("queue manifest persistence", () => {
 		config.queue.file = relativeManifest;
 
 		const output = quiet(() => {
-			persistQueueManifest(emptyQueueManifest(), "test", {
-				...parseArgs(["queue", "list"]),
-				dryRun: true,
-			});
+			transactQueueManifest({ ...parseArgs(["queue", "list"]), dryRun: true }, () => ({
+				next: emptyQueueManifest(),
+				summary: "test",
+			}));
 		});
 
 		assert.match(output, /dry run/u);
@@ -88,7 +88,10 @@ describe("queue manifest persistence", () => {
 		config.queue.commit = false;
 
 		const output = quiet(() => {
-			persistQueueManifest(emptyQueueManifest(), "test", parseArgs(["queue", "list"]));
+			transactQueueManifest(parseArgs(["queue", "list"]), () => ({
+				next: emptyQueueManifest(),
+				summary: "test",
+			}));
 		});
 
 		assert.equal(existsSync(otherManifestPath), true);
@@ -108,7 +111,10 @@ describe("queue manifest persistence", () => {
 		config.queue.commit = true;
 
 		quiet(() => {
-			persistQueueManifest(emptyQueueManifest(), "place #1", parseArgs(["queue", "list"]));
+			transactQueueManifest(parseArgs(["queue", "list"]), () => ({
+				next: emptyQueueManifest(),
+				summary: "place #1",
+			}));
 		});
 
 		const commit = calls.find((call) => call.args[0] === "commit");
@@ -129,7 +135,10 @@ describe("queue manifest persistence", () => {
 		config.queue.commit = true;
 
 		quiet(() => {
-			persistQueueManifest(emptyQueueManifest(), "place #1", parseArgs(["queue", "list"]));
+			transactQueueManifest(parseArgs(["queue", "list"]), () => ({
+				next: emptyQueueManifest(),
+				summary: "place #1",
+			}));
 		});
 
 		assert.equal(
