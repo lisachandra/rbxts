@@ -208,6 +208,7 @@ sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
 sandcastle queue graph      # Mermaid diagram of the run order (--format json|ascii, --write, --comment)
+sandcastle queue serve      # the same graph as a local page (--port, --host, --open)
 sandcastle queue run --name U2  # fire the next READY batch; re-reads the manifest after each one
 sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
 ```
@@ -230,6 +231,14 @@ page (marker comment, legend, gated and human lists) without a render timestamp,
 a committed copy diffable for schedule drift; `--comment <n>` posts that same page to a tracker issue
 and updates the comment it wrote last time instead of adding another; `--format json` prints the
 payload a tool consumes. The command is read-only — it never writes the manifest.
+
+`queue serve` answers the same payload over HTTP, so the schedule has an interactive surface for
+the cases GitHub cannot render: zoom and pan across a long spine, toggle whole edge kinds and batch
+statuses to answer "what is left of this run order?", click a batch for its members, roles,
+blockers, notes and merge branch, and share a single batch as `?batch=<name>`. The page is served
+from `dist/web` and the APIs from the command itself, so no extra process is involved; it is a
+read-only local view bound to `127.0.0.1` with a 30-second cache in front of the `gh` reads, and
+`--refresh` in the page bypasses that cache rather than waiting it out.
 
 `queue run` dispatches the next READY sequence, re-reads the manifest after every batch, and prunes
 landed entries (`--keep-entries` to keep them), so a review that registers a follow-up changes what

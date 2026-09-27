@@ -33,6 +33,7 @@ import {
 import { emitText } from "./output.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
+import { openBrowser, startQueueServer } from "./serve.js";
 
 export type QueueSubcommand =
 	| "add"
@@ -42,6 +43,7 @@ export type QueueSubcommand =
 	| "check"
 	| "graph"
 	| "prune"
+	| "serve"
 	| "remove"
 	| "promote"
 	| "sequence"
@@ -59,6 +61,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"rule",
 	"run",
 	"sequence",
+	"serve",
 ];
 
 const queueSubcommandSet: ReadonlySet<string> = new Set(queueSubcommands);
@@ -157,6 +160,9 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 			runQueueSequence(options);
 			break;
 		}
+		case "serve": {
+			return runQueueServe(options);
+		}
 	}
 }
 
@@ -228,6 +234,26 @@ function writeGraphPage(path: string, contents: string): string {
  * and the page `queue serve` hosts cannot disagree. `--write` and `--comment` both publish the
  * Markdown page, which is timestamp-free so a committed copy can be diffed for schedule drift.
  */
+/**
+ * `queue serve`: the same graph, as a page the reader can open and click through.
+ *
+ * The Mermaid block is the artifact to share and the terminal rendering is the one to glance at;
+ * this is the one to explore - layers toggle, a batch opens, and the detail panel reads the raw
+ * view instead of a summary of it. Loopback only, read-only, and never a manifest write.
+ */
+async function runQueueServe(options: CliOptions): Promise<void> {
+	const server = await startQueueServer({
+		host: options.queueHost,
+		port: options.queuePort,
+	});
+	emitText(options, `  ✓ Queue graph on ${server.url} (Ctrl+C stops it)`);
+	if (options.queueOpen === true) {
+		openBrowser(server.url);
+	}
+
+	await server.closed;
+}
+
 function runQueueGraph(options: CliOptions): void {
 	const view = liveView(false);
 	const identifiers = resolveRepositoryIdentifiers();

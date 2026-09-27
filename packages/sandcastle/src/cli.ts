@@ -73,8 +73,13 @@ export interface CliOptions {
 	readonly queueEnabled?: boolean;
 	readonly queueExpandIssues?: boolean;
 	readonly queueFormat?: QueueGraphFormat;
+	readonly queueHost?: string;
+
 	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
+	readonly queueOpen?: boolean;
+	readonly queuePort?: number;
+
 	readonly queuePromoteGates?: boolean;
 	readonly queueRequireClean?: boolean;
 	readonly queueSequence?: string;
@@ -171,8 +176,13 @@ interface ParsedArgState {
 	queueEnabled: boolean | undefined;
 	queueExpandIssues: boolean;
 	queueFormat: undefined | QueueGraphFormat;
+	queueHost: string | undefined;
+
 	queueIncludeHuman: boolean;
 	queueKeepEntries: boolean;
+	queueOpen: boolean;
+	queuePort: number | undefined;
+
 	queuePromoteGates: boolean;
 	queueRequireClean: boolean;
 	queueSequence: string | undefined;
@@ -228,10 +238,15 @@ function createParsedArgState(): ParsedArgState {
 		queueCommitAny: undefined,
 		queueDelete: false,
 		queueEnabled: undefined,
+
 		queueExpandIssues: false,
 		queueFormat: undefined,
+		queueHost: undefined,
 		queueIncludeHuman: false,
 		queueKeepEntries: false,
+
+		queueOpen: false,
+		queuePort: undefined,
 		queuePromoteGates: false,
 		queueRequireClean: false,
 		queueSequence: undefined,
@@ -435,6 +450,15 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.queueFormat = next;
 		return index + 1;
 	},
+	"--host": (state, next, index) => {
+		if (next === undefined || next === "") {
+			throw new Error("--host requires an address to bind");
+		}
+
+		state.queueHost = next;
+		return index + 1;
+	},
+
 	"--implement-agent": (state, next, index) => {
 		setStepBackend(state, "implement", "--implement-agent", next);
 		return index + 1;
@@ -532,6 +556,16 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		setStepModel(state, "planner", "--planner-model", next);
 		return index + 1;
 	},
+	"--port": (state, next, index) => {
+		const port = Number(next ?? "");
+		if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+			throw new Error("--port must be a whole port number between 1 and 65535");
+		}
+
+		state.queuePort = port;
+		return index + 1;
+	},
+
 	"--reason": (state, next, index) => {
 		if (next === undefined || next === "" || next.startsWith("-")) {
 			throw new Error("--reason requires a value");
@@ -674,6 +708,10 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--no-resume": (state) => {
 		state.noResume = true;
 	},
+	"--open": (state) => {
+		state.queueOpen = true;
+	},
+
 	"--promote-gates": (state) => {
 		state.queuePromoteGates = true;
 	},
@@ -892,6 +930,17 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		}
 
 		if (
+			state.queueSubcommand !== "serve" &&
+			(state.queueHost !== undefined ||
+				state.queuePort !== undefined ||
+				state.queueOpen === true)
+		) {
+			throw new Error(
+				"--host, --port, and --open start the queue page; use them with `queue serve`.",
+			);
+		}
+
+		if (
 			state.queueSubcommand === "graph" &&
 			state.queueFormat !== undefined &&
 			state.queueFormat !== "mermaid" &&
@@ -1009,8 +1058,13 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueEnabled: state.queueEnabled,
 		queueExpandIssues: state.queueExpandIssues,
 		queueFormat: state.queueFormat,
+
+		queueHost: state.queueHost,
 		queueIncludeHuman: state.queueIncludeHuman,
 		queueKeepEntries: state.queueKeepEntries,
+
+		queueOpen: state.queueOpen,
+		queuePort: state.queuePort,
 		queuePromoteGates: state.queuePromoteGates,
 		queueRequireClean: state.queueRequireClean,
 		queueSequence: state.queueSequence,
@@ -1092,6 +1146,8 @@ Queue workflow (batch manifest + live view):
   pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]
   pnpm sandcastle queue bootstrap [--apply] [--dry-run]
 
+  pnpm sandcastle queue serve [--port <n>] [--host <ip>] [--open]
+
   The queue manifest (default sandcastle.queue.json, git-tracked) stores only what
   GitHub cannot express: sequence composition/run order, serialization rules, gates.
   Issue state is fetched live; queue check reports drift (unplaced ready issues,
@@ -1103,7 +1159,11 @@ Queue workflow (batch manifest + live view):
   queue graph renders the run order plus the gates and rules that constrain it: Mermaid on
   stdout (GitHub draws it in files, issues, and comments), --format json for tooling, or a
   terminal preview. --write publishes the Markdown page for a repo doc, and --comment keeps
-  one sticky copy on a tracker issue. It is read-only and never writes the manifest.
+  one sticky copy on a tracker issue.
+
+  queue serve opens the same graph as a local page (loopback only) with layers, filters, and a
+  detail panel; it reads the manifest and live GitHub state per request behind a 30s cache.
+  Both commands are read-only: neither commits the manifest or touches GitHub.
 
   Bypass for repositories that do not want the queue workflow: set queue.enabled: false in
   sandcastle.config.ts (or pass --no-queue). Reviews then report follow-ups in the issue

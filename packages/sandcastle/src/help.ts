@@ -217,6 +217,8 @@ const topics = {
 			"  rule       Declare a same-file serialization rule (R<n>)",
 			"  run        Fire the next READY batch",
 			"  sequence   Define or replace a batch",
+
+			"  serve      Serve the graph as a local page (--port, --host, --open)",
 		],
 	},
 	"remove": {
@@ -279,6 +281,21 @@ const topics = {
 			"pnpm sandcastle queue sequence --name <batch> --delete",
 		],
 	},
+	"serve": {
+		flags: [
+			"--port <n>   Port to bind (default 4321; 0 asks for a free one)",
+			"--host <ip>  Address to bind (default 127.0.0.1, loopback only)",
+			"--open       Open the page in the default browser",
+		],
+		notes: [
+			"Read-only and local: the same graph `queue graph` renders, with layers, filters, and a",
+			"detail panel for the batch you click.",
+			"Reads the manifest and live GitHub state on first request and caches for 30s; the page's",
+			"Refresh button sends ?refresh=1 to bypass it, so refreshing never burns `gh` calls.",
+		],
+		usage: ["pnpm sandcastle queue serve [--port <n>] [--host <ip>] [--open]"],
+	},
+
 	"setup": {
 		flags: [
 			"--worktree <path>  Prepare this worktree",
@@ -325,6 +342,8 @@ const queueTopics: ReadonlySet<string> = new Set([
 	"rule",
 	"run",
 	"sequence",
+
+	"serve",
 ]);
 
 function titleFor(key: HelpTopicKey): string {

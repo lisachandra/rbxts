@@ -45,6 +45,7 @@ pnpm sandcastle queue graph [--expand-issues]                  # Mermaid run ord
 pnpm sandcastle queue graph --format json                      # the same payload, for tooling
 pnpm sandcastle queue graph --write docs/queue.md              # Markdown page (no timestamp)
 pnpm sandcastle queue graph --comment <n>                      # sticky graph on a tracker issue
+pnpm sandcastle queue serve [--port <n>] [--host <ip>] [--open]    # the graph as a local page
 pnpm sandcastle queue run [--name <batch>] [--max-issues <n>]  # fire the next READY batch
 pnpm sandcastle queue run --require-clean                     # refuse while drift exists
 pnpm sandcastle queue run --promote-gates                     # promote ready gates first
@@ -74,6 +75,12 @@ fires.
 files, issues, PRs, and comments, so the diagram can sit beside the plan it describes. `--write`
 emits the Markdown page without a render timestamp, so a committed copy can be diffed for schedule
 drift; `--comment <n>` posts that page and updates its own comment on re-run. It is read-only.
+
+`queue serve` serves that same graph as a local page for the questions Mermaid cannot answer:
+zoom and pan a long run order, toggle edge kinds and batch statuses, click a batch for its members,
+roles, blockers, notes and merge branch, and link a single batch as `?batch=<name>`. It binds
+`127.0.0.1` by default, caches the `gh` reads for 30 seconds (the page's Refresh bypasses the
+cache), and is read-only like `queue graph`.
 
 `queue run` re-reads the manifest after every batch, so a review that registers a follow-up,
 promotes a gate, or files a new `ready-for-agent` issue changes what runs next inside the same

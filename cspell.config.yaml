@@ -11,11 +11,14 @@ import:
 words:
     - analysing
     - Augmentable
+    - dagre
+    - dagrejs
     - deepseek
     - despawn
     - despawning
     - despawns
     - diracrules
+    - elkjs
     - gardenfillwater
     - gardengrow
     - gardenprogress
@@ -65,4 +68,5 @@ words:
     - worktree
     - worktrees
     - xhigh
+    - xyflow
     - zcode
