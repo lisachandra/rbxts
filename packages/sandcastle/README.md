@@ -201,6 +201,8 @@ sandcastle queue add --issue 42 --sequence U2 --after 41         # insert after 
 sandcastle queue add --issue 43 --gated --joins V --reason "waiting on issue 41"
 sandcastle queue add --issue 44 --human --reason "needs a human decision session"
 sandcastle queue sequence --name U2 --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --merge-name ui-wiring-work --after-merge audio-seam-work
+sandcastle queue sequence --name U2 --issues 40,41,42 --before V    # place a batch in the run order
+sandcastle queue sequence --name X1 --delete                        # drop a batch (no --issues needed)
 sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
@@ -234,6 +236,9 @@ consumes an earlier batch's commits actually needs. It is evaluated in `queue/ga
 or a missing head commit all read as "not landed"), and it replaces the prose "runs only after
 X merged" that the scheduler used to ignore. A gated entry's `joins` records the batch it will
 move into, and `queue promote` prefers it over the issue title's conventional scope.
+
+The `sequences` array **is** the run order. A redefinition keeps its position, a new batch joins the
+tail, and `--before <batch>` moves one explicitly, so editing a batch never re-ranks the schedule.
 
 ## Backends
 

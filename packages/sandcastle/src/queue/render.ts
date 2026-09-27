@@ -26,7 +26,7 @@ export interface QueueSequenceView {
 	notes: string | undefined;
 	reasons: Array<string>;
 	/** Per-issue role phrase, keyed by issue number. */
-	roles: Record<string, string> | undefined;
+	roles: undefined | Record<string, string>;
 	status: "EMPTY" | "GATED" | "READY";
 	/** Short human label, e.g. "ui wiring". */
 	title: string | undefined;
@@ -221,7 +221,7 @@ export function computeQueueView(
 	for (const sequence of manifest.sequences) {
 		if (sequence.issues.length === 0) {
 			drift.push(
-				`sequence "${sequence.name}" has no members — delete it with \`sandcastle queue sequence --delete ${sequence.name}\``,
+				`sequence "${sequence.name}" has no members — delete it with \`pnpm sandcastle queue sequence --name ${sequence.name} --delete\``,
 			);
 		}
 	}

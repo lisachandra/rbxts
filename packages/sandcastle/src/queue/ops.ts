@@ -92,6 +92,7 @@ export function runQueueSequence(options: CliOptions): void {
 		message: `  ✓ Defined sequence "${name}" (${memberCount} issue(s)): ${options.issueNumbers.join(", ")}`,
 		next: defineSequence(manifest, {
 			afterMerge: options.afterMerge,
+			before: options.before,
 			issues: options.issueNumbers,
 			mergeName: options.mergeName,
 			name,
@@ -279,8 +280,7 @@ export function runQueuePromote(options: CliOptions): void {
 			);
 		}
 
-		const sequence =
-			options.queueSequence ?? entry.joins ?? scopeOf(state?.title ?? "");
+		const sequence = options.queueSequence ?? entry.joins ?? scopeOf(state?.title ?? "");
 		return {
 			message: `  ✓ Promoted #${issue} → sequence "${sequence}" (was gated: ${entry.reason})`,
 			next: promoteIssue(manifest, { issue, sequence }),

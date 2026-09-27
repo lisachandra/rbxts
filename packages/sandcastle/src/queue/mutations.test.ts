@@ -54,6 +54,64 @@ describe("queue mutations", () => {
 		]);
 	});
 
+	test("defineSequence keeps the batch's position in the run order", () => {
+		const start: QueueManifest = {
+			...base(),
+			sequences: [
+				{ issues: ["1"], name: "A" },
+				{ issues: ["2"], name: "U2" },
+				{ issues: ["3"], name: "B" },
+			],
+		};
+		const next = defineSequence(start, { issues: ["2", "4"], name: "U2", title: "ui wiring" });
+
+		/*
+		 * Run order is the array order, so a redefinition must not re-rank the queue. Appending is how
+		 * folding a batch silently pushed the largest batches to the back of the schedule.
+		 */
+		assert.deepEqual(
+			next.sequences.map((entry) => entry.name),
+			["A", "U2", "B"],
+		);
+		assert.deepEqual(next.sequences[1], { issues: ["2", "4"], name: "U2", title: "ui wiring" });
+	});
+
+	test("defineSequence appends a new batch and honours --before", () => {
+		const start: QueueManifest = {
+			...base(),
+			sequences: [
+				{ issues: ["1"], name: "A" },
+				{ issues: ["2"], name: "B" },
+			],
+		};
+
+		assert.deepEqual(
+			defineSequence(start, { issues: ["3"], name: "NEW" }).sequences.map(
+				(entry) => entry.name,
+			),
+			["A", "B", "NEW"],
+		);
+		assert.deepEqual(
+			defineSequence(start, { before: "B", issues: ["3"], name: "NEW" }).sequences.map(
+				(entry) => entry.name,
+			),
+			["A", "NEW", "B"],
+		);
+	});
+
+	test("defineSequence rejects an unusable --before", () => {
+		const start: QueueManifest = { ...base(), sequences: [{ issues: ["1"], name: "A" }] };
+
+		assert.throws(
+			() => defineSequence(start, { before: "A", issues: ["1"], name: "A" }),
+			/--before A is the batch being defined/u,
+		);
+		assert.throws(
+			() => defineSequence(start, { before: "ghost", issues: ["2"], name: "NEW" }),
+			/--before ghost is not a defined batch/u,
+		);
+	});
+
 	test("defineSequence rejects a role for a non-member issue", () => {
 		assert.throws(() => {
 			defineSequence(base(), { issues: ["1"], name: "U2", roles: { "2": "ghost" } });

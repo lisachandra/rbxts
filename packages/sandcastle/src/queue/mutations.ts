@@ -25,7 +25,10 @@ import {
 
 export interface PlaceIssueParams {
 	issue: string;
-	/** Batch this issue joins when its gate clears; the previous entry's target is kept when omitted. */
+	/**
+	 * Batch this issue joins when its gate clears; the previous entry's target is kept when
+	 * omitted.
+	 */
 	joins?: string;
 	reason: string;
 	target: "gated" | "human";
@@ -136,6 +139,8 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 export interface DefineSequenceParams {
 	/** Integration that must land on the base branch before this batch may fire. */
 	afterMerge?: string;
+	/** Batch to place this one before; omitted keeps its previous position, or the tail when new. */
+	before?: string;
 	issues: ReadonlyArray<string>;
 	mergeName?: string;
 	name: string;
@@ -152,6 +157,43 @@ function defined(sequence: Partial<QueueSequence>): QueueSequence {
 		([, value]: [string, unknown]) => value !== undefined,
 	);
 	return Object.fromEntries(entries) as QueueSequence;
+}
+
+/**
+ * - Places a batch in the run order.
+ * - @param kept - The other batches, in their existing order.
+ * - @param batch - The definition being inserted.
+ * - @param params - The definition request; `before` names an explicit position.
+ * - @param previousIndex - Where the batch sat before, or `-1` when it is new.
+ * - @returns The run order with the batch in place.
+ * - @throws {Error} When `--before` names the batch itself or an undefined batch.
+ * - @remarks Run order is the array order, so a redefinition keeps its slot: without this every
+ *   `queue sequence` call silently moved the batch to the tail and re-ranked the schedule.
+ */
+function placeBatch(
+	kept: QueueManifest["sequences"],
+	batch: QueueSequence,
+	params: DefineSequenceParams,
+	previousIndex: number,
+): QueueManifest["sequences"] {
+	if (params.before !== undefined) {
+		if (params.before === params.name) {
+			throw new Error(`--before ${params.before} is the batch being defined.`);
+		}
+
+		const at = kept.findIndex((entry) => entry.name === params.before);
+		if (at === -1) {
+			throw new Error(`--before ${params.before} is not a defined batch.`);
+		}
+
+		return [...kept.slice(0, at), batch, ...kept.slice(at)];
+	}
+
+	if (previousIndex === -1) {
+		return [...kept, batch];
+	}
+
+	return [...kept.slice(0, previousIndex), batch, ...kept.slice(previousIndex)];
 }
 
 /** Creates or replaces a sequence definition. */
@@ -184,14 +226,14 @@ export function defineSequence(
 	}
 
 	const claimed = new Set(params.issues);
-	const sequences: QueueManifest["sequences"] = [];
+	const kept: QueueManifest["sequences"] = [];
 	for (const entry of manifest.sequences) {
 		if (entry.name === params.name) {
 			continue;
 		}
 
 		const issues = entry.issues.filter((member) => !claimed.has(member));
-		sequences.push(issues.length === entry.issues.length ? entry : { ...entry, issues });
+		kept.push(issues.length === entry.issues.length ? entry : { ...entry, issues });
 	}
 
 	/*
@@ -199,18 +241,24 @@ export function defineSequence(
 	 * describe a batch, and dropping them because a later `queue sequence --issues` call omitted the
 	 * flag is how the readable half of the manifest decayed into bare issue numbers.
 	 */
-	const previous = manifest.sequences.find((entry) => entry.name === params.name);
-	sequences.push(
-		defined({
-			afterMerge: params.afterMerge ?? previous?.afterMerge,
-			issues: [...params.issues],
-			mergeName: params.mergeName ?? previous?.mergeName,
-			name: params.name,
-			notes: params.notes ?? previous?.notes,
-			roles: params.roles ?? previous?.roles,
-			title: params.title ?? previous?.title,
-		}),
-	);
+	const previousIndex = manifest.sequences.findIndex((entry) => entry.name === params.name);
+	const previous = previousIndex === -1 ? undefined : manifest.sequences[previousIndex];
+	const redefined = defined({
+		afterMerge: params.afterMerge ?? previous?.afterMerge,
+		issues: [...params.issues],
+		mergeName: params.mergeName ?? previous?.mergeName,
+		name: params.name,
+		notes: params.notes ?? previous?.notes,
+		roles: params.roles ?? previous?.roles,
+		title: params.title ?? previous?.title,
+	});
+
+	/*
+	 * Run order is array order, so a redefinition keeps its position: replacing a batch's membership
+	 * or its labels must not silently move it behind every other batch. Only a new batch joins the
+	 * tail, and `--before` moves a batch explicitly.
+	 */
+	const sequences = placeBatch(kept, redefined, params, previousIndex);
 
 	const gated = manifest.gated.filter((entry) => !claimed.has(entry.issue));
 	const human = manifest.human.filter((entry) => !claimed.has(entry.issue));

@@ -359,6 +359,22 @@ describe("commaSeparated / parseArgs", () => {
 			assert.equal(sequence.mergeName, "sandcastle/issue-1");
 			assert.equal(sequence.notes, "order matters");
 
+			const moved = parseArgs([
+				"queue",
+				"sequence",
+				"--name",
+				"U2",
+				"--issues",
+				"1,2",
+				"--before",
+				"V",
+			]);
+			assert.equal(moved.before, "V");
+
+			const dropped = parseArgs(["queue", "sequence", "--name", "N2", "--delete"]);
+			assert.equal(dropped.queueDelete, true);
+			assert.deepEqual(dropped.issueNumbers, []);
+
 			const rule = parseArgs([
 				"queue",
 				"rule",
@@ -410,6 +426,29 @@ describe("commaSeparated / parseArgs", () => {
 					]),
 				/--after requires --sequence/,
 			);
+			assert.throws(
+				() =>
+					parseArgs([
+						"queue",
+						"add",
+						"--issue",
+						"5",
+						"--sequence",
+						"U2",
+						"--before",
+						"V",
+					]),
+				/describe a batch/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "list", "--delete"]),
+				/--delete removes a batch/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "sequence", "--name", "U2", "--issues", "1", "--before"]),
+				/--before requires a batch name/,
+			);
+
 			assert.throws(
 				() => parseArgs(["queue", "add", "--issue", "5", "--gated", "--human"]),
 				/either --gated or --human/,

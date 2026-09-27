@@ -39,6 +39,7 @@ export interface CliOptions {
 	readonly agentBackend: AgentBackend;
 	readonly allowUnreviewed: boolean;
 	readonly base: string;
+	readonly before?: string;
 	readonly branch: string;
 	readonly command: CliCommand;
 	readonly concurrency: number;
@@ -131,6 +132,7 @@ interface ParsedArgState {
 	agentBackend: AgentBackend;
 	allowUnreviewed: boolean;
 	base: string;
+	before: string | undefined;
 	branch: string | undefined;
 	command: CliCommand;
 	concurrency: number;
@@ -168,7 +170,7 @@ interface ParsedArgState {
 	queueSubcommand: undefined | QueueSubcommand;
 	reason: string | undefined;
 	resume: boolean;
-	roles: Record<string, string> | undefined;
+	roles: undefined | Record<string, string>;
 	sequentialIssues: Array<string>;
 	skipSetup: boolean;
 	status: boolean;
@@ -184,6 +186,7 @@ function createParsedArgState(): ParsedArgState {
 		agentBackend: config.agents.default,
 		allowUnreviewed: false,
 		base: config.baseBranch,
+		before: undefined,
 		branch: undefined,
 		command: "issue",
 		concurrency: 1,
@@ -345,6 +348,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--base": (state, next, index) => {
 		state.base = next ?? state.base;
+		return index + 1;
+	},
+	"--before": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--before requires a batch name");
+		}
+
+		state.before = next;
 		return index + 1;
 	},
 	"--branch": (state, next, index) => {
@@ -777,11 +788,14 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			if (state.joins !== undefined && state.queueBucket === undefined) {
 				throw new Error("--joins requires --gated or --human.");
 			}
+		} else if (state.queueSubcommand === "sequence" && state.integrationName === undefined) {
+			throw new Error("queue sequence requires --name <batch>.");
 		} else if (
 			state.queueSubcommand === "sequence" &&
-			(state.integrationName === undefined || state.issueNumbers.length === 0)
+			state.queueDelete !== true &&
+			state.issueNumbers.length === 0
 		) {
-			throw new Error("queue sequence requires --name <batch> and --issues <a,b,c>.");
+			throw new Error("queue sequence requires --issues <a,b,c> (or --delete to remove it).");
 		} else if (
 			state.queueSubcommand === "rule" &&
 			(state.issueNumbers.length === 0 || state.reason === undefined)
@@ -802,11 +816,16 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.queueSubcommand !== "sequence" &&
 			(state.title !== undefined ||
 				state.roles !== undefined ||
-				state.afterMerge !== undefined)
+				state.afterMerge !== undefined ||
+				state.before !== undefined)
 		) {
 			throw new Error(
-				"--title, --roles, and --after-merge describe a batch; use them with `queue sequence`.",
+				"--title, --roles, --after-merge, and --before describe a batch; use them with `queue sequence`.",
 			);
+		}
+
+		if (state.queueDelete === true && state.queueSubcommand !== "sequence") {
+			throw new Error("--delete removes a batch; use it with `queue sequence`.");
 		}
 
 		if (state.queueSubcommand === "prune" && state.queueClosed !== true) {
@@ -875,6 +894,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		agentBackend: state.agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
+		before: state.before,
 		branch: state.branch ?? "",
 		command: state.command,
 		concurrency: state.concurrency,
