@@ -112,6 +112,23 @@ describe("queue mutations", () => {
 		);
 	});
 
+	test("defineSequence --last moves a batch to the tail", () => {
+		const start: QueueManifest = {
+			...base(),
+			sequences: [
+				{ issues: ["1"], name: "A" },
+				{ issues: ["2"], name: "B" },
+				{ issues: ["3"], name: "C" },
+			],
+		};
+		const next = defineSequence(start, { issues: ["1"], last: true, name: "A" });
+
+		assert.deepEqual(
+			next.sequences.map((entry) => entry.name),
+			["B", "C", "A"],
+		);
+	});
+
 	test("defineSequence rejects a role for a non-member issue", () => {
 		assert.throws(() => {
 			defineSequence(base(), { issues: ["1"], name: "U2", roles: { "2": "ghost" } });

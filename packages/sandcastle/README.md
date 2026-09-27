@@ -238,7 +238,8 @@ X merged" that the scheduler used to ignore. A gated entry's `joins` records the
 move into, and `queue promote` prefers it over the issue title's conventional scope.
 
 The `sequences` array **is** the run order. A redefinition keeps its position, a new batch joins the
-tail, and `--before <batch>` moves one explicitly, so editing a batch never re-ranks the schedule.
+tail, and `--before <batch>` or `--last` moves one explicitly, so editing a batch never re-ranks the
+schedule.
 
 ## Backends
 

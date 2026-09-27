@@ -448,6 +448,29 @@ describe("commaSeparated / parseArgs", () => {
 				() => parseArgs(["queue", "sequence", "--name", "U2", "--issues", "1", "--before"]),
 				/--before requires a batch name/,
 			);
+			assert.equal(
+				parseArgs(["queue", "sequence", "--name", "U2", "--issues", "1", "--last"]).last,
+				true,
+			);
+			assert.throws(
+				() =>
+					parseArgs([
+						"queue",
+						"sequence",
+						"--name",
+						"U2",
+						"--issues",
+						"1",
+						"--last",
+						"--before",
+						"V",
+					]),
+				/choose one/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "sequence", "--name", "U2", "--last", "--delete"]),
+				/--last does not apply/,
+			);
 
 			assert.throws(
 				() => parseArgs(["queue", "add", "--issue", "5", "--gated", "--human"]),

@@ -94,6 +94,7 @@ export function runQueueSequence(options: CliOptions): void {
 			afterMerge: options.afterMerge,
 			before: options.before,
 			issues: options.issueNumbers,
+			last: options.last,
 			mergeName: options.mergeName,
 			name,
 			notes: options.notes,

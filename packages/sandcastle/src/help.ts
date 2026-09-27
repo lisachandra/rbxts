@@ -245,11 +245,12 @@ const topics = {
 			"--after-merge <name> Wait for this integration to land before firing",
 			"--before <batch>     Place this batch ahead of that one",
 			"--delete             Drop the batch; --issues is not required",
+			"--last               Move the batch to the end of the run order",
 		],
 		notes: [
 			"Replaces a batch of the same name; positions satisfy intra-batch dependencies.",
 			"Omitted --title/--roles/--notes/--after-merge keep what the batch already had.",
-			"Run order is the array order: a redefinition keeps its position unless --before moves it.",
+			"Run order is the array order: a redefinition keeps its position unless --before or --last moves it.",
 			"--after-merge is a run-order gate: the batch stays GATED until that integration lands.",
 		],
 		usage: [

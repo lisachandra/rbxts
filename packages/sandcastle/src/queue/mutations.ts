@@ -142,6 +142,8 @@ export interface DefineSequenceParams {
 	/** Batch to place this one before; omitted keeps its previous position, or the tail when new. */
 	before?: string;
 	issues: ReadonlyArray<string>;
+	/** Move the batch to the end of the run order. */
+	last?: boolean;
 	mergeName?: string;
 	name: string;
 	notes?: string;
@@ -163,7 +165,7 @@ function defined(sequence: Partial<QueueSequence>): QueueSequence {
  * - Places a batch in the run order.
  * - @param kept - The other batches, in their existing order.
  * - @param batch - The definition being inserted.
- * - @param params - The definition request; `before` names an explicit position.
+ * - @param params - The definition request; `before` and `last` name an explicit position.
  * - @param previousIndex - Where the batch sat before, or `-1` when it is new.
  * - @returns The run order with the batch in place.
  * - @throws {Error} When `--before` names the batch itself or an undefined batch.
@@ -176,6 +178,10 @@ function placeBatch(
 	params: DefineSequenceParams,
 	previousIndex: number,
 ): QueueManifest["sequences"] {
+	if (params.last === true) {
+		return [...kept, batch];
+	}
+
 	if (params.before !== undefined) {
 		if (params.before === params.name) {
 			throw new Error(`--before ${params.before} is the batch being defined.`);

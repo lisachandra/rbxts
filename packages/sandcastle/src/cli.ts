@@ -54,6 +54,7 @@ export interface CliOptions {
 	readonly issueNumbers: Array<string>;
 	readonly joins?: string;
 	readonly jsonOut: boolean;
+	readonly last?: boolean;
 	readonly maxIssues?: number;
 	readonly mergeName?: string;
 	readonly model: string;
@@ -147,6 +148,7 @@ interface ParsedArgState {
 	issueNumbers: Array<string>;
 	joins: string | undefined;
 	jsonOut: boolean;
+	last: boolean;
 	maxIssues: number | undefined;
 	mergeName: string | undefined;
 	model: string | undefined;
@@ -201,6 +203,7 @@ function createParsedArgState(): ParsedArgState {
 		issueNumbers: [],
 		joins: undefined,
 		jsonOut: false,
+		last: false,
 		maxIssues: undefined,
 		mergeName: undefined,
 		model: undefined,
@@ -615,6 +618,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--keep-entries": (state) => {
 		state.queueKeepEntries = true;
 	},
+	"--last": (state) => {
+		state.last = true;
+	},
 	"--no-queue": (state) => {
 		state.queueEnabled = false;
 	},
@@ -817,15 +823,24 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			(state.title !== undefined ||
 				state.roles !== undefined ||
 				state.afterMerge !== undefined ||
-				state.before !== undefined)
+				state.before !== undefined ||
+				state.last === true)
 		) {
 			throw new Error(
-				"--title, --roles, --after-merge, and --before describe a batch; use them with `queue sequence`.",
+				"--title, --roles, --after-merge, --before, and --last describe a batch; use them with `queue sequence`.",
 			);
 		}
 
 		if (state.queueDelete === true && state.queueSubcommand !== "sequence") {
 			throw new Error("--delete removes a batch; use it with `queue sequence`.");
+		}
+
+		if (state.last === true && state.before !== undefined) {
+			throw new Error("--last and --before ask for two positions; choose one.");
+		}
+
+		if (state.last === true && state.queueDelete === true) {
+			throw new Error("--delete drops the batch; --last does not apply.");
 		}
 
 		if (state.queueSubcommand === "prune" && state.queueClosed !== true) {
@@ -909,6 +924,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		issueNumbers: state.issueNumbers,
 		joins: state.joins,
 		jsonOut: state.jsonOut,
+		last: state.last,
 		maxIssues: state.maxIssues,
 		mergeName: state.mergeName,
 		model: model ?? "",
