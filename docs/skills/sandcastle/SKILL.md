@@ -41,6 +41,10 @@ pnpm sandcastle queue run --help     # one topic per command and queue subcomman
 ```bash
 pnpm sandcastle queue list                                   # live READY/GATED view + drift (read-only)
 pnpm sandcastle queue check [--strict-gates]                  # exits 1 on drift, 2 with stale gates
+pnpm sandcastle queue graph [--expand-issues]                  # Mermaid run order, gates, rules
+pnpm sandcastle queue graph --format json                      # the same payload, for tooling
+pnpm sandcastle queue graph --write docs/queue.md              # Markdown page (no timestamp)
+pnpm sandcastle queue graph --comment <n>                      # sticky graph on a tracker issue
 pnpm sandcastle queue run [--name <batch>] [--max-issues <n>]  # fire the next READY batch
 pnpm sandcastle queue run --require-clean                     # refuse while drift exists
 pnpm sandcastle queue run --promote-gates                     # promote ready gates first
@@ -63,6 +67,13 @@ pnpm sandcastle queue prune --closed                          # drop references 
 blocked-by edges) and flag drift: unplaced ready-for-agent issues, closed-but-referenced
 issues, referenced-but-missing issues. `queue check` must report no drift before anything
 fires.
+
+`queue graph` is the view to hand a human: one node per batch in run order, edges for the
+`after <integration>` gates, the `serialized` rules, and live cross-batch blocked-by links, with
+`--expand-issues` drawing each batch as a subgraph of its members. Mermaid renders in GitHub
+files, issues, PRs, and comments, so the diagram can sit beside the plan it describes. `--write`
+emits the Markdown page without a render timestamp, so a committed copy can be diffed for schedule
+drift; `--comment <n>` posts that page and updates its own comment on re-run. It is read-only.
 
 `queue run` re-reads the manifest after every batch, so a review that registers a follow-up,
 promotes a gate, or files a new `ready-for-agent` issue changes what runs next inside the same

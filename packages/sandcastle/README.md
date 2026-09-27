@@ -207,6 +207,7 @@ sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
+sandcastle queue graph      # Mermaid diagram of the run order (--format json|ascii, --write, --comment)
 sandcastle queue run --name U2  # fire the next READY batch; re-reads the manifest after each one
 sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
 ```
@@ -220,6 +221,15 @@ beside every member, and each `notes` line under the membership. `queue check` i
 run after any review that files follow-up issues: it must report no drift before a review
 completes. The bundled review prompts reference these commands; repos that override
 `prompts.review` / `prompts.reviewIntegration` should keep that contract.
+
+`queue graph` renders the schedule the way a human reads it: one node per batch in run order, plus
+the edges the flat view cannot show — `after <integration>` gates, `serialized` rules, and live
+cross-batch blocked-by links. GitHub draws the Mermaid block natively in files, issues, PRs, and
+comments, so the diagram belongs next to the plan it describes. `--write <path>` emits the Markdown
+page (marker comment, legend, gated and human lists) without a render timestamp, which is what makes
+a committed copy diffable for schedule drift; `--comment <n>` posts that same page to a tracker issue
+and updates the comment it wrote last time instead of adding another; `--format json` prints the
+payload a tool consumes. The command is read-only — it never writes the manifest.
 
 `queue run` dispatches the next READY sequence, re-reads the manifest after every batch, and prunes
 landed entries (`--keep-entries` to keep them), so a review that registers a follow-up changes what

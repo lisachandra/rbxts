@@ -396,6 +396,41 @@ describe("commaSeparated / parseArgs", () => {
 			assert.equal(list.jsonOut, true);
 		});
 
+		test("parseArgs parses the queue graph flags and keeps them off every other subcommand", () => {
+			const graph = parseArgs(["queue", "graph", "--format", "ascii", "--expand-issues"]);
+			assert.equal(graph.queueSubcommand, "graph");
+			assert.equal(graph.queueFormat, "ascii");
+			assert.equal(graph.queueExpandIssues, true);
+			assert.equal(parseArgs(["queue", "graph", "--comment", "412"]).queueComment, "412");
+			assert.equal(
+				parseArgs(["queue", "graph", "--write", "docs/queue.md"]).queueWrite,
+				"docs/queue.md",
+			);
+			/* `--json` is the machine channel for the same payload. */
+			assert.equal(parseArgs(["queue", "graph", "--json"]).jsonOut, true);
+
+			assert.throws(
+				() => parseArgs(["queue", "graph", "--format", "svg"]),
+				/--format must be one of: ascii, json, mermaid/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "graph", "--comment", "all"]),
+				/--comment requires a GitHub issue number/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "list", "--expand-issues"]),
+				/use them with `queue graph`/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "check", "--write", "docs/queue.md"]),
+				/use them with `queue graph`/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "graph", "--write", "docs/queue.md", "--format", "json"]),
+				/--write and --comment publish the Markdown rendering/u,
+			);
+		});
+
 		test("parseArgs enforces queue subcommand and flag rules", () => {
 			assert.throws(() => parseArgs(["queue"]), /queue requires a subcommand/);
 			assert.throws(() => parseArgs(["queue", "bogus"]), /Unknown queue subcommand/);

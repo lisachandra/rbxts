@@ -165,7 +165,7 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 
 	const referenced = [...params.numbers].filter((number) => issues.has(number));
 	if (referenced.length > 0) {
-		const repoIdentifiers = parseRepositoryIdentifiers(gh);
+		const repoIdentifiers = resolveRepositoryIdentifiers(gh);
 		const query = buildBlockedByQuery(repoIdentifiers.owner, repoIdentifiers.name, referenced);
 		let graphqlPayload: unknown;
 		try {
@@ -209,7 +209,16 @@ export function fetchLiveQueueState(params: FetchLiveQueueStateParams): LiveQueu
 	return { issues, readyIssues, truncated };
 }
 
-function parseRepositoryIdentifiers(gh: GhRunner): { name: string; owner: string } {
+/**
+ * - The repository the queue reads from, as `{ owner, name }`.
+ * - @param gh - `gh` runner seam; defaults to `io.execSync` at the repository root.
+ * - @returns The parsed `gh repo view --json nameWithOwner` slug.
+ * - @throws {Error} When `gh` fails or prints something that is not `owner/name`.
+ */
+export function resolveRepositoryIdentifiers(gh: GhRunner = defaultGhRunner): {
+	name: string;
+	owner: string;
+} {
 	let output: string;
 	try {
 		output = gh("gh repo view --json nameWithOwner --jq .nameWithOwner").trim();

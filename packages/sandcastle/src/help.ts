@@ -61,6 +61,25 @@ const topics = {
 		],
 		usage: ["pnpm sandcastle queue check [--json] [--strict-gates]"],
 	},
+	"graph": {
+		flags: [
+			"--format <mermaid|json|ascii>  Rendering to print; Mermaid by default",
+			"--expand-issues          Draw each batch as a subgraph of its member issues",
+			"--write <path>           Write the Markdown page instead of printing",
+			"--comment <n>            Post or update the sticky graph comment on issue n",
+		],
+		notes: [
+			"Read-only: the only view that shows run order, gate kind, and rule edges together.",
+			"Mermaid renders natively on GitHub, and --write output carries no timestamp, so a committed",
+			"copy can be diffed for schedule drift.",
+			"--comment finds its previous comment by marker and PATCHes it, keeping one graph per issue.",
+		],
+		usage: [
+			"pnpm sandcastle queue graph [--format <mermaid|json|ascii>] [--expand-issues]",
+			"pnpm sandcastle queue graph --write docs/queue.md",
+			"pnpm sandcastle queue graph --comment <issue>",
+		],
+	},
 	"integration-abort": {
 		flags: ["--name <name>  Integration name (required)"],
 		notes: ["Deletes the integration worktree and its state."],
@@ -191,6 +210,7 @@ const topics = {
 			"  add        Place an issue in a batch, a gate, or the human bucket",
 			"  bootstrap  Propose placements for the unplaced ready backlog",
 			"  check      Exit non-zero while the queue and GitHub disagree",
+			"  graph      Render the run order as a Mermaid diagram (or json/ascii)",
 			"  list       Live READY/GATED view plus drift",
 			"  prune      Drop references to closed issues",
 			"  remove     Take an issue out of every placement",
@@ -296,6 +316,7 @@ const queueTopics: ReadonlySet<string> = new Set([
 	"add",
 	"bootstrap",
 	"check",
+	"graph",
 	"list",
 	"promote",
 	"prune",

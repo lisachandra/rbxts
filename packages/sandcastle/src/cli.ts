@@ -10,6 +10,7 @@ import { resolve as pathResolve } from "node:path";
 
 import { type HelpTopicKey, renderHelpTopic } from "./help.js";
 import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
+import type { QueueGraphFormat } from "./queue/graph.js";
 import { config } from "./runtime.js";
 import { agentStepNames, resolveAgentSteps } from "./steps.js";
 import type {
@@ -65,10 +66,13 @@ export interface CliOptions {
 	readonly queueApply?: boolean;
 	readonly queueBucket?: "gated" | "human";
 	readonly queueClosed?: boolean;
+	readonly queueComment?: string;
 	readonly queueCommit?: boolean;
 	readonly queueCommitAny?: boolean;
 	readonly queueDelete?: boolean;
 	readonly queueEnabled?: boolean;
+	readonly queueExpandIssues?: boolean;
+	readonly queueFormat?: QueueGraphFormat;
 	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
 	readonly queuePromoteGates?: boolean;
@@ -76,6 +80,7 @@ export interface CliOptions {
 	readonly queueSequence?: string;
 	readonly queueStrictGates?: boolean;
 	readonly queueSubcommand?: QueueSubcommand;
+	readonly queueWrite?: string;
 	readonly reason?: string;
 	readonly resume: boolean;
 	readonly roles?: Record<string, string>;
@@ -159,10 +164,13 @@ interface ParsedArgState {
 	queueApply: boolean;
 	queueBucket: "gated" | "human" | undefined;
 	queueClosed: boolean;
+	queueComment: string | undefined;
 	queueCommit: boolean | undefined;
 	queueCommitAny: boolean | undefined;
 	queueDelete: boolean;
 	queueEnabled: boolean | undefined;
+	queueExpandIssues: boolean;
+	queueFormat: undefined | QueueGraphFormat;
 	queueIncludeHuman: boolean;
 	queueKeepEntries: boolean;
 	queuePromoteGates: boolean;
@@ -170,6 +178,7 @@ interface ParsedArgState {
 	queueSequence: string | undefined;
 	queueStrictGates: boolean;
 	queueSubcommand: undefined | QueueSubcommand;
+	queueWrite: string | undefined;
 	reason: string | undefined;
 	resume: boolean;
 	roles: undefined | Record<string, string>;
@@ -214,10 +223,13 @@ function createParsedArgState(): ParsedArgState {
 		queueApply: false,
 		queueBucket: undefined,
 		queueClosed: false,
+		queueComment: undefined,
 		queueCommit: undefined,
 		queueCommitAny: undefined,
 		queueDelete: false,
 		queueEnabled: undefined,
+		queueExpandIssues: false,
+		queueFormat: undefined,
 		queueIncludeHuman: false,
 		queueKeepEntries: false,
 		queuePromoteGates: false,
@@ -225,6 +237,7 @@ function createParsedArgState(): ParsedArgState {
 		queueSequence: undefined,
 		queueStrictGates: false,
 		queueSubcommand: undefined,
+		queueWrite: undefined,
 		reason: undefined,
 		resume: false,
 		roles: undefined,
@@ -261,6 +274,10 @@ function isSandcastleEffort(value: string | undefined): value is SandcastleEffor
 		value === "xhigh" ||
 		value === "max"
 	);
+}
+
+function isQueueGraphFormat(value: string | undefined): value is QueueGraphFormat {
+	return value === "ascii" || value === "json" || value === "mermaid";
 }
 
 function isIntegrationCommand(value: string): value is CliCommand {
@@ -369,6 +386,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.branch = next;
 		return index + 1;
 	},
+	"--comment": (state, next, index) => {
+		if (next === undefined || !/^\d+$/u.test(next)) {
+			throw new Error("--comment requires a GitHub issue number");
+		}
+
+		state.queueComment = next;
+		return index + 1;
+	},
 	"--concurrency": (state, next, index) => {
 		state.concurrency = Math.max(1, Number(next ?? "1"));
 		return index + 1;
@@ -401,6 +426,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 
 		state.force = true;
 		return index;
+	},
+	"--format": (state, next, index) => {
+		if (!isQueueGraphFormat(next)) {
+			throw new Error("--format must be one of: ascii, json, mermaid");
+		}
+
+		state.queueFormat = next;
+		return index + 1;
 	},
 	"--implement-agent": (state, next, index) => {
 		setStepBackend(state, "implement", "--implement-agent", next);
@@ -563,6 +596,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.worktree = pathResolve(next);
 		return index + 1;
 	},
+	"--write": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--write requires a path");
+		}
+
+		state.queueWrite = next;
+		return index + 1;
+	},
 	"-c": (state, next, index) => {
 		state.concurrency = Math.max(1, Number(next ?? "1"));
 		return index + 1;
@@ -588,6 +629,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--dry-run": (state) => {
 		state.dryRun = true;
+	},
+	"--expand-issues": (state) => {
+		state.queueExpandIssues = true;
 	},
 	"--gated": (state) => {
 		if (state.queueBucket !== undefined) {
@@ -835,6 +879,29 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("--delete removes a batch; use it with `queue sequence`.");
 		}
 
+		if (
+			state.queueSubcommand !== "graph" &&
+			(state.queueFormat !== undefined ||
+				state.queueWrite !== undefined ||
+				state.queueComment !== undefined ||
+				state.queueExpandIssues === true)
+		) {
+			throw new Error(
+				"--format, --write, --comment, and --expand-issues render the queue graph; use them with `queue graph`.",
+			);
+		}
+
+		if (
+			state.queueSubcommand === "graph" &&
+			state.queueFormat !== undefined &&
+			state.queueFormat !== "mermaid" &&
+			(state.queueWrite !== undefined || state.queueComment !== undefined)
+		) {
+			throw new Error(
+				"--write and --comment publish the Markdown rendering; drop --format or use --format mermaid.",
+			);
+		}
+
 		if (state.last === true && state.before !== undefined) {
 			throw new Error("--last and --before ask for two positions; choose one.");
 		}
@@ -935,10 +1002,13 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueApply: state.queueApply,
 		queueBucket: state.queueBucket,
 		queueClosed: state.queueClosed,
+		queueComment: state.queueComment,
 		queueCommit: state.queueCommit,
 		queueCommitAny: state.queueCommitAny,
 		queueDelete: state.queueDelete,
 		queueEnabled: state.queueEnabled,
+		queueExpandIssues: state.queueExpandIssues,
+		queueFormat: state.queueFormat,
 		queueIncludeHuman: state.queueIncludeHuman,
 		queueKeepEntries: state.queueKeepEntries,
 		queuePromoteGates: state.queuePromoteGates,
@@ -946,6 +1016,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueSequence: state.queueSequence,
 		queueStrictGates: state.queueStrictGates,
 		queueSubcommand: state.queueSubcommand,
+		queueWrite: state.queueWrite,
 		reason: state.reason,
 		resume: state.resume,
 		roles: state.roles,
@@ -1016,6 +1087,8 @@ Queue workflow (batch manifest + live view):
   pnpm sandcastle queue prune --closed [--json]
   pnpm sandcastle queue list [--json] [--strict-gates]
   pnpm sandcastle queue check [--json] [--strict-gates]
+  pnpm sandcastle queue graph [--format <mermaid|json|ascii>] [--expand-issues] [--write <path>]
+                              [--comment <n>]
   pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]
   pnpm sandcastle queue bootstrap [--apply] [--dry-run]
 
@@ -1027,6 +1100,10 @@ Queue workflow (batch manifest + live view):
   manifest after every batch, so a review that registered a follow-up changes what runs
   next inside the same invocation; landed entries are pruned unless --keep-entries.
   queue bootstrap proposes placements for the unplaced backlog; --apply writes them.
+  queue graph renders the run order plus the gates and rules that constrain it: Mermaid on
+  stdout (GitHub draws it in files, issues, and comments), --format json for tooling, or a
+  terminal preview. --write publishes the Markdown page for a repo doc, and --comment keeps
+  one sticky copy on a tracker issue. It is read-only and never writes the manifest.
 
   Bypass for repositories that do not want the queue workflow: set queue.enabled: false in
   sandcastle.config.ts (or pass --no-queue). Reviews then report follow-ups in the issue

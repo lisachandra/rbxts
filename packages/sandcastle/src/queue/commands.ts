@@ -7,19 +7,30 @@
  * scriptable while a stale gate stays a distinct failure.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve as pathResolve } from "node:path";
+
 import type { CliOptions } from "../cli.js";
-import { config, io } from "../runtime.js";
+import { config, io, repoRoot } from "../runtime.js";
+import { upsertGraphComment } from "./comment.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
-import { fetchLiveQueueState } from "./live.js";
+import {
+	buildQueueGraph,
+	renderQueueAscii,
+	renderQueueMarkdown,
+	renderQueueMermaid,
+} from "./graph.js";
+import { fetchLiveQueueState, resolveRepositoryIdentifiers } from "./live.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
 import {
 	runQueueAdd,
-	runQueuePrune,
 	runQueuePromote,
+	runQueuePrune,
 	runQueueRemove,
 	runQueueRule,
 	runQueueSequence,
 } from "./ops.js";
+import { emitText } from "./output.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
 
@@ -29,9 +40,10 @@ export type QueueSubcommand =
 	| "list"
 	| "rule"
 	| "check"
+	| "graph"
 	| "prune"
-	| "promote"
 	| "remove"
+	| "promote"
 	| "sequence"
 	| "bootstrap";
 
@@ -39,6 +51,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"add",
 	"bootstrap",
 	"check",
+	"graph",
 	"list",
 	"prune",
 	"promote",
@@ -58,8 +71,8 @@ export function isQueueSubcommand(value: string | undefined): value is QueueSubc
 const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
 	"add",
 	"bootstrap",
-	"prune",
 	"promote",
+	"prune",
 	"remove",
 	"rule",
 	"run",
@@ -111,6 +124,10 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 		}
 		case "check": {
 			runQueueCheck(options);
+			break;
+		}
+		case "graph": {
+			runQueueGraph(options);
 			break;
 		}
 		case "list": {
@@ -185,4 +202,72 @@ function runQueueCheck(options: CliOptions): void {
 	}
 
 	console.log("  ✓ No queue drift.");
+}
+
+/** `--json` asks for the machine payload, exactly as `--format json` does. */
+function graphFormat(options: CliOptions): "json" | "ascii" | "mermaid" {
+	if (options.queueFormat !== undefined) {
+		return options.queueFormat;
+	}
+
+	return options.jsonOut ? "json" : "mermaid";
+}
+
+/** Writes the Markdown page, creating the directory a `--write docs/...` path needs. */
+function writeGraphPage(path: string, contents: string): string {
+	const target = pathResolve(repoRoot, path);
+	mkdirSync(dirname(target), { recursive: true });
+	writeFileSync(target, contents, "utf-8");
+	return target;
+}
+
+/**
+ * `queue graph`: the run order and the constraints on it, rendered for a human.
+ *
+ * One payload ({@link buildQueueGraph}) feeds three renderings, so the Mermaid block in a comment
+ * and the page `queue serve` hosts cannot disagree. `--write` and `--comment` both publish the
+ * Markdown page, which is timestamp-free so a committed copy can be diffed for schedule drift.
+ */
+function runQueueGraph(options: CliOptions): void {
+	const view = liveView(false);
+	const identifiers = resolveRepositoryIdentifiers();
+	const graph = buildQueueGraph(view, {
+		generatedAt: new Date().toISOString(),
+		repository: identifiers,
+	});
+	const expanded = options.queueExpandIssues === true;
+
+	if (options.queueWrite !== undefined || options.queueComment !== undefined) {
+		const markdown = renderQueueMarkdown(graph, { issues: expanded });
+		if (options.queueWrite !== undefined) {
+			emitText(options, `  ✓ Wrote ${writeGraphPage(options.queueWrite, markdown)}`);
+		}
+
+		if (options.queueComment !== undefined) {
+			const outcome = upsertGraphComment({
+				body: markdown,
+				issue: options.queueComment,
+				repository: `${identifiers.owner}/${identifiers.name}`,
+			});
+			const verb = outcome === "created" ? "Posted" : "Updated";
+			emitText(options, `  ✓ ${verb} the queue graph on #${options.queueComment}`);
+		}
+
+		return;
+	}
+
+	switch (graphFormat(options)) {
+		case "ascii": {
+			console.log(renderQueueAscii(graph));
+			break;
+		}
+		case "json": {
+			console.log(JSON.stringify(graph, undefined, 2));
+			break;
+		}
+		case "mermaid": {
+			console.log(renderQueueMermaid(graph, { issues: expanded }));
+			break;
+		}
+	}
 }
