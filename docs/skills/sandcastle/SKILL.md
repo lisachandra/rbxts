@@ -12,8 +12,55 @@ the **queue manifest** (`sandcastle.queue.json`, repo root, git-tracked) records
 GitHub cannot express — batch composition and run order, same-file serialization rules
 (R\<n\>), and gate conditions.
 
-This file is the tracked source of truth. `.agents/skills/sandcastle/SKILL.md` is a
-gitignored pointer to it (`pnpm sandcastle` reads the commands below, not this file).
+This file is the tracked source of truth, and the one sandcastle skill: `.agents/skills/sandcastle` is
+a gitignored symlink to this directory, so every repo that links its `.agents` here reads the same
+file (`pnpm sandcastle` reads the commands below, not this file).
+
+## Manifest shape
+
+```jsonc
+{
+	"gated": [
+		{ "issue": "393", "joins": "V", "reason": "needs the Studio Sound instance plus readiness" },
+	],
+	"human": [{ "issue": "60", "reason": "grill(economy): reward drops, season pass, bundles" }],
+	"sequences": [
+		{
+			"name": "U2",
+			"title": "ui wiring", // short label; rendered beside the batch name
+			"issues": ["382", "383", "384"], // run order; position satisfies intra-batch edges
+			"roles": { "382": "shell + ScreenHost", "383": "pause + options onto shell" },
+			"mergeName": "ui-wiring-work", // integration branch used by `sandcastle merge`
+			"afterMerge": "audio-seam-work", // run-order gate; see "Gates" below
+			"notes": "why this batch is shaped this way", // one rendered line per newline
+		},
+	],
+	"serialized": [{ "name": "R9", "issues": ["340", "341", "312", "365"], "reason": "same seam" }],
+	"updatedAt": "2026-09-27T04:07:50.864Z",
+	"version": 1,
+}
+```
+
+Read it through `pnpm sandcastle queue list`, not by opening the JSON: the live view is the only
+rendering that shows READY/GATED, gate reasons, and drift.
+
+## Gates (`afterMerge`)
+
+`queue run` branches every batch from the base branch, so a batch that reads an earlier batch's
+commits is only safe once that batch's integration is an **ancestor of the base branch**. That is
+what `afterMerge` declares, and `src/queue/gates.ts` is the only place that answers it
+(`git merge-base --is-ancestor`, checked when the view is built). It fails closed:
+
+| Integration state | Gate |
+| ----------------- | ---- |
+| manifest missing | `waiting on integration "x" - it has not been composed yet` |
+| composition unfinished (created, merging, blocked, …) | `waiting on integration "x" - composition status is <status>` |
+| composed, head not an ancestor of the base branch | `waiting on integration "x" to land on <base> - merge it first` |
+| composed and landed | gate open, the batch is READY |
+
+A gated batch is **GATED**, never drift: it is a declared wait, and `queue run` skips it silently
+while other batches fire. Prose such as "runs only after X merged" is a bug: the scheduler cannot
+read it, so the batch fires as soon as its members are labelled.
 
 ## Commands
 
