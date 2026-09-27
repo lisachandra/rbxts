@@ -148,7 +148,6 @@ function sendError(response: ServerResponse, status: number, message: string): v
 }
 
 /** The served bundle: the `web/` build, or wherever a test points the server. */
-
 function defaultStaticDir(): string {
 	return join(packageRoot, "dist", "web");
 }
