@@ -54,7 +54,7 @@ export function promotableGates(params: BootstrapParams): Array<BootstrapPromoti
 			continue;
 		}
 
-		promotions.push({ issue: entry.issue, sequence: scopeOf(issue.title) });
+		promotions.push({ issue: entry.issue, sequence: entry.joins ?? scopeOf(issue.title) });
 	}
 
 	return promotions;

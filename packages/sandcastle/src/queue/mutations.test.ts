@@ -25,16 +25,49 @@ describe("queue mutations", () => {
 		assert.equal(locateIssue(next, "2")?.kind, "sequence");
 	});
 
-	test("defineSequence replaces its own sequence and drops stale fields", () => {
+	test("defineSequence replaces membership and keeps the batch labels", () => {
 		const start = defineSequence(base(), {
+			afterMerge: "audio-seam-work",
 			issues: ["1", "2"],
 			mergeName: "old",
 			name: "U2",
 			notes: "old notes",
+			roles: { "1": "shell" },
+			title: "ui wiring",
 		});
 		const next = defineSequence(start, { issues: ["2", "3"], name: "U2" });
 
-		assert.deepEqual(next.sequences, [{ issues: ["2", "3"], name: "U2" }]);
+		/*
+		 * The label half of a batch survives a membership edit: dropping it is how the readable
+		 * manifest decayed into bare issue numbers whenever `queue sequence` was re-run.
+		 */
+		assert.deepEqual(next.sequences, [
+			{
+				afterMerge: "audio-seam-work",
+				issues: ["2", "3"],
+				mergeName: "old",
+				name: "U2",
+				notes: "old notes",
+				roles: { "1": "shell" },
+				title: "ui wiring",
+			},
+		]);
+	});
+
+	test("defineSequence rejects a role for a non-member issue", () => {
+		assert.throws(() => {
+			defineSequence(base(), { issues: ["1"], name: "U2", roles: { "2": "ghost" } });
+		}, /--roles names #2/u);
+	});
+
+	test("placeIssue keeps the join target across a re-gate", () => {
+		const start: QueueManifest = {
+			...base(),
+			gated: [{ issue: "5", joins: "V", reason: "waiting" }],
+		};
+		const next = placeIssue(start, { issue: "5", reason: "still waiting", target: "gated" });
+
+		assert.deepEqual(next.gated, [{ issue: "5", joins: "V", reason: "still waiting" }]);
 	});
 
 	test("defineSequence refuses to steal issues from another sequence", () => {

@@ -51,6 +51,48 @@ describe("queue manifest", () => {
 		});
 	});
 
+	test("batch labels, member roles, and run-order gates survive a round trip", () => {
+		const path = manifestPath("labels.json");
+		const manifest: QueueManifest = {
+			...emptyQueueManifest(),
+			gated: [{ issue: "30", joins: "V", reason: "needs the Studio Sound instance" }],
+			sequences: [
+				{
+					afterMerge: "audio-seam-work",
+					issues: ["10", "11"],
+					mergeName: "ui-wiring-work",
+					name: "U2",
+					notes: "ui wiring · one run\n10 shell → 11 data seam",
+					roles: { "10": "shell", "11": "data seam" },
+					title: "ui wiring",
+				},
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+			version: 1,
+		};
+		writeQueueManifest(manifest, path);
+
+		const read = readQueueManifest(path);
+		assert.deepEqual(read.sequences, manifest.sequences);
+		assert.deepEqual(read.gated, manifest.gated);
+	});
+
+	test("a role key must be a numeric issue number", () => {
+		const path = manifestPath("bad-roles.json");
+		writeFileSync(
+			path,
+			JSON.stringify({
+				...emptyQueueManifest(),
+				sequences: [{ issues: ["10"], name: "U2", roles: { ten: "shell" } }],
+			}),
+			"utf-8",
+		);
+
+		assert.throws(() => {
+			readQueueManifest(path);
+		}, /is invalid/u);
+	});
+
 	test("readQueueManifest returns an empty manifest when the file does not exist", () => {
 		const path = manifestPath("missing.json");
 		if (existsSync(path)) {

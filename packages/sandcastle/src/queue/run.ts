@@ -23,6 +23,7 @@ import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
 import { applyBootstrap, promotableGates, proposeBootstrap } from "./bootstrap.js";
+import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, runLockName } from "./lock.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
@@ -177,7 +178,10 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 			numbers: referencedIssues(manifest),
 			readyLabel: config.labels.readyForAgent,
 		});
-		const view = computeQueueView(manifest, live, { strictGates: true });
+		const view = computeQueueView(manifest, live, {
+			gates: unmetIntegrationGates({ names: sequenceGateNames(manifest) }),
+			strictGates: true,
+		});
 
 		/*
 		 * Opt-in, and once per invocation: promoting gates changes what the queue will run unattended,

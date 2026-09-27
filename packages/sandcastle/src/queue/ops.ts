@@ -47,6 +47,7 @@ export function runQueueAdd(options: CliOptions): void {
 			options.queueSequence === undefined
 				? placeIssue(manifest, {
 						issue,
+						joins: options.joins,
 						reason: options.reason ?? "",
 						target: options.queueBucket === "gated" ? "gated" : "human",
 					})
@@ -90,10 +91,13 @@ export function runQueueSequence(options: CliOptions): void {
 	transactQueueManifest(options, (manifest) => ({
 		message: `  ✓ Defined sequence "${name}" (${memberCount} issue(s)): ${options.issueNumbers.join(", ")}`,
 		next: defineSequence(manifest, {
+			afterMerge: options.afterMerge,
 			issues: options.issueNumbers,
 			mergeName: options.mergeName,
 			name,
 			notes: options.notes,
+			roles: options.roles,
+			title: options.title,
 		}),
 		summary: `define sequence "${name}"`,
 	}));
@@ -275,7 +279,8 @@ export function runQueuePromote(options: CliOptions): void {
 			);
 		}
 
-		const sequence = options.queueSequence ?? scopeOf(state?.title ?? "");
+		const sequence =
+			options.queueSequence ?? entry.joins ?? scopeOf(state?.title ?? "");
 		return {
 			message: `  ✓ Promoted #${issue} → sequence "${sequence}" (was gated: ${entry.reason})`,
 			next: promoteIssue(manifest, { issue, sequence }),

@@ -26,8 +26,12 @@ const topics = {
 			"--gated            Cannot start until --reason is resolved",
 			"--human            Never queued; needs a human decision session",
 			"--reason <text>    Why the issue is gated or human",
+			"--joins <batch>    Batch it joins once its gate clears",
 		],
-		notes: ["Requires exactly one of --sequence, --gated, or --human."],
+		notes: [
+			"Requires exactly one of --sequence, --gated, or --human.",
+			"--joins records the batch a gated issue moves into; promote prefers it over the title scope.",
+		],
 		usage: [
 			"pnpm sandcastle queue add --issue <n> --sequence <batch> [--after <m>]",
 			'pnpm sandcastle queue add --issue <n> --gated --reason "<blocking condition>"',
@@ -139,6 +143,21 @@ const topics = {
 			"pnpm sandcastle merge-integrations --name <name> --integrations a,b [--base main]",
 		],
 	},
+	"promote": {
+		flags: [
+			"--apply            Promote every promotable gate (default: one --issue)",
+			"--issue <n>        Promote this gate",
+			"--sequence <name>  Target sequence (default: the scope in the issue title)",
+		],
+		notes: [
+			"Promotable = open, ready-for-agent, and no open blocker left.",
+			"An issue that is not gated, or still blocked, is refused; use queue add to place it.",
+		],
+		usage: [
+			"pnpm sandcastle queue promote --apply",
+			"pnpm sandcastle queue promote --issue <n> [--sequence <batch>]",
+		],
+	},
 	"prune": {
 		flags: [
 			"--closed   Prune references to CLOSED issues (required to act)",
@@ -221,25 +240,18 @@ const topics = {
 			"--issues <a,b,c>     Members in run order (required)",
 			"--merge-name <branch>  Integration branch used by `sandcastle merge`",
 			"--notes <text>       Ordering rationale, kept in the manifest",
-		],
-		notes: ["Replaces a batch of the same name; positions satisfy intra-batch dependencies."],
-		usage: [
-			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>]",
-		],
-	},
-	"promote": {
-		flags: [
-			"--apply            Promote every promotable gate (default: one --issue)",
-			"--issue <n>        Promote this gate",
-			"--sequence <name>  Target sequence (default: the scope in the issue title)",
+			"--title <label>      Short human label shown by `queue list`",
+			"--roles <n=role,...> Per-issue role phrases, e.g. 382=shell,383=pause",
+			"--after-merge <name> Wait for this integration to land before firing",
 		],
 		notes: [
-			"Promotable = open, ready-for-agent, and no open blocker left.",
-			"An issue that is not gated, or still blocked, is refused; use queue add to place it.",
+			"Replaces a batch of the same name; positions satisfy intra-batch dependencies.",
+			"Omitted --title/--roles/--notes/--after-merge keep what the batch already had.",
+			"--after-merge is a run-order gate: the batch stays GATED until that integration lands.",
 		],
 		usage: [
-			"pnpm sandcastle queue promote --apply",
-			"pnpm sandcastle queue promote --issue <n> [--sequence <batch>]",
+			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--title <label>]",
+			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--after-merge <integration>]",
 		],
 	},
 	"setup": {

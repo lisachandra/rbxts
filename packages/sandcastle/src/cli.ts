@@ -35,6 +35,7 @@ export type CliCommand =
 
 export interface CliOptions {
 	readonly after?: string;
+	readonly afterMerge?: string;
 	readonly agentBackend: AgentBackend;
 	readonly allowUnreviewed: boolean;
 	readonly base: string;
@@ -50,6 +51,7 @@ export interface CliOptions {
 	readonly integrationNames: Array<string>;
 	readonly issueNumber: string;
 	readonly issueNumbers: Array<string>;
+	readonly joins?: string;
 	readonly jsonOut: boolean;
 	readonly maxIssues?: number;
 	readonly mergeName?: string;
@@ -74,11 +76,37 @@ export interface CliOptions {
 	readonly queueSubcommand?: QueueSubcommand;
 	readonly reason?: string;
 	readonly resume: boolean;
+	readonly roles?: Record<string, string>;
 	readonly sequentialIssues: Array<string>;
 	readonly skipSetup?: boolean;
 	readonly status: boolean;
 	readonly steps: Record<AgentPhaseName, ResolvedAgentStep>;
+	readonly title?: string;
 	readonly worktree?: string;
+}
+
+/**
+ * - Parses `--roles 382=shell,383=pause` into an issue-number keyed phrase map.
+ * - @param value - Raw flag value; entries are `<issue>=<role>`.
+ * - @returns Role phrases keyed by issue number, rendered beside each batch member.
+ * - @throws {Error} When an entry is not `<issue>=<role>` or the flag is empty.
+ */
+export function parseRoles(value: string | undefined): Record<string, string> {
+	const roles: Record<string, string> = {};
+	for (const entry of commaSeparated(value, "--roles")) {
+		const separator = entry.indexOf("=");
+		const issue = entry.slice(0, separator);
+		const role = entry.slice(separator + 1).trim();
+		if (separator === -1 || !/^\d+$/u.test(issue) || role === "") {
+			throw new Error(
+				`--roles entries look like <issue>=<role>; got ${JSON.stringify(entry)}`,
+			);
+		}
+
+		roles[issue] = role;
+	}
+
+	return roles;
 }
 
 export function commaSeparated(value: string | undefined, flag: string): Array<string> {
@@ -99,6 +127,7 @@ export function commaSeparated(value: string | undefined, flag: string): Array<s
 
 interface ParsedArgState {
 	after: string | undefined;
+	afterMerge: string | undefined;
 	agentBackend: AgentBackend;
 	allowUnreviewed: boolean;
 	base: string;
@@ -114,6 +143,7 @@ interface ParsedArgState {
 	integrationNames: Array<string>;
 	issueNumber: string | undefined;
 	issueNumbers: Array<string>;
+	joins: string | undefined;
 	jsonOut: boolean;
 	maxIssues: number | undefined;
 	mergeName: string | undefined;
@@ -138,16 +168,19 @@ interface ParsedArgState {
 	queueSubcommand: undefined | QueueSubcommand;
 	reason: string | undefined;
 	resume: boolean;
+	roles: Record<string, string> | undefined;
 	sequentialIssues: Array<string>;
 	skipSetup: boolean;
 	status: boolean;
 	steps: AgentStepsConfig;
+	title: string | undefined;
 	worktree: string | undefined;
 }
 
 function createParsedArgState(): ParsedArgState {
 	return {
 		after: undefined,
+		afterMerge: undefined,
 		agentBackend: config.agents.default,
 		allowUnreviewed: false,
 		base: config.baseBranch,
@@ -163,6 +196,7 @@ function createParsedArgState(): ParsedArgState {
 		integrationNames: [],
 		issueNumber: undefined,
 		issueNumbers: [],
+		joins: undefined,
 		jsonOut: false,
 		maxIssues: undefined,
 		mergeName: undefined,
@@ -187,10 +221,12 @@ function createParsedArgState(): ParsedArgState {
 		queueSubcommand: undefined,
 		reason: undefined,
 		resume: false,
+		roles: undefined,
 		sequentialIssues: [],
 		skipSetup: false,
 		status: false,
 		steps: {},
+		title: undefined,
 		worktree: undefined,
 	};
 }
@@ -289,6 +325,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.after = next;
 		return index + 1;
 	},
+	"--after-merge": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--after-merge requires an integration name");
+		}
+
+		state.afterMerge = next;
+		return index + 1;
+	},
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
 			throw new Error(
@@ -380,6 +424,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.issueNumbers.push(...commaSeparated(next, "--issues"));
 		return index + 1;
 	},
+	"--joins": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--joins requires a batch name");
+		}
+
+		state.joins = next;
+		return index + 1;
+	},
 	"--max-issues": (state, next, index) => {
 		const parsed = Number(next);
 		if (next === undefined || next === "" || !Number.isInteger(parsed) || parsed < 1) {
@@ -465,6 +517,10 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		setStepModel(state, "review", "--review-model", next);
 		return index + 1;
 	},
+	"--roles": (state, next, index) => {
+		state.roles = parseRoles(next);
+		return index + 1;
+	},
 	"--sequence": (state, next, index) => {
 		if (next === undefined || next === "" || next.startsWith("-")) {
 			throw new Error("--sequence requires a value");
@@ -475,6 +531,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--sequential": (state, next, index) => {
 		state.sequentialIssues.push(...commaSeparated(next, "--sequential"));
+		return index + 1;
+	},
+	"--title": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--title requires a label");
+		}
+
+		state.title = next;
 		return index + 1;
 	},
 	"--worktree": (state, next, index) => {
@@ -502,11 +566,11 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--apply": (state) => {
 		state.queueApply = true;
 	},
-	"--delete": (state) => {
-		state.queueDelete = true;
-	},
 	"--closed": (state) => {
 		state.queueClosed = true;
+	},
+	"--delete": (state) => {
+		state.queueDelete = true;
 	},
 	"--dry-run": (state) => {
 		state.dryRun = true;
@@ -709,6 +773,10 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			if (state.after !== undefined && state.queueSequence === undefined) {
 				throw new Error("--after requires --sequence <name>.");
 			}
+
+			if (state.joins !== undefined && state.queueBucket === undefined) {
+				throw new Error("--joins requires --gated or --human.");
+			}
 		} else if (
 			state.queueSubcommand === "sequence" &&
 			(state.integrationName === undefined || state.issueNumbers.length === 0)
@@ -727,6 +795,17 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		) {
 			throw new Error(
 				"queue run does not accept --gated/--human/--sequence; place issues with `queue add`.",
+			);
+		}
+
+		if (
+			state.queueSubcommand !== "sequence" &&
+			(state.title !== undefined ||
+				state.roles !== undefined ||
+				state.afterMerge !== undefined)
+		) {
+			throw new Error(
+				"--title, --roles, and --after-merge describe a batch; use them with `queue sequence`.",
 			);
 		}
 
@@ -792,6 +871,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 
 	return {
 		after: state.after,
+		afterMerge: state.afterMerge,
 		agentBackend: state.agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
@@ -807,6 +887,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		integrationNames: state.integrationNames,
 		issueNumber: state.issueNumber ?? "",
 		issueNumbers: state.issueNumbers,
+		joins: state.joins,
 		jsonOut: state.jsonOut,
 		maxIssues: state.maxIssues,
 		mergeName: state.mergeName,
@@ -831,10 +912,12 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueSubcommand: state.queueSubcommand,
 		reason: state.reason,
 		resume: state.resume,
+		roles: state.roles,
 		sequentialIssues: state.sequentialIssues,
 		skipSetup: state.skipSetup,
 		status: state.status,
 		steps,
+		title: state.title,
 		worktree: state.worktree,
 	};
 }
@@ -889,8 +972,9 @@ Setup workflow (harness / manual worktrees):
   runs setupCommands, and links symlinks. No flags prepares the current directory
   (e.g. a clean paseo worktree). Idempotent; safe to re-run.
 Queue workflow (batch manifest + live view):
-  pnpm sandcastle queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>]
-  pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes <text>]
+  pnpm sandcastle queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>] [--joins <batch>]
+  pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--title <label>] [--roles <n=role,...>]
+                                 [--merge-name <branch>] [--after-merge <integration>] [--notes <text>]
   pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>
   pnpm sandcastle queue remove --issue <n>
   pnpm sandcastle queue prune --closed [--json]

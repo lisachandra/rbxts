@@ -18,12 +18,18 @@ export interface QueueIssueView {
 }
 
 export interface QueueSequenceView {
+	/** Integration that must land before this batch may fire. */
+	afterMerge: string | undefined;
 	issues: Array<QueueIssueView>;
 	mergeName: string | undefined;
 	name: string;
 	notes: string | undefined;
 	reasons: Array<string>;
+	/** Per-issue role phrase, keyed by issue number. */
+	roles: Record<string, string> | undefined;
 	status: "EMPTY" | "GATED" | "READY";
+	/** Short human label, e.g. "ui wiring". */
+	title: string | undefined;
 }
 
 export interface QueueView {
@@ -31,6 +37,8 @@ export interface QueueView {
 	drift: Array<string>;
 	gated: Array<{
 		issue: string;
+		/** Batch the issue joins once its gate clears. */
+		joins: string | undefined;
 		promotable: boolean;
 		reason: string;
 		state: undefined | LiveIssue["state"];
@@ -65,17 +73,28 @@ function viewFor(live: LiveQueueState, number: string): QueueIssueView {
  *
  * @param manifest - The queue manifest.
  * @param live - Fresh GitHub state for the referenced numbers plus the ready backlog.
- * @param options - `strictGates` turns promotable gates into drift, so a stale gate fails a check
- *   instead of only printing a hint.
+ * @param options - `gates` maps a `afterMerge` integration to the reason it is not satisfied yet
+ *   (from {@link unmetIntegrationGates}); `strictGates` turns promotable gates into drift, so a
+ *   stale gate fails a check instead of only printing a hint.
  */
 export function computeQueueView(
 	manifest: QueueManifest,
 	live: LiveQueueState,
-	options: { strictGates?: boolean } = {},
+	options: { gates?: ReadonlyMap<string, string>; strictGates?: boolean } = {},
 ): QueueView {
 	const sequences: Array<QueueSequenceView> = manifest.sequences.map((sequence) => {
 		const issues = sequence.issues.map((number) => viewFor(live, number));
 		const reasons: Array<string> = [];
+		/*
+		 * A declared run-order gate is checked first: it is the only reason a batch with a fully
+		 * ready membership must still not fire, and it used to live in prose the scheduler never read.
+		 */
+		const gateUnmet =
+			sequence.afterMerge === undefined ? undefined : options.gates?.get(sequence.afterMerge);
+		if (gateUnmet !== undefined) {
+			reasons.push(gateUnmet);
+		}
+
 		const members = new Set(sequence.issues);
 		for (const issue of issues) {
 			if (!issue.found) {
@@ -107,12 +126,15 @@ export function computeQueueView(
 		const status: QueueSequenceView["status"] =
 			sequence.issues.length === 0 ? "EMPTY" : reasons.length === 0 ? "READY" : "GATED";
 		return {
+			afterMerge: sequence.afterMerge,
 			issues,
 			mergeName: sequence.mergeName,
 			name: sequence.name,
 			notes: sequence.notes,
 			reasons,
+			roles: sequence.roles,
 			status,
+			title: sequence.title,
 		};
 	});
 
@@ -124,7 +146,13 @@ export function computeQueueView(
 			issue.state === "OPEN" &&
 			issue.ready &&
 			issue.openBlockers.length === 0;
-		return { issue: entry.issue, promotable, reason: entry.reason, state: issue?.state };
+		return {
+			issue: entry.issue,
+			joins: entry.joins,
+			promotable,
+			reason: entry.reason,
+			state: issue?.state,
+		};
 	});
 
 	const human = manifest.human.map((entry) => {
@@ -226,6 +254,14 @@ export function computeQueueView(
 	};
 }
 
+/** Notes split into renderable lines; a batch may carry none. */
+function noteLines(notes: string | undefined): Array<string> {
+	return (notes ?? "")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "");
+}
+
 /** Renders the human-readable queue table (the visualization surface). */
 export function renderQueueText(view: QueueView): string {
 	const lines: Array<string> = [];
@@ -237,10 +273,17 @@ export function renderQueueText(view: QueueView): string {
 
 	for (const sequence of view.sequences) {
 		const icon = { EMPTY: "∅", GATED: "⏸", READY: "✓" }[sequence.status];
+		const title = sequence.title === undefined ? "" : ` — ${sequence.title}`;
 		lines.push(
-			`  ${icon} ${sequence.status.padEnd(5)}  ${sequence.name} (${sequence.issues.length} issue(s))`,
+			`  ${icon} ${sequence.status.padEnd(5)}  ${sequence.name}${title} (${sequence.issues.length} issue(s))`,
 		);
-		const list = sequence.issues.map((issue) => `#${issue.number}`).join(" ");
+		const labelled = sequence.roles !== undefined && Object.keys(sequence.roles).length > 0;
+		const list = sequence.issues
+			.map((issue) => {
+				const role = sequence.roles?.[issue.number];
+				return role === undefined ? `#${issue.number}` : `#${issue.number} ${role}`;
+			})
+			.join(labelled ? " · " : " ");
 		const detail: Array<string> = [];
 		if (sequence.mergeName !== undefined) {
 			detail.push(`merge: ${sequence.mergeName}`);
@@ -251,6 +294,10 @@ export function renderQueueText(view: QueueView): string {
 			lines.push(`         ${list}`);
 		} else {
 			lines.push(`         ${list}`, `         ${detail.join(" · ")}`);
+		}
+
+		for (const line of noteLines(sequence.notes)) {
+			lines.push(`         · ${line}`);
 		}
 	}
 
@@ -271,7 +318,8 @@ export function renderQueueText(view: QueueView): string {
 	if (view.gated.length > 0) {
 		const gatedLines: Array<string> = ["", "  Gated:"];
 		for (const entry of view.gated) {
-			gatedLines.push(`    #${entry.issue} — ${entry.reason}`);
+			const joins = entry.joins === undefined ? "" : ` (joins ${entry.joins})`;
+			gatedLines.push(`    #${entry.issue}${joins} — ${entry.reason}`);
 		}
 
 		const promotable = view.gated.filter((entry) => entry.promotable);

@@ -15,10 +15,18 @@
  *   steal an issue from a different sequence.
  */
 
-import { describePlacement, locateIssue, type QueueManifest } from "./manifest.js";
+import {
+	describePlacement,
+	locateIssue,
+	type QueueEntry,
+	type QueueManifest,
+	type QueueSequence,
+} from "./manifest.js";
 
 export interface PlaceIssueParams {
 	issue: string;
+	/** Batch this issue joins when its gate clears; the previous entry's target is kept when omitted. */
+	joins?: string;
 	reason: string;
 	target: "gated" | "human";
 }
@@ -40,7 +48,19 @@ export function placeIssue(manifest: QueueManifest, params: PlaceIssueParams): Q
 		sequences,
 	};
 
-	const entry = { issue: params.issue, reason: params.reason };
+	/*
+	 * `joins` survives a re-gate: refining an entry's reason must not silently drop the batch it is
+	 * waiting for, which is what forced promotion to guess the target from the issue title.
+	 */
+	const previous = [...manifest.gated, ...manifest.human].find(
+		(candidate) => candidate.issue === params.issue,
+	);
+	const joins = params.joins ?? previous?.joins;
+	const entry: QueueEntry = {
+		issue: params.issue,
+		...(joins === undefined ? {} : { joins }),
+		reason: params.reason,
+	};
 	return params.target === "gated"
 		? { ...stripped, gated: [...stripped.gated, entry] }
 		: { ...stripped, human: [...stripped.human, entry] };
@@ -114,10 +134,24 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 }
 
 export interface DefineSequenceParams {
+	/** Integration that must land on the base branch before this batch may fire. */
+	afterMerge?: string;
 	issues: ReadonlyArray<string>;
 	mergeName?: string;
 	name: string;
 	notes?: string;
+	/** Per-issue role phrase, keyed by issue number; every key must be a member. */
+	roles?: Record<string, string>;
+	/** Short human label, e.g. "ui wiring". */
+	title?: string;
+}
+
+/** Drops `undefined` values so a written manifest never carries empty keys. */
+function defined(sequence: Partial<QueueSequence>): QueueSequence {
+	const entries = Object.entries(sequence).filter(
+		([, value]: [string, unknown]) => value !== undefined,
+	);
+	return Object.fromEntries(entries) as QueueSequence;
 }
 
 /** Creates or replaces a sequence definition. */
@@ -130,6 +164,14 @@ export function defineSequence(
 	);
 	if (duplicates.length > 0) {
 		throw new Error(`--issues contains duplicates: ${duplicates.join(", ")}`);
+	}
+
+	for (const issue of Object.keys(params.roles ?? {})) {
+		if (!params.issues.includes(issue)) {
+			throw new Error(
+				`--roles names #${issue}, which is not a member of sequence "${params.name}".`,
+			);
+		}
 	}
 
 	for (const issue of params.issues) {
@@ -152,12 +194,23 @@ export function defineSequence(
 		sequences.push(issues.length === entry.issues.length ? entry : { ...entry, issues });
 	}
 
-	sequences.push({
-		issues: [...params.issues],
-		...(params.mergeName !== undefined ? { mergeName: params.mergeName } : {}),
-		...(params.notes !== undefined ? { notes: params.notes } : {}),
-		name: params.name,
-	});
+	/*
+	 * Label metadata persists across a redefinition: `afterMerge`, `notes`, `roles`, and `title`
+	 * describe a batch, and dropping them because a later `queue sequence --issues` call omitted the
+	 * flag is how the readable half of the manifest decayed into bare issue numbers.
+	 */
+	const previous = manifest.sequences.find((entry) => entry.name === params.name);
+	sequences.push(
+		defined({
+			afterMerge: params.afterMerge ?? previous?.afterMerge,
+			issues: [...params.issues],
+			mergeName: params.mergeName ?? previous?.mergeName,
+			name: params.name,
+			notes: params.notes ?? previous?.notes,
+			roles: params.roles ?? previous?.roles,
+			title: params.title ?? previous?.title,
+		}),
+	);
 
 	const gated = manifest.gated.filter((entry) => !claimed.has(entry.issue));
 	const human = manifest.human.filter((entry) => !claimed.has(entry.issue));

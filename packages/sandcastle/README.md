@@ -198,9 +198,9 @@ same-file serialization rules, and gate conditions:
 ```bash
 sandcastle queue add --issue 42 --sequence U2                    # append to a batch
 sandcastle queue add --issue 42 --sequence U2 --after 41         # insert after issue 41
-sandcastle queue add --issue 43 --gated --reason "waiting on issue 41"
+sandcastle queue add --issue 43 --gated --joins V --reason "waiting on issue 41"
 sandcastle queue add --issue 44 --human --reason "needs a human decision session"
-sandcastle queue sequence --name U2 --issues 40,41,42 --merge-name sandcastle/issue-40
+sandcastle queue sequence --name U2 --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --merge-name ui-wiring-work --after-merge audio-seam-work
 sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
@@ -212,7 +212,9 @@ sandcastle queue bootstrap       # propose placements for the unplaced backlog (
 `queue list` / `queue check` fetch live issue state (`gh issue list` plus one batched
 GraphQL call for blocked-by edges) and render the visualization: per-batch READY/GATED with
 reasons, gated issues that are now promotable, and drift — unplaced ready-for-agent issues,
-closed-but-referenced issues, and referenced-but-missing issues. `queue check` is safe to
+closed-but-referenced issues, and referenced-but-missing issues. Each batch also renders what
+the manifest knows and GitHub does not: `title` beside the batch name, a `roles` phrase
+beside every member, and each `notes` line under the membership. `queue check` is safe to
 run after any review that files follow-up issues: it must report no drift before a review
 completes. The bundled review prompts reference these commands; repos that override
 `prompts.review` / `prompts.reviewIntegration` should keep that contract.
@@ -224,6 +226,14 @@ proposes placements for the unplaced backlog grouped by title scope. Repositorie
 the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappears and reviews only
 report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the
 manifest themselves; otherwise commit it yourself, or the registration dies with the worktree.
+
+`sequences[].afterMerge` is a run-order gate: the batch stays GATED until that integration has
+been composed **and** its head commit is an ancestor of the base branch — the check a batch that
+consumes an earlier batch's commits actually needs. It is evaluated in `queue/gates.ts` with
+`git merge-base --is-ancestor`, it fails closed (a missing manifest, an unfinished composition,
+or a missing head commit all read as "not landed"), and it replaces the prose "runs only after
+X merged" that the scheduler used to ignore. A gated entry's `joins` records the batch it will
+move into, and `queue promote` prefers it over the issue title's conventional scope.
 
 ## Backends
 

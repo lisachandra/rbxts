@@ -26,14 +26,27 @@ import { config, normalizedPath, repoRoot } from "../runtime.js";
 const issueNumberSchema = z.string().regex(/^\d+$/u, "must be a numeric GitHub issue number");
 
 export const queueSequenceSchema = z.object({
+	/**
+	 * Integration that must land on the base branch before this batch may fire, e.g.
+	 * "vfx-surface-work".
+	 *
+	 * Run-order gates used to live in `notes` prose that the scheduler never read; every batch
+	 * branches from the base branch, so a batch consuming an earlier batch's commits is unsafe
+	 * until that batch's integration is an ancestor of it.
+	 */
+	afterMerge: z.string().min(1).optional(),
 	/** Issues in run order; position satisfies intra-sequence dependencies. */
 	issues: z.array(issueNumberSchema),
 	/** Integration branch name used by `sandcastle merge --issues <tail>`. */
 	mergeName: z.string().min(1).optional(),
 	/** Batch name, e.g. "U2". */
 	name: z.string().min(1),
-	/** Free-form notes (e.g. gating context or ordering rationale). */
+	/** Free-form notes; each newline starts a new line in the `queue list` rendering. */
 	notes: z.string().optional(),
+	/** Per-issue role phrase, keyed by issue number, rendered beside each member. */
+	roles: z.record(issueNumberSchema, z.string().min(1)).optional(),
+	/** Short human label rendered beside the batch name, e.g. "ui wiring". */
+	title: z.string().min(1).optional(),
 });
 
 export const queueSerializedRuleSchema = z.object({
@@ -45,6 +58,8 @@ export const queueSerializedRuleSchema = z.object({
 
 export const queueEntrySchema = z.object({
 	issue: issueNumberSchema,
+	/** Batch the issue joins once its gate clears; `queue promote` prefers it over the title scope. */
+	joins: z.string().min(1).optional(),
 	reason: z.string().min(1),
 });
 

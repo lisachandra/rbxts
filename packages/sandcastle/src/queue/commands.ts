@@ -9,6 +9,7 @@
 
 import type { CliOptions } from "../cli.js";
 import { config, io } from "../runtime.js";
+import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { fetchLiveQueueState } from "./live.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
 import {
@@ -148,7 +149,8 @@ function liveView(strictGates: boolean): QueueView {
 		numbers: referencedIssues(manifest),
 		readyLabel: config.labels.readyForAgent,
 	});
-	return computeQueueView(manifest, live, { strictGates });
+	const gates = unmetIntegrationGates({ names: sequenceGateNames(manifest) });
+	return computeQueueView(manifest, live, { gates, strictGates });
 }
 
 function runQueueList(options: CliOptions): void {

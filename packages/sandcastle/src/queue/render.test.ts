@@ -202,6 +202,7 @@ describe("queue text rendering", () => {
 		assert.match(text, /Manifest updated: 2026-01-01T00:00:00\.000Z/u);
 		assert.match(text, /✓ READY\s+U2 \(1 issue\(s\)\)/u);
 		assert.match(text, /merge: sandcastle\/issue-1/u);
+		assert.match(text, /· first batch/u);
 		assert.match(text, /Serialization rules:/u);
 		assert.match(text, /R1 \(1,3\) — same file/u);
 		assert.match(text, /Gated:/u);
@@ -209,6 +210,33 @@ describe("queue text rendering", () => {
 		assert.match(text, /Promotable now/u);
 		assert.match(text, /Human \(never queued\):/u);
 		assert.match(text, /#4 \(OPEN\) — needs a human decision/u);
+	});
+
+	test("renders a batch label, member roles, notes, and an unmet run-order gate", () => {
+		const view = computeQueueView(
+			manifest({
+				gated: [{ issue: "9", joins: "V", reason: "waiting on V" }],
+				sequences: [
+					{
+						afterMerge: "audio-seam-work",
+						issues: ["1", "2"],
+						name: "V",
+						notes: "vfx surface · one chain",
+						roles: { "1": "engine sounds", "2": "scoring id" },
+						title: "vfx surface",
+					},
+				],
+			}),
+			live(issue("1"), issue("2"), issue("9")),
+			{ gates: new Map([["audio-seam-work", 'waiting on integration "audio-seam-work"']]) },
+		);
+
+		const text = renderQueueText(view);
+		assert.match(text, /V — vfx surface \(2 issue\(s\)\)/u);
+		assert.match(text, /#1 engine sounds · #2 scoring id/u);
+		assert.match(text, /⏸ GATED/u);
+		assert.match(text, /waiting on integration "audio-seam-work"/u);
+		assert.match(text, /#9 \(joins V\) — waiting on V/u);
 	});
 
 	test("an empty queue renders a never-updated header with no drift", () => {
