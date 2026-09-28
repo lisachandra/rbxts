@@ -221,6 +221,16 @@ a {
 	font-weight: 700;
 }
 
+/* Run-order badge: lanes mode scatters the spine, so each card keeps its `#n`. */
+.card-pos {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	color: var(--muted);
+	font-size: 11px;
+	padding: 0 4px;
+}
+
 .card-title {
 	color: var(--muted);
 	margin-top: 2px;

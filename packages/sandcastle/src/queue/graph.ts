@@ -371,13 +371,22 @@ function issueNodeId(batch: string, issue: string): string {
 	return `${mermaidId(batch)}_${mermaidId(issue)}`;
 }
 
-/** Mermaid labels are HTML-ish, so the four metacharacters have to become entities. */
+/**
+ * Mermaid labels are HTML-ish, so metacharacters have to become entities.
+ *
+ * Ampersand, quote, and angle brackets would parse as HTML; a pipe would end an edge label early
+ * and braces would open a node shape (the R2 rule reason carries a braces path, which once emitted
+ * a raw brace inside pipes and Mermaid failed with got DIAMOND_START).
+ */
 function escapeLabel(text: string): string {
 	return text
 		.replaceAll("&", "#amp;")
 		.replaceAll('"', "#quot;")
 		.replaceAll("<", "#lt;")
-		.replaceAll(">", "#gt;");
+		.replaceAll(">", "#gt;")
+		.replaceAll("|", "#124;")
+		.replaceAll("{", "#123;")
+		.replaceAll("}", "#125;");
 }
 
 /** `A1 · audio seam<br/>1 issue · READY` */

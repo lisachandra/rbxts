@@ -226,6 +226,31 @@ describe("queue graph renderings", () => {
 		assert.ok(mermaid.includes("N1 -.->|blocked by #1| C1"), mermaid);
 	});
 
+	test("a rule reason with braces and pipes cannot break the edge label", () => {
+		const graph = graphFor(
+			{
+				sequences: [
+					{ issues: ["1"], name: "V" },
+					{ issues: ["2"], name: "C4" },
+				],
+				serialized: [
+					{
+						issues: ["1", "2"],
+						name: "R2",
+						reason: "{types} seam renames | 292 reads it",
+					},
+				],
+			},
+			live(issue("1"), issue("2")),
+		);
+
+		const mermaid = renderQueueMermaid(graph);
+		assert.ok(
+			mermaid.includes("V ==>|R2 #123;types#125; seam renames #124; 292 reads it| C4"),
+			mermaid,
+		);
+	});
+
 	test("--issues expands a batch into its members and chains them in run order", () => {
 		const graph = graphFor(
 			{ sequences: [{ issues: ["1", "2"], name: "A1" }] },

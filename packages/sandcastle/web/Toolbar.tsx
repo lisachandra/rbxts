@@ -1,5 +1,5 @@
 /*
- * The toolbar: one row of filters, and the only place that knows what a toggle is called.
+ * The toolbar: filters plus the two layout switches, the only place that knows their labels.
  *
  * Layer toggles drop the edges of one kind; status toggles drop whole cards. The two behave
  * differently on purpose - a hidden layer keeps every node where dagre put it, so the diagram stays
@@ -11,11 +11,16 @@ import type { ReactElement } from "react";
 import { useReactFlow } from "@xyflow/react";
 
 import type { QueueGraphEdgeKind, QueueGraphNodeStatus } from "../src/queue/graph.ts";
+import type { QueueDirection, QueueLayout } from "./QueueGraph.js";
 import { edgeKindList, edgeLabels, statusList } from "./theme.js";
 
 export interface ToolbarProps {
+	direction: QueueDirection;
 	layers: Record<QueueGraphEdgeKind, boolean>;
+	layout: QueueLayout;
 	loading: boolean;
+	onDirection: (direction: QueueDirection) => void;
+	onLayout: (layout: QueueLayout) => void;
 	onRefresh: () => void;
 	onToggleLayer: (kind: QueueGraphEdgeKind) => void;
 	onToggleStatus: (status: QueueGraphNodeStatus) => void;
@@ -24,8 +29,12 @@ export interface ToolbarProps {
 }
 
 export function Toolbar({
+	direction,
 	layers,
+	layout,
 	loading,
+	onDirection,
+	onLayout,
 	onRefresh,
 	onToggleLayer,
 	onToggleStatus,
@@ -52,6 +61,29 @@ export function Toolbar({
 						{edgeLabels[kind]}
 					</label>
 				))}
+			</div>
+			<div className="tool-group">
+				<span className="tool-group-label">layout</span>
+				<label className="toggle">
+					<input
+						checked={layout === "lanes"}
+						onChange={() => {
+							onLayout(layout === "lanes" ? "spine" : "lanes");
+						}}
+						type="checkbox"
+					/>
+					{layout === "lanes" ? "lanes" : "run order"}
+				</label>
+				<label className="toggle">
+					<input
+						checked={direction === "TB"}
+						onChange={() => {
+							onDirection(direction === "TB" ? "LR" : "TB");
+						}}
+						type="checkbox"
+					/>
+					top-down
+				</label>
 			</div>
 			<div className="tool-group">
 				<span className="tool-group-label">batches</span>

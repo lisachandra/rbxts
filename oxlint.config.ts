@@ -14,9 +14,11 @@ import { isentinel } from "@isentinel/eslint-config/oxlint";
 
 import type { Linter } from "eslint";
 
-// Mutable DummyRule tuple: `as const` is rejected by type-check (TS2322).
-const noRestrictedSyntaxRule: ["error", ...Array<{ message: string; selector: string }>] = [
-	"error",
+/*
+ * Mutable DummyRule tuple: `as const` is rejected by type-check (TS2322).
+ * Luau syntax bans apply to every file, specs included.
+ */
+const luauSyntaxRuleEntries: Array<{ message: string; selector: string }> = [
 	{
 		message:
 			"Use 'iterate' utility instead of 'pairs'. It enforces use of generalized iteration in Luau.\nIf you're working with mixed tables, refactor your code.",
@@ -42,6 +44,45 @@ const noRestrictedSyntaxRule: ["error", ...Array<{ message: string; selector: st
 		selector:
 			"BinaryExpression:matches([operator='!=='], [operator='===']):has(Identifier[name='undefined']):has(:matches(CallExpression[callee.property.name='find'], ElementAccessExpression > CallExpression[callee.property.name='find']))",
 	},
+];
+
+/*
+ * Structured logging only: `@rbxts/log` is the sole logging surface. `Log.Fatal` is the
+ * halting level (typed `never`); see the Logging section in AGENTS.md and `patches/README.md`.
+ */
+const loggingSyntaxRuleEntries: Array<{ message: string; selector: string }> = [
+	{
+		message:
+			"Use `Log.Info` from @rbxts/log instead of `print`.\nSee the Logging section in AGENTS.md.",
+		selector: "CallExpression[callee.name='print']",
+	},
+	{
+		message:
+			"Use `Log.Warn` from @rbxts/log instead of `warn`.\nSee the Logging section in AGENTS.md.",
+		selector: "CallExpression[callee.name='warn']",
+	},
+	{
+		message:
+			"Use `Log.Fatal` (halts) or `Log.Warn` (recovers) instead of a bare `error()`.\nSee the Logging section in AGENTS.md.",
+		selector: "CallExpression[callee.name='error']",
+	},
+	{
+		message:
+			"`Log.Error` is a non-halting record; use `Log.Fatal` to halt, `Log.Warn` to continue.\nDisable this line with a reason when an error-severity record is genuinely intended.",
+		selector: "MemberExpression[object.name='Log'][property.name='Error']",
+	},
+];
+
+const noRestrictedSyntaxRule: ["error", ...Array<{ message: string; selector: string }>] = [
+	"error",
+	...luauSyntaxRuleEntries,
+	...loggingSyntaxRuleEntries,
+];
+
+// Specs assert by throwing (`error(...)`) and occasionally print; the Luau bans still apply.
+const testNoRestrictedSyntaxRule: ["error", ...Array<{ message: string; selector: string }>] = [
+	"error",
+	...luauSyntaxRuleEntries,
 ];
 
 type ExtractRuleEntry<T> =
@@ -325,6 +366,7 @@ export default isentinel(
 		files: GLOB_TESTS,
 		name: "project/test-react-overrides",
 		rules: {
+			"eslint-js/no-restricted-syntax": testNoRestrictedSyntaxRule,
 			"eslint/max-lines-per-function": "off",
 			"id-length": "off",
 			"jest-js/expect-expect": [
@@ -422,40 +464,6 @@ export default isentinel(
 			"unicorn/filename-case": "off",
 		},
 	},
-	/*
-	 * Logging policy: `@rbxts/log` is the only logging surface, and `Log.Fatal` is the only
-	 * halting level (typed `never` through `patches/@rbxts__log.patch`). This block is ordered
-	 * after the presets so its options win; see the Logging section in AGENTS.md.
-	 */
-	{
-		files: [GLOB_TS, GLOB_TSX],
-		name: "project/logging",
-		rules: {
-			"eslint-js/no-restricted-syntax": [
-				"error",
-				{
-					message:
-						"Use `Log.Info` from @rbxts/log instead of `print`.\nSee the Logging section in AGENTS.md.",
-					selector: "CallExpression[callee.name='print']",
-				},
-				{
-					message:
-						"Use `Log.Warn` from @rbxts/log instead of `warn`.\nSee the Logging section in AGENTS.md.",
-					selector: "CallExpression[callee.name='warn']",
-				},
-				{
-					message:
-						"Use `Log.Fatal` (halts) or `Log.Warn` (recovers) instead of a bare `error()`.\nSee the Logging section in AGENTS.md.",
-					selector: "CallExpression[callee.name='error']",
-				},
-				{
-					message:
-						"`Log.Error` is a non-halting record; use `Log.Fatal` to halt or `Log.Warn` to continue.\nDisable this line with a reason when an error-severity record is genuinely intended.",
-					selector: "MemberExpression[object.name='Log'][property.name='Error']",
-				},
-			],
-		},
-	},
 	// Specs assert by throwing (`error(...)`); keep the preset selectors, skip the logging rules.
 	{
 		files: GLOB_TESTS,
@@ -465,6 +473,9 @@ export default isentinel(
 				"error",
 				"TSEnumDeclaration[const=true]",
 				"TSExportAssignment",
+				"TSInterfaceDeclaration",
+				"TSModuleDeclaration",
+				"TSTypeAliasDeclaration",
 			],
 		},
 	},

@@ -11,6 +11,23 @@ index ac8080520b5962da2a3b5255f5eaf7e0161ad453..096f66cc61726b585102bfcc6ba70a22
      /**
       * Creates a copy of this logger, and allows you to configure it
       * @returns The configuration for a copy of this logger
+diff --git a/out/Logger.lua b/out/Logger.lua
+index aad4e7e95ae8187f9b6681b9fe206bef45702a59..d25d9a4553381ff0862bf273c875d3c3c82d58e8 100644
+--- a/out/Logger.lua
++++ b/out/Logger.lua
+@@ -153,7 +153,11 @@
+ 	end
+ 	function Logger:Fatal(template, ...)
+ 		local args = { ... }
+-		return self:Write(LogLevel.Fatal, template, unpack(args))
++		local rendered = self:Write(LogLevel.Fatal, template, unpack(args))
++		if #self.sinks == 0 then
++			error(rendered)
++		end
++		return rendered
+ 	end
+ 	function Logger:Copy()
+ 		local config = LogConfiguration.new(Logger.new())
 diff --git a/out/index.d.ts b/out/index.d.ts
 index ffb849bd0efce729ef72df1be810a6fde40af397..f34d57574dac38a289d5fce117f5a3410bff3abc 100644
 --- a/out/index.d.ts

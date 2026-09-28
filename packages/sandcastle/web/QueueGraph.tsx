@@ -1,10 +1,12 @@
 /*
- * The graph itself: a layered left-to-right DAG, one node per batch.
+ * The graph itself: one node per batch, laid out by dagre.
  *
- * Layout comes from dagre, which ranks by the edges it is given - so the run order is the backbone
- * and the gates, rules, and blockers hang off it, exactly as the Mermaid rendering draws them.
- * Filtering a layer out of the layout would re-rank the diagram, so a hidden layer only loses its
- * edges; the nodes stay put and the diagram stays comparable between toggles.
+ * Two layouts share the canvas. "lanes" ranks by the constraint edges (gates, rules, blockers)
+ * and draws the run order as a numbered overlay, so batches nothing constrains share a rank and
+ * sit side by side like a state chart. "spine" ranks by the run order instead, so the dispatch
+ * sequence reads left to right exactly as the Mermaid rendering draws it. Filtering a layer out of
+ * the layout would re-rank the diagram, so a hidden layer only loses its edges; the nodes stay put
+ * and the diagram stays comparable between toggles.
  */
 
 import { type ReactElement, useMemo } from "react";
@@ -27,10 +29,19 @@ import { edgeColors, edgeLabels, statusColors } from "./theme.js";
 const nodeHeight = 96;
 const nodeWidth = 248;
 
+/** Which edge set ranks the dagre diagram: constraints fan out, the spine stays a line. */
+export type QueueLayout = "lanes" | "spine";
+
+/** Dagre rank direction: top-to-bottom fans lanes out, left-to-right reads like the Mermaid chart. */
+export type QueueDirection = "LR" | "TB";
+
 export interface QueueGraphViewProps {
+	direction: QueueDirection;
 	graph: QueueGraph;
 	/** Edge kinds the reader wants to see. */
 	layers: Record<QueueGraphEdgeKind, boolean>;
+	/** Lanes rank by constraints, spine by the run order. */
+	layout: QueueLayout;
 	onSelect: (batch: string | undefined) => void;
 	/** Batch shown in the detail panel. */
 	selected: string | undefined;
@@ -38,18 +49,30 @@ export interface QueueGraphViewProps {
 	visible: ReadonlySet<string>;
 }
 
-/** Dagre positions every node once, from the whole graph, so toggles never re-rank the diagram. */
-function positionsFor(graph: QueueGraph): Map<string, { x: number; y: number }> {
+/**
+ * - Dagre positions every node once, from the whole graph, so toggles never re-rank the diagram.
+ * - @param graph - The payload behind the page.
+ * - @param layout - `lanes` ranks by the constraints, `spine` by the run order.
+ * - @param direction - Dagre rank direction.
+ * - @returns Top-left canvas coordinates per batch.
+ * - @remarks A total chain has exactly one ranking, so the spine can never fan out: lanes mode keeps
+ *   the run order out of the ranking and draws it as an overlay instead.
+ */
+function positionsFor(
+	graph: QueueGraph,
+	layout: QueueLayout,
+	direction: QueueDirection,
+): Map<string, { x: number; y: number }> {
 	const engine = new dagre.graphlib.Graph();
-	engine.setGraph({ marginx: 16, marginy: 16, nodesep: 28, rankdir: "LR", ranksep: 96 });
+	engine.setGraph({ marginx: 16, marginy: 16, nodesep: 28, rankdir: direction, ranksep: 96 });
 	engine.setDefaultEdgeLabel(() => ({}));
 	for (const node of graph.nodes) {
 		engine.setNode(node.id, { height: nodeHeight, width: nodeWidth });
 	}
 
-	// Only the run order ranks the diagram; a gate or blocker edge would drag its batch sideways.
+	const ranked = layout === "lanes" ? new Set(["blocker", "gate", "rule"]) : new Set(["order"]);
 	for (const edge of graph.edges) {
-		if (edge.kind === "order") {
+		if (ranked.has(edge.kind)) {
 			engine.setEdge(edge.from, edge.to);
 		}
 	}
@@ -68,23 +91,34 @@ function positionsFor(graph: QueueGraph): Map<string, { x: number; y: number }> 
 }
 
 export function QueueGraphView({
+	direction,
 	graph,
 	layers,
+	layout,
 	onSelect,
 	selected,
 	visible,
 }: QueueGraphViewProps): ReactElement {
 	const nodes = useMemo<Array<Node>>(() => {
-		const positions = positionsFor(graph);
+		const positions = positionsFor(graph, layout, direction);
+		const order = new Map(graph.nodes.map((node, index) => [node.id, index + 1]));
 		return graph.nodes
 			.filter((node) => visible.has(node.id))
 			.map((node) => ({
-				data: { label: <NodeCard node={node} selected={node.id === selected} /> },
+				data: {
+					label: (
+						<NodeCard
+							node={node}
+							position={layout === "lanes" ? order.get(node.id) : undefined}
+							selected={node.id === selected}
+						/>
+					),
+				},
 				id: node.id,
 				position: positions.get(node.id) ?? { x: 0, y: 0 },
 				style: { height: nodeHeight, padding: 0, width: nodeWidth },
 			}));
-	}, [graph, selected, visible]);
+	}, [direction, graph, layout, selected, visible]);
 
 	const edges = useMemo<Array<Edge>>(
 		() =>

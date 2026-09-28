@@ -233,9 +233,11 @@ and updates the comment it wrote last time instead of adding another; `--format 
 payload a tool consumes. The command is read-only — it never writes the manifest.
 
 `queue serve` answers the same payload over HTTP, so the schedule has an interactive surface for
-the cases GitHub cannot render: zoom and pan across a long spine, toggle whole edge kinds and batch
-statuses to answer "what is left of this run order?", click a batch for its members, roles,
-blockers, notes and merge branch, and share a single batch as `?batch=<name>`. The page is served
+the cases GitHub cannot render: zoom and pan, toggle whole edge kinds and batch statuses to
+answer "what is left of this run order?", flip between lanes (top-down, batches nothing
+constrains share a rank like a state chart) and run order (the dispatch spine left to right),
+click a batch for its members, roles, blockers, notes and merge branch, and share a view as
+`?batch=<name>&layout=lanes&dir=TB`. The page is served
 from `dist/web` and the APIs from the command itself, so no extra process is involved; it is a
 read-only local view bound to `127.0.0.1` with a 30-second cache in front of the `gh` reads, and
 `--refresh` in the page bypasses that cache rather than waiting it out.

@@ -16,7 +16,7 @@ import type { QueueGraph, QueueGraphEdgeKind, QueueGraphNodeStatus } from "../sr
 import type { QueueView } from "../src/queue/render.ts";
 import { DetailPanel } from "./DetailPanel.js";
 import { Legend } from "./Legend.js";
-import { QueueGraphView } from "./QueueGraph.js";
+import { type QueueDirection, QueueGraphView, type QueueLayout } from "./QueueGraph.js";
 import { Toolbar } from "./Toolbar.js";
 
 const allLayers: Record<QueueGraphEdgeKind, boolean> = {
@@ -33,10 +33,28 @@ const allStatuses: Record<QueueGraphNodeStatus, boolean> = {
 	READY: true,
 };
 
-/** `?batch=<id>` is the one piece of page state worth sharing, so it is also how the page boots. */
+/**
+ * - Reads one shared page-state parameter, so any view is linkable and survives reload.
+ * - @param name - Query key.
+ * - @returns The value, or `undefined` when absent or empty.
+ */
+function paramFromUrl(name: string): string | undefined {
+	const value = new URLSearchParams(window.location.search).get(name);
+	return value === null || value === "" ? undefined : value;
+}
+
 function batchFromUrl(): string | undefined {
-	const batch = new URLSearchParams(window.location.search).get("batch");
-	return batch === null || batch === "" ? undefined : batch;
+	return paramFromUrl("batch");
+}
+
+/** Lanes is the default: it fans unconstrained batches into parallel ranks instead of one line. */
+function layoutFromUrl(): QueueLayout {
+	return paramFromUrl("layout") === "spine" ? "spine" : "lanes";
+}
+
+/** Top-down is the default: lanes read like a state chart, left-to-right like the Mermaid block. */
+function directionFromUrl(): QueueDirection {
+	return paramFromUrl("dir") === "LR" ? "LR" : "TB";
 }
 
 export function App(): ReactElement {
@@ -44,6 +62,8 @@ export function App(): ReactElement {
 	const [graph, setGraph] = useState<undefined | QueueGraph>(undefined);
 	const [layers, setLayers] = useState<Record<QueueGraphEdgeKind, boolean>>(allLayers);
 	const [loading, setLoading] = useState<boolean>(false);
+	const [direction, setDirection] = useState<QueueDirection>(directionFromUrl);
+	const [layout, setLayout] = useState<QueueLayout>(layoutFromUrl);
 	const [selected, setSelected] = useState<string | undefined>(batchFromUrl);
 	const [statuses, setStatuses] = useState<Record<QueueGraphNodeStatus, boolean>>(allStatuses);
 	const [view, setView] = useState<QueueView | undefined>(undefined);
@@ -86,11 +106,13 @@ export function App(): ReactElement {
 			query.set("batch", selected);
 		}
 
+		query.set("layout", layout);
+		query.set("dir", direction);
 		const search = query.toString();
 		const url =
 			search === "" ? window.location.pathname : `${window.location.pathname}?${search}`;
 		window.history.replaceState(null, "", url);
-	}, [selected]);
+	}, [direction, layout, selected]);
 
 	const visible = useMemo<ReadonlySet<string>>(() => {
 		const names = new Set<string>();
@@ -110,8 +132,12 @@ export function App(): ReactElement {
 		<ReactFlowProvider>
 			<div className="app">
 				<Toolbar
+					direction={direction}
 					layers={layers}
+					layout={layout}
 					loading={loading}
+					onDirection={setDirection}
+					onLayout={setLayout}
 					onRefresh={() => {
 						void load(true);
 					}}
@@ -133,8 +159,10 @@ export function App(): ReactElement {
 					<div className="canvas">
 						{graph === undefined ? null : (
 							<QueueGraphView
+								direction={direction}
 								graph={graph}
 								layers={layers}
+								layout={layout}
 								onSelect={setSelected}
 								selected={selected}
 								visible={visible}

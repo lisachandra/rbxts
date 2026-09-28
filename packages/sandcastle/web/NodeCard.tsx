@@ -13,10 +13,12 @@ import { statusColors } from "./theme.js";
 
 export interface NodeCardProps {
 	node: QueueGraphNode;
+	/** Position in the dispatch spine (1-based); shown so the order survives lanes mode. */
+	position: number | undefined;
 	selected: boolean;
 }
 
-export function NodeCard({ node, selected }: NodeCardProps): ReactElement {
+export function NodeCard({ node, position, selected }: NodeCardProps): ReactElement {
 	const color = statusColors[node.status];
 	const listed = node.roles === undefined ? [] : Object.entries(node.roles);
 	const roles = listed.length;
@@ -30,6 +32,7 @@ export function NodeCard({ node, selected }: NodeCardProps): ReactElement {
 			title={hover === "" ? undefined : hover}
 		>
 			<div className="card-head">
+				{position === undefined ? null : <span className="card-pos">#{position}</span>}
 				<span className="card-name">{node.name}</span>
 				<span className="pill" style={{ backgroundColor: color }}>
 					{node.status}

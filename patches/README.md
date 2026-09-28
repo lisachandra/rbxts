@@ -19,12 +19,18 @@ Upstream: `@rbxts/log` (catalog `0.6.3`).
    as terminating and call sites can drop unreachable `return`/`break` statements.
 2. Adds `exports` for `.` and `./Core` (`out/init.lua`, `out/Core/init.lua`), needed for the
    `@rbxts/log/Core` imports in `packages/core/src/logger.ts`.
+3. `Logger:Fatal` (compiled `out/Logger.lua`) fails closed when no sink is installed: `#self.sinks == 0`
+   raises `error(rendered)` instead of returning, so the `never` return type holds even before
+   `setupLogger()` runs (test harnesses, bootstrap, REPL). Without it, an unwired logger made every
+   `Log.Fatal` guard a silent no-op.
 
-**Invariant:** the `never` return is a type-level claim, not runtime behaviour — `@rbxts/log`
-dispatches to sinks and keeps going. It is only sound because every consumer installs
-`LogEventSFTOutputSink` (`packages/core/src/logger.ts`), which halts at `Fatal`: `LogService.Log` with
-`MessageError` throws in-engine, and the non-Roblox fallback calls `error()`.
+**Invariant:** `Log.Fatal` returns only when a _non-halting_ sink handled the event.
+`LogEventSFTOutputSink` (`packages/core/src/logger.ts`) halts: `LogService.Log` with `MessageError` throws
+in-engine, the non-Roblox fallback calls `error()`, and the `out/Logger.lua` hunk above covers a logger
+that was never wired. Levels below `Fatal` stay non-halting by design (`Error` is `pcall`ed so it records
+instead of halting).
 
 **Re-validate when:** bumping the catalog version, changing the sink (levels, `pcall` scope, fallback
-writes), or installing a custom logger whose `Fatal` sink returns instead of throwing — in that case
-code after `Log.Fatal` runs and this patch is lying.
+writes), installing a custom logger whose `Fatal` sink returns instead of throwing, or dropping the
+empty-sink guard above — in any of those cases `Log.Fatal` can return and code after it runs, so this
+patch is lying.
