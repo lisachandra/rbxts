@@ -629,7 +629,7 @@ function summaryLine(graph: QueueGraph): string {
 
 /** How to read the arrows and the node colors; the same wording the CLI help topic uses. */
 const legendLines: ReadonlyArray<string> = [
-	"- `-->` run order: the dispatch spine, left to right. Batches are ordered, not dependent.",
+	"- `-->` run order: dispatch priority in manifest order, not a base chain. Every batch starts from `--base`; only members inside one batch chain.",
 	"- `-.->` `after <integration>`: a run-order gate, open once that integration is composed and landed.",
 	"- `==>` `<rule>`: a serialization rule; the two batches must never be in flight together.",
 	"- `-.->` `blocked by #n`: a live GitHub blocked-by edge crossing batches.",

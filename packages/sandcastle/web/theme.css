@@ -267,3 +267,22 @@ a {
 	border-bottom: 1px solid var(--border);
 	fill: var(--text);
 }
+
+/* Batch nodes draw their own card; handles on all four sides route edges per direction. */
+.react-flow__node-batch {
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+.react-flow__handle.port {
+	background: var(--border);
+	border: 1px solid var(--muted);
+	height: 8px;
+	opacity: 0.4;
+	width: 8px;
+}
+
+.react-flow__node-batch:hover .react-flow__handle.port {
+	opacity: 1;
+}

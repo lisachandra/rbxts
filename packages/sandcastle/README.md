@@ -233,18 +233,21 @@ and updates the comment it wrote last time instead of adding another; `--format 
 payload a tool consumes. The command is read-only — it never writes the manifest.
 
 `queue serve` answers the same payload over HTTP, so the schedule has an interactive surface for
-the cases GitHub cannot render: zoom and pan, toggle whole edge kinds and batch statuses to
-answer "what is left of this run order?", flip between lanes (top-down, batches nothing
+the cases GitHub cannot render: zoom and pan, flip between lanes (top-down, batches nothing
 constrains share a rank like a state chart) and run order (the dispatch spine left to right),
-click a batch for its members, roles, blockers, notes and merge branch, and share a view as
-`?batch=<name>&layout=lanes&dir=TB`. The page is served
+toggle whole edge kinds and batch statuses to answer "what is left of this run order?", click
+a batch for its members, roles, blockers, notes and merge branch, and share a view as
+`?batch=<name>&layout=lanes&dir=TB`. Cards expose edge handles on all four sides with
+per-kind channels and roomy labels, so gates, rules, and blockers read without stacking. The page is served
 from `dist/web` and the APIs from the command itself, so no extra process is involved; it is a
 read-only local view bound to `127.0.0.1` with a 30-second cache in front of the `gh` reads, and
 `--refresh` in the page bypasses that cache rather than waiting it out.
 
-`queue run` dispatches the next READY sequence, re-reads the manifest after every batch, and prunes
-landed entries (`--keep-entries` to keep them), so a review that registers a follow-up changes what
-runs next inside the same invocation; `--max-issues <n>` caps one invocation. `queue bootstrap`
+`queue run` dispatches the first READY sequence in manifest order — priority, not a base chain:
+every batch starts from `--base` and only members inside one batch chain — re-reads the manifest
+after every batch, and prunes landed entries (`--keep-entries` to keep them). Gated batches are
+skipped until READY, so a review that registers a follow-up changes what runs next inside the
+same invocation; `--max-issues <n>` caps one invocation. `queue bootstrap`
 proposes placements for the unplaced backlog grouped by title scope. Repositories that do not want
 the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappears and reviews only
 report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the

@@ -23,8 +23,18 @@ import {
 } from "@xyflow/react";
 
 import type { QueueGraph, QueueGraphEdgeKind } from "../src/queue/graph.ts";
+import { BatchNode, type BatchNodeType } from "./BatchNode.js";
 import { NodeCard } from "./NodeCard.js";
 import { edgeColors, edgeLabels, statusColors } from "./theme.js";
+
+const batchNodeType = { batch: BatchNode };
+type FlowBatchNode = BatchNodeType;
+
+/**
+ * Long constraint labels collide mid-edge, so the canvas shows a clipped label; the full text lives
+ * in the detail panel.
+ */
+const maxEdgeLabel = 30;
 
 const nodeHeight = 96;
 const nodeWidth = 248;
@@ -64,7 +74,10 @@ function positionsFor(
 	direction: QueueDirection,
 ): Map<string, { x: number; y: number }> {
 	const engine = new dagre.graphlib.Graph();
-	engine.setGraph({ marginx: 16, marginy: 16, nodesep: 28, rankdir: direction, ranksep: 96 });
+	/* TB fans lanes sideways, LR stacks the spine: each direction pads the axis edges travel on. */
+	const spacing =
+		direction === "TB" ? { nodesep: 48, ranksep: 140 } : { nodesep: 40, ranksep: 120 };
+	engine.setGraph({ marginx: 16, marginy: 16, ...spacing, rankdir: direction });
 	engine.setDefaultEdgeLabel(() => ({}));
 	for (const node of graph.nodes) {
 		engine.setNode(node.id, { height: nodeHeight, width: nodeWidth });
@@ -90,6 +103,35 @@ function positionsFor(
 	return positions;
 }
 
+/**
+ * - Which side an edge leaves and enters on, so horizontal neighbours stop bending through top/bottom
+ *   handles.
+ * - @param direction - Dagre rank direction.
+ * - @param lane - Parity lane for constraint edges, so parallel edges between one pair split
+ *   channels.
+ * - @returns Source/target handle ids in the `batch` node type.
+ */
+function handlesFor(direction: QueueDirection, lane: number): { source: string; target: string } {
+	if (direction === "LR") {
+		const side = lane % 2 === 0 ? "right" : "left";
+		return { source: `${side}-source`, target: `${side}-target` };
+	}
+
+	const side = lane % 2 === 0 ? "bottom" : "top";
+	return { source: `${side}-source`, target: `${side}-target` };
+}
+
+/** Clips a constraint label to `maxEdgeLabel` characters at a word boundary. */
+function shortLabel(text: string): string {
+	if (text.length <= maxEdgeLabel) {
+		return text;
+	}
+
+	const clipped = text.slice(0, maxEdgeLabel);
+	const boundary = clipped.lastIndexOf(" ");
+	return `${(boundary === -1 ? clipped : clipped.slice(0, boundary)).trimEnd()}…`;
+}
+
 export function QueueGraphView({
 	direction,
 	graph,
@@ -99,55 +141,79 @@ export function QueueGraphView({
 	selected,
 	visible,
 }: QueueGraphViewProps): ReactElement {
-	const nodes = useMemo<Array<Node>>(() => {
+	const nodes = useMemo<Array<FlowBatchNode>>(() => {
 		const positions = positionsFor(graph, layout, direction);
 		const order = new Map(graph.nodes.map((node, index) => [node.id, index + 1]));
 		return graph.nodes
 			.filter((node) => visible.has(node.id))
-			.map((node) => ({
-				data: {
-					label: (
-						<NodeCard
-							node={node}
-							position={layout === "lanes" ? order.get(node.id) : undefined}
-							selected={node.id === selected}
-						/>
-					),
-				},
-				id: node.id,
-				position: positions.get(node.id) ?? { x: 0, y: 0 },
-				style: { height: nodeHeight, padding: 0, width: nodeWidth },
-			}));
+			.map(
+				(node): FlowBatchNode => ({
+					type: "batch",
+					data: {
+						label: (
+							<NodeCard
+								node={node}
+								position={layout === "lanes" ? order.get(node.id) : undefined}
+								selected={node.id === selected}
+							/>
+						),
+					},
+					id: node.id,
+					position: positions.get(node.id) ?? { x: 0, y: 0 },
+					/* Handles need a sized box; the card still draws its own frame. */
+					style: { height: nodeHeight, padding: 0, width: nodeWidth },
+				}),
+			);
 	}, [direction, graph, layout, selected, visible]);
 
-	const edges = useMemo<Array<Edge>>(
-		() =>
-			graph.edges
-				.filter(
-					(edge) => layers[edge.kind] && visible.has(edge.from) && visible.has(edge.to),
-				)
-				.map((edge, index) => ({
+	const edges = useMemo<Array<Edge>>(() => {
+		/* Constraint lanes alternate sides so a second edge between one pair takes its own channel. */
+		const laneOf = new Map<string, number>();
+		return graph.edges
+			.filter((edge) => layers[edge.kind] && visible.has(edge.from) && visible.has(edge.to))
+			.map((edge, index) => {
+				/* Order edges rank the spine and stay central; constraints fan to alternating sides. */
+				const laneKey = `${edge.from}>${edge.to}`;
+				const lane = edge.kind === "order" ? 0 : (laneOf.get(laneKey) ?? 0) + 1;
+				laneOf.set(laneKey, lane);
+				const handles =
+					edge.kind === "order" ? handlesFor(direction, 0) : handlesFor(direction, lane);
+				const label =
+					edge.kind === "order"
+						? undefined
+						: `${edgeLabels[edge.kind]}: ${shortLabel(edge.label)}`;
+				return {
 					type: "smoothstep",
+					ariaLabel: label ?? "run order",
 					id: `${edge.from}-${edge.to}-${edge.kind}-${index}`,
-					label:
-						edge.kind === "order"
-							? undefined
-							: `${edgeLabels[edge.kind]}: ${edge.label}`,
-					labelBgPadding: [4, 2] as [number, number],
-					labelBgStyle: { fill: "#0d1117", fillOpacity: 0.85 },
-					labelStyle: { fill: "#c9d1d9", fontSize: 11 },
+					label,
+					labelBgPadding: [8, 4] as [number, number],
+					labelBgStyle: { fill: "#0d1117", fillOpacity: 0.92 },
+					labelStyle: { fill: "#c9d1d9", fontSize: 12 },
 					markerEnd: { type: MarkerType.ArrowClosed },
 					source: edge.from,
+					sourceHandle: handles.source,
 					style: {
+						opacity: edge.kind === "order" && layout === "lanes" ? 0.35 : 1,
 						stroke: edgeColors[edge.kind],
 						strokeDasharray:
-							edge.kind === "gate" || edge.kind === "blocker" ? "6 3" : undefined,
-						strokeWidth: edge.kind === "rule" ? 3 : 1.6,
+							edge.kind === "gate" ||
+							edge.kind === "blocker" ||
+							(edge.kind === "order" && layout === "lanes")
+								? "6 3"
+								: undefined,
+						strokeWidth:
+							edge.kind === "rule"
+								? 3
+								: edge.kind === "order" && layout === "lanes"
+									? 1
+									: 1.6,
 					},
 					target: edge.to,
-				})),
-		[graph, layers, visible],
-	);
+					targetHandle: handles.target,
+				} satisfies Edge;
+			});
+	}, [direction, graph, layers, layout, visible]);
 
 	return (
 		<ReactFlow
@@ -160,6 +226,7 @@ export function QueueGraphView({
 			 */
 			minZoom={0.5}
 			nodes={nodes}
+			nodeTypes={batchNodeType}
 			onNodeClick={(_, node) => {
 				onSelect(node.id === selected ? undefined : node.id);
 			}}

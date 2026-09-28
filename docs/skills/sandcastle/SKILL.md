@@ -124,14 +124,17 @@ emits the Markdown page without a render timestamp, so a committed copy can be d
 drift; `--comment <n>` posts that page and updates its own comment on re-run. It is read-only.
 
 `queue serve` serves that same graph as a local page for the questions Mermaid cannot answer:
-zoom and pan a long run order, toggle edge kinds and batch statuses, click a batch for its members,
-roles, blockers, notes and merge branch, and link a single batch as `?batch=<name>`. It binds
+zoom and pan, flip between lanes (top-down constraint fan-out) and run order, toggle edge kinds
+and batch statuses, click a batch for its members, roles, blockers, notes and merge branch,
+and link a view as `?batch=<name>&layout=lanes&dir=TB`. Cards carry handles on all four sides
+with per-kind channels, so constraint arrows stop stacking. It binds
 `127.0.0.1` by default, caches the `gh` reads for 30 seconds (the page's Refresh bypasses the
 cache), and is read-only like `queue graph`.
 
-`queue run` re-reads the manifest after every batch, so a review that registers a follow-up,
+`queue run` fires the first READY batch in manifest order from `--base` — priority, not a base
+chain — and re-reads the manifest after every batch, so a review that registers a follow-up,
 promotes a gate, or files a new `ready-for-agent` issue changes what runs next inside the same
-invocation. It prunes landed entries (issue closed + review APPROVED) unless `--keep-entries`,
+invocation. Gated batches are skipped until READY. It prunes landed entries (issue closed + review APPROVED) unless `--keep-entries`,
 exits 1 when nothing can fire (unknown `--name`, or an exhausted queue), and prints the tail
 issue to pass to `sandcastle merge`. `--max-issues <n>` caps one invocation; `--json` prints
 one JSON object per decision.
