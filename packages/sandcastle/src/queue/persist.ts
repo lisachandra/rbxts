@@ -16,7 +16,6 @@ import type { CliOptions } from "../cli.js";
 import { git, gitTry, mergeInProgress, primaryRepoRoot } from "../git.js";
 import { config } from "../runtime.js";
 import { manifestLockName, withQueueLock } from "./lock.js";
-import { emitText } from "./output.js";
 import {
 	inPrimaryWorktree,
 	type QueueManifest,
@@ -24,6 +23,7 @@ import {
 	readQueueManifest,
 	writeQueueManifest,
 } from "./manifest.js";
+import { emitText } from "./output.js";
 
 /** The outcome of one manifest transaction. */
 export interface QueueTransaction {
@@ -67,7 +67,7 @@ export function commitQueueManifest(summary: string, options: CliOptions): void 
 			`  ⚠ Primary checkout is on "${branch}", not "${expected}"; leaving the manifest uncommitted.
 ` +
 				`    Commit it yourself (\`git -C ${root} commit -m "chore(queue): ${summary}" -- ${path}\`)` +
-				` or pass --queue-commit-any.`,
+				" or pass --queue-commit-any.",
 		);
 		return;
 	}

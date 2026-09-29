@@ -45,9 +45,7 @@ export function NodeCard({ node, position, selected }: NodeCardProps): ReactElem
 				</span>
 				{roles === 0 ? null : <span>{roles} roles</span>}
 			</div>
-			{node.mergeName === undefined ? null : (
-				<div className="card-merge">merge: {node.mergeName}</div>
-			)}
+			<div className="card-merge">{node.branch}</div>
 		</div>
 	);
 }

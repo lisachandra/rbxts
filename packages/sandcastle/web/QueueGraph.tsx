@@ -12,15 +12,7 @@
 import { type ReactElement, useMemo } from "react";
 
 import dagre from "@dagrejs/dagre";
-import {
-	Background,
-	Controls,
-	type Edge,
-	MarkerType,
-	MiniMap,
-	type Node,
-	ReactFlow,
-} from "@xyflow/react";
+import { Background, Controls, type Edge, MarkerType, MiniMap, ReactFlow } from "@xyflow/react";
 
 import type { QueueGraph, QueueGraphEdgeKind } from "../src/queue/graph.ts";
 import { BatchNode, type BatchNodeType } from "./BatchNode.js";

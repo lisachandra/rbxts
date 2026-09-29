@@ -87,17 +87,15 @@ export function DetailPanel({
 				</ol>
 			</section>
 
-			{node.mergeName === undefined ? null : (
-				<section className="panel-section">
-					<h3>Integration</h3>
-					<p>
-						<code>{node.mergeName}</code>
-					</p>
-					{node.afterMerge === undefined ? null : (
-						<p className="panel-sub">waits for {node.afterMerge}</p>
-					)}
-				</section>
-			)}
+			<section className="panel-section">
+				<h3>Integration</h3>
+				<p>
+					<code>{node.branch}</code>
+				</p>
+				{node.after === undefined ? null : (
+					<p className="panel-sub">waits for {node.after}</p>
+				)}
+			</section>
 
 			{node.reasons.length === 0 ? null : (
 				<section className="panel-section">

@@ -16,20 +16,20 @@ const ports: ReadonlyArray<{
 	position: Position;
 	type: "source" | "target";
 }> = [
-	{ id: "top-source", position: Position.Top, type: "source" },
-	{ id: "top-target", position: Position.Top, type: "target" },
-	{ id: "bottom-source", position: Position.Bottom, type: "source" },
-	{ id: "bottom-target", position: Position.Bottom, type: "target" },
-	{ id: "left-source", position: Position.Left, type: "source" },
-	{ id: "left-target", position: Position.Left, type: "target" },
-	{ id: "right-source", position: Position.Right, type: "source" },
-	{ id: "right-target", position: Position.Right, type: "target" },
+	{ type: "source", id: "top-source", position: Position.Top },
+	{ type: "target", id: "top-target", position: Position.Top },
+	{ type: "source", id: "bottom-source", position: Position.Bottom },
+	{ type: "target", id: "bottom-target", position: Position.Bottom },
+	{ type: "source", id: "left-source", position: Position.Left },
+	{ type: "target", id: "left-target", position: Position.Left },
+	{ type: "source", id: "right-source", position: Position.Right },
+	{ type: "target", id: "right-target", position: Position.Right },
 ];
 
 export type BatchNodeType = Node<{ label: ReactElement }, "batch">;
 
 export function BatchNode({ data }: { data: BatchNodeType["data"] }): ReactElement {
-	const label = data.label;
+	const { label } = data;
 	return (
 		<>
 			{ports.map((port) => (

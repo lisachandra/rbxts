@@ -28,14 +28,13 @@ function sample(): QueueManifest {
 		sequences: [
 			{
 				issues: ["10", "11", "12"],
-				mergeName: "sandcastle/issue-10",
 				name: "U2",
 				notes: "order matters",
 			},
 		],
 		serialized: [{ issues: ["11", "12"], name: "R1", reason: "same file" }],
 		updatedAt: "2026-01-01T00:00:00.000Z",
-		version: 1,
+		version: 2,
 	};
 }
 
@@ -47,7 +46,7 @@ describe("queue manifest", () => {
 			sequences: [],
 			serialized: [],
 			updatedAt: "",
-			version: 1,
+			version: 2,
 		});
 	});
 
@@ -58,9 +57,8 @@ describe("queue manifest", () => {
 			gated: [{ issue: "30", joins: "V", reason: "needs the Studio Sound instance" }],
 			sequences: [
 				{
-					afterMerge: "audio-seam-work",
+					after: "audio-seam-work",
 					issues: ["10", "11"],
-					mergeName: "ui-wiring-work",
 					name: "U2",
 					notes: "ui wiring · one run\n10 shell → 11 data seam",
 					roles: { "10": "shell", "11": "data seam" },
@@ -68,7 +66,7 @@ describe("queue manifest", () => {
 				},
 			],
 			updatedAt: "2026-01-01T00:00:00.000Z",
-			version: 1,
+			version: 2,
 		};
 		writeQueueManifest(manifest, path);
 
@@ -108,7 +106,7 @@ describe("queue manifest", () => {
 		assert.ok(existsSync(path));
 
 		const read = readQueueManifest(path);
-		assert.equal(read.version, 1);
+		assert.equal(read.version, 2);
 		assert.equal(read.updatedAt !== "", true);
 		assert.deepEqual(read.gated, sample().gated);
 		assert.deepEqual(read.human, sample().human);
@@ -173,7 +171,7 @@ describe("queue manifest", () => {
 		assert.equal(describePlacement(locateIssue(manifest, "40") ?? { kind: "human" }), "human");
 		assert.equal(
 			describePlacement(locateIssue(manifest, "11") ?? { kind: "human" }),
-			'sequence "U2" (position 2)',
+			'batch "U2" (position 2)',
 		);
 	});
 });

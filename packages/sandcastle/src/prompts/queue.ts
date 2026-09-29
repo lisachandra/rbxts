@@ -30,9 +30,13 @@ const enabledRules = [
 	"   and the repository sets `queue.commit`, the command commits it for you; otherwise commit it",
 	"   yourself so the registration reaches the repository instead of dying with this worktree.",
 	"4. List the created issue numbers in this comment under `Suggested follow-up issues`.",
+	"A review never lands a batch: `queue run` dispatches, a human runs `queue land` and merges the",
+	"pull request it opens. Never merge an integration branch yourself, and never push to main.",
+
 	"",
 	"A review that lists follow-ups in the comment but leaves the queue untouched is incomplete —",
-	"the queue is the runnable artifact; the comment is only the report.",
+	"the queue is the runnable artifact; the comment is only the report. Register the follow-up,",
+	"then hand the batch to a human: `pnpm sandcastle queue list` shows what is READY next.",
 	"",
 	"If there are no follow-ups, write `No follow-up issues.` in the review comment instead.",
 ].join("\n");

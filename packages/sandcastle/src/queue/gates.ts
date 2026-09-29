@@ -4,7 +4,7 @@
  * `queue run` branches every batch from the base branch, so a batch that consumes an earlier
  * batch's commits is only safe once that batch's integration is an ancestor of it. That rule used
  * to be prose in `notes` (and an `R<n>` line nothing enforced, because the harness never reads
- * GitHub edges); it is manifest data now (`sequences[].afterMerge`) and this module is the single
+ * GitHub edges); it is manifest data now (`sequences[].after`) and this module is the single
  * place that answers whether the gate holds.
  *
  * Fail closed: a missing manifest, an unfinished composition, or a missing `headCommit` all read as
@@ -39,13 +39,13 @@ export interface IntegrationGateParams {
 /**
  * - Every integration some sequence declares it is waiting on.
  * - @param manifest - The queue manifest.
- * - @returns The `afterMerge` names referenced by any sequence.
+ * - @returns The `after` names referenced by any sequence.
  */
 export function sequenceGateNames(manifest: QueueManifest): Set<string> {
 	const names = new Set<string>();
 	for (const sequence of manifest.sequences) {
-		if (sequence.afterMerge !== undefined) {
-			names.add(sequence.afterMerge);
+		if (sequence.after !== undefined) {
+			names.add(sequence.after);
 		}
 	}
 

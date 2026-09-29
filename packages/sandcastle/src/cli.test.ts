@@ -348,15 +348,15 @@ describe("commaSeparated / parseArgs", () => {
 				"U2",
 				"--issues",
 				"1,2",
-				"--merge-name",
-				"sandcastle/issue-1",
+				"--after",
+				"audio-seam-work",
 				"--notes",
 				"order matters",
 			]);
 			assert.equal(sequence.queueSubcommand, "sequence");
 			assert.equal(sequence.integrationName, "U2");
 			assert.deepEqual(sequence.issueNumbers, ["1", "2"]);
-			assert.equal(sequence.mergeName, "sandcastle/issue-1");
+			assert.equal(sequence.after, "audio-seam-work");
 			assert.equal(sequence.notes, "order matters");
 
 			const moved = parseArgs([

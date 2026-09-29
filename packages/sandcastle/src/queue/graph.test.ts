@@ -88,37 +88,36 @@ describe("queue graph payload", () => {
 		const graph = graphFor(
 			{
 				sequences: [
-					{ issues: ["1"], mergeName: "audio-seam-work", name: "A1" },
-					{ afterMerge: "audio-seam-work", issues: ["2"], name: "V" },
+					{ issues: ["1"], name: "audio-seam-work" },
+					{ after: "audio-seam-work", issues: ["2"], name: "V" },
 				],
 			},
 			live(issue("1"), issue("2")),
 		);
 
 		const gate = graph.edges.find((edge) => edge.kind === "gate");
-		assert.equal(gate?.from, "A1");
+		assert.equal(gate?.from, "audio-seam-work");
 		assert.equal(gate?.to, "V");
 		assert.equal(gate?.label, "after audio-seam-work");
 	});
 
-	test("every batch sharing an integration name is a gate source", () => {
+	test("one batch owns one integration, so a gate has exactly one source", () => {
 		const graph = graphFor(
 			{
 				sequences: [
-					{ issues: ["1"], mergeName: "session-work", name: "S" },
-					{ issues: ["2"], mergeName: "session-work", name: "SIX_B" },
-					{ afterMerge: "session-work", issues: ["3"], name: "CL" },
+					{ issues: ["1"], name: "matchmaking-session-work" },
+					{ after: "matchmaking-session-work", issues: ["3"], name: "club-system-work" },
 				],
 			},
-			live(issue("1"), issue("2"), issue("3")),
+			live(issue("1"), issue("3")),
 		);
 
-		assert.deepEqual(edgesOf(graph, "gate"), ["S>CL", "SIX_B>CL"]);
+		assert.deepEqual(edgesOf(graph, "gate"), ["matchmaking-session-work>club-system-work"]);
 	});
 
 	test("a gate on an integration no batch produces keeps the integration as its source", () => {
 		const graph = graphFor(
-			{ sequences: [{ afterMerge: "elsewhere-work", issues: ["1"], name: "V" }] },
+			{ sequences: [{ after: "elsewhere-work", issues: ["1"], name: "V" }] },
 			live(issue("1")),
 		);
 
@@ -179,11 +178,10 @@ describe("queue graph renderings", () => {
 				sequences: [
 					{
 						issues: ["1"],
-						mergeName: "audio-seam-work",
-						name: "A1",
+						name: "audio-seam-work",
 						title: "audio seam",
 					},
-					{ afterMerge: "audio-seam-work", issues: ["2"], name: "V" },
+					{ after: "audio-seam-work", issues: ["2"], name: "V" },
 				],
 			},
 			live(issue("1"), issue("2")),
@@ -191,16 +189,19 @@ describe("queue graph renderings", () => {
 
 		const mermaid = renderQueueMermaid(graph);
 		assert.equal(mermaid.split("\n")[0], "flowchart LR");
-		assert.ok(mermaid.includes('A1["A1 · audio seam<br/>1 issue · READY"]'), mermaid);
-		assert.ok(mermaid.includes("  A1 --> V"), mermaid);
-		assert.ok(mermaid.includes("A1 -.->|after audio-seam-work| V"), mermaid);
+		assert.ok(
+			mermaid.includes('audio_seam_work["audio-seam-work · audio seam<br/>1 issue · READY"]'),
+			mermaid,
+		);
+		assert.ok(mermaid.includes("  audio_seam_work --> V"), mermaid);
+		assert.ok(mermaid.includes("audio_seam_work -.->|after audio-seam-work| V"), mermaid);
 		assert.ok(mermaid.includes("classDef ready fill:#1f6feb22,stroke:#1f6feb"), mermaid);
-		assert.ok(mermaid.endsWith("  class A1,V ready"), mermaid);
+		assert.ok(mermaid.endsWith("  class audio_seam_work,V ready"), mermaid);
 	});
 
 	test("a gate on an integration no batch produces is declared as an integration node", () => {
 		const graph = graphFor(
-			{ sequences: [{ afterMerge: "elsewhere-work", issues: ["1"], name: "V" }] },
+			{ sequences: [{ after: "elsewhere-work", issues: ["1"], name: "V" }] },
 			live(issue("1")),
 		);
 
@@ -297,11 +298,10 @@ describe("queue graph renderings", () => {
 				sequences: [
 					{
 						issues: ["1"],
-						mergeName: "audio-seam-work",
 						name: "A1",
 						title: "audio seam",
 					},
-					{ afterMerge: "audio-seam-work", issues: ["2"], name: "V" },
+					{ after: "audio-seam-work", issues: ["2"], name: "V" },
 				],
 			},
 			live(issue("1"), issue("2")),
@@ -312,9 +312,9 @@ describe("queue graph renderings", () => {
 		assert.ok(preview.includes("  Manifest updated: 2026-01-01T00:00:00.000Z"), preview);
 		assert.match(
 			preview,
-			/^ {2}#1 {3}✓ READY {2}A1 · audio seam +1 issue\(s\) merge: audio-seam-work$/mu,
+			/^ {2}#1 {3}✓ READY {2}A1 · audio seam +1 issue\(s\) sandcastle\/integration\/A1$/mu,
 		);
 		assert.ok(preview.includes("  Edges (run order is the list above):"), preview);
-		assert.ok(preview.includes("gate     A1 → V             after audio-seam-work"), preview);
+		assert.ok(preview.includes("gate     audio-seam-work → V after audio-seam-work"), preview);
 	});
 });

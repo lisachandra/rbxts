@@ -4,8 +4,9 @@
  * can drive views from canned `LiveQueueState` fixtures.
  */
 
+import { integrationBranch } from "../integration/manifest.js";
 import type { LiveIssue, LiveQueueState } from "./live.js";
-import { type QueueManifest, referencedIssues } from "./manifest.js";
+import { type QueueManifest, referencedIssues, unknownGateTargets } from "./manifest.js";
 
 export interface QueueIssueView {
 	found: boolean;
@@ -19,9 +20,8 @@ export interface QueueIssueView {
 
 export interface QueueSequenceView {
 	/** Integration that must land before this batch may fire. */
-	afterMerge: string | undefined;
+	after: string | undefined;
 	issues: Array<QueueIssueView>;
-	mergeName: string | undefined;
 	name: string;
 	notes: string | undefined;
 	reasons: Array<string>;
@@ -73,9 +73,9 @@ function viewFor(live: LiveQueueState, number: string): QueueIssueView {
  *
  * @param manifest - The queue manifest.
  * @param live - Fresh GitHub state for the referenced numbers plus the ready backlog.
- * @param options - `gates` maps a `afterMerge` integration to the reason it is not satisfied yet
- *   (from {@link unmetIntegrationGates}); `strictGates` turns promotable gates into drift, so a
- *   stale gate fails a check instead of only printing a hint.
+ * @param options - `gates` maps a `after` integration to the reason it is not satisfied yet (from
+ *   {@link unmetIntegrationGates}); `strictGates` turns promotable gates into drift, so a stale
+ *   gate fails a check instead of only printing a hint.
  */
 export function computeQueueView(
 	manifest: QueueManifest,
@@ -90,7 +90,7 @@ export function computeQueueView(
 		 * ready membership must still not fire, and it used to live in prose the scheduler never read.
 		 */
 		const gateUnmet =
-			sequence.afterMerge === undefined ? undefined : options.gates?.get(sequence.afterMerge);
+			sequence.after === undefined ? undefined : options.gates?.get(sequence.after);
 		if (gateUnmet !== undefined) {
 			reasons.push(gateUnmet);
 		}
@@ -126,9 +126,8 @@ export function computeQueueView(
 		const status: QueueSequenceView["status"] =
 			sequence.issues.length === 0 ? "EMPTY" : reasons.length === 0 ? "READY" : "GATED";
 		return {
-			afterMerge: sequence.afterMerge,
+			after: sequence.after,
 			issues,
-			mergeName: sequence.mergeName,
 			name: sequence.name,
 			notes: sequence.notes,
 			reasons,
@@ -226,6 +225,16 @@ export function computeQueueView(
 		}
 	}
 
+	/*
+	 * A consumer whose producer is gone is stale bookkeeping, not a wait: nothing will ever satisfy
+	 * it, and `queue run` would skip that batch forever with no way to notice.
+	 */
+	for (const gate of unknownGateTargets(manifest)) {
+		drift.push(
+			`batch "${gate.name}" waits on "${gate.target}", which no batch produces — clear its \`after\` or re-add the producer`,
+		);
+	}
+
 	if (unscanned.length > 0) {
 		drift.push(
 			`${unscanned.length} referenced issue(s) were not scanned: gh issue list is capped at one page`,
@@ -284,10 +293,7 @@ export function renderQueueText(view: QueueView): string {
 				return role === undefined ? `#${issue.number}` : `#${issue.number} ${role}`;
 			})
 			.join(labelled ? " · " : " ");
-		const detail: Array<string> = [];
-		if (sequence.mergeName !== undefined) {
-			detail.push(`merge: ${sequence.mergeName}`);
-		}
+		const detail: Array<string> = [`branch: ${integrationBranch(sequence.name)}`];
 
 		detail.push(...sequence.reasons);
 		if (detail.length === 0) {

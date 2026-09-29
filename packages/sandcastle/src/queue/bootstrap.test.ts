@@ -62,8 +62,8 @@ describe("queue bootstrap proposal", () => {
 		});
 
 		assert.deepEqual(proposal.sequences, [
-			{ issues: ["3", "9"], name: "core", notes: "bootstrap proposal" },
-			{ issues: ["12"], name: "sandcastle", notes: "bootstrap proposal" },
+			{ issues: ["3", "9"], name: "core-work", notes: "bootstrap proposal" },
+			{ issues: ["12"], name: "sandcastle-work", notes: "bootstrap proposal" },
 		]);
 		assert.deepEqual(proposal.gated, []);
 		assert.deepEqual(proposal.human, []);
@@ -98,12 +98,12 @@ describe("queue bootstrap proposal", () => {
 			gated: [{ issue: "2", reason: "blocked" }],
 			human: [],
 			promotions: [],
-			sequences: [{ issues: ["5"], name: "sandcastle" }],
+			sequences: [{ issues: ["5"], name: "sandcastle-work" }],
 		});
 
 		assert.deepEqual(next.sequences, [
 			{ issues: ["1"], name: "core" },
-			{ issues: ["5"], name: "sandcastle" },
+			{ issues: ["5"], name: "sandcastle-work" },
 		]);
 		assert.deepEqual(next.gated, [
 			{ issue: "7", reason: "waiting" },

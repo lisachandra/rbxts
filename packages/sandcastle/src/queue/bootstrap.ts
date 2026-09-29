@@ -9,8 +9,8 @@
  */
 
 import type { LiveQueueState } from "./live.js";
-import { promoteIssue } from "./mutations.js";
 import type { QueueEntry, QueueManifest, QueueSequence } from "./manifest.js";
+import { promoteIssue } from "./mutations.js";
 
 export interface BootstrapParams {
 	live: LiveQueueState;
@@ -54,13 +54,19 @@ export function promotableGates(params: BootstrapParams): Array<BootstrapPromoti
 			continue;
 		}
 
-		promotions.push({ issue: entry.issue, sequence: entry.joins ?? scopeOf(issue.title) });
+		promotions.push({
+			issue: entry.issue,
+			sequence: entry.joins ?? batchNameForScope(scopeOf(issue.title)),
+		});
 	}
 
 	return promotions;
 }
 
 const scopePattern = /^[a-z]+\(([^)]+)\):/u;
+
+/** Suffix every bootstrap-proposed batch name carries. */
+const workSuffix = "-work";
 
 /**
  * - Conventional-commit scope of an issue title.
@@ -70,6 +76,18 @@ const scopePattern = /^[a-z]+\(([^)]+)\):/u;
 export function scopeOf(title: string): string {
 	const match = scopePattern.exec(title.trim().toLowerCase());
 	return match?.[1] ?? "unscoped";
+}
+
+/**
+ * - Integration name a scope's batch gets by default.
+ * - @param scope - Conventional-commit scope, as returned by {@link scopeOf}.
+ * - @returns The scope plus `-work`, e.g. `vfx-mounts-work`.
+ * - @remarks A batch name IS an integration name, so it has to read as one:
+ *   `sandcastle/integration/<name>`. The suffix keeps batch names from colliding with the branch
+ *   names of the issues inside them.
+ */
+export function batchNameForScope(scope: string): string {
+	return scope.endsWith(workSuffix) ? scope : `${scope}${workSuffix}`;
 }
 
 function placedIssues(manifest: QueueManifest): ReadonlySet<string> {
@@ -127,13 +145,14 @@ export function proposeBootstrap(params: BootstrapParams): BootstrapProposal {
 		}
 
 		const scope = scopeOf(ready.title);
-		if (existing.has(scope)) {
+		const name = batchNameForScope(scope);
+		if (existing.has(name)) {
 			continue;
 		}
 
-		const bucket = byScope.get(scope) ?? [];
+		const bucket = byScope.get(name) ?? [];
 		bucket.push(ready.number);
-		byScope.set(scope, bucket);
+		byScope.set(name, bucket);
 	}
 
 	const sequences: Array<QueueSequence> = [...byScope]

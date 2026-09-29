@@ -133,6 +133,27 @@ const topics = {
 		],
 		usage: ["pnpm sandcastle issue-sequence --sequential 151,150,147 [--base main] [options]"],
 	},
+	"land": {
+		flags: [
+			"--name <batch>  Batch to compose (required)",
+			"--create-pr     Push the branch and open the PR (default: print the commands)",
+			"--finish        Drop the batch once GitHub has closed every member",
+			"--dry-run       Report the landing without composing",
+		],
+		notes: [
+			"Composes the batch on sandcastle/integration/<name>: merges every member, resolves",
+			"conflicts, and reviews the result. Safe to re-run — an unfinished composition resumes.",
+			"The PR body carries one `Closes #<n>` per member, so merging the PR closes them all.",
+			"Merging is the human gate: batches whose `after` names this one stay GATED until the",
+			"integration is an ancestor of the base branch.",
+			"For anything other than a queue batch, use `sandcastle merge`.",
+		],
+		usage: [
+			"pnpm sandcastle queue land --name <batch> [--create-pr]",
+			"pnpm sandcastle queue land --name <batch> --finish",
+		],
+	},
+
 	"list": {
 		flags: [
 			"--json  Machine-readable queue view",
@@ -141,6 +162,25 @@ const topics = {
 		notes: ["Read-only: fetches live issue state and never writes the manifest."],
 		usage: ["pnpm sandcastle queue list [--json] [--strict-gates]"],
 	},
+	"migrate": {
+		flags: [
+			"--assign <old>=<name>,...  Integration name for a batch a v1 manifest left unnamed",
+			"--apply                    Write the result (default: print the proposal)",
+			"--dry-run                  Report without writing",
+		],
+		notes: [
+			"Translates a v1 manifest to v2: the short code and the separate mergeName collapse into",
+			"one integration name, and afterMerge becomes after.",
+			"Refuses to guess: batches with no name need an explicit --assign entry.",
+			"A fold target that no longer exists (the batches were already folded) is reported, not",
+			"treated as an error.",
+		],
+		usage: [
+			"pnpm sandcastle queue migrate [--apply] [--dry-run]",
+			"pnpm sandcastle queue migrate --assign V3=vfx-mounts-work --apply",
+		],
+	},
+
 	"merge": {
 		flags: [
 			"--name <branch>     Integration branch name (required)",
@@ -211,7 +251,9 @@ const topics = {
 			"  bootstrap  Propose placements for the unplaced ready backlog",
 			"  check      Exit non-zero while the queue and GitHub disagree",
 			"  graph      Render the run order as a Mermaid diagram (or json/ascii)",
+			"  land       Compose a batch and open its PR (the human merge gate)",
 			"  list       Live READY/GATED view plus drift",
+			"  migrate    Translate a v1 manifest to v2",
 			"  prune      Drop references to closed issues",
 			"  remove     Take an issue out of every placement",
 			"  rule       Declare a same-file serialization rule (R<n>)",
@@ -244,40 +286,45 @@ const topics = {
 			"--keep-entries     Keep landed entries instead of pruning them",
 			"--json             One JSON object per decision (JSONL)",
 			"--dry-run          Print the decision without dispatching",
+			"--land             Compose each dispatched batch when it finishes",
+			"--create-pr        With --land, push the branch and open the PR",
 		],
 		notes: [
 			"Re-reads the manifest and live GitHub state after every batch: a review that registered a",
 			"follow-up changes what runs next inside the same invocation.",
 			"Exit 1 when nothing can fire — an unknown --name, or no READY batch.",
 			"Landed entries (issue closed and review APPROVED) are pruned unless --keep-entries.",
-			"The merge hint prints the tail issue to hand to `sandcastle merge`.",
+			"The landing hint prints the exact `queue land --name <batch>` line for each batch.",
+			"A batch is landed once, by a human: `queue land` composes it, the PR is merged by hand.",
 		],
 		usage: [
-			"pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]",
+			"pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--land]",
 		],
 	},
 	"sequence": {
 		flags: [
-			"--name <batch>       Batch name (required)",
+			"--name <batch>       Integration name (required): the batch IS this name",
 			"--issues <a,b,c>     Members in run order (required)",
-			"--merge-name <branch>  Integration branch used by `sandcastle merge`",
-			"--notes <text>       Ordering rationale, kept in the manifest",
 			"--title <label>      Short human label shown by `queue list`",
 			"--roles <n=role,...> Per-issue role phrases, e.g. 382=shell,383=pause",
-			"--after-merge <name> Wait for this integration to land before firing",
+			"--after <batch>      Stay GATED until that integration lands on the base branch",
+			"--notes <text>       Ordering rationale, kept in the manifest",
 			"--before <batch>     Place this batch ahead of that one",
 			"--delete             Drop the batch; --issues is not required",
 			"--last               Move the batch to the end of the run order",
 		],
 		notes: [
 			"Replaces a batch of the same name; positions satisfy intra-batch dependencies.",
-			"Omitted --title/--roles/--notes/--after-merge keep what the batch already had.",
+			"Every batch is built from the base ref, so members never stack on an unlanded batch.",
+			"Omitted --title/--roles/--notes/--after keep what the batch already had.",
 			"Run order is the array order: a redefinition keeps its position unless --before or --last moves it.",
-			"--after-merge is a run-order gate: the batch stays GATED until that integration lands.",
+			"--after is a run-order gate: the batch stays GATED until that integration lands on the base",
+			"branch. The gate clears itself; nothing has to un-gate it by hand.",
+			"Deleting a batch another one waits on is refused until you re-point the `after`.",
 		],
 		usage: [
 			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--title <label>]",
-			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--after-merge <integration>]",
+			"pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--after <batch>]",
 			"pnpm sandcastle queue sequence --name <batch> --delete",
 		],
 	},
@@ -334,7 +381,9 @@ const queueTopics: ReadonlySet<string> = new Set([
 	"bootstrap",
 	"check",
 	"graph",
+	"land",
 	"list",
+	"migrate",
 	"promote",
 	"prune",
 	"queue",

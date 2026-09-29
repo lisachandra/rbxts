@@ -187,7 +187,6 @@ describe("queue text rendering", () => {
 				sequences: [
 					{
 						issues: ["1"],
-						mergeName: "sandcastle/issue-1",
 						name: "U2",
 						notes: "first batch",
 					},
@@ -201,7 +200,7 @@ describe("queue text rendering", () => {
 		assert.match(text, /Sandcastle queue \(live\)/u);
 		assert.match(text, /Manifest updated: 2026-01-01T00:00:00\.000Z/u);
 		assert.match(text, /✓ READY\s+U2 \(1 issue\(s\)\)/u);
-		assert.match(text, /merge: sandcastle\/issue-1/u);
+		assert.match(text, /branch: sandcastle\/integration\/U2/u);
 		assert.match(text, /· first batch/u);
 		assert.match(text, /Serialization rules:/u);
 		assert.match(text, /R1 \(1,3\) — same file/u);
@@ -218,7 +217,7 @@ describe("queue text rendering", () => {
 				gated: [{ issue: "9", joins: "V", reason: "waiting on V" }],
 				sequences: [
 					{
-						afterMerge: "audio-seam-work",
+						after: "audio-seam-work",
 						issues: ["1", "2"],
 						name: "V",
 						notes: "vfx surface · one chain",

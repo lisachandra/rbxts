@@ -34,12 +34,12 @@ function integration(overrides: Partial<IntegrationManifest> = {}): IntegrationM
 }
 
 describe("queue run-order gates", () => {
-	test("sequenceGateNames collects every afterMerge target once", () => {
+	test("sequenceGateNames collects every after target once", () => {
 		const names = sequenceGateNames(
 			manifest({
 				sequences: [
-					{ afterMerge: "audio-seam-work", issues: ["1"], name: "V" },
-					{ afterMerge: "audio-seam-work", issues: ["2"], name: "V2" },
+					{ after: "audio-seam-work", issues: ["1"], name: "V" },
+					{ after: "audio-seam-work", issues: ["2"], name: "V2" },
 					{ issues: ["3"], name: "N2" },
 				],
 			}),

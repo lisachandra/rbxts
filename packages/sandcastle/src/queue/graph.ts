@@ -11,6 +11,7 @@
  * built, and the repository slug and render timestamp are options.
  */
 
+import { integrationBranch } from "../integration/manifest.js";
 import type { LiveIssue } from "./live.js";
 import type { QueueManifest } from "./manifest.js";
 import type { QueueSequenceView, QueueView } from "./render.js";
@@ -38,13 +39,13 @@ export interface QueueGraphIssue {
 
 export interface QueueGraphNode {
 	/** Integration this batch waits for before it may fire; the label of its `gate` edge. */
-	afterMerge: string | undefined;
+	after: string | undefined;
+	/** Integration branch the batch's pull request targets: `sandcastle/integration/<name>`. */
+	branch: string;
 	/** Batch name, e.g. "U2"; also the node id. */
 	id: string;
 	/** Members in run order. */
 	issues: Array<QueueGraphIssue>;
-	/** Integration branch `sandcastle merge` uses for this batch, when it declares one. */
-	mergeName: string | undefined;
 	name: string;
 	/** One entry per `notes` line. */
 	notes: Array<string>;
@@ -152,10 +153,10 @@ function isLanded(issues: ReadonlyArray<QueueGraphIssue>): boolean {
 function nodeFor(sequence: QueueSequenceView): QueueGraphNode {
 	const issues = sequence.issues.map((issue) => graphIssue(issue, sequence.roles));
 	return {
-		afterMerge: sequence.afterMerge,
+		after: sequence.after,
+		branch: integrationBranch(sequence.name),
 		id: sequence.name,
 		issues,
-		mergeName: sequence.mergeName,
 		name: sequence.name,
 		notes: noteLines(sequence.notes),
 		reasons: sequence.reasons,
@@ -200,22 +201,22 @@ function orderEdges(nodes: ReadonlyArray<QueueGraphNode>): Array<QueueGraphEdge>
 function gateEdges(nodes: ReadonlyArray<QueueGraphNode>): Array<QueueGraphEdge> {
 	const edges: Array<QueueGraphEdge> = [];
 	for (const node of nodes) {
-		if (node.afterMerge === undefined) {
+		if (node.after === undefined) {
 			continue;
 		}
 
-		const producers = nodes.filter((candidate) => candidate.mergeName === node.afterMerge);
+		const producers = nodes.filter((candidate) => candidate.name === node.after);
 		const sources = producers.length === 0 ? [undefined] : producers;
 		for (const producer of sources) {
 			edges.push({
 				detail:
 					producer === undefined
-						? `${node.name} waits on integration ${node.afterMerge}, which no batch here produces`
-						: `${producer.name} produces integration ${node.afterMerge}`,
-				from: producer?.id ?? node.afterMerge,
+						? `${node.name} waits on integration ${node.after}, which no batch here produces`
+						: `${producer.name} produces integration ${node.after}`,
+				from: producer?.id ?? node.after,
 				fromIssue: undefined,
 				kind: "gate",
-				label: `after ${node.afterMerge}`,
+				label: `after ${node.after}`,
 				to: node.id,
 				toIssue: undefined,
 			});
@@ -731,8 +732,7 @@ export function renderQueueAscii(graph: QueueGraph): string {
 		const status = `${statusMark[node.status]} ${node.status}`.padEnd(8);
 		const title = asciiTitle(node).padEnd(26);
 		const count = `${node.issues.length} issue(s)`.padEnd(10);
-		const merge = node.mergeName === undefined ? "" : `merge: ${node.mergeName}`;
-		lines.push(`  ${position} ${status} ${title} ${count} ${merge}`.trimEnd());
+		lines.push(`  ${position} ${status} ${title} ${count} ${node.branch}`.trimEnd());
 		for (const reason of node.reasons) {
 			lines.push(`         ✗ ${reason}`);
 		}

@@ -20,10 +20,12 @@ import {
 	renderQueueMarkdown,
 	renderQueueMermaid,
 } from "./graph.js";
+import { runQueueLand } from "./land.js";
 import { fetchLiveQueueState, resolveRepositoryIdentifiers } from "./live.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
 import {
 	runQueueAdd,
+	runQueueMigrate,
 	runQueuePromote,
 	runQueuePrune,
 	runQueueRemove,
@@ -34,10 +36,10 @@ import { emitText } from "./output.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
 import { openBrowser, startQueueServer } from "./serve.js";
-
 export type QueueSubcommand =
 	| "add"
 	| "run"
+	| "land"
 	| "list"
 	| "rule"
 	| "check"
@@ -45,11 +47,14 @@ export type QueueSubcommand =
 	| "prune"
 	| "serve"
 	| "remove"
+	| "migrate"
 	| "promote"
 	| "sequence"
 	| "bootstrap";
 
 export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
+	"land",
+	"migrate",
 	"add",
 	"bootstrap",
 	"check",
@@ -74,6 +79,8 @@ export function isQueueSubcommand(value: string | undefined): value is QueueSubc
 const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
 	"add",
 	"bootstrap",
+	"land",
+	"migrate",
 	"promote",
 	"prune",
 	"remove",
@@ -133,8 +140,15 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 			runQueueGraph(options);
 			break;
 		}
+		case "land": {
+			return runQueueLand(options);
+		}
 		case "list": {
 			runQueueList(options);
+			break;
+		}
+		case "migrate": {
+			runQueueMigrate(options);
 			break;
 		}
 		case "promote": {

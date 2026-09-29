@@ -1,214 +1,171 @@
 ---
 name: sandcastle
-description: Run, merge, and plan work batches with the Sandcastle three-phase agent runner — fire an issue-sequence batch, merge landed batches, register review follow-ups in the queue manifest, and check queue drift before firing. Use for any sandcastle batch work or batch planning, and whenever a review files follow-up issues.
+description: Fire, land, and plan Sandcastle work batches — run the next READY batch, compose its integration branch and pull request, and register review follow-ups in the queue manifest. Use for any sandcastle batch work or batch planning, and whenever a review files follow-up issues.
 ---
 
 # Sandcastle
 
-Batches of `ready-for-agent` GitHub issues run through the three-phase Sandcastle runner
-(design → implement → review) on persistent per-issue worktrees, then merge into one
-integration branch per batch. GitHub issues are the canonical store for issue state;
-the **queue manifest** (`sandcastle.queue.json`, repo root, git-tracked) records only what
-GitHub cannot express — batch composition and run order, same-file serialization rules
-(R\<n\>), and gate conditions.
+Sandcastle runs batches of `ready-for-agent` GitHub issues through three phases — design →
+implement → review — each on its own worktree, then composes the batch into a single
+**integration branch** and hands you a pull request to merge. GitHub stays canonical for issue
+state. A **batch** is a named group of issues that run in order; its **name** is also its
+integration: `sandcastle/integration/<name>`.
 
-This file is the tracked source of truth, and the one sandcastle skill: `.agents/skills/sandcastle` is
-a gitignored symlink to this directory, so every repo that links its `.agents` here reads the same
-file (`pnpm sandcastle` reads the commands below, not this file).
+Two artifacts matter:
 
-## Manifest shape
+- **The queue manifest** — `sandcastle.queue.json` at the repo root, git-tracked. It records
+  only what GitHub cannot say: batch composition and run order, gates, same-file rules. Never
+  hand-edit it; every change goes through `pnpm sandcastle queue`.
+- **The live view** — `pnpm sandcastle queue list`. It reads GitHub and the manifest together and
+  is the only thing that shows READY, GATED, and drift. Read the queue through it, not by opening
+  the JSON.
 
-```jsonc
-{
-	"gated": [
-		{ "issue": "393", "joins": "V", "reason": "needs the Studio Sound instance plus readiness" },
-	],
-	"human": [{ "issue": "60", "reason": "grill(economy): reward drops, season pass, bundles" }],
-	"sequences": [
-		{
-			"name": "U2",
-			"title": "ui wiring", // short label; rendered beside the batch name
-			"issues": ["382", "383", "384"], // run order; position satisfies intra-batch edges
-			"roles": { "382": "shell + ScreenHost", "383": "pause + options onto shell" },
-			"mergeName": "ui-wiring-work", // integration branch used by `sandcastle merge`
-			"afterMerge": "audio-seam-work", // run-order gate; see "Gates" below
-			"notes": "why this batch is shaped this way", // one rendered line per newline
-		},
-	],
-	"serialized": [{ "name": "R9", "issues": ["340", "341", "312", "365"], "reason": "same seam" }],
-	"updatedAt": "2026-09-27T04:07:50.864Z",
-	"version": 1,
-}
-```
+## Leading words
 
-Read it through `pnpm sandcastle queue list`, not by opening the JSON: the live view is the only
-rendering that shows READY/GATED, gate reasons, and drift.
+- **Batch** — a named sequence of issues, run in order; `name` IS the integration name.
+- **Ready** — every member is open and `ready-for-agent`, and no blocker outside the batch is open.
+- **Gated** — a declared wait. `after <batch>` holds a batch until that integration has landed on
+  the base branch; `queue add --gated` holds one issue until its condition clears. Gates are not
+  drift, and `queue run` passes over them silently.
+- **Drift** — the queue and GitHub disagreeing about reality: a `ready-for-agent` issue in no
+  batch, a batch naming a closed issue, an `after` naming a batch that no longer exists. Fix drift
+  before firing anything.
+- **Land** — compose a batch's integration (merging members, resolving conflicts, reviewing the
+  result) and open its PR. **Merging that PR is the human's act**; sandcastle never merges to the
+  base branch.
 
-## Gates (`afterMerge`)
+## The rule that makes the rest simple
 
-`queue run` branches every batch from the base branch, so a batch that reads an earlier batch's
-commits is only safe once that batch's integration is an **ancestor of the base branch**. That is
-what `afterMerge` declares, and `src/queue/gates.ts` is the only place that answers it
-(`git merge-base --is-ancestor`, checked when the view is built). It fails closed:
+**Every batch branches from the base ref.** No batch ever stacks on another batch's unlanded
+work, so "when do I merge?" has one answer: when its PR is open and you have reviewed it. A batch
+that reads an earlier batch's commits says so with `--after <batch>` and stays GATED until that
+integration is an ancestor of the base — `src/queue/gates.ts` is the only place that answers this,
+by `git merge-base --is-ancestor`, and it fails closed:
 
-| Integration state | Gate |
-| ----------------- | ---- |
-| manifest missing | `waiting on integration "x" - it has not been composed yet` |
-| composition unfinished (created, merging, blocked, …) | `waiting on integration "x" - composition status is <status>` |
-| composed, head not an ancestor of the base branch | `waiting on integration "x" to land on <base> - merge it first` |
-| composed and landed | gate open, the batch is READY |
+| Integration state                                     | Gate                                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| manifest missing                                      | `waiting on integration "x" - it has not been composed yet`     |
+| composition unfinished (created, merging, blocked, …) | `waiting on integration "x" - composition status is <status>`   |
+| composed, head not yet on the base branch             | `waiting on integration "x" to land on <base> - merge it first` |
+| composed and landed                                   | gate open, the batch is READY                                   |
 
-A gated batch is **GATED**, never drift: it is a declared wait, and `queue run` skips it silently
-while other batches fire. Prose such as "runs only after X merged" is a bug: the scheduler cannot
-read it, so the batch fires as soon as its members are labelled.
+Prose such as "runs only after X merges" is a bug: the scheduler cannot read it, so the batch
+fires as soon as its members are labelled. If you write that sentence, write `--after X` instead.
 
-## Commands
+## Invocation
 
-Run a batch (one branch; `--resume --ignore-setup` on re-runs):
+Two modes, one per question. Neither is started by hand-editing files.
 
-```bash
-pnpm sandcastle issue-sequence --sequential <id,id,...> --base main --resume --ignore-setup
-```
+### Fire and land
 
-Merge a landed batch (one PR; `--issues` lists the **tail issue of each sequence** in the
-branch):
+The queue is shaped; now work it. One step per batch, and each ends with something visible.
 
-```bash
-pnpm sandcastle merge --name <branch-name> --issues <tail,tail,...>
-```
+1. **See what is takeable.** `pnpm sandcastle queue list`. If a batch shows `READY`, it can fire.
+2. **Fire it.** `pnpm sandcastle queue run` — or `--name <batch>` for one in particular, or
+   `--land` to compose each batch as it finishes. `run` re-reads the manifest and GitHub after
+   every batch, so a follow-up registered mid-run changes what fires next in the same invocation.
+   Completion: the batch's members have run all three phases.
+3. **Land it.** `pnpm sandcastle queue land --name <batch>`. Composing is automatic — conflict
+   resolution and integration review are agents — and re-running `land` resumes an unfinished
+   composition rather than restarting it. By default it **prints** the `git push` and `gh pr
+create` commands; `--create-pr` runs them for you. Either way, the PR body carries one
+   `Closes #<n>` per member.
+4. **Merge it — this is the human step.** Review the PR and merge it. Every member issue closes
+   with it, which is also what clears their `blocked-by` edges for later batches. Nothing in
+   sandcastle does this for you.
+5. **Let the queue notice.** Once the merge is an ancestor of the base branch, batches with
+   `--after <batch>` become READY on their own; the next `queue run` skips landed members and
+   drops the batch. `queue land --name <batch> --finish` does the cleanup explicitly, and
+   `--dry-run` reports it first.
 
-Every command answers `--help` with its own usage, options, and exit codes:
+### Shape the queue
 
-```bash
-pnpm sandcastle queue run --help     # one topic per command and queue subcommand
-```
+New work has arrived, or a review filed follow-ups.
 
-## Queue (the runnable artifact)
-
-```bash
-pnpm sandcastle queue list                                   # live READY/GATED view + drift (read-only)
-pnpm sandcastle queue check [--strict-gates]                  # exits 1 on drift, 2 with stale gates
-pnpm sandcastle queue graph [--expand-issues]                  # Mermaid run order, gates, rules
-pnpm sandcastle queue graph --format json                      # the same payload, for tooling
-pnpm sandcastle queue graph --write docs/queue.md              # Markdown page (no timestamp)
-pnpm sandcastle queue graph --comment <n>                      # sticky graph on a tracker issue
-pnpm sandcastle queue serve [--port <n>] [--host <ip>] [--open]    # the graph as a local page
-pnpm sandcastle queue run [--name <batch>] [--max-issues <n>]  # fire the next READY batch
-pnpm sandcastle queue run --require-clean                     # refuse while drift exists
-pnpm sandcastle queue run --promote-gates                     # promote ready gates first
-pnpm sandcastle queue run --no-resume                         # re-run landed members
-pnpm sandcastle queue run --dry-run                           # print the decision, dispatch nothing
-pnpm sandcastle queue bootstrap [--apply]                     # propose placements for the backlog
-pnpm sandcastle queue add --issue <n> --sequence <batch> [--after <m>]
-pnpm sandcastle queue add --issue <n> --gated --reason "..."  # cannot start yet
-pnpm sandcastle queue add --issue <n> --human --reason "..."  # human decision session (grill)
-pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--merge-name <branch>] [--notes "..."]
-pnpm sandcastle queue rule --name R<n> --issues <a,b> --reason "..."   # same-file serialization
-pnpm sandcastle queue remove --issue <n>                      # deliberate move between batches
-pnpm sandcastle queue promote --issue <n> [--sequence <batch>] # un-gate into a batch
-pnpm sandcastle queue promote --apply                         # promote every promotable gate
-pnpm sandcastle queue sequence --name <batch> --delete         # drop a sequence definition
-pnpm sandcastle queue prune --closed                          # drop references to CLOSED issues
-```
-
-`queue list` / `queue check` fetch issue state live (open/closed, `ready-for-agent`,
-blocked-by edges) and flag drift: unplaced ready-for-agent issues, closed-but-referenced
-issues, referenced-but-missing issues. `queue check` must report no drift before anything
-fires.
-
-`queue graph` is the view to hand a human: one node per batch in run order, edges for the
-`after <integration>` gates, the `serialized` rules, and live cross-batch blocked-by links, with
-`--expand-issues` drawing each batch as a subgraph of its members. Mermaid renders in GitHub
-files, issues, PRs, and comments, so the diagram can sit beside the plan it describes. `--write`
-emits the Markdown page without a render timestamp, so a committed copy can be diffed for schedule
-drift; `--comment <n>` posts that page and updates its own comment on re-run. It is read-only.
-
-`queue serve` serves that same graph as a local page for the questions Mermaid cannot answer:
-zoom and pan, flip between lanes (top-down constraint fan-out) and run order, toggle edge kinds
-and batch statuses, click a batch for its members, roles, blockers, notes and merge branch,
-and link a view as `?batch=<name>&layout=lanes&dir=TB`. Cards carry handles on all four sides
-with per-kind channels, so constraint arrows stop stacking. It binds
-`127.0.0.1` by default, caches the `gh` reads for 30 seconds (the page's Refresh bypasses the
-cache), and is read-only like `queue graph`.
-
-`queue run` fires the first READY batch in manifest order from `--base` — priority, not a base
-chain — and re-reads the manifest after every batch, so a review that registers a follow-up,
-promotes a gate, or files a new `ready-for-agent` issue changes what runs next inside the same
-invocation. Gated batches are skipped until READY. It prunes landed entries (issue closed + review APPROVED) unless `--keep-entries`,
-exits 1 when nothing can fire (unknown `--name`, or an exhausted queue), and prints the tail
-issue to pass to `sandcastle merge`. `--max-issues <n>` caps one invocation; `--json` prints
-one JSON object per decision.
-
-A closed issue in a batch gates that batch forever — `queue prune --closed` is the CLI exit
-for that state (`--dry-run` reports first; `human` entries are never pruned).
+1. **Read the current shape.** `pnpm sandcastle queue list` — READY/GATED plus drift.
+2. **Place the work.** `queue bootstrap` proposes placements for the unplaced backlog
+   (`--apply` writes them, `--dry-run` reports). By hand: `queue add --issue <n> --sequence
+<batch>` to join a batch, `--gated --reason "<condition>"` for a wait, `--human --reason "..."`
+   for a decision session a human must sit in.
+3. **Shape the batch.** `pnpm sandcastle queue sequence --name <integration-work> --issues
+<a,b,c>` sets membership in run order, with `--after <batch>` for a run-order gate, `--title`,
+   `--roles <n=role,...>`, and `--notes`.
+4. **Serialize same-file work.** `pnpm sandcastle queue rule --name R<n> --issues <a,b> --reason
+"..."` for anything that must never be in flight together.
+5. **Check.** `pnpm sandcastle queue check` must report **no drift** before a batch fires — it
+   exits 1 on drift and 2 when `--strict-gates` also finds a stale gate.
+6. **Hand the graph to a human** when a decision is needed: `pnpm sandcastle queue graph` renders
+   run order, gates, and rules as Mermaid (works in any GitHub comment), `--write <path>` commits
+   a diffable page, `queue serve` opens it as a local page.
 
 ## Rules
 
-- **Sequence order is a dependency statement**: each completed issue's branch becomes the
-  next base; later members contain earlier members' commits.
-- **Append rule**: an issue whose only open blockers are earlier `ready-for-agent` members
-  of its sequence belongs _in_ that sequence — position satisfies the edge (the harness
-  never consults GitHub edges). Append along dependency and same-file-serialization lines;
-  never to shrink the queue.
-- **Merge rule**: `--issues` lists only the tail of each sequence in the branch.
-- **Same-file rule**: two runs touching the same files never run in parallel — one
-  sequence (position serializes them) or a numbered rule (R\<n\>) plus serialized runs.
-  `queue run` skips a batch that shares a rule with anything it already dispatched.
-- **Never queue a `wayfinder:grilling` issue** — a grilling is a human decision session
-  (use `--human`); use `--gated --reason` for issues waiting on a condition.
-
-## Gates before firing a batch
-
-1. `pnpm sandcastle queue check` reports **no drift**, and the batch shows `READY`
-   (every member open + `ready-for-agent`, no open blocker outside the sequence).
-2. No pair in the batch violates a numbered rule (R\<n\>).
-3. Cross-batch order rules ("only after X merges") are respected — they live in rule
-   reasons and sequence notes.
+- **Order inside a batch is a dependency statement**: each member's branch becomes the next
+  member's base, so later members contain earlier commits. Set the order when you define the
+  batch; a redefinition keeps its position unless `--before` or `--last` moves it.
+- **Append, don't shrink.** An issue whose only open blockers are earlier `ready-for-agent` members
+  of a batch belongs _in_ that batch — position satisfies the edge, because the harness never reads
+  GitHub's edges. Never append to make the queue look shorter.
+- **One name, one batch.** A batch name is unique and is the integration name, so two batches can
+  never share a branch; folding two into one is a `queue sequence` edit, not a note.
+- **`--after` self-clears.** A gate opens when the integration lands; `--gated` on an issue needs
+  `queue promote` (`--apply` promotes every gate that has come ready), and `--human` never
+  auto-promotes.
+- **Never queue a `wayfinder:grilling` issue.** A grilling is a human decision session — `--human`
+  — not an agent run.
 
 ## Review follow-ups (the contract that keeps the queue honest)
 
-Most common failure mode: a review finds extra issues, files them on GitHub, and stops —
-the queue never learns about them, so the next planning pass misses them. When you run any
-review (sandcastle phase or a manual `/code-review` session):
+The most common failure mode is a review that finds extra work, files issues, and stops; the queue
+never learns about them. When you run any review — a sandcastle phase or a manual `/code-review`:
 
-1. File each follow-up as a GitHub issue (conventional title, milestone, labels,
-   parent/blocker edges per `docs/agents/issue-tracker.md`).
-2. Register it in the queue in the same change:
-   `pnpm sandcastle queue add --issue <n> --sequence <batch>` (or `--gated --reason` /
-   `--human --reason`). Add a numbered rule (R\<n\>) for new same-file collisions.
-3. Run `pnpm sandcastle queue check` — it must report no drift. With `queue.commit: true`
-   the mutating commands commit the manifest themselves (never push); otherwise commit it
-   yourself so the registration reaches the repository instead of dying with the worktree.
+1. File each follow-up as a GitHub issue (conventional title, milestone, labels, parent/blocker
+   edges per `docs/agents/issue-tracker.md`).
+2. Register it in the same change: `queue add --issue <n> --sequence <batch>` — or `--gated
+--reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
+3. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
+   commands commit the manifest themselves (never push); otherwise commit it, so the registration
+   survives the worktree it was made in.
 
-A review that lists follow-ups in the issue comment but leaves the queue untouched is
-incomplete. The queue is the runnable artifact; the comment is only the report.
+A review that lists follow-ups in a comment but leaves the queue untouched is incomplete: the
+queue is the runnable artifact, the comment is only the report.
+
+## Reading further
+
+This file is the tracked source of truth. `.agents/skills/sandcastle` is a gitignored symlink to
+this directory, so every repo linking its `.agents` here reads the same file.
+
+- `pnpm sandcastle queue <subcommand> --help` — per-command usage, flags, exit codes
+  (`src/help.ts` holds the topics).
+- `packages/sandcastle/README.md` — the runner itself: phases, worktrees, integrations.
+- `src/queue/` — the implementation, module by module: `manifest.ts` (schema and version gate),
+  `migrate.ts` (the v1 → v2 translation), `gates.ts` (gate evaluation), `land.ts` (composition and
+  the PR handoff), `run.ts` (dispatch).
+- `packages/sandcastle/src/prompts/queue.ts` (`{{QUEUE_RULES}}`) — the review contract as the agents
+  see it; override it with that placeholder, never with hard-coded queue instructions.
 
 ## Bypass
 
-Repositories that do not want the queue workflow set `queue.enabled: false` in
-`sandcastle.config.ts`, or pass `--no-queue` for one invocation (`--queue` re-enables it, and
-`--queue-commit` opts into committing the manifest). Reviews then report follow-ups in the
-issue comment only, and no queue gate applies — the review prompts switch contracts through
-`prompts/queue.ts` (`{{QUEUE_RULES}}`), so never hard-code queue instructions in a prompt
-override without that placeholder.
+A repo that does not want the queue workflow sets `queue.enabled: false` in `sandcastle.config.ts`,
+or passes `--no-queue` for one invocation (`--queue` re-enables it, `--queue-commit` opts into
+committing the manifest). Reviews then report follow-ups in the issue comment only and no queue
+gate applies.
 
-## Dispatch safety (what a `queue run` guarantees)
+## Dispatch safety (what `queue run` guarantees)
 
-- **One dispatcher per checkout.** `queue run` holds a run lock, so two runs cannot overlap; its
-  in-memory record of dispatched issues is therefore complete, and a numbered rule (R\<n\>) cannot
-  be broken by a second run starting mid-batch. Cross-machine runs are not guarded — one checkout
-  owns the queue.
-- **Every manifest write is one locked transaction.** A review registering a follow-up inside a batch
-  (`.sandcastle/worktrees/<branch>`) writes the manifest in the primary checkout under a short lock,
-  so it never waits on the dispatcher and never loses a change made in another terminal. The file is
-  replaced atomically, so `queue list` cannot read a half-written manifest.
-- **Dispatch resumes.** A sequence that grew a tail member re-fires, and members already complete
-  with an APPROVED review are skipped while their branch still chains as the next base (`--no-resume`
-  to re-run them). The skipped/landed decision uses `.sandcastle/state`, so it is per-checkout.
+- **One dispatcher per checkout.** A run lock means two runs cannot overlap, so the in-memory
+  record of dispatched issues is complete and no `R<n>` rule is broken by a second run starting
+  mid-batch. Cross-machine runs are not guarded: one checkout owns the queue.
+- **Every manifest write is one locked transaction.** A review registering a follow-up from inside
+  a batch worktree writes the manifest in the primary checkout under a short lock, atomically, so
+  it never waits on the dispatcher and never loses a concurrent edit.
+- **Dispatch resumes.** A batch that grew a tail member re-fires, and members already APPROVED are
+  skipped while their branch still chains as the next base (`--no-resume` re-runs them). The
+  decision uses `.sandcastle/state`, so it is per-checkout.
 - **Batches are atomic.** `--max-issues <n>` refuses a batch that would exceed the remaining budget
   rather than trimming it, because each member's branch is the next member's base.
-- **`--json` owns stdout.** Single-shot subcommands print one object; `queue run` prints one object
-  per decision. Progress, drift warnings, and commit notices go to stderr.
+- **`--json` owns stdout.** One object per command, one per decision for `queue run`; progress,
+  drift warnings, and commit notices go to stderr.
 - **Commit discipline.** With `queue.commit` (or `--queue-commit`) the manifest is committed in the
-  primary checkout only when that checkout is on `queue.commitBranch` (default `baseBranch`), and
+  primary checkout, only when that checkout is on `queue.commitBranch` (default `baseBranch`), and
   never pushed; any other branch is reported and skipped unless `--queue-commit-any` is passed.

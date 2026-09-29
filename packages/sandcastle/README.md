@@ -200,18 +200,38 @@ sandcastle queue add --issue 42 --sequence U2                    # append to a b
 sandcastle queue add --issue 42 --sequence U2 --after 41         # insert after issue 41
 sandcastle queue add --issue 43 --gated --joins V --reason "waiting on issue 41"
 sandcastle queue add --issue 44 --human --reason "needs a human decision session"
-sandcastle queue sequence --name U2 --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --merge-name ui-wiring-work --after-merge audio-seam-work
-sandcastle queue sequence --name U2 --issues 40,41,42 --before V    # place a batch in the run order
-sandcastle queue sequence --name X1 --delete                        # drop a batch (no --issues needed)
+sandcastle queue sequence --name ui-wiring-work --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --after audio-seam-work   # the batch IS the integration name
+sandcastle queue sequence --name ui-wiring-work --issues 40,41,42 --before V   # place a batch in the run order
+sandcastle queue sequence --name ui-wiring-work --delete                       # drop a batch (no --issues needed)
+sandcastle queue land --name ui-wiring-work --create-pr  # compose the batch and open its PR
+sandcastle queue migrate --apply                         # translate a v1 manifest (--assign names unnamed batches)
 sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
 sandcastle queue graph      # Mermaid diagram of the run order (--format json|ascii, --write, --comment)
 sandcastle queue serve      # the same graph as a local page (--port, --host, --open)
-sandcastle queue run --name U2  # fire the next READY batch; re-reads the manifest after each one
+sandcastle queue run --name ui-wiring-work  # fire the next READY batch; re-reads the manifest after each one
+sandcastle queue run --land                 # ...and compose each batch as it finishes
 sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
 ```
+
+Every batch is built from `--base`, so nothing stacks on an unlanded integration and there is one
+answer to "when do I merge?": when its pull request is open and reviewed. `sandcastle queue land
+--name <batch>` composes the batch on `sandcastle/integration/<name>` — merging the members,
+resolving conflicts, running the integration review, all as agents — and then hands over the seam a
+human owns. By default it prints the `git push` and `gh pr create` commands; `--create-pr` runs them,
+and the PR body carries one `Closes #<n>` per member so merging it closes the whole batch (which is
+also what clears those issues' `blocked-by` edges for later batches). Nothing in sandcastle runs
+`gh pr merge`: the merge is the human step, and once it lands, batches whose `after` names this
+integration become READY on their own. `--finish` removes a batch whose members GitHub has already
+closed and clears the `after` references pointing at it.
+
+A batch name is an integration name, so it is unique and no two batches share a branch, and it is the
+whole identity — the v1 split between a short code and a separate `mergeName` is gone. A v1 manifest
+is refused by name with the command that translates it: `sandcastle queue migrate` prints every
+rename, fold, and remapped gate as a proposal (`--apply` writes it), and `--assign <old>=<name>` names
+any batch v1 left unnamed rather than guessing.
 
 `queue list` / `queue check` fetch live issue state (`gh issue list` plus one batched
 GraphQL call for blocked-by edges) and render the visualization: per-batch READY/GATED with
@@ -253,7 +273,7 @@ the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappe
 report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the
 manifest themselves; otherwise commit it yourself, or the registration dies with the worktree.
 
-`sequences[].afterMerge` is a run-order gate: the batch stays GATED until that integration has
+`sequences[].after` is a run-order gate: the batch stays GATED until that integration has
 been composed **and** its head commit is an ancestor of the base branch — the check a batch that
 consumes an earlier batch's commits actually needs. It is evaluated in `queue/gates.ts` with
 `git merge-base --is-ancestor`, it fails closed (a missing manifest, an unfinished composition,

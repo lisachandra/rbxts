@@ -138,13 +138,12 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 
 export interface DefineSequenceParams {
 	/** Integration that must land on the base branch before this batch may fire. */
-	afterMerge?: string;
+	after?: string;
 	/** Batch to place this one before; omitted keeps its previous position, or the tail when new. */
 	before?: string;
 	issues: ReadonlyArray<string>;
 	/** Move the batch to the end of the run order. */
 	last?: boolean;
-	mergeName?: string;
 	name: string;
 	notes?: string;
 	/** Per-issue role phrase, keyed by issue number; every key must be a member. */
@@ -243,16 +242,15 @@ export function defineSequence(
 	}
 
 	/*
-	 * Label metadata persists across a redefinition: `afterMerge`, `notes`, `roles`, and `title`
+	 * Label metadata persists across a redefinition: `after`, `notes`, `roles`, and `title`
 	 * describe a batch, and dropping them because a later `queue sequence --issues` call omitted the
 	 * flag is how the readable half of the manifest decayed into bare issue numbers.
 	 */
 	const previousIndex = manifest.sequences.findIndex((entry) => entry.name === params.name);
 	const previous = previousIndex === -1 ? undefined : manifest.sequences[previousIndex];
 	const redefined = defined({
-		afterMerge: params.afterMerge ?? previous?.afterMerge,
+		after: params.after ?? previous?.after,
 		issues: [...params.issues],
-		mergeName: params.mergeName ?? previous?.mergeName,
 		name: params.name,
 		notes: params.notes ?? previous?.notes,
 		roles: params.roles ?? previous?.roles,
@@ -341,10 +339,56 @@ export function removeIssue(manifest: QueueManifest, issue: string): QueueManife
 	return next;
 }
 
-/** Removes a sequence definition; the members keep whatever placement remains. */
+/**
+ * - Clears every `after` gate that waits on a batch.
+ * - @param manifest - The queue manifest.
+ * - @param name - Batch (integration) name that landed or was deleted.
+ * - @returns A manifest whose consumers wait on nothing.
+ * - @remarks This is the mechanical half of the landed lifecycle: once a batch's PR has merged, the
+ *   gate it represented is satisfied forever, so a wait pointing at it is stale bookkeeping rather
+ *   than information. `queue run --land --finish` and `queue prune --closed` call it; a deliberate
+ *   `queue sequence --delete` does not, because that path must ask.
+ */
+export function clearAfterReferences(manifest: QueueManifest, name: string): QueueManifest {
+	let changed = false;
+	const sequences = manifest.sequences.map((sequence) => {
+		if (sequence.after !== name) {
+			return sequence;
+		}
+
+		changed = true;
+		const { after: _dropped, ...rest } = sequence;
+		return rest;
+	});
+
+	return changed ? { ...manifest, sequences } : manifest;
+}
+
+/** Batches whose `after` gate waits on `name`; a definition that still has consumers. */
+export function afterConsumers(manifest: QueueManifest, name: string): Array<string> {
+	return manifest.sequences
+		.filter((sequence) => sequence.after === name)
+		.map((sequence) => sequence.name);
+}
+
+/**
+ * Removes a sequence definition; the members keep whatever placement remains.
+ *
+ * @throws {Error} When another batch waits on it (`after`) - deleting a producer is a deliberate
+ *   act, so the caller must clear or delete its consumers first; `clearAfterReferences` is the
+ *   exit.
+ */
 export function deleteSequence(manifest: QueueManifest, name: string): QueueManifest {
 	if (!manifest.sequences.some((entry) => entry.name === name)) {
 		throw new Error(`Sequence "${name}" is not defined.`);
+	}
+
+	const consumers = afterConsumers(manifest, name);
+	if (consumers.length > 0) {
+		const waiting = consumers.map((consumer) => `"${consumer}"`).join(", ");
+		throw new Error(
+			`Batch "${name}" is waited on by ${waiting}; delete those batches or re-point their \`after\` first.`,
+		);
 	}
 
 	return {

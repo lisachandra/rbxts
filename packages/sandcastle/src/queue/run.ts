@@ -24,10 +24,11 @@ import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
 import { applyBootstrap, promotableGates, proposeBootstrap } from "./bootstrap.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
+import { runQueueLand } from "./land.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, runLockName } from "./lock.js";
 import { readQueueManifest, referencedIssues } from "./manifest.js";
-import { promoteIssue, removeIssue } from "./mutations.js";
+import { clearAfterReferences, deleteSequence, promoteIssue, removeIssue } from "./mutations.js";
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
 import { computeQueueView } from "./render.js";
@@ -114,6 +115,26 @@ function isLanded(issue: string): boolean {
 	return isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED";
 }
 
+/**
+ * - Lands a freshly dispatched batch when `--land` asked for it.
+ * - @param options - Parsed CLI options; `--create-pr` decides whether the PR is opened or printed.
+ * - @param name - Batch name to compose and hand over.
+ * - @remarks A failed land does not stop the invocation: the integration manifest keeps the failure
+ *   (`integration-resume` picks it up) and the loop moves to the next batch that is not gated on
+ *   it, so one blocked composition cannot strand the rest of the queue.
+ */
+async function landBatch(options: CliOptions, name: string): Promise<void> {
+	try {
+		await runQueueLand({ ...options, integrationName: name });
+	} catch (err) {
+		emitText(options, `  ⚠ Could not land "${name}": ${String(err)}`);
+		emitText(
+			options,
+			`    Inspect it with \`pnpm sandcastle integration-status --name ${name}\`, then \`pnpm sandcastle queue land --name ${name}\`.`,
+		);
+	}
+}
+
 /** Removes completed, APPROVED members so `queue check` stays green after a batch lands. */
 function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
 	const landed = issues.filter((issue) => isLanded(issue));
@@ -129,6 +150,19 @@ function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
 			} catch {
 				// Already absent; nothing to prune.
 			}
+		}
+
+		/*
+		 * The landed lifecycle in one transaction: a batch whose members are gone cannot stay in the
+		 * manifest (an empty batch is drift) and nothing waits on it any more, so its `after` gates are
+		 * cleared rather than left to dangle.
+		 */
+		const emptied = next.sequences
+			.filter((sequence) => sequence.issues.length === 0)
+			.map((sequence) => sequence.name);
+		for (const name of emptied) {
+			next = clearAfterReferences(next, name);
+			next = deleteSequence(next, name);
 		}
 
 		return {
@@ -279,15 +313,19 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 		}
 
 		dispatched += decision.issues.length;
+		if (options.land === true) {
+			await landBatch(options, decision.name);
+		}
+
 		if (options.queueKeepEntries !== true) {
 			pruneLanded(decision.issues, options);
 		}
 
 		const sequence = manifest.sequences.find((entry) => entry.name === decision.name);
-		if (sequence?.mergeName !== undefined && sequence.mergeName !== "") {
+		if (sequence !== undefined) {
 			emitText(
 				options,
-				`  Merge hint: pnpm sandcastle merge --name ${sequence.mergeName} --issues ${sequenceTail(decision.issues)}`,
+				`  Land hint: pnpm sandcastle queue land --name ${sequence.name} (tail #${sequenceTail(decision.issues)})`,
 			);
 		}
 

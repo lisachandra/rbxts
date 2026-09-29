@@ -36,7 +36,6 @@ export type CliCommand =
 
 export interface CliOptions {
 	readonly after?: string;
-	readonly afterMerge?: string;
 	readonly agentBackend: AgentBackend;
 	readonly allowUnreviewed: boolean;
 	readonly base: string;
@@ -44,6 +43,7 @@ export interface CliOptions {
 	readonly branch: string;
 	readonly command: CliCommand;
 	readonly concurrency: number;
+	readonly createPr?: boolean;
 	readonly dryRun: boolean;
 	readonly effort: SandcastleEffort;
 	readonly force?: true | PhaseName;
@@ -55,15 +55,17 @@ export interface CliOptions {
 	readonly issueNumbers: Array<string>;
 	readonly joins?: string;
 	readonly jsonOut: boolean;
+	readonly land?: boolean;
+	readonly landFinish?: boolean;
 	readonly last?: boolean;
 	readonly maxIssues?: number;
-	readonly mergeName?: string;
 	readonly model: string;
 	readonly noResume?: boolean;
 	readonly notes?: string;
 	readonly phase?: PhaseName;
 	readonly quarantineDrift?: boolean;
 	readonly queueApply?: boolean;
+	readonly queueAssigns?: string;
 	readonly queueBucket?: "gated" | "human";
 	readonly queueClosed?: boolean;
 	readonly queueComment?: string;
@@ -139,7 +141,6 @@ export function commaSeparated(value: string | undefined, flag: string): Array<s
 
 interface ParsedArgState {
 	after: string | undefined;
-	afterMerge: string | undefined;
 	agentBackend: AgentBackend;
 	allowUnreviewed: boolean;
 	base: string;
@@ -147,6 +148,7 @@ interface ParsedArgState {
 	branch: string | undefined;
 	command: CliCommand;
 	concurrency: number;
+	createPr: boolean;
 	dryRun: boolean;
 	effort: SandcastleEffort;
 	force: true | PhaseName | undefined;
@@ -158,15 +160,17 @@ interface ParsedArgState {
 	issueNumbers: Array<string>;
 	joins: string | undefined;
 	jsonOut: boolean;
+	land: boolean;
+	landFinish: boolean;
 	last: boolean;
 	maxIssues: number | undefined;
-	mergeName: string | undefined;
 	model: string | undefined;
 	noResume: boolean;
 	notes: string | undefined;
 	phase: PhaseName | undefined;
 	quarantineDrift: boolean;
 	queueApply: boolean;
+	queueAssigns: string | undefined;
 	queueBucket: "gated" | "human" | undefined;
 	queueClosed: boolean;
 	queueComment: string | undefined;
@@ -203,7 +207,6 @@ interface ParsedArgState {
 function createParsedArgState(): ParsedArgState {
 	return {
 		after: undefined,
-		afterMerge: undefined,
 		agentBackend: config.agents.default,
 		allowUnreviewed: false,
 		base: config.baseBranch,
@@ -211,6 +214,7 @@ function createParsedArgState(): ParsedArgState {
 		branch: undefined,
 		command: "issue",
 		concurrency: 1,
+		createPr: false,
 		dryRun: false,
 		effort: config.effort,
 		force: undefined,
@@ -222,15 +226,17 @@ function createParsedArgState(): ParsedArgState {
 		issueNumbers: [],
 		joins: undefined,
 		jsonOut: false,
+		land: false,
+		landFinish: false,
 		last: false,
 		maxIssues: undefined,
-		mergeName: undefined,
 		model: undefined,
 		noResume: false,
 		notes: undefined,
 		phase: undefined,
 		quarantineDrift: false,
 		queueApply: false,
+		queueAssigns: undefined,
 		queueBucket: undefined,
 		queueClosed: false,
 		queueComment: undefined,
@@ -363,14 +369,6 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.after = next;
 		return index + 1;
 	},
-	"--after-merge": (state, next, index) => {
-		if (next === undefined || next === "" || next.startsWith("-")) {
-			throw new Error("--after-merge requires an integration name");
-		}
-
-		state.afterMerge = next;
-		return index + 1;
-	},
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
 			throw new Error(
@@ -379,6 +377,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		}
 
 		state.agentBackend = next;
+		return index + 1;
+	},
+	"--assign": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--assign requires <old>=<integration-name> entries");
+		}
+
+		state.queueAssigns = next;
 		return index + 1;
 	},
 	"--base": (state, next, index) => {
@@ -510,14 +516,6 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		}
 
 		state.maxIssues = parsed;
-		return index + 1;
-	},
-	"--merge-name": (state, next, index) => {
-		if (next === undefined || next === "" || next.startsWith("-")) {
-			throw new Error("--merge-name requires a value");
-		}
-
-		state.mergeName = next;
 		return index + 1;
 	},
 	"--model": (state, next, index) => {
@@ -658,6 +656,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--closed": (state) => {
 		state.queueClosed = true;
 	},
+	"--create-pr": (state) => {
+		state.createPr = true;
+	},
 	"--delete": (state) => {
 		state.queueDelete = true;
 	},
@@ -666,6 +667,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--expand-issues": (state) => {
 		state.queueExpandIssues = true;
+	},
+	"--finish": (state) => {
+		state.landFinish = true;
 	},
 	"--gated": (state) => {
 		if (state.queueBucket !== undefined) {
@@ -695,6 +699,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--keep-entries": (state) => {
 		state.queueKeepEntries = true;
+	},
+	"--land": (state) => {
+		state.land = true;
 	},
 	"--last": (state) => {
 		state.last = true;
@@ -904,12 +911,11 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.queueSubcommand !== "sequence" &&
 			(state.title !== undefined ||
 				state.roles !== undefined ||
-				state.afterMerge !== undefined ||
 				state.before !== undefined ||
 				state.last === true)
 		) {
 			throw new Error(
-				"--title, --roles, --after-merge, --before, and --last describe a batch; use them with `queue sequence`.",
+				"--title, --roles, --before, and --last describe a batch; use them with `queue sequence`.",
 			);
 		}
 
@@ -968,6 +974,42 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		if (state.queueSubcommand === "remove" && state.issueNumber === undefined) {
 			throw new Error("queue remove requires --issue <number>.");
 		}
+
+		if (state.queueSubcommand === "land" && state.integrationName === undefined) {
+			throw new Error("queue land requires --name <batch>.");
+		}
+
+		if (state.land === true && state.queueSubcommand !== "run") {
+			throw new Error(
+				"--land composes each dispatched batch; use it with `queue run`, or run `queue land` yourself.",
+			);
+		}
+
+		if (
+			(state.createPr === true || state.landFinish === true) &&
+			state.queueSubcommand !== "land" &&
+			state.land !== true
+		) {
+			throw new Error(
+				"--create-pr and --finish complete a landing; use them with `queue land` or `queue run --land`.",
+			);
+		}
+
+		if (state.queueAssigns !== undefined && state.queueSubcommand !== "migrate") {
+			throw new Error(
+				"--assign names batches that a v1 manifest left unnamed; use it with `queue migrate`.",
+			);
+		}
+
+		if (
+			state.queueApply === true &&
+			state.queueSubcommand !== "bootstrap" &&
+			state.queueSubcommand !== "migrate"
+		) {
+			throw new Error(
+				"--apply writes a proposal to the manifest; use it with `queue bootstrap` or `queue migrate`.",
+			);
+		}
 	}
 
 	if (!isAgentBackend(state.agentBackend)) {
@@ -1021,7 +1063,6 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 
 	return {
 		after: state.after,
-		afterMerge: state.afterMerge,
 		agentBackend: state.agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
@@ -1029,6 +1070,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		branch: state.branch ?? "",
 		command: state.command,
 		concurrency: state.concurrency,
+		createPr: state.createPr,
 		dryRun: state.dryRun,
 		effort: state.effort,
 		force: state.force,
@@ -1040,15 +1082,17 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		issueNumbers: state.issueNumbers,
 		joins: state.joins,
 		jsonOut: state.jsonOut,
+		land: state.land,
+		landFinish: state.landFinish,
 		last: state.last,
 		maxIssues: state.maxIssues,
-		mergeName: state.mergeName,
 		model: model ?? "",
 		noResume: state.noResume,
 		notes: state.notes,
 		phase: state.phase,
 		quarantineDrift: state.quarantineDrift,
 		queueApply: state.queueApply,
+		queueAssigns: state.queueAssigns,
 		queueBucket: state.queueBucket,
 		queueClosed: state.queueClosed,
 		queueComment: state.queueComment,
@@ -1135,7 +1179,7 @@ Setup workflow (harness / manual worktrees):
 Queue workflow (batch manifest + live view):
   pnpm sandcastle queue add --issue <n> [--sequence <name> | --gated | --human] [--reason <text>] [--after <n>] [--joins <batch>]
   pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--title <label>] [--roles <n=role,...>]
-                                 [--merge-name <branch>] [--after-merge <integration>] [--notes <text>]
+                                 [--after <integration>] [--notes <text>]
   pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>
   pnpm sandcastle queue remove --issue <n>
   pnpm sandcastle queue prune --closed [--json]
@@ -1144,17 +1188,21 @@ Queue workflow (batch manifest + live view):
   pnpm sandcastle queue graph [--format <mermaid|json|ascii>] [--expand-issues] [--write <path>]
                               [--comment <n>]
   pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--dry-run]
+                                     [--land [--create-pr]] [--promote-gates] [--require-clean]
+  pnpm sandcastle queue land --name <batch> [--create-pr] [--finish] [--dry-run]
+  pnpm sandcastle queue migrate [--assign <old>=<name>,...] [--apply] [--dry-run]
   pnpm sandcastle queue bootstrap [--apply] [--dry-run]
 
   pnpm sandcastle queue serve [--port <n>] [--host <ip>] [--open]
 
   The queue manifest (default sandcastle.queue.json, git-tracked) stores only what
   GitHub cannot express: sequence composition/run order, serialization rules, gates.
-  Issue state is fetched live; queue check reports drift (unplaced ready issues,
-  closed-but-listed, referenced-but-missing) and exits 1, or 2 when --strict-gates also
-  counts an unresolved gate. queue run fires the next READY sequence and re-reads the
-  manifest after every batch, so a review that registered a follow-up changes what runs
-  next inside the same invocation; landed entries are pruned unless --keep-entries.
+  Every batch branches from the base ref, so nothing stacks on an unlanded integration:
+  queue run fires the next READY batch, queue land composes it (resolving conflicts and
+  reviewing the result) on sandcastle/integration/<name>, then prints the PR that closes
+  every member. Merging that PR is the human gate; once it lands, batches whose "after"
+  names it become READY. queue run re-reads the manifest after every batch, so a review
+  that registered a follow-up changes what runs next inside the same invocation.
   queue bootstrap proposes placements for the unplaced backlog; --apply writes them.
   queue graph renders the run order plus the gates and rules that constrain it: Mermaid on
   stdout (GitHub draws it in files, issues, and comments), --format json for tooling, or a
@@ -1164,6 +1212,9 @@ Queue workflow (batch manifest + live view):
   queue serve opens the same graph as a local page (loopback only) with layers, filters, and a
   detail panel; it reads the manifest and live GitHub state per request behind a 30s cache.
   Both commands are read-only: neither commits the manifest or touches GitHub.
+  --create-pr pushes the integration branch and opens the PR; without it the command
+  prints the git/gh commands for you to run. queue land --finish drops a batch once GitHub
+  has closed its members.
 
   Bypass for repositories that do not want the queue workflow: set queue.enabled: false in
   sandcastle.config.ts (or pass --no-queue). Reviews then report follow-ups in the issue

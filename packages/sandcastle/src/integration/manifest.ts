@@ -33,12 +33,18 @@ const defaultFs: ManifestFs = { existsSync, mkdirSync, readFileSync, writeFileSy
 
 export const integrationBranch = (name: string): string => `sandcastle/integration/${name}`;
 
+/**
+ * Integration names are branch names: letters, numbers, `.`, `_`, and `-`, never a leading dot or
+ * dash. The queue's batch names are integration names, so both validators read this one pattern.
+ */
+export const integrationNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
 export function integrationManifestPath(name: string): string {
 	return pathResolve(integrationsDir, name, "manifest.json");
 }
 
 export function assertIntegrationName(name: string): void {
-	if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
+	if (!integrationNamePattern.test(name)) {
 		throw new Error(
 			`Invalid integration name ${JSON.stringify(name)}; use letters, numbers, ., _, or -`,
 		);

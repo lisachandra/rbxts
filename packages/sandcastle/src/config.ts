@@ -83,8 +83,9 @@ export interface SandcastleConfig {
 		/** Commit the manifest after every successful mutation (never pushes). */
 		commit: boolean;
 		/**
-		 * Branch the primary checkout must be on for that commit; defaults to `baseBranch`. A checkout
-		 * on any other branch is reported and skipped, so a registration never lands on unrelated work.
+		 * Branch the primary checkout must be on for that commit; defaults to `baseBranch`. A
+		 * checkout on any other branch is reported and skipped, so a registration never lands on
+		 * unrelated work.
 		 */
 		commitBranch: string;
 		/** When false, the queue workflow is bypassed: no gating, no prompt contract. */
@@ -326,7 +327,8 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 		prompts: parsed.prompts ?? {},
 		queue: {
 			commit: parsed.queue?.commit ?? defaultConfig.queue.commit,
-			commitBranch: parsed.queue?.commitBranch ?? parsed.baseBranch ?? defaultConfig.queue.commitBranch,
+			commitBranch:
+				parsed.queue?.commitBranch ?? parsed.baseBranch ?? defaultConfig.queue.commitBranch,
 			enabled: parsed.queue?.enabled ?? defaultConfig.queue.enabled,
 			file: parsed.queue?.file ?? defaultConfig.queue.file,
 		},

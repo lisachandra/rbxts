@@ -10,25 +10,42 @@
 
 import type { CliOptions } from "../cli.js";
 import { config } from "../runtime.js";
-import { promotableGates, scopeOf } from "./bootstrap.js";
+import { batchNameForScope, promotableGates, scopeOf } from "./bootstrap.js";
 import { fetchLiveQueueState, type LiveIssue, type LiveQueueState } from "./live.js";
+import { acquireQueueLock, manifestLockName } from "./lock.js";
 import {
 	describePlacement,
 	locateIssue,
 	type QueueManifest,
+	queueManifestPath,
+	queueManifestVersion,
 	readQueueManifest,
 	referencedIssues,
+	writeQueueManifest,
 } from "./manifest.js";
+import {
+	migrateQueueManifest,
+	parseMigrationAssigns,
+	readRawQueueManifest,
+	renderQueueMigration,
+} from "./migrate.js";
 import {
 	addRule,
 	addToSequence,
+	clearAfterReferences,
 	defineSequence,
 	deleteSequence,
 	placeIssue,
 	promoteIssue,
 	removeIssue,
 } from "./mutations.js";
-import { transactQueueManifest } from "./persist.js";
+import { emitText } from "./output.js";
+import {
+	commitQueueManifest,
+	notifyQueueLocation,
+	queueCommitEnabled,
+	transactQueueManifest,
+} from "./persist.js";
 
 function requireIssueNumber(options: CliOptions, subcommand: string): string {
 	if (options.issueNumber === undefined || options.issueNumber === "") {
@@ -91,11 +108,10 @@ export function runQueueSequence(options: CliOptions): void {
 	transactQueueManifest(options, (manifest) => ({
 		message: `  ✓ Defined sequence "${name}" (${memberCount} issue(s)): ${options.issueNumbers.join(", ")}`,
 		next: defineSequence(manifest, {
-			afterMerge: options.afterMerge,
+			after: options.after,
 			before: options.before,
 			issues: options.issueNumbers,
 			last: options.last,
-			mergeName: options.mergeName,
 			name,
 			notes: options.notes,
 			roles: options.roles,
@@ -191,6 +207,8 @@ export function runQueuePrune(options: CliOptions): void {
 			.filter((entry) => entry.issues.length === 0)
 			.map((entry) => entry.name);
 		for (const entry of emptied) {
+			// A pruned producer cannot satisfy anything, so its consumers stop waiting on it.
+			next = clearAfterReferences(next, entry);
 			next = deleteSequence(next, entry);
 		}
 
@@ -281,11 +299,71 @@ export function runQueuePromote(options: CliOptions): void {
 			);
 		}
 
-		const sequence = options.queueSequence ?? entry.joins ?? scopeOf(state?.title ?? "");
+		const sequence =
+			options.queueSequence ?? entry.joins ?? batchNameForScope(scopeOf(state?.title ?? ""));
 		return {
 			message: `  ✓ Promoted #${issue} → sequence "${sequence}" (was gated: ${entry.reason})`,
 			next: promoteIssue(manifest, { issue, sequence }),
 			summary: `promote #${issue}`,
 		};
 	});
+}
+
+/**
+ * - Translates a v1 queue manifest into v2, or reports what the translation would do.
+ * - @param options - Parsed CLI options; `--assign <old>=<new>` names batches v1 left unnamed, and
+ *   `--apply` writes the result (default: print and exit).
+ * - @throws {Error} When the manifest is unreadable or a batch has no name to migrate to.
+ * - @remarks The one command that reads a v1 file: `readQueueManifest` refuses it by name, so this
+ *   takes the manifest lock directly rather than going through `transactQueueManifest`.
+ */
+export function runQueueMigrate(options: CliOptions): void {
+	const path = queueManifestPath();
+	const raw = readRawQueueManifest(path);
+	if (raw === undefined) {
+		emitText(options, `  ⏭ No queue manifest at ${path}; nothing to migrate.`);
+		return;
+	}
+
+	if ((raw as { version?: unknown }).version === queueManifestVersion) {
+		emitText(options, `  ✓ Queue manifest is already version ${String(queueManifestVersion)}.`);
+		return;
+	}
+
+	const report = migrateQueueManifest(raw, parseMigrationAssigns(options.queueAssigns));
+	for (const line of renderQueueMigration(report)) {
+		emitText(options, line);
+	}
+
+	if (report.unmapped.length > 0) {
+		throw new Error(
+			`${report.unmapped.length} batch(es) have no integration name; pass --assign <old>=<integration-name> for each and re-run.`,
+		);
+	}
+
+	if (options.queueApply !== true) {
+		emitText(options, "  (proposal only — pass --apply to write it)");
+		return;
+	}
+
+	if (options.dryRun) {
+		emitText(options, "  (dry run — manifest not written)");
+		return;
+	}
+
+	const release = acquireQueueLock({ name: manifestLockName });
+	try {
+		writeQueueManifest(report.manifest, path);
+	} finally {
+		release();
+	}
+
+	emitText(options, `  ✓ Migrated ${path} to version ${String(queueManifestVersion)}.`);
+	notifyQueueLocation(options);
+	if (queueCommitEnabled(options)) {
+		commitQueueManifest(
+			`migrate the queue manifest to v${String(queueManifestVersion)}`,
+			options,
+		);
+	}
 }

@@ -27,9 +27,8 @@ describe("queue mutations", () => {
 
 	test("defineSequence replaces membership and keeps the batch labels", () => {
 		const start = defineSequence(base(), {
-			afterMerge: "audio-seam-work",
+			after: "audio-seam-work",
 			issues: ["1", "2"],
-			mergeName: "old",
 			name: "U2",
 			notes: "old notes",
 			roles: { "1": "shell" },
@@ -43,9 +42,8 @@ describe("queue mutations", () => {
 		 */
 		assert.deepEqual(next.sequences, [
 			{
-				afterMerge: "audio-seam-work",
+				after: "audio-seam-work",
 				issues: ["2", "3"],
-				mergeName: "old",
 				name: "U2",
 				notes: "old notes",
 				roles: { "1": "shell" },
@@ -150,7 +148,7 @@ describe("queue mutations", () => {
 
 		assert.throws(() => {
 			defineSequence(start, { issues: ["2"], name: "U3" });
-		}, /already belongs to sequence "U2"/u);
+		}, /already belongs to batch "U2"/u);
 	});
 
 	test("defineSequence rejects duplicate issues", () => {
@@ -209,7 +207,7 @@ describe("queue mutations", () => {
 
 		assert.throws(() => {
 			addToSequence(start, { issue: "1", sequence: "U2" });
-		}, /already belongs to sequence "U1"/u);
+		}, /already belongs to batch "U1"/u);
 	});
 
 	test("addToSequence throws when --after is not a member", () => {

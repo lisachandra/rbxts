@@ -3,8 +3,14 @@
  *
  * GitHub issues remain the canonical store for issue state (open/closed,
  * `ready-for-agent`, blocked-by edges) — those are always fetched live. The
- * manifest records only what GitHub cannot express: sequence composition and
+ * manifest records only what GitHub cannot express: batch composition and
  * run order, same-file serialization rules, and gate conditions.
+ *
+ * A batch has exactly one name: `sequences[].name` is an integration name, and it is the branch
+ * (`sandcastle/integration/<name>`), the `--name` argument every queue command takes, and the target
+ * an `after` gate references. The short codes the manifest used to carry beside a separate
+ * `mergeName` were two namespaces for one thing, and the prose that kept them in sync ("SX joins the
+ * S merge") was unreadable by the scheduler.
  *
  * The default file lives at the primary checkout's root (`sandcastle.queue.json`) so
  * it is versioned with the repo and shared by every worktree; override it with
@@ -21,7 +27,11 @@ import { dirname, resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
 import { primaryRepoRoot } from "../git.js";
+import { integrationNamePattern } from "../integration/manifest.js";
 import { config, normalizedPath, repoRoot } from "../runtime.js";
+
+/** Manifest schema version; v1 manifests must be migrated with `sandcastle queue migrate`. */
+export const queueManifestVersion = 2;
 
 const issueNumberSchema = z.string().regex(/^\d+$/u, "must be a numeric GitHub issue number");
 
@@ -34,13 +44,14 @@ export const queueSequenceSchema = z.object({
 	 * branches from the base branch, so a batch consuming an earlier batch's commits is unsafe
 	 * until that batch's integration is an ancestor of it.
 	 */
-	afterMerge: z.string().min(1).optional(),
+	after: z.string().min(1).optional(),
 	/** Issues in run order; position satisfies intra-sequence dependencies. */
 	issues: z.array(issueNumberSchema),
-	/** Integration branch name used by `sandcastle merge --issues <tail>`. */
-	mergeName: z.string().min(1).optional(),
-	/** Batch name, e.g. "U2". */
-	name: z.string().min(1),
+	/** Integration name: the branch (`sandcastle/integration/<name>`) and the batch's identity. */
+	name: z
+		.string()
+		.min(1)
+		.regex(integrationNamePattern, "must be an integration name: letters, numbers, ., _, or -"),
 	/** Free-form notes; each newline starts a new line in the `queue list` rendering. */
 	notes: z.string().optional(),
 	/** Per-issue role phrase, keyed by issue number, rendered beside each member. */
@@ -69,7 +80,7 @@ export const queueManifestSchema = z.object({
 	sequences: z.array(queueSequenceSchema),
 	serialized: z.array(queueSerializedRuleSchema),
 	updatedAt: z.string().min(1),
-	version: z.literal(1),
+	version: z.literal(queueManifestVersion),
 });
 
 export type QueueSequence = z.output<typeof queueSequenceSchema>;
@@ -97,8 +108,23 @@ export function emptyQueueManifest(): QueueManifest {
 		sequences: [],
 		serialized: [],
 		updatedAt: "",
-		version: 1,
+		version: queueManifestVersion,
 	};
+}
+
+/** Batch names claimed more than once; a batch name is an integration, so it must be unique. */
+export function duplicateSequenceNames(sequences: ReadonlyArray<{ name: string }>): Array<string> {
+	const seen = new Set<string>();
+	const duplicates = new Set<string>();
+	for (const sequence of sequences) {
+		if (seen.has(sequence.name)) {
+			duplicates.add(sequence.name);
+		}
+
+		seen.add(sequence.name);
+	}
+
+	return [...duplicates];
 }
 
 function firstIssueMessage(error: z.ZodError): string {
@@ -110,11 +136,30 @@ function firstIssueMessage(error: z.ZodError): string {
 	return `${issue.path.join(".") || "(root)"}: ${issue.message}`;
 }
 
+/** Names a batch waits on that no batch produces; the drift `queue check` reports. */
+export function unknownGateTargets(
+	manifest: QueueManifest,
+): Array<{ name: string; target: string }> {
+	const produced = new Set(manifest.sequences.map((sequence) => sequence.name));
+	const unknown: Array<{ name: string; target: string }> = [];
+	for (const sequence of manifest.sequences) {
+		const target = sequence.after;
+		if (target !== undefined && target !== "" && !produced.has(target)) {
+			unknown.push({ name: sequence.name, target });
+		}
+	}
+
+	return unknown;
+}
+
 /**
  * Reads the queue manifest, returning an empty manifest when the file does not exist yet.
  *
+ * @remarks
+ *   A v1 manifest fails with the migration command rather than a schema message: the rename
+ *   (`mergeName` -> `name`, `afterMerge` -> `after`) has exactly one supported translation.
  * @param path - Explicit manifest path; defaults to the configured `queue.file`.
- * @throws {Error} When the file exists but fails schema validation.
+ * @throws {Error} When the file exists but is v1, fails schema validation, or repeats a batch name.
  */
 export function readQueueManifest(path: string = queueManifestPath()): QueueManifest {
 	if (!existsSync(path)) {
@@ -128,9 +173,26 @@ export function readQueueManifest(path: string = queueManifestPath()): QueueMani
 		throw new Error(`Queue manifest at ${path} is not valid JSON: ${String(err)}`);
 	}
 
+	const version =
+		raw !== null && typeof raw === "object" && "version" in raw
+			? (raw as { version: unknown }).version
+			: undefined;
+	if (version === 1) {
+		throw new Error(
+			`Queue manifest at ${path} is version 1; run \`pnpm sandcastle queue migrate --apply\` to move it to version ${String(queueManifestVersion)}.`,
+		);
+	}
+
 	const parsed = queueManifestSchema.safeParse(raw);
 	if (!parsed.success) {
 		throw new Error(`Queue manifest at ${path} is invalid: ${firstIssueMessage(parsed.error)}`);
+	}
+
+	const duplicates = duplicateSequenceNames(parsed.data.sequences);
+	if (duplicates.length > 0) {
+		throw new Error(
+			`Queue manifest at ${path} repeats batch name(s): ${duplicates.join(", ")}. A batch name is an integration; fold the duplicates into one batch.`,
+		);
 	}
 
 	return parsed.data;
@@ -209,7 +271,7 @@ export function describePlacement(placement: QueuePlacement): string {
 			return "human";
 		}
 		case "sequence": {
-			return `sequence "${placement.name}" (position ${placement.index + 1})`;
+			return `batch "${placement.name}" (position ${placement.index + 1})`;
 		}
 	}
 }
