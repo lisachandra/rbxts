@@ -464,19 +464,4 @@ export default isentinel(
 			"unicorn/filename-case": "off",
 		},
 	},
-	// Specs assert by throwing (`error(...)`); keep the preset selectors, skip the logging rules.
-	{
-		files: GLOB_TESTS,
-		name: "project/logging-tests",
-		rules: {
-			"eslint-js/no-restricted-syntax": [
-				"error",
-				"TSEnumDeclaration[const=true]",
-				"TSExportAssignment",
-				"TSInterfaceDeclaration",
-				"TSModuleDeclaration",
-				"TSTypeAliasDeclaration",
-			],
-		},
-	},
 );

@@ -9,6 +9,22 @@ import:
     - "@isentinel/dict-rbxts"
 
 words:
+    - despawned
+    - gitlink
+    - spatializes
+    - idempotently
+    - unscanned
+    - renderable
+    - upserts
+    - upserted
+    - neighbours
+    - nodesep
+    - ranksep
+    - marginx
+    - marginy
+    - rankdir
+    - unwired
+    - guids
     - analysing
     - Augmentable
     - dagre
