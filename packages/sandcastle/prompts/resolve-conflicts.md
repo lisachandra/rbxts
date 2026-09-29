@@ -8,7 +8,7 @@ Use the `resolving-merge-conflicts` skill for this phase:
 
 {{SKILLS}}
 
-Do not abort the merge. Preserve both sides where compatible, inspect the primary sources, and resolve every conflict in favor of the integration's stated goal.
+The worktree is already mid-merge and the orchestration keeps it that way, so an abort throws the resolution away: preserve both sides where compatible, inspect the primary sources, and resolve every conflict in favor of the integration's stated goal.
 
 ## Source context
 
@@ -18,7 +18,7 @@ The source being merged is `{{SOURCE_NAME}}`:
 {{SOURCE_CONTEXT}}
 ```
 
-Read the source manifests and relevant commit history when needed. The current worktree is already in an in-progress merge. Do not reset, checkout away changes, or discard either side.
+Read the source manifests and relevant commit history when needed.
 
 ## Required completion steps
 
@@ -33,12 +33,4 @@ The orchestration will verify the merge commit and preserve the worktree if you 
 
 ## Completion
 
-When every required step above is finished, create the completion marker as your final action:
-
-```
-mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
-```
-
-Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.
-
-Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
+{{COMPLETION}}

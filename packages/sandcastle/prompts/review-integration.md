@@ -29,23 +29,14 @@ Sources:
 - Check source boundaries, duplicated or incompatible changes, and validation gaps.
 - Follow repository coding standards and preserve the scope of the selected sources.
 - Fix findings directly on this branch when a safe correction is clear.
-- Commit every correction with a Conventional Commit message.
-- Run relevant validation after corrections.
-  {{QUEUE_RULES}}
+- Commit every correction with a Conventional Commit message, and re-run the relevant validation after it.
 
-- Do not merge this branch into the base branch and do not close issues.
-- Do not leave uncommitted changes, conflict markers, or an in-progress merge.
+This is the final combined review. Individual issue or integration reviews do not replace it. Leave the branch ready for a human to merge: every correction committed, no conflict markers, no merge in progress. Merging it into the base branch is the human's act.
 
-This is the final combined review. Individual issue or integration reviews do not replace it.
+## Follow-up issues
+
+{{QUEUE_RULES}}
 
 ## Completion
 
-When every required step above is finished, create the completion marker as your final action:
-
-```
-mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
-```
-
-Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.
-
-Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
+{{COMPLETION}}

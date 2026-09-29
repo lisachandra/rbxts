@@ -36,7 +36,7 @@ describe("queue prompt rules", () => {
 			const rules = queueRulesForPrompt();
 
 			assert.match(rules, /queue\.enabled: false/u);
-			assert.match(rules, /do not run `sandcastle queue`/u);
+			assert.match(rules, /there is no queue here to write to/u);
 			assert.doesNotMatch(rules, /sandcastle queue add/u);
 		});
 	});
@@ -57,6 +57,15 @@ describe("queue prompt rules", () => {
 
 			assert.match(rules, /already composed/u);
 			assert.match(rules, /a follow-up cannot join it/u);
+		});
+	});
+
+	test("keeps the fix-versus-file rule in the injected rules, not the prompt file", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.doesNotMatch(rules, /Fix a finding here when the correction is small/u);
+			assert.match(rules, /joins that batch/u);
 		});
 	});
 

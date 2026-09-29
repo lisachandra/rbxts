@@ -13,35 +13,34 @@ import { config } from "../runtime.js";
 
 /** The registration contract a review follows when it finds work beyond its diff's scope. */
 const registrationRules = [
-	"If your review found work beyond this diff's scope, register it in the repo's Sandcastle",
-	"queue before completion — not just in the comment:",
+	"When this review finds work beyond the diff's scope, register it in the repo's Sandcastle queue",
+	"before completion — not just in the comment:",
 	"",
 	"1. Fix it here when you can. A missing test, an unhandled case, a wrong guard: correct it on",
-	"   this branch, re-run validation, and commit it. File a follow-up only for work that needs",
-	"   another issue's context, a decision this diff cannot make, or more than a review-sized",
-	"   change — a review that files what it could have fixed leaves the branch less correct than",
-	"   it found it.",
+	"   this branch, re-run validation, and commit it. File a follow-up for work that needs another",
+	"   issue's context, a decision this diff cannot make, or more than a review-sized change — a",
+	"   review that files what it could have fixed leaves the branch less correct than it found it.",
 	"2. File each remaining item as a GitHub issue (`gh issue create`) with the repo's conventional",
 	"   title prefix, milestone, labels, and parent/blocker edges per `docs/agents/issue-tracker.md`.",
-	"3. Register each new issue with the `sandcastle queue` command group — never hand-edit the",
-	"   manifest. Prefer continuing the work over parking it:",
-	"   - `pnpm sandcastle queue add --issue <N> --sequence <batch>` when it continues a batch that",
-	"     is still running,",
-	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` only when',
-	"     it genuinely cannot start (an unlanded dependency, a decision nobody has made),",
-	'   - `pnpm sandcastle queue add --issue <N> --human --reason "..."` when it needs a human',
+	"3. Register the new issue with the `sandcastle queue` command group — never by hand-editing the",
+	"   manifest:",
+	"   - `pnpm sandcastle queue add --issue <N> --sequence <batch>` continues a batch that is still",
+	"     running,",
+	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` means the',
+	"     work cannot start until something else lands,",
+	'   - `pnpm sandcastle queue add --issue <N> --human --reason "..."` means it needs a human',
 	"     decision session.",
-	'   When no batch exists yet, use `--gated --reason "needs a batch"` rather than inventing one.',
+	'   With no batch to join, `--gated --reason "needs a batch"` is the honest placement.',
 	"4. Run `pnpm sandcastle queue check` — it must report no drift. If the manifest is git-tracked",
 	"   and the repository sets `queue.commit`, the command commits it for you; otherwise commit it",
 	"   yourself so the registration reaches the repository instead of dying with this worktree.",
 	"5. List the created issue numbers in this comment under `Suggested follow-up issues`.",
-	"A review never lands a batch: `queue run` dispatches, a human runs `queue land` and merges the",
-	"pull request it opens. Never merge an integration branch yourself, and never push to main.",
 	"",
-	"A review that lists follow-ups in the comment but leaves the queue untouched is incomplete —",
-	"the queue is the runnable artifact; the comment is only the report. Register the follow-up,",
-	"then hand the batch to a human: `pnpm sandcastle queue list` shows what is READY next.",
+	"A review never lands a batch: `queue run` dispatches, a human runs `queue land` and merges the",
+	"pull request it opens, and merging into the base branch stays the human's act.",
+	"",
+	"The queue is the runnable artifact; the comment is only the report. A review that lists",
+	"follow-ups in the comment and stops leaves the queue untouched and the follow-up undispatchable.",
 	"",
 	"If there are no follow-ups, write `No follow-up issues.` in the review comment instead.",
 ].join("\n");
@@ -62,19 +61,18 @@ function batchRules(context: QueueRulesContext): string {
 	if (context.batch !== undefined && context.batch !== "") {
 		return [
 			`This work is batch "${context.batch}", which is still running, so a follow-up that continues it`,
-			"belongs in that batch:",
+			"joins that batch:",
 			`\`pnpm sandcastle queue add --issue <N> --sequence ${context.batch}\` puts it at the tail.`,
 			"Appending to a running batch is expected — `queue run` re-fires the batch, skips the members",
-			"that already passed review, and chains their branch as the new member's base, so the",
-			"follow-up continues this work rather than waiting for a human. Reserve `--gated` for work",
-			"that genuinely cannot start here.",
+			"that already passed review, and chains their branch as the new member's base. The follow-up",
+			"continues this work inside the same invocation, land included.",
 		].join("\n");
 	}
 
 	if (context.composed === true) {
 		return [
-			"This batch is already composed, so nothing added to its queue entry now is in the",
-			"integration: a follow-up cannot join it. Register it against another batch, or with",
+			"This batch is already composed, so a follow-up cannot join it: nothing registered against",
+			"the queue entry now is in the integration. Register it against another batch, or with",
 			'`pnpm sandcastle queue add --issue <N> --gated --reason "<why it waits for this batch to land>"`.',
 		].join("\n");
 	}
@@ -83,11 +81,11 @@ function batchRules(context: QueueRulesContext): string {
 }
 
 const disabledRules = [
-	"This repository does not use the Sandcastle queue workflow (`queue.enabled: false` in",
+	"This repository turns the Sandcastle queue workflow off (`queue.enabled: false` in",
 	"`sandcastle.config.ts`).",
 	"",
-	"- Report follow-up work in the issue comment only; do not run `sandcastle queue`.",
-	"- Do not create, edit, or commit a queue manifest.",
+	"- Report follow-up work in the issue comment; there is no queue here to write to.",
+	"- The manifest stays untouched: no edits, no commits.",
 	"- `No follow-up issues.` is still the line to write when nothing was found.",
 ].join("\n");
 

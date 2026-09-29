@@ -2,7 +2,7 @@
 
 Implement GitHub issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}`.
 
-This is a Sandcastle no-sandbox run. You are operating on the host machine in a dedicated git branch/worktree. Be conservative and keep the change scoped.
+This is a Sandcastle no-sandbox run: you are operating on the host machine in a dedicated git branch/worktree.
 
 ## Required skills
 
@@ -16,24 +16,14 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 
 1. Read `AGENTS.md` and relevant files.
 2. Fetch the issue with `gh issue view {{ISSUE_NUMBER}} --comments`.
-3. Read the designer's plan at `{{PLAN_PATH}}`.
+3. Read the designer's plan at `{{PLAN_PATH}}` — it is canonical, and the reviewer reads it next, so leave the file exactly as the designer wrote it.
 4. Inspect the diff: `git diff {{BASE_REF}}...HEAD`
 
-## Plan
-
-The designer has written an implementation plan at `{{PLAN_PATH}}`. Read it first:
-
-```
-cat {{PLAN_PATH}}
-```
-
-The plan is canonical. Follow its slice breakdown. Pull the issue (`gh issue view {{ISSUE_NUMBER}}`) or parent PRD only if you need detail the plan does not cover.
-
-Do NOT delete or modify `{{PLAN_PATH}}`. The reviewer needs it intact.
+Follow the plan's slice breakdown. Pull the issue (`gh issue view {{ISSUE_NUMBER}}`) or parent PRD only if you need detail the plan does not cover.
 
 ## Exploration
 
-After reading the plan, explore the sibling code and test files it points at. Pay extra attention to test files that touch the relevant parts of the code.
+Explore the sibling code and test files the plan points at. Pay extra attention to test files that touch the relevant parts of the code.
 
 ## Execution
 
@@ -55,8 +45,6 @@ If the build produces pre-existing errors in unrelated files, note them but do n
 
 ## GitHub issue updates
 
-Do not close the issue.
-
 When done, add a concise issue comment with:
 
 - summary of changes,
@@ -64,19 +52,12 @@ When done, add a concise issue comment with:
 - blockers or follow-up work,
 - branch name.
 
+The issue stays open — the integration pull request's `Closes` line is what closes it.
+
 ## Commit
 
-If files changed, make one or more focused commits.
-Commit messages must use Conventional Commits.
+If files changed, make one or more focused commits, each with a Conventional Commits message.
 
 ## Completion
 
-When every required step above is finished, create the completion marker as your final action:
-
-```
-mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
-```
-
-Do not create the marker before finishing. Do not output a completion token or the marker path in your final response.
-
-Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
+{{COMPLETION}}

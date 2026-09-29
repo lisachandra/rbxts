@@ -118,10 +118,9 @@ export interface SharedPromptArgs {
 	[key: string]: string | undefined;
 	BASE_REF?: string;
 	BRANCH?: string;
+	COMPLETION?: string;
 	ISSUE_NUMBER?: string;
 	ISSUE_TITLE?: string;
-	MARKER_DIR?: string;
-	MARKER_PATH?: string;
 	PLAN_PATH?: string;
 	READY_LABEL?: string;
 	SKILLS: string;

@@ -2,9 +2,9 @@
 
 Design a TDD implementation plan for issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}.
 
-You are the designer. You will not write code. Your job is to write a plan that a separate implementer agent will execute on branch `{{BRANCH}}`.
+You are the designer. A separate implementer agent executes your plan on branch `{{BRANCH}}`, so you describe the work rather than doing it.
 
-The implementer benefits from explicit, detailed direction — it is following your plan, not making architectural decisions. Aim for semi-high-level guidance: pseudo-code and shape sketches are good; exact code is not necessary. Cover everything the implementer needs to do this task well. Be specific about file paths, test names, data shapes, and ordering.
+The implementer has the plan and nothing else — it follows your direction instead of making architectural decisions. Aim for semi-high-level guidance: pseudo-code and shape sketches are good, exact code is not necessary. Cover everything the implementer needs to do this task well, and be specific about file paths, test names, data shapes, and ordering.
 
 ## Required skills
 
@@ -18,7 +18,7 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 
 1. Read `AGENTS.md` and relevant files.
 2. Fetch the issue with `gh issue view {{ISSUE_NUMBER}} --comments`.
-3. If there is already a plan, read the designer's plan at `{{PLAN_PATH}}`.
+3. If there is already a plan, read it at `{{PLAN_PATH}}`.
 4. Inspect the diff: `git diff {{BASE_REF}}...HEAD`
 
 Here are the last 10 commit subjects:
@@ -52,10 +52,9 @@ Proceed only when the issue has:
 
 If the issue is too broad, underspecified, or needs human design:
 
-1. Do not write a plan.
-2. Leave a GitHub issue comment explaining what is missing.
-3. Suggest smaller future AFK-ready slices.
-4. Create the completion marker (see Completion below).
+1. Leave a GitHub issue comment explaining what is missing.
+2. Suggest smaller future AFK-ready slices.
+3. Create the completion marker (see Completion below).
 
 ## Plan structure
 
@@ -73,14 +72,6 @@ Write the plan to `{{PLAN_PATH}}`. Structure it as:
 
 Follow AGENTS.md (and repo docs/agents/* if present) conventions throughout: TDD slices, focused commits, and repo-specific style rules.
 
-## Output
+## Completion
 
-Once the plan is written and saved to `{{PLAN_PATH}}`, create the completion marker as your final action:
-
-```
-mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
-```
-
-Do not create the marker before finishing. Do not output a completion token or the marker path in your final response. Do not write code. Do not commit anything.
-
-Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
+{{COMPLETION}}

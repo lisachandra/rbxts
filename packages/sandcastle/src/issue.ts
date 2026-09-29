@@ -15,13 +15,8 @@ import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
 import { countNewCommits, issueBranch, resolveCommit } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
 import { fileLogging } from "./logging.js";
-import {
-	clearMarker,
-	markerExists,
-	markerPath,
-	markerPromptArgs,
-	runMarkerPhase,
-} from "./markers.js";
+import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
+import { completionPromptArgs } from "./prompts/completion.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
@@ -613,15 +608,8 @@ export async function runAll(
 		name: "planner",
 		output: Output.object({ schema: PlanSchema, tag: "plan" }),
 		promptArgs: {
-			BASE_REF: config.baseBranch,
-			BRANCH: "",
-			ISSUE_NUMBER: "all",
-			ISSUE_TITLE: "",
-			...markerPromptArgs(marker),
-			PLAN_PATH: "",
-
+			...completionPromptArgs(marker, { before: "the `<plan>` block is printed" }),
 			READY_LABEL: config.labels.readyForAgent,
-			SKILLS: skillsForPrompt("design"),
 		},
 		promptFile: config.prompts.planAll,
 		sandbox: sandboxProvider,

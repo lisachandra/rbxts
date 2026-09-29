@@ -2,7 +2,7 @@
 
 You are the planner agent. Your job: analyse open GitHub issues labeled `{{READY_LABEL}}`, determine their dependency order, and output a JSON dispatch plan.
 
-**You will not write code. You will not write TDD plans. You only produce the dispatch plan.**
+**You produce the dispatch plan only: no code, no TDD plans.**
 
 ## Step 1 — List ready issues
 
@@ -20,7 +20,7 @@ If zero issues are returned, output:
 </plan>
 ```
 
-…then create the completion marker (see Completion below) and stop. Do nothing else.
+…and stop there.
 
 ## Step 2 — Order by dependency
 
@@ -47,17 +47,8 @@ Rules:
 - `title` must be the exact issue title from `gh issue list`.
 - `branch` must be `sandcastle/issue-<id>`.
 - The JSON must be valid — no comments, no trailing commas, no ellipsis.
-- **Do NOT wrap the output in code fences (\`\`\`). Output the <plan> block as raw text.**
-- Output ONLY the `<plan>` block, then create the completion marker. No preamble, no explanation.
+- Output ONLY the `<plan>` block as raw text: no code fences, no preamble, no explanation.
 
 ## Completion
 
-After outputting the `<plan>` block, create the completion marker as your final action:
-
-```
-mkdir -p "{{MARKER_DIR}}" && touch "{{MARKER_PATH}}"
-```
-
-Do not create the marker before the `<plan>` block is output. Do not output a completion token or the marker path in your final response.
-
-Before creating the marker, make sure any processes you spawned have exited or been terminated. After the marker is created, do not spawn or wait on any subprocesses or background jobs — stop immediately.
+{{COMPLETION}}

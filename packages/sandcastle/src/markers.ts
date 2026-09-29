@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import { createAgent } from "./agent.js";
+import { completionRules } from "./prompts/completion.js";
 import { config, repoRoot } from "./runtime.js";
 import type { AgentBackend } from "./types.js";
 
@@ -34,16 +35,14 @@ export function markerExists(path: string): boolean {
 	return existsSync(path);
 }
 
-/** POSIX-style paths for prompt substitution; agents run under bash. */
-export function markerPromptArgs(path: string): {
-	MARKER_DIR: string;
-	MARKER_PATH: string;
-} {
-	const posix = (value: string): string => value.replaceAll("\\", "/");
-	return {
-		MARKER_DIR: posix(dirname(path)),
-		MARKER_PATH: posix(path),
-	};
+/**
+ * Prompt arguments a marker-backed phase needs: the completion block, marker path baked in.
+ *
+ * The path is interpolated here rather than left as a placeholder, so a nested substitution is
+ * never what the agent ends up reading.
+ */
+export function completionPromptArgs(path: string): { COMPLETION: string } {
+	return { COMPLETION: completionRules(path) };
 }
 
 /**
@@ -73,7 +72,7 @@ export async function runMarkerPhase(params: {
 		agent,
 		maxIterations: 1,
 		name: params.name,
-		promptArgs: { ...params.promptArgs, ...markerPromptArgs(params.marker) },
+		promptArgs: { ...params.promptArgs, ...completionPromptArgs(params.marker) },
 		promptFile: params.promptFile,
 	});
 

@@ -184,13 +184,18 @@ describe("createAgent", () => {
 });
 
 describe("prompt files", () => {
-	test("all prompts use marker paths and no completion signal", () => {
+	test("all prompts reference the injected completion block and no completion signal", () => {
 		const promptsDir = join(packageRoot, "prompts");
 		const files = readdirSync(promptsDir).filter((file) => file.endsWith(".md"));
 		assert.ok(files.length >= 6);
 		for (const file of files) {
 			const content = readFileSync(join(promptsDir, file), "utf-8");
-			assert.match(content, /\{\{MARKER_PATH\}\}/, `${file} should reference MARKER_PATH`);
+			assert.match(content, /\{\{COMPLETION\}\}/, `${file} should reference COMPLETION`);
+			assert.doesNotMatch(
+				content,
+				/\{\{MARKER_/u,
+				`${file} should leave marker paths to the injected block`,
+			);
 			assert.doesNotMatch(
 				content,
 				/\{\{COMPLETION_SIGNAL\}\}/,
