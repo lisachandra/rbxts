@@ -10,7 +10,7 @@ import { config, io } from "../runtime.js";
 import { registerTestHooks, tmpRoot } from "../test-helpers.js";
 import { queueLockPath, runLockName } from "./lock.js";
 import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
-import { mayPruneLanded, type QueueDispatch, runQueueRun } from "./run.js";
+import { mayPruneLanded, type QueueDispatch, type QueueLand, runQueueRun } from "./run.js";
 
 registerTestHooks();
 
@@ -116,7 +116,7 @@ interface RunResult {
  */
 async function run(
 	argv: ReadonlyArray<string>,
-	options: { reject?: boolean } = {},
+	options: { land?: QueueLand; reject?: boolean } = {},
 ): Promise<RunResult> {
 	const calls: RunResult["calls"] = [];
 	const dispatch: QueueDispatch = (issues, _options: CliOptions, resume) => {
@@ -132,7 +132,10 @@ async function run(
 	}) as typeof console.log;
 	console.error = () => undefined;
 	try {
-		await runQueueRun(parseArgs([...argv, "--model", "test-model"]), { dispatch });
+		await runQueueRun(parseArgs([...argv, "--model", "test-model"]), {
+			dispatch,
+			land: options.land,
+		});
 	} catch (err) {
 		if (options.reject !== true || !(err instanceof ExitError)) {
 			throw err;
@@ -247,5 +250,53 @@ describe("queue run dispatch", () => {
 		await run(["queue", "run", "--dry-run"], { reject: true });
 
 		assert.equal(existsSync(queueLockPath(runLockName)), false);
+	});
+
+	test("--land exits 2 when the hand-off failed, even with nothing else left to run", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		const result = await run(["queue", "run", "--land"], {
+			land: () => Promise.resolve({ error: "integration has no manifest", ok: false }),
+			reject: true,
+		});
+
+		assert.deepEqual(codes, [2]);
+		assert.match(result.output, /1 hand-off failure\(s\): U2/u);
+		assert.match(result.output, /U2: integration has no manifest/u);
+	});
+
+	test("--land exits 1 when the hand-off completed and nothing else is left to run", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		const result = await run(["queue", "run", "--land"], {
+			land: () => Promise.resolve({ ok: true }),
+			reject: true,
+		});
+
+		assert.deepEqual(codes, [1], "an exhausted queue is exit 1, not a hand-off failure");
+		assert.doesNotMatch(result.output, /hand-off failure/u);
+	});
+
+	test("--json reports the hand-off outcome and the failing exit", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		const result = await run(["queue", "run", "--land", "--json"], {
+			land: () => Promise.resolve({ error: "blocked", ok: false }),
+			reject: true,
+		});
+
+		const entries = result.output
+			.split("\n")
+			.filter((line) => line !== "")
+			.map((line) => JSON.parse(line) as Record<string, unknown>);
+		const reported = entries
+			.map((entry) => entry.handOff)
+			.filter(
+				(handOff): handOff is { batch: string; ok: boolean } =>
+					typeof handOff === "object" && handOff !== null,
+			);
+
+		assert.deepEqual(codes, [2]);
+		assert.deepEqual(reported, [{ batch: "U2", error: "blocked", ok: false }]);
 	});
 });

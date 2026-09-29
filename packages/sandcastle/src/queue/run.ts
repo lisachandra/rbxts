@@ -59,6 +59,8 @@ const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
 export interface QueueRunDeps {
 	/** Replaces the sequential workflow for one invocation. */
 	dispatch?: QueueDispatch;
+	/** Replaces the hand-off attempt for one invocation. */
+	land?: QueueLand;
 }
 
 /** Fetches the ready backlog, then the blocked-by edges for exactly those issues. */
@@ -115,27 +117,53 @@ function isLanded(issue: string): boolean {
 	return isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED";
 }
 
+/** What one batch's hand-off attempt produced. */
+export interface LandOutcome {
+	/** Failure text, present only when the hand-off failed. */
+	error?: string;
+	ok: boolean;
+}
+
+/** Hand-off seam: production composes and hands the batch over, tests inject the outcome. */
+export type QueueLand = (options: CliOptions, name: string) => Promise<LandOutcome>;
+
+/** One batch whose hand-off failed. */
+interface HandOffFailure {
+	batch: string;
+	error: string;
+}
+
+/** What one `queue run` invocation did; the exit code is decided from it in one place. */
+interface QueueRunSummary {
+	/** Hand-offs that failed, in dispatch order. */
+	failures: Array<HandOffFailure>;
+	/** Whether the loop stopped because nothing was runnable. */
+	nothingToRun: boolean;
+}
+
 /**
  * - Lands a freshly dispatched batch when `--land` asked for it.
  * - @param options - Parsed CLI options; `--create-pr` decides whether the PR is opened or printed.
  * - @param name - Batch name to compose and hand over.
- * - @returns `true` when the hand-off completed; the caller prunes the batch only then.
+ * - @returns Whether the hand-off completed; the caller prunes the batch only on success and fails
+ *   the invocation otherwise.
  * - @remarks A failed land does not stop the invocation: the integration manifest keeps the failure
- *   (`integration-resume` picks it up) and the loop moves to the next batch that is not gated on
- *   it, so one blocked composition cannot strand the rest of the queue. It reports `false` instead,
- *   because a batch whose hand-off failed is still open on GitHub: pruning it would be drift.
+ *   and the loop moves to the next batch that is not gated on it, so one blocked composition cannot
+ *   strand the rest of the queue. It reports the failure instead, because a batch whose hand-off
+ *   failed is still open on GitHub: pruning it would be drift.
  */
-async function landBatch(options: CliOptions, name: string): Promise<boolean> {
+async function landBatch(options: CliOptions, name: string): Promise<LandOutcome> {
 	try {
 		await runQueueLand({ ...options, integrationName: name });
-		return true;
+		return { ok: true };
 	} catch (err) {
-		emitText(options, `  ⚠ Could not land "${name}": ${String(err)}`);
+		const error = String(err);
+		emitText(options, `  ⚠ Could not land "${name}": ${error}`);
 		emitText(
 			options,
-			`    Inspect it with \`pnpm sandcastle integration-status --name ${name}\`, then retry the composition with \`pnpm sandcastle integration-resume --name ${name}\`.`,
+			`    Inspect it with \`pnpm sandcastle integration-status --name ${name}\`, then retry with \`pnpm sandcastle queue land --name ${name}\`.`,
 		);
-		return false;
+		return { error, ok: false };
 	}
 }
 
@@ -194,6 +222,9 @@ function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
 /**
  * Fires ready sequences until nothing is runnable, the budget is spent, or a batch fails.
  *
+ * Exits 1 when nothing could fire, and 2 when a hand-off failed, so a scripted caller can tell an
+ * exhausted queue from a batch that needs a human.
+ *
  * @param options - Parsed CLI options.
  * @param deps - Dispatch seam; defaults to the sequential workflow.
  * @rejects {Error} When no model is configured, another dispatcher holds the run lock, or a batch's
@@ -209,16 +240,61 @@ export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}):
 	}
 
 	const release = acquireQueueLock({ name: runLockName });
+	let summary: QueueRunSummary;
 	try {
-		await runQueueLoop(options, deps.dispatch ?? defaultDispatch);
+		summary = await runQueueLoop(
+			options,
+			deps.dispatch ?? defaultDispatch,
+			deps.land ?? landBatch,
+		);
 	} finally {
 		release();
 	}
+
+	reportQueueRun(options, summary);
 }
 
-/** The dispatch loop itself, with the lock already held. */
-async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promise<void> {
+/**
+ * - Turns a loop summary into the invocation's exit code.
+ * - @param options - Parsed CLI options.
+ * - @param summary - What the loop did.
+ * - @remarks Exit 1 when nothing could fire: "nothing can fire" is a failure for a dispatcher, and a
+ *   typo in `--name` and an exhausted queue both need to be visible to whatever scripted the run.
+ *   Exit 2 when a hand-off failed, which is the one case 1 would misreport: the batch needs a human
+ *   before the queue moves on.
+ */
+function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
+	if (summary.failures.length === 0) {
+		if (summary.nothingToRun) {
+			io.exit(1);
+		}
+
+		return;
+	}
+
+	if (options.jsonOut) {
+		emitJson({ failures: summary.failures, handOff: "failed" });
+	} else {
+		const names = summary.failures.map((failure) => failure.batch).join(", ");
+		emitText(options, `  ✗ ${summary.failures.length} hand-off failure(s): ${names}`);
+		for (const failure of summary.failures) {
+			emitText(options, `    ${failure.batch}: ${failure.error}`);
+		}
+
+		emitText(options, "    Retry with `pnpm sandcastle queue land --name <batch>`.");
+	}
+
+	io.exit(2);
+}
+
+/** The dispatch loop itself, with the lock already held, reporting what it did. */
+async function runQueueLoop(
+	options: CliOptions,
+	dispatch: QueueDispatch,
+	land: QueueLand,
+): Promise<QueueRunSummary> {
 	const seen = new Set<string>();
+	const failures: Array<HandOffFailure> = [];
 	const resume = options.noResume !== true;
 	let promotedGates = false;
 	const maxIssues = options.maxIssues ?? Number.POSITIVE_INFINITY;
@@ -256,8 +332,7 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 					options,
 					`  ✗ Queue drift: ${view.drift.length} problem(s); resolve them or drop --require-clean.`,
 				);
-				io.exit(1);
-				return;
+				return { failures, nothingToRun: true };
 			}
 
 			if (!warnedDrift) {
@@ -282,12 +357,7 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 				emitText(options, `  ⏹ Nothing to run: ${decision.reason}`);
 			}
 
-			/*
-			 * Exit 1: "nothing can fire" is a failure for a dispatcher — a typo in --name and an exhausted
-			 * queue both need to be visible to whatever scripted the run.
-			 */
-			io.exit(1);
-			return;
+			return { failures, nothingToRun: true };
 		}
 
 		/*
@@ -299,7 +369,7 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 				options,
 				`  ⏹ --max-issues ${maxIssues}: sequence "${decision.name}" (${decision.issues.length} issue(s)) exceeds the remaining budget (${maxIssues - dispatched}); stopping.`,
 			);
-			return;
+			return { failures, nothingToRun: false };
 		}
 
 		if (options.jsonOut) {
@@ -321,7 +391,7 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 
 		if (options.dryRun) {
 			emitText(options, "  (dry run — nothing dispatched)");
-			return;
+			return { failures, nothingToRun: false };
 		}
 
 		await dispatch(decision.issues, options, resume);
@@ -332,13 +402,22 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 
 		dispatched += decision.issues.length;
 		const landRequested = options.land === true;
-		const handedOff = landRequested ? await landBatch(options, decision.name) : true;
+		const outcome: LandOutcome = landRequested
+			? await land(options, decision.name)
+			: { ok: true };
+		if (landRequested && options.jsonOut) {
+			emitJson({ handOff: { batch: decision.name, error: outcome.error, ok: outcome.ok } });
+		}
+
+		if (!outcome.ok) {
+			failures.push({ batch: decision.name, error: outcome.error ?? "" });
+		}
 
 		/*
 		 * Pruning is the reward for a completed hand-off, never for a failed one: a batch removed while
 		 * its members are still open is drift, and it is the only record of what still needs landing.
 		 */
-		if (options.queueKeepEntries !== true && mayPruneLanded(landRequested, handedOff)) {
+		if (options.queueKeepEntries !== true && mayPruneLanded(landRequested, outcome.ok)) {
 			pruneLanded(decision.issues, options);
 		}
 
@@ -358,7 +437,7 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 
 		if (dispatched >= maxIssues) {
 			emitText(options, `  ⏹ Reached --max-issues ${maxIssues}; stopping.`);
-			return;
+			return { failures, nothingToRun: false };
 		}
 	}
 }
