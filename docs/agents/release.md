@@ -12,7 +12,9 @@ Release info lives here, not `AGENTS.md`: policy detail, rare workflow, human de
 
 `.changeset/config.json` is the source of truth (`baseBranch: main`, `access: public`,
 `updateInternalDependencies: patch`, `changelog-github`). Never hand-edit a package `CHANGELOG.md`
-or a version field — the changeset flow owns both.
+or a version field — the changeset flow owns both, formatting included. `.oxfmtrc.json` gives
+`**/CHANGELOG.md` `tabWidth: 2` because `changelog-github` nests list items with two spaces, so the
+file `pnpm version` writes is already the fixed point `pnpm lint` checks: commit it verbatim.
 
 ## Release Rules
 
