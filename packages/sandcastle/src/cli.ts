@@ -57,6 +57,7 @@ export interface CliOptions {
 	readonly jsonOut: boolean;
 	readonly land?: boolean;
 	readonly landFinish?: boolean;
+	readonly landRecompose?: boolean;
 	readonly last?: boolean;
 	readonly maxIssues?: number;
 	readonly model: string;
@@ -162,6 +163,7 @@ interface ParsedArgState {
 	jsonOut: boolean;
 	land: boolean;
 	landFinish: boolean;
+	landRecompose: boolean;
 	last: boolean;
 	maxIssues: number | undefined;
 	model: string | undefined;
@@ -228,6 +230,7 @@ function createParsedArgState(): ParsedArgState {
 		jsonOut: false,
 		land: false,
 		landFinish: false,
+		landRecompose: false,
 		last: false,
 		maxIssues: undefined,
 		model: undefined,
@@ -734,6 +737,10 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--queue-commit-any": (state) => {
 		state.queueCommitAny = true;
 	},
+	"--recompose": (state) => {
+		state.landRecompose = true;
+	},
+
 	"--require-clean": (state) => {
 		state.queueRequireClean = true;
 	},
@@ -986,12 +993,14 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		}
 
 		if (
-			(state.createPr === true || state.landFinish === true) &&
+			(state.createPr === true ||
+				state.landFinish === true ||
+				state.landRecompose === true) &&
 			state.queueSubcommand !== "land" &&
 			state.land !== true
 		) {
 			throw new Error(
-				"--create-pr and --finish complete a landing; use them with `queue land` or `queue run --land`.",
+				"--create-pr, --finish, and --recompose complete a landing; use them with `queue land` or `queue run --land`.",
 			);
 		}
 
@@ -1084,6 +1093,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		jsonOut: state.jsonOut,
 		land: state.land,
 		landFinish: state.landFinish,
+		landRecompose: state.landRecompose,
 		last: state.last,
 		maxIssues: state.maxIssues,
 		model: model ?? "",

@@ -56,11 +56,15 @@ Two modes, one per question.
    compose each batch as it finishes. `run` re-reads the manifest and GitHub after every batch, so
    a follow-up registered mid-run changes what fires next in the same invocation. Done when the
    batch's members have run all three phases.
+   Exit 1 means nothing could fire; exit 2 means a `--land` hand-off failed, so that batch needs a
+   human before the queue moves on.
 3. **Land it.** `pnpm sandcastle queue land --name <batch>`. Composing is automatic — conflict
    resolution and integration review are agents — and re-running `land` resumes an unfinished
    composition rather than restarting it. By default it **prints** the `git push` and
    `gh pr create` commands; `--create-pr` runs them for you. Either way, the PR body carries one
-   `Closes #<n>` per member.
+   `Closes #<n>` per member. A composition that no longer matches its batch — the tail moved, or a
+   member branch moved after it was merged — is refused, and the refusal names the fix:
+   `--recompose` drops that composition and rebuilds it from the batch's current tail.
 4. **Merge it — this is the human step.** Review the PR and merge it. Every member issue closes
    with it, which is also what clears their `blocked-by` edges for later batches.
 5. **Let the queue notice.** Once the merge is an ancestor of the base branch, batches with

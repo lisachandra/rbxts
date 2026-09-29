@@ -15,8 +15,13 @@
  */
 
 import type { CliOptions } from "../cli.js";
+import { resolveCommit } from "../git.js";
 import { integrationBranch, readIntegrationManifest } from "../integration/manifest.js";
-import { resumeIntegration, runNewIntegration } from "../integration/orchestrator.js";
+import {
+	resetIntegration,
+	resumeIntegration,
+	runNewIntegration,
+} from "../integration/orchestrator.js";
 import { config, io, repoRoot } from "../runtime.js";
 import type { IntegrationManifest } from "../types.js";
 import { fetchLiveQueueState } from "./live.js";
@@ -177,10 +182,11 @@ export function landPrCommands(target: LandTarget, base: string): Array<LandComm
 	];
 }
 
-/** Injectable seams: agent composition, the integration manifest, and the shell. */
+/** Injectable seams: agent composition, the integration manifest, the reset, and the shell. */
 export interface LandDeps {
 	compose?: (options: CliOptions, target: LandTarget) => Promise<void>;
 	integration?: (name: string) => undefined | IntegrationManifest;
+	reset?: (name: string) => void;
 	run?: (file: string, args: Array<string>) => string;
 }
 
@@ -267,29 +273,104 @@ function compositionBlocker(
 	return undefined;
 }
 
+/** Reads a member branch's head commit; injected so this check needs no repository. */
+export type BranchHead = (branch: string) => string | undefined;
+
+/** Head commit of a branch, or `undefined` when the branch no longer resolves. */
+function branchHead(branch: string): string | undefined {
+	try {
+		return resolveCommit(branch);
+	} catch {
+		return undefined;
+	}
+}
+
 /**
- * - Whether a composed integration still covers its batch's tail member.
+ * - Every way a composed integration has drifted from the batch the queue now defines.
  * - @param manifest - The composed integration manifest.
  * - @param target - The batch as the queue manifest defines it now.
- * - @returns A message naming the mismatch, or `undefined` when the composition is current.
- * - @remarks A batch that grew a member after it was composed composes from the old tail, so the PR
- *   would close the new member without carrying its commits. Refusing the hand-off is the only
- *   honest answer: the integration has to be reset and composed again.
+ * - @param head - Branch-head lookup; defaults to the repository.
+ * - @returns The divergences, empty when the composition still matches the batch.
+ * - @remarks Two things make a composition unusable. A batch that grew a member after it was composed
+ *   composes from the old tail, so the pull request would close the new member without carrying its
+ *   commits. A member branch that moved means the member ran again after its commits were merged.
+ *   Either way the composition has to be rebuilt, so refusing the hand-off is the only honest
+ *   answer.
  */
 export function staleComposition(
 	manifest: IntegrationManifest,
 	target: LandTarget,
-): string | undefined {
+	head: BranchHead = branchHead,
+): Array<string> {
 	if (manifest.kind !== "issues") {
-		return undefined;
+		return [];
 	}
 
-	if (manifest.sources.some((source) => source.issue === target.tail)) {
-		return undefined;
+	const divergent: Array<string> = [];
+	if (!manifest.sources.some((source) => source.issue === target.tail)) {
+		const composed = manifest.sources.map((source) => source.name).join(", ") || "nothing";
+		divergent.push(
+			`integration "${target.name}" was composed from ${composed}, but the batch's tail is now #${target.tail}`,
+		);
 	}
 
-	const composed = manifest.sources.map((source) => source.name).join(", ") || "nothing";
-	return `integration "${target.name}" was composed from ${composed}, but the batch's tail is now #${target.tail}`;
+	for (const source of manifest.sources) {
+		if (source.issue !== undefined && !target.issues.includes(source.issue)) {
+			divergent.push(`the batch no longer carries #${source.issue}`);
+			continue;
+		}
+
+		const moved = head(source.branch);
+		if (moved !== undefined && moved !== source.commit) {
+			divergent.push(
+				`${source.name} moved to ${moved.slice(0, 7)} since it was composed at ${source.commit.slice(0, 7)}`,
+			);
+		}
+	}
+
+	return divergent;
+}
+
+interface CompositionInspection {
+	/** Ways the composition has drifted from the batch; empty when the two agree. */
+	divergent: Array<string>;
+	/** Why the composition would be reset before composing, or `undefined` to keep it. */
+	rebuild: string | undefined;
+}
+
+/**
+ * - Decides whether an existing composition can be used as it stands or has to be rebuilt.
+ * - @param composed - The composition on disk, if there is one.
+ * - @param target - The batch as the queue manifest defines it now.
+ * - @param recompose - Whether `--recompose` asked for a rebuild.
+ * - @returns The divergences, and why the composition would be reset.
+ * - @remarks `--recompose` rebuilds a composition that has drifted and one that never finished. A
+ *   composition already ready for the human merge is rebuilt only when it has drifted, because
+ *   resetting it otherwise would throw away an approved review of finished work.
+ */
+function inspectComposition(
+	composed: undefined | IntegrationManifest,
+	target: LandTarget,
+	recompose: boolean,
+): CompositionInspection {
+	if (composed === undefined) {
+		return { divergent: [], rebuild: undefined };
+	}
+
+	const divergent = staleComposition(composed, target);
+	if (!recompose) {
+		return { divergent, rebuild: undefined };
+	}
+
+	if (divergent.length > 0) {
+		return { divergent, rebuild: divergent.join("; ") };
+	}
+
+	if (landedStatuses.has(composed.status)) {
+		return { divergent, rebuild: undefined };
+	}
+
+	return { divergent, rebuild: `the composition is ${composed.status}` };
 }
 
 /** An already-open PR for the branch, if there is one: re-running `land` must not open a second. */
@@ -389,11 +470,42 @@ export function finishLand(options: CliOptions, target: LandTarget, run: LandDep
 }
 
 /**
+ * - Reports divergence between a composed integration and the batch the queue now defines.
+ * - @param name - Integration name, which is the batch name when the queue composed it.
+ * - @remarks Quiet when the two agree, so `integration-status` reads as a plain report on the common
+ *   path. The queue owns the batch, so the comparison lives here rather than in the integration
+ *   module, and a name with no batch of its own has nothing to compare.
+ */
+export function printQueueDivergence(name: string): void {
+	const manifest = readIntegrationManifest(name);
+	if (manifest === undefined) {
+		return;
+	}
+
+	let target: LandTarget;
+	try {
+		target = resolveLandTarget(readQueueManifest(), name);
+	} catch {
+		return;
+	}
+
+	const divergent = staleComposition(manifest, target);
+	if (divergent.length === 0) {
+		return;
+	}
+
+	console.log(`Divergence: ${divergent.join("; ")}`);
+	console.log(`  Rebuild it with \`pnpm sandcastle queue land --name ${name} --recompose\`.`);
+}
+
+/**
  * - Runs `queue land`: compose, then print (or open) the batch's pull request.
  * - @param options - Parsed CLI options; `--name` selects the batch.
- * - @param deps - Composition, integration-manifest, and shell seams for tests.
+ * - @param deps - Composition, integration-manifest, reset, and shell seams for tests.
  * - @remarks Nothing in this path merges to the base branch. Landing is the human's act; the next
  *   `queue run` sees the batch's `after` gate open once the merge commit is an ancestor of base.
+ *   `--recompose` drops a composition that has drifted from its batch or never finished, then
+ *   composes the batch again from its current tail.
  *
  * @rejects {Error} When `--name` is missing, the batch is unknown or empty, or composition fails.
  */
@@ -412,8 +524,30 @@ export async function runQueueLand(options: CliOptions, deps: LandDeps = {}): Pr
 		return;
 	}
 
+	/*
+	 * Inspected before composing, not after: a resume re-merges exactly the sources the manifest
+	 * records, so a composition that no longer matches its batch has to be dropped first, and
+	 * checking afterwards would let that useless resume run to completion.
+	 */
+	const readIntegration = deps.integration ?? readIntegrationManifest;
+	const inspection = inspectComposition(
+		readIntegration(target.name),
+		target,
+		options.landRecompose === true,
+	);
+
+	if (inspection.divergent.length > 0 && inspection.rebuild === undefined) {
+		throw new Error(
+			`Cannot hand "${target.name}" to a human: ${inspection.divergent.join("; ")}. Rebuild it with \`pnpm sandcastle queue land --name ${target.name} --recompose\`.`,
+		);
+	}
+
 	if (options.dryRun) {
 		emitText(options, `  (dry run) would compose "${target.name}" from #${target.tail}`);
+		if (inspection.rebuild !== undefined) {
+			emitText(options, `  (dry run) would reset it first: ${inspection.rebuild}`);
+		}
+
 		for (const command of landPrCommands(target, options.base)) {
 			emitText(options, command.line);
 		}
@@ -421,21 +555,18 @@ export async function runQueueLand(options: CliOptions, deps: LandDeps = {}): Pr
 		return;
 	}
 
+	if (inspection.rebuild !== undefined) {
+		(deps.reset ?? resetIntegration)(target.name);
+		emitText(options, `  ↺ Recomposing "${target.name}": ${inspection.rebuild}`);
+	}
+
 	const compose = deps.compose ?? composeLandTarget;
 	await compose(options, target);
 
-	const integration = (deps.integration ?? readIntegrationManifest)(target.name);
-	const blocker = compositionBlocker(integration, target.name);
+	const blocker = compositionBlocker(readIntegration(target.name), target.name);
 	if (blocker !== undefined) {
 		throw new Error(
 			`Cannot hand "${target.name}" to a human yet: ${blocker}. Resume it with \`pnpm sandcastle integration-resume --name ${target.name}\`.`,
-		);
-	}
-
-	const stale = integration === undefined ? undefined : staleComposition(integration, target);
-	if (stale !== undefined) {
-		throw new Error(
-			`Cannot hand "${target.name}" to a human: ${stale}. Reset it with \`pnpm sandcastle integration-abort --name ${target.name}\`, then land it again.`,
 		);
 	}
 

@@ -13,6 +13,7 @@ import {
 	integrationBranch,
 	printIntegrationStatus,
 	readIntegrationManifest,
+	resetIntegration,
 	resolveExistingIntegrationSource,
 	resolveIssueIntegrationSource,
 	resumeIntegration,
@@ -117,6 +118,60 @@ describe("integration manifest I/O", () => {
 		}, /dirty or has an active merge/);
 		cleanupIntegration(name, true);
 		assert.equal(readIntegrationManifest(name)?.status, "aborted");
+
+		rmSync(dir, { force: true, recursive: true });
+	});
+
+	test("resetIntegration drops the worktree, the branch, and the manifest", () => {
+		const name = `reset-${Date.now()}`;
+		const dir = join(integrationsDir, name);
+		const worktree = join(dir, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		writeIntegrationManifest({
+			base: { commit: "abc1234", ref: "main" },
+			branch: integrationBranch(name),
+			createdAt: new Date().toISOString(),
+			kind: "issues",
+			name,
+			sources: [
+				{
+					branch: "sandcastle/issue-1",
+					commit: "def5678",
+					issue: "1",
+					name: "issue-1",
+					order: 1,
+				},
+			],
+			status: "blocked",
+			updatedAt: new Date().toISOString(),
+			worktree: `.sandcastle/integrations/${name}/worktree`,
+		});
+
+		const gitCalls: Array<string> = [];
+		gitStub({
+			file: (args) => {
+				gitCalls.push(args.join(" "));
+				if (args[0] === "worktree" && args[1] === "remove") {
+					rmSync(worktree, { force: true, recursive: true });
+				}
+
+				return "";
+			},
+		});
+
+		resetIntegration(name);
+
+		assert.equal(existsSync(worktree), false, "the composed worktree is gone");
+		assert.deepEqual(gitCalls, [
+			`worktree remove --force ${worktree}`,
+			`branch -D ${integrationBranch(name)}`,
+		]);
+		assert.equal(
+			existsSync(join(dir, "manifest.json")),
+			false,
+			"a reset leaves no manifest for the next composition to resume",
+		);
+		assert.throws(() => resetIntegration(name), /does not exist/);
 
 		rmSync(dir, { force: true, recursive: true });
 	});

@@ -33,6 +33,7 @@ import {
 } from "./integrations.js";
 import { runAll, runSingleIssue } from "./issue.js";
 import { runQueueCommand } from "./queue/commands.js";
+import { printQueueDivergence } from "./queue/land.js";
 import { io, normalizedPath } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
@@ -301,6 +302,7 @@ export async function main(): Promise<void> {
 		}
 		case "integration-status": {
 			printIntegrationStatus(name);
+			printQueueDivergence(name);
 
 			break;
 		}

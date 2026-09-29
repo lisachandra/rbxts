@@ -138,6 +138,7 @@ const topics = {
 			"--name <batch>  Batch to compose (required)",
 			"--create-pr     Push the branch and open the PR (default: print the commands)",
 			"--finish        Drop the batch once GitHub has closed every member",
+			"--recompose     Rebuild a composition that drifted from its batch or never finished",
 			"--dry-run       Report the landing without composing",
 		],
 		notes: [
@@ -151,6 +152,7 @@ const topics = {
 		usage: [
 			"pnpm sandcastle queue land --name <batch> [--create-pr]",
 			"pnpm sandcastle queue land --name <batch> --finish",
+			"pnpm sandcastle queue land --name <batch> --recompose",
 		],
 	},
 
@@ -284,15 +286,18 @@ const topics = {
 			"--name <batch>     Restrict dispatch to one batch",
 			"--max-issues <n>   Stop after dispatching n issues",
 			"--keep-entries     Keep landed entries instead of pruning them",
-			"--json             One JSON object per decision (JSONL)",
+			"--json             One JSON object per decision and per hand-off (JSONL)",
 			"--dry-run          Print the decision without dispatching",
 			"--land             Compose each dispatched batch when it finishes",
 			"--create-pr        With --land, push the branch and open the PR",
+			"--recompose        With --land, rebuild a composition that drifted or is unfinished",
 		],
 		notes: [
 			"Re-reads the manifest and live GitHub state after every batch: a review that registered a",
 			"follow-up changes what runs next inside the same invocation.",
-			"Exit 1 when nothing can fire — an unknown --name, or no READY batch.",
+			"Exit 1 when nothing can fire — an unknown --name, or no READY batch; exit 2 when a",
+			"hand-off failed, so the batch needs a human before the queue moves on.",
+			"A hand-off attempt also emits { handOff: { batch, ok, error } } under --json.",
 			"Landed entries (issue closed and review APPROVED) are pruned unless --keep-entries.",
 			"The landing hint prints the exact `queue land --name <batch>` line for each batch.",
 			"A batch is landed once, by a human: `queue land` composes it, the PR is merged by hand.",

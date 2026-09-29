@@ -1,16 +1,20 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 
-import { registerTestHooks } from "../test-helpers.js";
+import { parseArgs } from "../cli.js";
+import { config, io } from "../runtime.js";
+import { registerTestHooks, tmpRoot } from "../test-helpers.js";
 import {
 	landPrBody,
 	landPrCommands,
 	landPrTitle,
 	resolveLandTarget,
+	runQueueLand,
 	staleComposition,
 } from "./land.js";
-import { emptyQueueManifest, type QueueManifest } from "./manifest.js";
+import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
 
 registerTestHooks();
 
@@ -28,6 +32,72 @@ function manifest(overrides: Partial<QueueManifest> = {}): QueueManifest {
 		],
 		...overrides,
 	};
+}
+
+const primary = join(tmpRoot, "land-primary");
+const relativeManifest = "sandcastle.queue.land.json";
+
+/** Source entries as the integration manifest records them. */
+const staleMember = {
+	branch: "sandcastle/issue-382",
+	commit: "abc1234",
+	issue: "382",
+	name: "issue-382",
+	order: 1,
+};
+const tailMember = {
+	branch: "sandcastle/issue-383",
+	commit: "def5678",
+	issue: "383",
+	name: "issue-383",
+	order: 1,
+};
+
+/** A composition manifest, loose enough for the seams under test. */
+function composition(
+	status: string,
+	sources: Array<Record<string, unknown>>,
+	headCommit?: string,
+): never {
+	return {
+		headCommit,
+		kind: "issues",
+		name: "ui-wiring-work",
+		sources,
+		status,
+	} as never;
+}
+
+/** Points the queue at a staged manifest and stubs the one git call path resolution needs. */
+function stageQueue(queue: QueueManifest = manifest()): void {
+	config.queue.file = relativeManifest;
+	config.queue.commit = false;
+	writeQueueManifest(queue, join(primary, relativeManifest));
+
+	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+		const argv = Array.isArray(args) ? args.map(String) : [];
+		if (command === "git" && argv.includes("--git-common-dir")) {
+			return join(primary, ".git");
+		}
+
+		throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
+	}) as typeof io.execFileSync;
+}
+
+/** Runs a landing while capturing the lines it reports. */
+async function capture(run: () => Promise<void>): Promise<string> {
+	const lines: Array<string> = [];
+	const original = console.log;
+	console.log = ((...args: Array<unknown>) => {
+		lines.push(args.map(String).join(" "));
+	}) as typeof console.log;
+	try {
+		await run();
+	} finally {
+		console.log = original;
+	}
+
+	return lines.join("\n");
 }
 
 describe("queue landing", () => {
@@ -85,35 +155,68 @@ describe("queue landing", () => {
 		);
 	});
 
-	test("refuses a hand-off whose composition predates the batch's tail", () => {
+	test("reports a composition built from a tail the batch has moved past", () => {
 		const target = resolveLandTarget(manifest(), "ui-wiring-work");
-		const source = {
-			branch: "sandcastle/issue-383",
-			commit: "def5678",
-			issue: "383",
-			name: "issue-383",
-			order: 1,
-		};
-
-		// Composed from #382 while the batch's tail is #383: the new member's commits are missing.
 		const stale = staleComposition(
-			{
-				kind: "issues",
-				name: "ui-wiring-work",
-				sources: [
-					{ ...source, branch: "sandcastle/issue-382", issue: "382", name: "issue-382" },
-				],
-			} as never,
+			composition("aborted", [staleMember]),
 			target,
+			() => undefined,
 		);
 
-		assert.match(stale ?? "", /composed from issue-382, but the batch's tail is now #383/u);
-		assert.equal(
+		assert.equal(stale.length, 1);
+		assert.match(stale[0] ?? "", /composed from issue-382, but the batch's tail is now #383/u);
+	});
+
+	test("reports a member branch that moved after it was composed", () => {
+		const target = resolveLandTarget(manifest(), "ui-wiring-work");
+		const stale = staleComposition(
+			composition("aborted", [tailMember]),
+			target,
+			() => "c0ffee7",
+		);
+
+		assert.equal(stale.length, 1);
+		assert.match(
+			stale[0] ?? "",
+			/issue-383 moved to c0ffee7 since it was composed at def5678/u,
+		);
+	});
+
+	test("reports a member the batch no longer carries", () => {
+		const target = resolveLandTarget(manifest(), "ui-wiring-work");
+		const stale = staleComposition(
+			composition("aborted", [
+				tailMember,
+				{
+					branch: "sandcastle/issue-999",
+					commit: "f00d123",
+					issue: "999",
+					name: "issue-999",
+					order: 2,
+				},
+			]),
+			target,
+			() => undefined,
+		);
+
+		assert.deepEqual(stale, ["the batch no longer carries #999"]);
+	});
+
+	test("keeps a composition that still matches its batch", () => {
+		const target = resolveLandTarget(manifest(), "ui-wiring-work");
+
+		assert.deepEqual(
+			staleComposition(composition("aborted", [tailMember]), target, () => "def5678"),
+			[],
+		);
+		assert.deepEqual(
 			staleComposition(
-				{ kind: "issues", name: "ui-wiring-work", sources: [source] } as never,
+				{ kind: "integrations", name: "ui-wiring-work", sources: [] } as never,
 				target,
+				() => "def5678",
 			),
-			undefined,
+			[],
+			"an integration of integrations has no tail to compare",
 		);
 	});
 
@@ -140,5 +243,110 @@ describe("queue landing", () => {
 			!commands.some((command) => command.args.includes("merge")),
 			"landing hands the merge to a human",
 		);
+	});
+
+	test("refuses to hand over a composition built from a tail the batch has moved past", async () => {
+		stageQueue();
+		let composed = false;
+
+		await assert.rejects(
+			runQueueLand(parseArgs(["queue", "land", "--name", "ui-wiring-work"]), {
+				compose: () => {
+					composed = true;
+					return Promise.resolve();
+				},
+				integration: () => composition("aborted", [staleMember]),
+			}),
+			/Rebuild it with `pnpm sandcastle queue land --name ui-wiring-work --recompose`/u,
+		);
+		assert.equal(composed, false, "a stale composition must not be resumed before it is reset");
+	});
+
+	test("--recompose resets a stale composition and composes the batch again", async () => {
+		stageQueue();
+		const resets: Array<string> = [];
+		let composed = false;
+
+		const output = await capture(async () => {
+			await runQueueLand(
+				parseArgs(["queue", "land", "--name", "ui-wiring-work", "--recompose"]),
+				{
+					compose: () => {
+						composed = true;
+						return Promise.resolve();
+					},
+					integration: () =>
+						composed
+							? composition("ready-for-human-merge", [tailMember], "def5678")
+							: composition("aborted", [staleMember]),
+					reset: (name: string) => {
+						resets.push(name);
+					},
+					run: () => "",
+				},
+			);
+		});
+
+		assert.deepEqual(resets, ["ui-wiring-work"]);
+		assert.equal(composed, true);
+		assert.match(output, /↺ Recomposing "ui-wiring-work"/u);
+		assert.match(output, /Open the pull request yourself/u);
+	});
+
+	test("--recompose rebuilds an unfinished composition that still matches the batch", async () => {
+		stageQueue();
+		const resets: Array<string> = [];
+		let composed = false;
+
+		await capture(async () => {
+			await runQueueLand(
+				parseArgs(["queue", "land", "--name", "ui-wiring-work", "--recompose"]),
+				{
+					compose: () => {
+						composed = true;
+						return Promise.resolve();
+					},
+					integration: () =>
+						composed
+							? composition("ready-for-human-merge", [tailMember], "def5678")
+							: composition("blocked", [tailMember]),
+					reset: (name: string) => {
+						resets.push(name);
+					},
+					run: () => "",
+				},
+			);
+		});
+
+		assert.deepEqual(resets, ["ui-wiring-work"]);
+		assert.equal(composed, true);
+	});
+
+	test("--recompose leaves a composition that is ready for the human merge alone", async () => {
+		stageQueue();
+		const resets: Array<string> = [];
+
+		const output = await capture(async () => {
+			await runQueueLand(
+				parseArgs(["queue", "land", "--name", "ui-wiring-work", "--recompose"]),
+				{
+					compose: () => Promise.resolve(),
+					integration: () =>
+						composition("ready-for-human-merge", [tailMember], "def5678"),
+					reset: (name: string) => {
+						resets.push(name);
+					},
+					run: () => "",
+				},
+			);
+		});
+
+		assert.deepEqual(
+			resets,
+			[],
+			"rebuilding a finished composition would throw its review away",
+		);
+		assert.match(output, /Open the pull request yourself/u);
+		assert.doesNotMatch(output, /Recomposing/u);
 	});
 });

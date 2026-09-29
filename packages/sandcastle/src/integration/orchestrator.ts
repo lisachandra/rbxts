@@ -5,12 +5,12 @@
  * (merging → conflict-resolution-required → integrated → reviewing →
  * review-passed → ready-for-human-merge, plus review-failed/blocked), the
  * marker-backed agent phases (conflict resolver, integration review), the
- * lifecycle commands (runNewIntegration, resumeIntegration,
- * printIntegrationStatus, abortIntegration, cleanupIntegration), and the
- * shared worktree preparation seam that delegates to `setupWorktree`.
+ * lifecycle commands (runNewIntegration, resumeIntegration, printIntegrationStatus,
+ * abortIntegration, cleanupIntegration, resetIntegration), and the shared worktree
+ * preparation seam that delegates to `setupWorktree`.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
@@ -469,4 +469,34 @@ export function cleanupIntegration(name: string, force: boolean): void {
 	manifest.lastError = "Worktree cleaned up by operator; branch was preserved.";
 	writeIntegrationManifest(manifest);
 	console.log(`Cleaned up worktree for ${name}; branch ${manifest.branch} was preserved.`);
+}
+
+/**
+ * - Drops an integration's worktree, branch, and manifest so it can be composed again.
+ * - @param name - Integration name.
+ * - @throws {Error} When no integration carries that name.
+ * - @remarks The member branches are untouched, so the composition is reproducible from scratch. The
+ *   status is written before anything is removed, so a reset that dies part-way is legible, and
+ *   removing the manifest is what makes the next composition resolve its sources afresh instead of
+ *   resuming the ones the stale manifest recorded.
+ */
+export function resetIntegration(name: string): void {
+	assertIntegrationName(name);
+	const manifest = readIntegrationManifest(name);
+	if (manifest === undefined) {
+		throw new Error(`Integration ${JSON.stringify(name)} does not exist.`);
+	}
+
+	manifest.status = "aborted";
+	manifest.lastError = "Reset so the composition can be rebuilt from its sources.";
+	writeIntegrationManifest(manifest);
+
+	const worktree = integrationBasePath(manifest);
+	if (existsSync(worktree)) {
+		git(["worktree", "remove", "--force", worktree]);
+	}
+
+	gitTry(["branch", "-D", manifest.branch]);
+	rmSync(integrationManifestPath(name), { force: true });
+	console.log(`Reset integration ${name}: worktree and branch ${manifest.branch} removed.`);
 }
