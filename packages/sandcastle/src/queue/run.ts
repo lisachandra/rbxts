@@ -119,20 +119,38 @@ function isLanded(issue: string): boolean {
  * - Lands a freshly dispatched batch when `--land` asked for it.
  * - @param options - Parsed CLI options; `--create-pr` decides whether the PR is opened or printed.
  * - @param name - Batch name to compose and hand over.
+ * - @returns `true` when the hand-off completed; the caller prunes the batch only then.
  * - @remarks A failed land does not stop the invocation: the integration manifest keeps the failure
  *   (`integration-resume` picks it up) and the loop moves to the next batch that is not gated on
- *   it, so one blocked composition cannot strand the rest of the queue.
+ *   it, so one blocked composition cannot strand the rest of the queue. It reports `false` instead,
+ *   because a batch whose hand-off failed is still open on GitHub: pruning it would be drift.
  */
-async function landBatch(options: CliOptions, name: string): Promise<void> {
+async function landBatch(options: CliOptions, name: string): Promise<boolean> {
 	try {
 		await runQueueLand({ ...options, integrationName: name });
+		return true;
 	} catch (err) {
 		emitText(options, `  ⚠ Could not land "${name}": ${String(err)}`);
 		emitText(
 			options,
-			`    Inspect it with \`pnpm sandcastle integration-status --name ${name}\`, then \`pnpm sandcastle queue land --name ${name}\`.`,
+			`    Inspect it with \`pnpm sandcastle integration-status --name ${name}\`, then retry the composition with \`pnpm sandcastle integration-resume --name ${name}\`.`,
 		);
+		return false;
 	}
+}
+
+/**
+ * - Whether a finished batch's members may be pruned from the manifest.
+ * - @param landRequested - Whether the invocation asked for a hand-off (`--land`).
+ * - @param handedOff - Whether that hand-off completed; `true` when none was requested, so a run
+ *   without `--land` never waits on one.
+ * - @returns `true` when the manifest may drop the batch's completed members.
+ * - @remarks A failed hand-off leaves its members open on GitHub, so removing them is drift and the
+ *   batch is the only record of what still needs composing. A run without `--land` is unchanged:
+ *   there is no hand-off to wait for.
+ */
+export function mayPruneLanded(landRequested: boolean, handedOff: boolean): boolean {
+	return !landRequested || handedOff === true;
 }
 
 /** Removes completed, APPROVED members so `queue check` stays green after a batch lands. */
@@ -313,19 +331,28 @@ async function runQueueLoop(options: CliOptions, dispatch: QueueDispatch): Promi
 		}
 
 		dispatched += decision.issues.length;
-		if (options.land === true) {
-			await landBatch(options, decision.name);
-		}
+		const landRequested = options.land === true;
+		const handedOff = landRequested ? await landBatch(options, decision.name) : true;
 
-		if (options.queueKeepEntries !== true) {
+		/*
+		 * Pruning is the reward for a completed hand-off, never for a failed one: a batch removed while
+		 * its members are still open is drift, and it is the only record of what still needs landing.
+		 */
+		if (options.queueKeepEntries !== true && mayPruneLanded(landRequested, handedOff)) {
 			pruneLanded(decision.issues, options);
 		}
 
-		const sequence = manifest.sequences.find((entry) => entry.name === decision.name);
+		/*
+		 * Read the manifest again: the hint has to describe the batch as it stands now, so a pruned or
+		 * landed batch does not advertise a `queue land` that can no longer resolve its target.
+		 */
+		const sequence = readQueueManifest().sequences.find(
+			(entry) => entry.name === decision.name,
+		);
 		if (sequence !== undefined) {
 			emitText(
 				options,
-				`  Land hint: pnpm sandcastle queue land --name ${sequence.name} (tail #${sequenceTail(decision.issues)})`,
+				`  Land hint: pnpm sandcastle queue land --name ${sequence.name} (tail #${sequenceTail(sequence.issues)})`,
 			);
 		}
 

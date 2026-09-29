@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { registerTestHooks } from "../test-helpers.js";
-import { landPrBody, landPrCommands, landPrTitle, resolveLandTarget } from "./land.js";
+import {
+	landPrBody,
+	landPrCommands,
+	landPrTitle,
+	resolveLandTarget,
+	staleComposition,
+} from "./land.js";
 import { emptyQueueManifest, type QueueManifest } from "./manifest.js";
 
 registerTestHooks();
@@ -76,6 +82,38 @@ describe("queue landing", () => {
 		assert.deepEqual(
 			body.split("\n").filter((line) => line.startsWith("Closes #")),
 			["Closes #382", "Closes #383"],
+		);
+	});
+
+	test("refuses a hand-off whose composition predates the batch's tail", () => {
+		const target = resolveLandTarget(manifest(), "ui-wiring-work");
+		const source = {
+			branch: "sandcastle/issue-383",
+			commit: "def5678",
+			issue: "383",
+			name: "issue-383",
+			order: 1,
+		};
+
+		// Composed from #382 while the batch's tail is #383: the new member's commits are missing.
+		const stale = staleComposition(
+			{
+				kind: "issues",
+				name: "ui-wiring-work",
+				sources: [
+					{ ...source, branch: "sandcastle/issue-382", issue: "382", name: "issue-382" },
+				],
+			} as never,
+			target,
+		);
+
+		assert.match(stale ?? "", /composed from issue-382, but the batch's tail is now #383/u);
+		assert.equal(
+			staleComposition(
+				{ kind: "issues", name: "ui-wiring-work", sources: [source] } as never,
+				target,
+			),
+			undefined,
 		);
 	});
 

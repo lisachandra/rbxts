@@ -41,6 +41,31 @@ describe("queue prompt rules", () => {
 		});
 	});
 
+	test("names the running batch, so a follow-up continues it instead of parking behind a gate", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /still running/u);
+			assert.match(rules, /queue add --issue <N> --sequence audio-seam-work/u);
+			assert.match(rules, /re-fires the batch/u);
+		});
+	});
+
+	test("says a follow-up cannot join a batch that is already composed", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ composed: true });
+
+			assert.match(rules, /already composed/u);
+			assert.match(rules, /a follow-up cannot join it/u);
+		});
+	});
+
+	test("tells the review to fix what it can before filing a follow-up", () => {
+		withQueueEnabled(true, () => {
+			assert.match(queueRulesForPrompt(), /Fix it here when you can/u);
+		});
+	});
+
 	test("the queue is enabled by default", () => {
 		assert.equal(config.queue.enabled, true);
 		assert.equal(config.queue.commit, false);

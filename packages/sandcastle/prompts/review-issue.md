@@ -27,9 +27,14 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 - Are non-goals respected? Flag any code added that the plan said NOT to add.
 - Are the plan's open questions resolved? If the plan flagged a decision the designer couldn't make, decide it now.
 - If the implementer skipped, misread, or partially completed a slice, fix it.
+- Fix a finding here when the correction is small, safe, and inside this issue's blast radius —
+  a missing test, an unhandled case, a wrong guard, a stale doc line. Correct it, re-run
+  validation, and commit it. A review that files what it could have fixed leaves the branch less
+  correct than it found it.
 - Findings that spawn new work (bugs, scope gaps, missing tests) must be registered as
   follow-up issues AND registered in the Sandcastle queue — see
   "Follow-up issue registration" below. Do not stop at listing them in the review comment.
+  Registering is not the same as parking: prefer continuing the batch this issue belongs to.
 
 ### Standards compliance
 

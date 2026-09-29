@@ -70,6 +70,20 @@ export interface SandcastleConfig {
 	dir: string;
 	/** Default reasoning effort when the environment does not set SANDCASTLE_EFFORT. */
 	effort: SandcastleEffort;
+	/** Integration composition: how the merge that commits an integration branch is made. */
+	integration: {
+		/**
+		 * Merge-commit subject; `{source}` is replaced with the source name. Conventional by
+		 * default: a repository with commitlint rejects a subject that carries no type, which would
+		 * leave the merge uncommitted and read as a conflict.
+		 */
+		mergeSubject: string;
+		/**
+		 * Run the repository's git hooks for that merge commit. Off by default: the hooks target
+		 * human commits, and a rejected one leaves the composition half-finished.
+		 */
+		verifyHooks: boolean;
+	};
 	/** Command template used to view an issue; `{issue}` is replaced with the issue number. */
 	issueCommand: string;
 	labels: {
@@ -166,6 +180,12 @@ export const sandcastleConfigSchema = z
 		baseBranch: z.string().optional(),
 		dir: z.string().optional(),
 		effort: effortSchema.optional(),
+		integration: z
+			.object({
+				mergeSubject: z.string().min(1).optional(),
+				verifyHooks: z.boolean().optional(),
+			})
+			.optional(),
 		issueCommand: z.string().optional(),
 		labels: z
 			.object({
@@ -233,6 +253,10 @@ const defaultConfig: SandcastleConfig = {
 	baseBranch: "main",
 	dir: ".sandcastle",
 	effort: "xhigh",
+	integration: {
+		mergeSubject: "chore(integration): integrate {source}",
+		verifyHooks: false,
+	},
 	issueCommand: "gh issue view {issue}",
 	labels: {
 		readyForAgent: "ready-for-agent",
@@ -245,7 +269,7 @@ const defaultConfig: SandcastleConfig = {
 		defaults: {
 			design: ["codebase-design", "domain-modeling", "research", "tdd"],
 			implement: ["tdd", "jest", "implement", "roblox-ts"],
-			review: ["code-review", "improve-codebase-architecture"],
+			review: ["sandcastle", "code-review", "improve-codebase-architecture"],
 		},
 		labels: {
 			ecs: {
@@ -320,6 +344,11 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 		baseBranch: parsed.baseBranch ?? defaultConfig.baseBranch,
 		dir: parsed.dir ?? defaultConfig.dir,
 		effort: parsed.effort ?? defaultConfig.effort,
+		integration: {
+			mergeSubject:
+				parsed.integration?.mergeSubject ?? defaultConfig.integration.mergeSubject,
+			verifyHooks: parsed.integration?.verifyHooks ?? defaultConfig.integration.verifyHooks,
+		},
 		issueCommand: parsed.issueCommand ?? defaultConfig.issueCommand,
 		labels: {
 			readyForAgent: parsed.labels?.readyForAgent ?? defaultConfig.labels.readyForAgent,

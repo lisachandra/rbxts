@@ -119,11 +119,20 @@ New work has arrived, or a review filed follow-ups.
 The most common failure mode is a review that finds extra work, files issues, and stops; the queue
 never learns about them. When you run any review — a sandcastle phase or a manual `/code-review`:
 
-1. File each follow-up as a GitHub issue (conventional title, milestone, labels, parent/blocker
-   edges per `docs/agents/issue-tracker.md`).
-2. Register it in the same change: `queue add --issue <n> --sequence <batch>` — or `--gated
+1. Fix it here when you can. A correction that is small, safe, and inside the reviewed work's blast
+   radius belongs on the branch, not in a new issue; a review that files what it could have fixed
+   leaves the branch less correct than it found it.
+2. File each remaining follow-up as a GitHub issue (conventional title, milestone, labels,
+   parent/blocker edges per `docs/agents/issue-tracker.md`).
+3. Register it in the same change — `queue add --issue <n> --sequence <batch>`, or `--gated
 --reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
-3. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
+   Prefer continuing a running batch over parking the work: `--sequence <that batch>` appends the
+   follow-up to its tail, and `queue run` re-fires the batch, skips the members that already passed
+   review, and chains their branch as the new member's base, so the follow-up continues inside the
+   same invocation. A batch that is **already composed** cannot take a new member — `queue land`
+   refuses a hand-off whose composition predates the tail rather than shipping a PR that closes an
+   issue it does not carry — so that follow-up goes into another batch, or behind `--gated`.
+4. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
    commands commit the manifest themselves (never push); otherwise commit it, so the registration
    survives the worktree it was made in.
 

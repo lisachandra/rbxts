@@ -104,7 +104,7 @@ export async function runConflictResolver(
 			SKILLS: "- resolving-merge-conflicts",
 			SOURCE_CONTEXT: sourceContext,
 
-			QUEUE_RULES: queueRulesForPrompt(),
+			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 			SOURCE_NAME: source.name,
 		},
 		promptFile: config.prompts.resolveConflicts,
@@ -147,7 +147,7 @@ export async function runIntegrationReview(
 			BASE_REF: manifest.base.ref,
 			BRANCH: manifest.branch,
 			INTEGRATION_NAME: manifest.name,
-			QUEUE_RULES: queueRulesForPrompt(),
+			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 
 			SKILLS: skillsForPrompt("review"),
 			SOURCES: sourceContext,

@@ -11,28 +11,33 @@
 
 import { config } from "../runtime.js";
 
-const enabledRules = [
-	"If your review found work beyond this diff's scope, you MUST register it in the repo's",
-	"Sandcastle queue before completion — not just list it in the comment:",
+/** The registration contract a review follows when it finds work beyond its diff's scope. */
+const registrationRules = [
+	"If your review found work beyond this diff's scope, register it in the repo's Sandcastle",
+	"queue before completion — not just in the comment:",
 	"",
-	"1. File each item as a GitHub issue (`gh issue create`) with the repo's conventional title",
-	"   prefix, milestone, labels, and parent/blocker edges per `docs/agents/issue-tracker.md`.",
-	"2. Register each new issue with the `sandcastle queue` command group — never hand-edit the",
-	"   manifest:",
-	"   - `pnpm sandcastle queue add --issue <N> --sequence <batch>` when it belongs in an existing",
-	"     batch,",
-	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` when it',
-	"     cannot start yet,",
+	"1. Fix it here when you can. A missing test, an unhandled case, a wrong guard: correct it on",
+	"   this branch, re-run validation, and commit it. File a follow-up only for work that needs",
+	"   another issue's context, a decision this diff cannot make, or more than a review-sized",
+	"   change — a review that files what it could have fixed leaves the branch less correct than",
+	"   it found it.",
+	"2. File each remaining item as a GitHub issue (`gh issue create`) with the repo's conventional",
+	"   title prefix, milestone, labels, and parent/blocker edges per `docs/agents/issue-tracker.md`.",
+	"3. Register each new issue with the `sandcastle queue` command group — never hand-edit the",
+	"   manifest. Prefer continuing the work over parking it:",
+	"   - `pnpm sandcastle queue add --issue <N> --sequence <batch>` when it continues a batch that",
+	"     is still running,",
+	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` only when',
+	"     it genuinely cannot start (an unlanded dependency, a decision nobody has made),",
 	'   - `pnpm sandcastle queue add --issue <N> --human --reason "..."` when it needs a human',
 	"     decision session.",
 	'   When no batch exists yet, use `--gated --reason "needs a batch"` rather than inventing one.',
-	"3. Run `pnpm sandcastle queue check` — it must report no drift. If the manifest is git-tracked",
+	"4. Run `pnpm sandcastle queue check` — it must report no drift. If the manifest is git-tracked",
 	"   and the repository sets `queue.commit`, the command commits it for you; otherwise commit it",
 	"   yourself so the registration reaches the repository instead of dying with this worktree.",
-	"4. List the created issue numbers in this comment under `Suggested follow-up issues`.",
+	"5. List the created issue numbers in this comment under `Suggested follow-up issues`.",
 	"A review never lands a batch: `queue run` dispatches, a human runs `queue land` and merges the",
 	"pull request it opens. Never merge an integration branch yourself, and never push to main.",
-
 	"",
 	"A review that lists follow-ups in the comment but leaves the queue untouched is incomplete —",
 	"the queue is the runnable artifact; the comment is only the report. Register the follow-up,",
@@ -40,6 +45,42 @@ const enabledRules = [
 	"",
 	"If there are no follow-ups, write `No follow-up issues.` in the review comment instead.",
 ].join("\n");
+
+/** What the caller knows about the batch a review belongs to. */
+export interface QueueRulesContext {
+	/** Batch this work belongs to while it is still running, so a follow-up can join its tail. */
+	batch?: string;
+	/** Whether the batch is already composed; nothing added to it now is in the integration. */
+	composed?: boolean;
+}
+
+/**
+ * The batch paragraph: only a caller that knows the batch can name it, and naming it is what turns
+ * "park the follow-up behind a gate" into "continue the work".
+ */
+function batchRules(context: QueueRulesContext): string {
+	if (context.batch !== undefined && context.batch !== "") {
+		return [
+			`This work is batch "${context.batch}", which is still running, so a follow-up that continues it`,
+			"belongs in that batch:",
+			`\`pnpm sandcastle queue add --issue <N> --sequence ${context.batch}\` puts it at the tail.`,
+			"Appending to a running batch is expected — `queue run` re-fires the batch, skips the members",
+			"that already passed review, and chains their branch as the new member's base, so the",
+			"follow-up continues this work rather than waiting for a human. Reserve `--gated` for work",
+			"that genuinely cannot start here.",
+		].join("\n");
+	}
+
+	if (context.composed === true) {
+		return [
+			"This batch is already composed, so nothing added to its queue entry now is in the",
+			"integration: a follow-up cannot join it. Register it against another batch, or with",
+			'`pnpm sandcastle queue add --issue <N> --gated --reason "<why it waits for this batch to land>"`.',
+		].join("\n");
+	}
+
+	return "";
+}
 
 const disabledRules = [
 	"This repository does not use the Sandcastle queue workflow (`queue.enabled: false` in",
@@ -52,11 +93,18 @@ const disabledRules = [
 
 /**
  * - Renders the queue rules a review phase must follow, for injection as `{{QUEUE_RULES}}`.
- * - @returns The mandatory registration contract, or the bypass note when the queue is disabled.
+ * - @param context - Batch the review belongs to, and whether that batch is already composed.
+ * - @returns The registration contract, or the bypass note when the queue is disabled.
  * - @remarks Repositories without a queue set `queue.enabled: false` and never see a gate they cannot
- *   satisfy. The text is plain prose so it reads correctly in a prompt with no surrounding
- *   context.
+ *   satisfy. The text is plain prose so it reads correctly in a prompt with no surrounding context,
+ *   and the batch paragraph appears only when the caller could name the batch: an unnamed batch is
+ *   what pushed reviews into gating follow-ups that belonged in the batch they came from.
  */
-export function queueRulesForPrompt(): string {
-	return config.queue.enabled ? enabledRules : disabledRules;
+export function queueRulesForPrompt(context: QueueRulesContext = {}): string {
+	if (!config.queue.enabled) {
+		return disabledRules;
+	}
+
+	const batch = batchRules(context);
+	return batch === "" ? registrationRules : `${registrationRules}\n\n${batch}`;
 }

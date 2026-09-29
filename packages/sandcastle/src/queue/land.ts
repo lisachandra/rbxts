@@ -267,6 +267,31 @@ function compositionBlocker(
 	return undefined;
 }
 
+/**
+ * - Whether a composed integration still covers its batch's tail member.
+ * - @param manifest - The composed integration manifest.
+ * - @param target - The batch as the queue manifest defines it now.
+ * - @returns A message naming the mismatch, or `undefined` when the composition is current.
+ * - @remarks A batch that grew a member after it was composed composes from the old tail, so the PR
+ *   would close the new member without carrying its commits. Refusing the hand-off is the only
+ *   honest answer: the integration has to be reset and composed again.
+ */
+export function staleComposition(
+	manifest: IntegrationManifest,
+	target: LandTarget,
+): string | undefined {
+	if (manifest.kind !== "issues") {
+		return undefined;
+	}
+
+	if (manifest.sources.some((source) => source.issue === target.tail)) {
+		return undefined;
+	}
+
+	const composed = manifest.sources.map((source) => source.name).join(", ") || "nothing";
+	return `integration "${target.name}" was composed from ${composed}, but the batch's tail is now #${target.tail}`;
+}
+
 /** An already-open PR for the branch, if there is one: re-running `land` must not open a second. */
 function existingPullRequest(run: LandDeps["run"], branch: string): string | undefined {
 	try {
@@ -404,6 +429,13 @@ export async function runQueueLand(options: CliOptions, deps: LandDeps = {}): Pr
 	if (blocker !== undefined) {
 		throw new Error(
 			`Cannot hand "${target.name}" to a human yet: ${blocker}. Resume it with \`pnpm sandcastle integration-resume --name ${target.name}\`.`,
+		);
+	}
+
+	const stale = integration === undefined ? undefined : staleComposition(integration, target);
+	if (stale !== undefined) {
+		throw new Error(
+			`Cannot hand "${target.name}" to a human: ${stale}. Reset it with \`pnpm sandcastle integration-abort --name ${target.name}\`, then land it again.`,
 		);
 	}
 

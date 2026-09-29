@@ -24,6 +24,7 @@ import {
 } from "./markers.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
+import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
 import { readState, updatePhase, writeState } from "./state.js";
@@ -78,6 +79,23 @@ function loadIssueContext(issueNumber: string): {
 	const issueLabels = meta.labels.map((label) => label.toLowerCase());
 	console.log(`  Labels: ${issueLabels.length > 0 ? issueLabels.join(", ") : "none"}`);
 	return { issueLabels, issueTitle: meta.title };
+}
+
+/**
+ * - Batch name an issue currently belongs to, when it is a member of one.
+ * - @param issueNumber - Issue number.
+ * - @returns The batch name, or `undefined` when the issue is gated, human, or unplaced.
+ * - @remarks The review prompt names this batch so a follow-up that continues the work joins it
+ *   instead of being parked behind a gate. A repository without a manifest, or an issue whose
+ *   placement cannot be read, reports `undefined` and the prompt stays batch-agnostic.
+ */
+function queueBatchForIssue(issueNumber: string): string | undefined {
+	try {
+		const placement = locateIssue(readQueueManifest(), issueNumber);
+		return placement?.kind === "sequence" ? placement.name : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 async function runDesignPhase(params: {
@@ -192,6 +210,9 @@ async function runReviewPhase(params: {
 					name: `reviewer #${params.issueNumber}`,
 					promptArgs: {
 						...params.sharedArgs,
+						QUEUE_RULES: queueRulesForPrompt({
+							batch: queueBatchForIssue(params.issueNumber),
+						}),
 						SKILLS: skillsForPrompt("review", params.issueLabels),
 					},
 					promptFile: config.prompts.review,
@@ -515,7 +536,6 @@ export async function runSingleIssue(
 		ISSUE_TITLE: issueTitle,
 		PLAN_PATH: planPath,
 
-		QUEUE_RULES: queueRulesForPrompt(),
 		SKILLS: skillsForPrompt("design", issueLabels),
 	};
 
@@ -600,7 +620,6 @@ export async function runAll(
 			...markerPromptArgs(marker),
 			PLAN_PATH: "",
 
-			QUEUE_RULES: queueRulesForPrompt(),
 			READY_LABEL: config.labels.readyForAgent,
 			SKILLS: skillsForPrompt("design"),
 		},

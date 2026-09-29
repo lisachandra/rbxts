@@ -18,6 +18,7 @@ import {
 	isGitlink,
 	mergeInProgress,
 } from "../git.js";
+import { config } from "../runtime.js";
 import type {
 	AgentBackend,
 	IntegrationManifest,
@@ -26,8 +27,43 @@ import type {
 } from "../types.js";
 import { integrationBasePath, writeIntegrationManifest } from "./manifest.js";
 
+/**
+ * - Subject for the merge commit that brings a source into the integration branch.
+ * - @param source - Source name, e.g. `issue-409`.
+ * - @returns The configured subject with `{source}` substituted.
+ * - @remarks Conventional by default: a consumer with commitlint rejects a merge commit whose subject
+ *   has no `type(scope)` prefix, and the rejected merge stays uncommitted, which the next resume
+ *   then misreads as a conflict.
+ */
+export function mergeSubject(source: string): string {
+	return config.integration.mergeSubject.replaceAll("{source}", source);
+}
+
+/**
+ * - Hook flags for the commits sandcastle makes itself.
+ * - @returns `--no-verify` unless the repository opted in with `integration.verifyHooks`.
+ * - @remarks Repository hooks (commitlint, lint-staged) target human commits; a synthetic merge
+ *   commit is not one, and a hook rejecting it leaves the composition half-finished.
+ */
+export function hookFlags(): Array<string> {
+	return config.integration.verifyHooks ? [] : ["--no-verify"];
+}
+
+/** Best-effort `git merge --abort`, so a refused merge cannot be mistaken for a conflict. */
+function abortMerge(worktree: string): void {
+	defaultGitTry(["merge", "--abort"], worktree);
+}
+
+/** Name of the source whose merge is in flight; falls back to the integration name. */
+function currentSourceName(manifest: IntegrationManifest): string {
+	const source = manifest.sources[manifest.currentSource ?? 0];
+	return source?.name ?? manifest.name;
+}
+
 /** Injectable git/inspection seam for integration merge operations. */
 export interface MergerDeps {
+	/** Best-effort `git merge --abort`; a refused merge must not survive as a phantom conflict. */
+	abortMerge: (worktree: string) => void;
 	changedSinceMergeBase: (worktree: string, commit: string) => Array<string>;
 	dirtyPaths: (worktree: string) => Array<string>;
 	git: (args: ReadonlyArray<string>, cwd?: string) => string;
@@ -38,6 +74,7 @@ export interface MergerDeps {
 }
 
 const defaultDeps: MergerDeps = {
+	abortMerge,
 	changedSinceMergeBase,
 	dirtyPaths,
 	git: defaultGit,
@@ -64,7 +101,10 @@ export function assertCleanMergeResolution(
 	}
 
 	if (merged.mergeInProgress(worktree)) {
-		merged.git(["commit", "--no-edit"], worktree);
+		merged.git(
+			["commit", ...hookFlags(), "-m", mergeSubject(currentSourceName(manifest))],
+			worktree,
+		);
 	}
 }
 
@@ -230,9 +270,25 @@ export async function integrateManifestSource(
 	}
 
 	try {
-		merged.git(["merge", "--no-ff", source.commit, "-m", `Integrate ${source.name}`], worktree);
+		merged.git(
+			["merge", "--no-ff", ...hookFlags(), source.commit, "-m", mergeSubject(source.name)],
+			worktree,
+		);
 	} catch (err) {
 		if (!merged.hasUnmergedPaths(worktree)) {
+			/*
+			 * No conflicts: git itself refused to create the merge commit — a commit hook rejecting the
+			 * message, most often. Leaving MERGE_HEAD behind would make the next resume read as a conflict
+			 * and hand a conflict-free merge to the resolver, so abandon the merge here and record what
+			 * actually failed.
+			 */
+			if (merged.mergeInProgress(worktree)) {
+				merged.abortMerge(worktree);
+				manifest.status = "blocked";
+				manifest.lastError = `Could not create the merge commit for ${source.name}: ${String(err)}`;
+				manifestWriter(manifest);
+			}
+
 			throw err;
 		}
 

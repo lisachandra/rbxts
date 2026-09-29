@@ -10,7 +10,7 @@ import { config, io } from "../runtime.js";
 import { registerTestHooks, tmpRoot } from "../test-helpers.js";
 import { queueLockPath, runLockName } from "./lock.js";
 import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
-import { type QueueDispatch, runQueueRun } from "./run.js";
+import { mayPruneLanded, type QueueDispatch, runQueueRun } from "./run.js";
 
 registerTestHooks();
 
@@ -229,6 +229,16 @@ describe("queue run dispatch", () => {
 				JSON.parse(line) as unknown;
 			});
 		}
+	});
+
+	test("prunes only after a hand-off that completed", () => {
+		assert.equal(mayPruneLanded(false, true), true, "no --land: nothing to wait for");
+		assert.equal(mayPruneLanded(true, true), true);
+		assert.equal(
+			mayPruneLanded(true, false),
+			false,
+			"a failed hand-off leaves its members open, so pruning them would be drift",
+		);
 	});
 
 	test("releases the run lock", async () => {

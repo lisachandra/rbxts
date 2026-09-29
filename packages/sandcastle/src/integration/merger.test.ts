@@ -40,6 +40,7 @@ function fakeDeps(
 			| "gitTry"
 			| "isGitlink"
 			| "dirtyPaths"
+			| "abortMerge"
 			| "mergeInProgress"
 			| "hasUnmergedPaths"
 			| "changedSinceMergeBase"
@@ -48,6 +49,7 @@ function fakeDeps(
 ): { deps: MergerDeps; gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> } {
 	const gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> = [];
 	const deps: MergerDeps = {
+		abortMerge: () => undefined,
 		changedSinceMergeBase: () => [],
 		dirtyPaths: () => [],
 		git: (args, cwd) => {
@@ -91,10 +93,15 @@ describe("merger adapter seam", () => {
 		);
 		assert.equal(unmerged.gitCalls.length, 0);
 
-		// Merge in progress → auto-commit --no-edit in the worktree.
+		// Merge in progress → commit it under sandcastle's own conventional subject.
 		const committing = fakeDeps({ mergeInProgress: () => true });
 		assert.doesNotThrow(() => assertCleanMergeResolution(manifest, committing.deps));
-		assert.deepEqual(committing.gitCalls, [{ args: ["commit", "--no-edit"], cwd: worktree }]);
+		assert.deepEqual(committing.gitCalls, [
+			{
+				args: ["commit", "--no-verify", "-m", "chore(integration): integrate wave-1"],
+				cwd: worktree,
+			},
+		]);
 	});
 
 	test("should quarantine uncommitted drift or abort if drift overlaps incoming merge", () => {
@@ -169,6 +176,59 @@ describe("merger adapter seam", () => {
 		assert.equal(wroteManifest?.name, "drift");
 	});
 
+	test("should abandon a merge no conflict explains so it cannot read as a conflict", async () => {
+		const manifest = manifestFor("hook-refused");
+		const worktree = integrationBasePath(manifest);
+		const source = {
+			branch: "sandcastle/issue-1",
+			commit: "2222222",
+			issue: "1",
+			name: "issue-1",
+			order: 1,
+		};
+
+		// The merge commits itself into a hook refusal: MERGE_HEAD exists, but nothing conflicted.
+		let merging = false;
+		const aborted: Array<string> = [];
+		const refused = fakeDeps({
+			abortMerge: (target) => {
+				aborted.push(target);
+				merging = false;
+			},
+			dirtyPaths: () => [],
+			git: (args) => {
+				if (args[0] === "merge") {
+					merging = true;
+					throw new Error("commit-msg hook rejected the message");
+				}
+
+				return "";
+			},
+			gitTry: () => undefined,
+			hasUnmergedPaths: () => false,
+			mergeInProgress: () => merging,
+		});
+
+		await assert.rejects(
+			integrateManifestSource(
+				manifest,
+				source,
+				worktree,
+				"m",
+				"low",
+				"dirac",
+				undefined,
+				false,
+				refused.deps as never,
+			),
+			/commit-msg hook rejected the message/u,
+		);
+
+		assert.deepEqual(aborted, [worktree]);
+		assert.equal(manifest.status, "blocked");
+		assert.match(manifest.lastError ?? "", /merge commit/u);
+	});
+
 	test("should merge source with no-ff and invoke conflict resolver on unmerged paths", async () => {
 		const manifest = manifestFor("merge-conflict");
 		const worktree = integrationBasePath(manifest);
@@ -233,6 +293,8 @@ describe("merger adapter seam", () => {
 		);
 		assert.equal(merges.length, 1);
 		assert.ok(merges[0]?.[0] === "merge" && merges[0].includes("--no-ff"));
+		assert.ok(merges[0]?.includes("--no-verify"), "a hook must not veto the merge commit");
+		assert.ok(merges[0]?.includes("chore(integration): integrate issue-1"));
 		assert.equal(resolverRuns, 0);
 
 		// Merge fails with unmerged paths → invoke resolver, then assert clean resolution.

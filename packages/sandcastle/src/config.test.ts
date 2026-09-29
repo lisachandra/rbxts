@@ -30,6 +30,9 @@ describe("config loading", () => {
 			"pi",
 		]);
 		assert.equal(config.prompts.plan.endsWith("plan-prompt.md"), true);
+		assert.equal(config.integration.mergeSubject, "chore(integration): integrate {source}");
+		assert.equal(config.integration.verifyHooks, false);
+		assert.equal(config.skills.defaults.review.includes("sandcastle"), true);
 	});
 
 	test("loadConfig merges repo config over defaults", () => {
