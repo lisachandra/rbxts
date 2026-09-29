@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/react-router",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"private": false,
 	"description": "Client-side router for React Roblox",
 	"keywords": [

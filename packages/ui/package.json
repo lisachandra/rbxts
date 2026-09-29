@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/ui",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"private": false,
 	"description": "Reusable React UI components, hooks, and hot reload helpers for @lisachandra",
 	"keywords": [

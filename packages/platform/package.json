@@ -1,6 +1,6 @@
 {
 	"name": "@lisachandra/platform",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"private": false,
 	"description": "Platform integrations (documents, teleporter, centurion, startup glue) for @lisachandra",
 	"keywords": [
