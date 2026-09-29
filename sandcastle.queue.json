@@ -5,14 +5,13 @@
 		{
 			"issues": [
 				"31",
-				"33",
-				"35"
+				"33"
 			],
 			"name": "sandcastle-work",
 			"notes": "seeded from the open ready-for-agent backlog"
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-09-29T15:23:23.495Z",
+	"updatedAt": "2026-09-29T15:23:35.979Z",
 	"version": 2
 }
