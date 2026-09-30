@@ -30,6 +30,7 @@ Sources:
 - Follow repository coding standards and preserve the scope of the selected sources.
 - Fix findings directly on this branch when a safe correction is clear.
 - Commit every correction with a Conventional Commit message, and re-run the relevant validation after it.
+- Run the repository's full validation suite on this branch, once per batch: detached with a log, then polled. Report the command, the wall time, and the tail with the review.
 
 This is the final combined review. Individual issue or integration reviews do not replace it. Leave the branch ready for a human to merge: every correction committed, no conflict markers, no merge in progress. Merging it into the base branch is the human's act.
 

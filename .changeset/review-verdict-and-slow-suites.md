@@ -2,7 +2,7 @@
 "@lisachandra/sandcastle": minor
 ---
 
-Review verdicts: what `BLOCKED` means, and a budget for slow suites
+Review verdicts: what `BLOCKED` means, and where the full suite is owed
 
 Behaviour changes:
 
@@ -15,6 +15,9 @@ Behaviour changes:
   so a kill at the harness timeout reads as a missing run instead of a failing one.
 - A `missing validation` entry in the review comment now names the command it ran, its wall time, and
   what stayed unverified.
+- `review-integration.md` owns the full-suite run: once per batch, on the composed branch, detached and
+  polled, with its wall time reported. The composed branch is what ships, so it is where the unbounded
+  run belongs.
 - `plan-prompt.md` asks a plan to label every validation command `agent` or `operator`, so a manual
   Studio spot-check stops reading as something the branch owes.
 - `implement-issue.md` covers lint alongside build for pre-existing unrelated errors, and asks for the
