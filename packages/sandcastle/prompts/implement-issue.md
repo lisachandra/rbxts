@@ -41,7 +41,7 @@ Every line of production code in a commit must be exercised by a test in that sa
 
 Before each commit, follow AGENTS.md verification policies.
 
-If the build produces pre-existing errors in unrelated files, note them but do not fix them.
+Fix what this issue touches; report pre-existing build or lint errors in unrelated files in the issue comment and leave those files alone.
 
 ## GitHub issue updates
 

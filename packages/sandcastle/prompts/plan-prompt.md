@@ -69,6 +69,7 @@ Write the plan to `{{PLAN_PATH}}`. Structure it as:
     - Pseudo-code or shape sketch where it helps the implementer
 4. **Non-goals**: anything the implementer might be tempted to add but shouldn't.
 5. **Open questions**: anything you couldn't resolve from the issue plus codebase.
+6. **Validation**: the exact commands that prove the slices, taken from `AGENTS.md`, each labelled `agent` (the implementer or the reviewer runs it) or `operator` (needs Studio, live play, or a human decision). Operator checks are recorded in the issue comment as deferred — the branch does not wait on them.
 
 Follow AGENTS.md (and repo docs/agents/* if present) conventions throughout: TDD slices, focused commits, and repo-specific style rules.
 
