@@ -32,7 +32,7 @@ import { clearAfterReferences, deleteSequence, promoteIssue, removeIssue } from 
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
 import { computeQueueView } from "./render.js";
-import { selectNextBatch, sequenceTail } from "./schedule.js";
+import { pendingMembers, selectNextBatch, sequenceTail } from "./schedule.js";
 
 /** Dispatch seam: production runs the sequential workflow, tests inject a stub. */
 export type QueueDispatch = (
@@ -297,6 +297,8 @@ async function runQueueLoop(
 	const failures: Array<HandOffFailure> = [];
 	const resume = options.noResume !== true;
 	let promotedGates = false;
+	/** Batch dispatched immediately before the current iteration, if any. */
+	let lastBatch: string | undefined;
 	const maxIssues = options.maxIssues ?? Number.POSITIVE_INFINITY;
 	let dispatched = 0;
 	let warnedDrift = false;
@@ -344,12 +346,51 @@ async function runQueueLoop(
 			}
 		}
 
-		const decision = selectNextBatch({
+		const pending = lastBatch === undefined ? [] : pendingMembers(view, lastBatch, seen);
+		let decision = selectNextBatch({
 			batch: options.integrationName,
 			manifest,
+			preferred: lastBatch,
 			seen,
 			view,
 		});
+		/*
+		 * A batch that grew members while it ran has not finished: a review registered a follow-up into
+		 * it. Stopping is the honest answer, because firing an unrelated batch first is exactly how a
+		 * follow-up registered mid-run was passed over. --continue-anyway restores the fall-through.
+		 */
+		if (decision.kind === "done" && pending.length > 0 && lastBatch !== undefined) {
+			if (options.continueAnyway !== true) {
+				if (options.jsonOut) {
+					emitJson({
+						batch: lastBatch,
+						decision: "stalled",
+						pending,
+						reason: decision.reason,
+					});
+				} else {
+					emitText(options, `  ⏹ ${decision.reason}`);
+					emitText(
+						options,
+						`    "${lastBatch}" is unfinished; inspect it with \`pnpm sandcastle queue list\`, or pass --continue-anyway to fire another batch.`,
+					);
+				}
+
+				return { failures, nothingToRun: false };
+			}
+
+			emitText(
+				options,
+				`  ⚠ --continue-anyway: "${lastBatch}" still has ${pending.length} member(s) it cannot run.`,
+			);
+			decision = selectNextBatch({
+				batch: options.integrationName,
+				manifest,
+				seen,
+				view,
+			});
+		}
+
 		if (decision.kind === "done") {
 			if (options.jsonOut) {
 				emitJson({ decision: "done", reason: decision.reason });
@@ -395,6 +436,7 @@ async function runQueueLoop(
 		}
 
 		await dispatch(decision.issues, options, resume);
+		lastBatch = decision.name;
 
 		for (const issue of decision.issues) {
 			seen.add(issue);

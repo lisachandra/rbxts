@@ -41,8 +41,15 @@ export interface CliOptions {
 	readonly base: string;
 	readonly before?: string;
 	readonly branch: string;
+	readonly cleanAll?: boolean;
+	readonly cleanDropBranch?: boolean;
+	readonly cleanIntegrations?: boolean;
+	readonly cleanLanded?: boolean;
+	readonly cleanReset?: boolean;
+	readonly cleanStale?: boolean;
 	readonly command: CliCommand;
 	readonly concurrency: number;
+	readonly continueAnyway?: boolean;
 	readonly createPr?: boolean;
 	readonly dryRun: boolean;
 	readonly effort: SandcastleEffort;
@@ -147,8 +154,15 @@ interface ParsedArgState {
 	base: string;
 	before: string | undefined;
 	branch: string | undefined;
+	cleanAll: boolean;
+	cleanDropBranch: boolean;
+	cleanIntegrations: boolean;
+	cleanLanded: boolean;
+	cleanReset: boolean;
+	cleanStale: boolean;
 	command: CliCommand;
 	concurrency: number;
+	continueAnyway: boolean;
 	createPr: boolean;
 	dryRun: boolean;
 	effort: SandcastleEffort;
@@ -214,8 +228,15 @@ function createParsedArgState(): ParsedArgState {
 		base: config.baseBranch,
 		before: undefined,
 		branch: undefined,
+		cleanAll: false,
+		cleanDropBranch: false,
+		cleanIntegrations: false,
+		cleanLanded: false,
+		cleanReset: false,
+		cleanStale: false,
 		command: "issue",
 		concurrency: 1,
+		continueAnyway: false,
 		createPr: false,
 		dryRun: false,
 		effort: config.effort,
@@ -650,6 +671,9 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 };
 
 const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
+	"--all": (state) => {
+		state.cleanAll = true;
+	},
 	"--allow-unreviewed": (state) => {
 		state.allowUnreviewed = true;
 	},
@@ -659,11 +683,17 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--closed": (state) => {
 		state.queueClosed = true;
 	},
+	"--continue-anyway": (state) => {
+		state.continueAnyway = true;
+	},
 	"--create-pr": (state) => {
 		state.createPr = true;
 	},
 	"--delete": (state) => {
 		state.queueDelete = true;
+	},
+	"--drop-branch": (state) => {
+		state.cleanDropBranch = true;
 	},
 	"--dry-run": (state) => {
 		state.dryRun = true;
@@ -697,6 +727,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--include-human": (state) => {
 		state.queueIncludeHuman = true;
 	},
+	"--integration-worktrees": (state) => {
+		state.cleanIntegrations = true;
+	},
 	"--json": (state) => {
 		state.jsonOut = true;
 	},
@@ -705,6 +738,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--land": (state) => {
 		state.land = true;
+	},
+	"--landed": (state) => {
+		state.cleanLanded = true;
 	},
 	"--last": (state) => {
 		state.last = true;
@@ -744,11 +780,17 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--require-clean": (state) => {
 		state.queueRequireClean = true;
 	},
+	"--reset": (state) => {
+		state.cleanReset = true;
+	},
 	"--resume": (state) => {
 		state.resume = true;
 	},
 	"--skip-setup": (state) => {
 		state.skipSetup = true;
+	},
+	"--stale": (state) => {
+		state.cleanStale = true;
 	},
 	"--status": (state) => {
 		state.status = true;
@@ -986,6 +1028,31 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("queue land requires --name <batch>.");
 		}
 
+		const cleanSelections = [
+			state.cleanAll,
+			state.cleanDropBranch,
+			state.cleanIntegrations,
+			state.cleanLanded,
+			state.cleanReset,
+			state.cleanStale,
+			state.queueClosed,
+		];
+		if (cleanSelections.some(Boolean) && state.queueSubcommand !== "clean") {
+			throw new Error(
+				"--all, --closed, --landed, --stale, --integration-worktrees, --drop-branch, and --reset select worktrees; use them with `queue clean`.",
+			);
+		}
+
+		if (state.queueSubcommand === "clean" && !cleanSelections.some(Boolean)) {
+			throw new Error(
+				"queue clean requires a selection: --closed, --landed, --stale, --integration-worktrees, or --all.",
+			);
+		}
+
+		if (state.continueAnyway === true && state.queueSubcommand !== "run") {
+			throw new Error("--continue-anyway only applies to dispatch; use it with `queue run`.");
+		}
+
 		if (state.land === true && state.queueSubcommand !== "run") {
 			throw new Error(
 				"--land composes each dispatched batch; use it with `queue run`, or run `queue land` yourself.",
@@ -1077,8 +1144,15 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		base: state.base,
 		before: state.before,
 		branch: state.branch ?? "",
+		cleanAll: state.cleanAll,
+		cleanDropBranch: state.cleanDropBranch,
+		cleanIntegrations: state.cleanIntegrations,
+		cleanLanded: state.cleanLanded,
+		cleanReset: state.cleanReset,
+		cleanStale: state.cleanStale,
 		command: state.command,
 		concurrency: state.concurrency,
+		continueAnyway: state.continueAnyway,
 		createPr: state.createPr,
 		dryRun: state.dryRun,
 		effort: state.effort,

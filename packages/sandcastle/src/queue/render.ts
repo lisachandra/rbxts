@@ -235,6 +235,26 @@ export function computeQueueView(
 		);
 	}
 
+	/*
+	 * A rule that spans two members of one batch does nothing at dispatch time: position already
+	 * serializes them and `ruleConflicts` only enforces cross-batch edges. Surface it so the rule is not
+	 * mistaken for protection it does not provide.
+	 */
+	for (const rule of manifest.serialized) {
+		const label = rule.name ?? `(${rule.issues.join(",")})`;
+		for (const sequence of manifest.sequences) {
+			const inside = rule.issues.filter((issue) => sequence.issues.includes(issue));
+			if (inside.length < 2) {
+				continue;
+			}
+
+			const members = inside.map((issue) => `#${issue}`).join(" and ");
+			drift.push(
+				`rule "${label}" couples ${members}, which are all members of batch "${sequence.name}" - position already serializes them, so the rule only guards cross-batch runs`,
+			);
+		}
+	}
+
 	if (unscanned.length > 0) {
 		drift.push(
 			`${unscanned.length} referenced issue(s) were not scanned: gh issue list is capped at one page`,

@@ -43,10 +43,11 @@ function manifest(overrides: Partial<QueueManifest> = {}): QueueManifest {
 function plan(
 	queue: QueueManifest,
 	state: LiveQueueState,
-	params: { batch?: string; seen?: Array<string> } = {},
+	params: { batch?: string; preferred?: string; seen?: Array<string> } = {},
 ): ScheduleDecision {
 	return selectNextBatch({
 		...(params.batch === undefined ? {} : { batch: params.batch }),
+		...(params.preferred === undefined ? {} : { preferred: params.preferred }),
 		manifest: queue,
 		seen: new Set(params.seen),
 		view: computeQueueView(queue, state, { strictGates: true }),
@@ -129,6 +130,59 @@ describe("queue scheduling", () => {
 
 		assert.deepEqual(ruleConflicts(queue, new Set(["2", "3"]), new Set(["1"])), ["2"]);
 		assert.deepEqual(ruleConflicts(queue, new Set(["3"]), new Set(["1"])), []);
+	});
+
+	test("a rule does not conflict with a batch's own dispatched members", () => {
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1", "2", "4"], name: "U2" },
+				{ issues: ["3"], name: "U3" },
+			],
+			serialized: [{ issues: ["1", "3"], name: "R1", reason: "same file" }],
+		});
+
+		/*
+		 * The regression: R1 spans U2 (#1) and U3 (#3). Once U2 is dispatched, #1 is in `seen` and is also
+		 * a U2 member, so the old code reported U2 conflicting with itself and the dispatcher fell through
+		 * to U3 - which is how a review's mid-run follow-up (#4) got skipped.
+		 */
+		assert.deepEqual(ruleConflicts(queue, new Set(["1", "2", "4"]), new Set(["1", "2"])), []);
+		assert.deepEqual(ruleConflicts(queue, new Set(["3"]), new Set(["1", "2"])), ["3"]);
+	});
+
+	test("a grown batch re-fires instead of falling through to the next one", () => {
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1", "2", "4"], name: "U2" },
+				{ issues: ["3"], name: "U3" },
+			],
+			serialized: [{ issues: ["1", "3"], name: "R1", reason: "same file" }],
+		});
+		const state = live(issue("1"), issue("2"), issue("3"), issue("4"));
+
+		// #4 was appended mid-run by #2's review; U2 must fire again rather than U3.
+		assert.deepEqual(plan(queue, state, { seen: ["1", "2"] }), {
+			issues: ["1", "2", "4"],
+			kind: "sequence",
+			name: "U2",
+		});
+	});
+
+	test("the batch just dispatched outranks manifest order while it has members left", () => {
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1", "4"], name: "U2" },
+				{ issues: ["2", "3"], name: "U3" },
+			],
+		});
+		const state = live(issue("1"), issue("2"), issue("3"), issue("4"));
+
+		// #4 was appended to U2 while it ran, so U2 is unfinished and fires ahead of U3.
+		assert.deepEqual(plan(queue, state, { preferred: "U2", seen: ["1"] }), {
+			issues: ["1", "4"],
+			kind: "sequence",
+			name: "U2",
+		});
 	});
 
 	test("sequenceTail returns the issue a merge consumes", () => {

@@ -61,6 +61,32 @@ const topics = {
 		],
 		usage: ["pnpm sandcastle queue check [--json] [--strict-gates]"],
 	},
+	"clean": {
+		flags: [
+			"--closed                 Worktrees whose issue is CLOSED",
+			"--landed                 Worktrees whose issue is complete and APPROVED",
+			"--stale                  Worktrees with no queue-manifest placement",
+			"--integration-worktrees  Composed or aborted integration worktrees",
+			"--all                    All of the above",
+			"--drop-branch            Also delete the sandcastle/issue-<n> branch",
+			"--reset                  With --integration-worktrees, drop branch and manifest",
+			"--force                  Remove even a dirty or mid-merge worktree",
+			"--dry-run                Report the plan without removing anything",
+			"--json                   Machine-readable plan",
+		],
+		notes: [
+			"Needs a selection; never touches the primary checkout and never pushes.",
+			"Branches are durable and worktrees are disposable, so a member whose review is",
+			"APPROVED is skipped on a re-fire even with its worktree gone.",
+			"An issue still open and not approved is kept - cleaning never cancels work.",
+		],
+		usage: [
+			"pnpm sandcastle queue clean --all [--dry-run]",
+			"pnpm sandcastle queue clean --landed --drop-branch",
+			"pnpm sandcastle queue clean --integration-worktrees --reset",
+		],
+	},
+
 	"graph": {
 		flags: [
 			"--format <mermaid|json|ascii>  Rendering to print; Mermaid by default",
@@ -252,6 +278,7 @@ const topics = {
 			"  add        Place an issue in a batch, a gate, or the human bucket",
 			"  bootstrap  Propose placements for the unplaced ready backlog",
 			"  check      Exit non-zero while the queue and GitHub disagree",
+			"  clean      Remove closed, landed, or stale worktrees",
 			"  graph      Render the run order as a Mermaid diagram (or json/ascii)",
 			"  land       Compose a batch and open its PR (the human merge gate)",
 			"  list       Live READY/GATED view plus drift",
@@ -291,6 +318,7 @@ const topics = {
 			"--land             Compose each dispatched batch when it finishes",
 			"--create-pr        With --land, push the branch and open the PR",
 			"--recompose        With --land, rebuild a composition that drifted or is unfinished",
+			"--continue-anyway  Fire another batch when the one just run cannot continue",
 		],
 		notes: [
 			"Re-reads the manifest and live GitHub state after every batch: a review that registered a",
@@ -385,6 +413,7 @@ const queueTopics: ReadonlySet<string> = new Set([
 	"add",
 	"bootstrap",
 	"check",
+	"clean",
 	"graph",
 	"land",
 	"list",

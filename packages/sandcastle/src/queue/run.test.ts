@@ -116,12 +116,13 @@ interface RunResult {
  */
 async function run(
 	argv: ReadonlyArray<string>,
-	options: { land?: QueueLand; reject?: boolean } = {},
+	options: { dispatch?: QueueDispatch; land?: QueueLand; reject?: boolean } = {},
 ): Promise<RunResult> {
 	const calls: RunResult["calls"] = [];
-	const dispatch: QueueDispatch = (issues, _options: CliOptions, resume) => {
+	// Records every call; an injected stub runs first so it can mutate the manifest mid-run.
+	const dispatch: QueueDispatch = async (issues, runOptions: CliOptions, resume) => {
+		await options.dispatch?.(issues, runOptions, resume);
 		calls.push({ issues: [...issues], resume });
-		return Promise.resolve();
 	};
 
 	const lines: Array<string> = [];
@@ -146,6 +147,34 @@ async function run(
 	}
 
 	return { calls, output: lines.join("\n") };
+}
+
+/**
+ * - A dispatch stub that appends #7 to U2 the first time it is called.
+ * - @returns A dispatch that rewrites the manifest once, then no-ops.
+ * - @remarks This is what a review running inside a batch does: it registers a follow-up into the
+ *   batch the dispatcher is still working through, so the next iteration sees a member it has not
+ *   run yet.
+ */
+function registeringFollowUp(): QueueDispatch {
+	let registered = false;
+	return () => {
+		if (!registered) {
+			registered = true;
+			writeQueueManifest(
+				{
+					...emptyQueueManifest(),
+					sequences: [
+						{ issues: ["5", "7"], name: "U2" },
+						{ issues: ["6"], name: "U3" },
+					],
+				},
+				manifestPath,
+			);
+		}
+
+		return Promise.resolve();
+	};
 }
 
 describe("queue run dispatch", () => {
@@ -250,6 +279,49 @@ describe("queue run dispatch", () => {
 		await run(["queue", "run", "--dry-run"], { reject: true });
 
 		assert.equal(existsSync(queueLockPath(runLockName)), false);
+	});
+
+	test("finishes the batch it just ran when a review appended a member mid-run", async () => {
+		stage(
+			[
+				{ issues: ["5"], name: "U2" },
+				{ issues: ["6"], name: "U3" },
+			],
+			[makeIssue(5), makeIssue(6), makeIssue(7)],
+		);
+
+		const dispatch = registeringFollowUp();
+
+		const result = await run(["queue", "run"], { dispatch, reject: true });
+
+		assert.deepEqual(
+			result.calls.map((call) => call.issues),
+			[["5"], ["5", "7"], ["6"]],
+			"U2 resumes with #7 instead of falling through to U3",
+		);
+		assert.match(result.output, /Firing sequence "U2"/u);
+	});
+
+	test("stops and names the batch when the grown member cannot run", async () => {
+		const { codes } = stage(
+			[
+				{ issues: ["5"], name: "U2" },
+				{ issues: ["6"], name: "U3" },
+			],
+			[makeIssue(5), makeIssue(6), makeIssue(7, { labels: [] })],
+		);
+
+		const dispatch = registeringFollowUp();
+
+		const result = await run(["queue", "run"], { dispatch, reject: true });
+
+		assert.deepEqual(
+			result.calls.map((call) => call.issues),
+			[["5"]],
+			"U3 must not be fired ahead of the unfinished U2",
+		);
+		assert.match(result.output, /grew #7 mid-run but is GATED/u);
+		assert.deepEqual(codes, [], "stopping is not a failure exit");
 	});
 
 	test("--land exits 2 when the hand-off failed, even with nothing else left to run", async () => {

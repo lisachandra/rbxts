@@ -11,6 +11,7 @@ import { runSingleIssue } from "./issue.js";
 import { config, io, repoRoot } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
 import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js";
+import { ensurePersistentWorktree } from "./worktree.js";
 
 interface SequentialIssueResult {
 	error?: string;
@@ -88,9 +89,18 @@ async function processSequentialIssue({
 		(worktree === undefined || worktree === "") &&
 		isIssueComplete(issueNumber) &&
 		getLatestReviewMarker(issueNumber) === "APPROVED" &&
-		existsSync(worktreePath) &&
 		gitTry(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`]) !== undefined
 	) {
+		/*
+		 * A landed member is skipped even when its worktree is gone. The branch is the durable artifact
+		 * and the worktree is disposable, so a batch re-fired after `queue clean` restores the worktree
+		 * instead of re-running phases that already passed review.
+		 */
+		if (!existsSync(worktreePath)) {
+			console.log(`   ↻ Restoring the worktree for completed #${issueNumber}.`);
+			ensurePersistentWorktree(branchName);
+		}
+
 		console.log(`   ⏭ Issue #${issueNumber} already completed; reusing ${branchName}.`);
 		const nextBase = !isLast ? branchName : currentBase;
 		if (!isLast) {
