@@ -25,7 +25,8 @@ const registrationRules = [
 	"3. Register the new issue with the `sandcastle queue` command group — never by hand-editing the",
 	"   manifest:",
 	"   - `pnpm sandcastle queue add --issue <N> --sequence <batch>` continues a batch that is still",
-	"     running,",
+	"     running — add `--after <this-issue>` when the follow-up directly continues this issue, so it",
+	"     chains this branch instead of unrelated work appended later,",
 	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` means the',
 	"     work cannot start until something else lands,",
 	'   - `pnpm sandcastle queue add --issue <N> --human --reason "..."` means it needs a human',
@@ -36,11 +37,16 @@ const registrationRules = [
 	"   yourself so the registration reaches the repository instead of dying with this worktree.",
 	"5. List the created issue numbers in this comment under `Suggested follow-up issues`.",
 	"",
+	"A deferred-by-design follow-up is APPROVED, not BLOCKED: this branch is right for its scope and",
+	"safe to chain once the follow-up is filed, registered, and listed. Reserve BLOCKED for a branch",
+	"that is itself wrong and must not chain — a failing test, an unmet criterion with no follow-up,",
+	"or a finding left unfixed that belonged on this branch. The batch stops at a BLOCKED member.",
+	"",
 	"A review never lands a batch: `queue run` dispatches, a human runs `queue land` and merges the",
 	"pull request it opens, and merging into the base branch stays the human's act.",
 	"",
 	"The queue is the runnable artifact; the comment is only the report. A review that lists",
-	"follow-ups in the comment and stops leaves the queue untouched and the follow-up undispatchable.",
+	"follow-ups in the comment and stops leaves the queue untouched, so nothing ever runs the follow-up.",
 	"",
 	"If there are no follow-ups, write `No follow-up issues.` in the review comment instead.",
 ].join("\n");
@@ -62,10 +68,14 @@ function batchRules(context: QueueRulesContext): string {
 		return [
 			`This work is batch "${context.batch}", which is still running, so a follow-up that continues it`,
 			"joins that batch:",
-			`\`pnpm sandcastle queue add --issue <N> --sequence ${context.batch}\` puts it at the tail.`,
+			`\`pnpm sandcastle queue add --issue <N> --sequence ${context.batch}\` puts it at the tail; add \`--after <this-issue>\``,
+			"when the follow-up directly continues this issue so it chains this branch next instead of unrelated work.",
 			"Appending to a running batch is expected — `queue run` re-fires the batch, skips the members",
 			"that already passed review, and chains their branch as the new member's base. The follow-up",
 			"continues this work inside the same invocation, land included.",
+			"",
+			"The new issue must carry `ready-for-agent` before this review ends: a batch member without it",
+			"reads GATED, and `queue run` stops and names the batch rather than starting unrelated work.",
 		].join("\n");
 	}
 

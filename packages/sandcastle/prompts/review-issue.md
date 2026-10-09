@@ -42,7 +42,7 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 
 ## Verdict
 
-`APPROVED` means the branch is right: acceptance criteria met, owed checks green, and every finding you could fix committed. `BLOCKED` means the branch is wrong: a failing test, an unmet criterion, a finding left unfixed.
+`APPROVED` means the branch is right for its scope and safe to chain: acceptance criteria met or deliberately deferred, owed checks green, and every finding you could fix committed. A slice deferred by design — needs another issue's context, a decision this diff cannot make, or more than a review-sized change — is `APPROVED` once it is filed as a follow-up issue, queue-registered, and listed under `Suggested follow-up issues`. The batch continues and the next member chains this branch. `BLOCKED` means the branch itself is wrong and must not chain: a failing test, an unmet criterion with no follow-up, or a finding left unfixed that belonged on this branch. The batch stops at a `BLOCKED` member and later members never dispatch in that invocation — so reserve `BLOCKED` for do-not-chain, never for "the rest lives in a follow-up".
 
 A check you cannot finish inside your budget is neither one. Run the largest honest part of it, then report the command, its wall time, and what stayed unverified — the operator decides the merge, and the comment is where that gap is visible.
 
@@ -57,7 +57,7 @@ Leave a concise review summary as a comment on the issue with:
 - missing validation, each entry naming the command, its wall time, and what stayed unverified,
 - the follow-up issue numbers you registered.
 
-`BLOCKED` is only the status line; prose never substitutes for it. The issue stays open — the integration pull request's `Closes` line is what closes it.
+`APPROVED` or `BLOCKED` is only the status line; prose never substitutes for it. The issue stays open — the integration pull request's `Closes` line is what closes it.
 
 ## Follow-up issue registration
 

@@ -48,6 +48,7 @@ describe("queue prompt rules", () => {
 			assert.match(rules, /still running/u);
 			assert.match(rules, /queue add --issue <N> --sequence audio-seam-work/u);
 			assert.match(rules, /re-fires the batch/u);
+			assert.match(rules, /--after/);
 		});
 	});
 
@@ -72,6 +73,16 @@ describe("queue prompt rules", () => {
 	test("tells the review to fix what it can before filing a follow-up", () => {
 		withQueueEnabled(true, () => {
 			assert.match(queueRulesForPrompt(), /Fix it here when you can/u);
+		});
+	});
+
+	test("a deferred-by-design follow-up is APPROVED, and BLOCKED is reserved for do-not-chain", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt();
+
+			assert.match(rules, /deferred-by-design follow-up is APPROVED/u);
+			assert.match(rules, /Reserve BLOCKED for/u);
+			assert.match(rules, /--after <this-issue>/u);
 		});
 	});
 

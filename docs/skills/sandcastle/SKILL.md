@@ -116,17 +116,23 @@ never learns about them. When you run any review — a sandcastle phase or a man
    leaves the branch less correct than it found it.
 2. File each remaining follow-up as a GitHub issue (conventional title, milestone, labels,
    parent/blocker edges per `docs/agents/issue-tracker.md`).
-3. Register it in the same change — `queue add --issue <n> --sequence <batch>`, or `--gated
+3. Register it in the same change — `queue add --issue <n> --sequence <batch>` (add `--after <this-issue>` when the follow-up directly continues the reviewed issue, so it chains this branch next), or `--gated
 --reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
    Prefer continuing a running batch over parking the work: `--sequence <that batch>` appends the
    follow-up to its tail, and `queue run` re-fires the batch, skips the members that already passed
    review, and chains their branch as the new member's base, so the follow-up continues inside the
-   same invocation. A batch that is **already composed** cannot take a new member — `queue land`
+   same invocation. `--after <this-issue>` places it mid-batch instead of at the tail, which is what
+   you want when it continues this issue directly. The new issue must already carry
+   `ready-for-agent`: a member without it reads GATED, and the run stops and names the batch rather
+   than starting unrelated work, so a follow-up filed without the label stalls the queue.
+   A batch that is **already composed** cannot take a new member — `queue land`
    refuses a hand-off whose composition predates the tail rather than shipping a PR that closes an
    issue it does not carry — so that follow-up goes into another batch, or behind `--gated`.
 4. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
    commands commit the manifest themselves (never push); otherwise commit it, so the registration
    survives the worktree it was made in.
+
+A deferred-by-design follow-up is APPROVED, not BLOCKED: the reviewed branch is right for its scope and safe to chain once the follow-up is filed, registered, and listed. Reserve BLOCKED for a branch that is itself wrong and must not chain — the batch stops at a BLOCKED member.
 
 A review that lists follow-ups in a comment but leaves the queue untouched is incomplete: the
 queue is the runnable artifact, the comment is only the report.
