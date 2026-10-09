@@ -77,8 +77,19 @@ export function writeIntegrationManifest(
 	fs.writeFileSync(path, `${JSON.stringify(manifest, undefined, 2)}\n`, "utf-8");
 }
 
+/**
+ * - Absolute path of an integration worktree.
+ * - @param name - Integration name.
+ * - @returns The worktree path under the integrations directory.
+ * - @remarks A function of the name, not of the manifest: a caller holding only a name still needs
+ *   the path, and should not fabricate a manifest to get it.
+ */
+export function integrationWorktreePath(name: string): string {
+	return pathResolve(integrationsDir, name, "worktree");
+}
+
 export function integrationBasePath(manifest: IntegrationManifest): string {
-	return pathResolve(integrationsDir, manifest.name, "worktree");
+	return integrationWorktreePath(manifest.name);
 }
 
 export function createIntegrationManifest(

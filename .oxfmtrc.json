@@ -23,7 +23,8 @@
 		"**/coverage/**",
 		"**/.jest-roblox/**",
 		".workspace-links/**",
-		"**/pnpm-lock.yaml"
+		"**/pnpm-lock.yaml",
+		"sandcastle.queue.json"
 	],
 	"overrides": [
 		{

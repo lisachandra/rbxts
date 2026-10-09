@@ -212,6 +212,7 @@ sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
+sandcastle queue clean --all            # remove closed/landed/stale worktrees (--dry-run to preview)
 sandcastle queue graph      # Mermaid diagram of the run order (--format json|ascii, --write, --comment)
 sandcastle queue serve      # the same graph as a local page (--port, --host, --open)
 sandcastle queue run --name ui-wiring-work  # fire the next READY batch; re-reads the manifest after each one
@@ -275,7 +276,9 @@ read-only local view bound to `127.0.0.1` with a 30-second cache in front of the
 every batch starts from `--base` and only members inside one batch chain — re-reads the manifest
 after every batch, and prunes landed entries (`--keep-entries` to keep them). Gated batches are
 skipped until READY, so a review that registers a follow-up changes what runs next inside the
-same invocation; `--max-issues <n>` caps one invocation. `queue bootstrap`
+same invocation; `--max-issues <n>` caps one invocation. A batch that grew members while it ran is
+finished before any other batch: when it cannot continue, the run stops and names it rather than
+starting unrelated work (`--continue-anyway` restores the fall-through). `queue bootstrap`
 proposes placements for the unplaced backlog grouped by title scope. Repositories that do not want
 the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappears and reviews only
 report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the

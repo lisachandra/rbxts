@@ -12,6 +12,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import type { CliOptions } from "../cli.js";
 import { config, io, repoRoot } from "../runtime.js";
+import { runQueueClean } from "./clean.js";
 import { upsertGraphComment } from "./comment.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import {
@@ -46,6 +47,7 @@ export type QueueSubcommand =
 	| "graph"
 	| "prune"
 	| "serve"
+	| "clean"
 	| "remove"
 	| "migrate"
 	| "promote"
@@ -58,6 +60,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"add",
 	"bootstrap",
 	"check",
+	"clean",
 	"graph",
 	"list",
 	"prune",
@@ -79,6 +82,7 @@ export function isQueueSubcommand(value: string | undefined): value is QueueSubc
 const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
 	"add",
 	"bootstrap",
+	"clean",
 	"land",
 	"migrate",
 	"promote",
@@ -134,6 +138,10 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 		}
 		case "check": {
 			runQueueCheck(options);
+			break;
+		}
+		case "clean": {
+			runQueueClean(options);
 			break;
 		}
 		case "graph": {
