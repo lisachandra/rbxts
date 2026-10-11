@@ -3,13 +3,45 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { registerTestHooks } from "../test-helpers.js";
+import type { LiveIssue, LiveQueueState } from "./live.js";
 import { emptyQueueManifest, locateIssue, type QueueManifest } from "./manifest.js";
-import { addRule, addToSequence, defineSequence, placeIssue, removeIssue } from "./mutations.js";
+import {
+	addRule,
+	addToSequence,
+	defineSequence,
+	deleteRule,
+	matchingRules,
+	midChainInsertionConflict,
+	placeIssue,
+	removeIssue,
+} from "./mutations.js";
+import { computeQueueView } from "./render.js";
 
 registerTestHooks();
 
 function base(): QueueManifest {
 	return { ...emptyQueueManifest(), updatedAt: "2026-01-01T00:00:00.000Z" };
+}
+
+function issue(number: string): LiveIssue {
+	return {
+		found: true,
+		number,
+		openBlockers: [],
+		ready: true,
+		state: "OPEN",
+		title: `Issue ${number}`,
+		wayfinder: false,
+	};
+}
+
+function live(...entries: Array<LiveIssue>): LiveQueueState {
+	const issues = new Map<string, LiveIssue>();
+	for (const entry of entries) {
+		issues.set(entry.number, entry);
+	}
+
+	return { issues, readyIssues: [], truncated: false };
 }
 
 describe("queue mutations", () => {
@@ -263,5 +295,157 @@ describe("queue mutations", () => {
 		assert.throws(() => {
 			removeIssue(next, "2");
 		}, /not placed/u);
+	});
+
+	test("deleteRule retires every rule carrying the name and refuses an unknown one", () => {
+		const start: QueueManifest = {
+			...base(),
+			serialized: [
+				{ issues: ["295", "386"], name: "R2", reason: "same file" },
+				{ issues: ["432", "292", "293"], name: "R2", reason: "same file" },
+				{ issues: ["1", "2"], reason: "unnamed" },
+			],
+		};
+
+		/*
+		 * One name can cover two disjoint issue sets (that is why the name is not the add key), so a
+		 * retire by name removes every entry carrying it — retiring "R2" means both halves.
+		 */
+		const next = deleteRule(start, { name: "R2" });
+		assert.deepEqual(next.serialized, [{ issues: ["1", "2"], reason: "unnamed" }]);
+
+		assert.throws(() => {
+			deleteRule(start, { name: "R9" });
+		}, /No serialization rule matches name "R9"/u);
+	});
+
+	test("deleteRule matches an exact issue set, optionally narrowed by name", () => {
+		const start: QueueManifest = {
+			...base(),
+			serialized: [
+				{ issues: ["295", "386"], name: "R2", reason: "same file" },
+				{ issues: ["1", "2"], reason: "unnamed" },
+			],
+		};
+
+		// The sorted issue set is the key regardless of order, so an unnamed rule is deletable by set.
+		const bySet = deleteRule(start, { issues: ["2", "1"] });
+		assert.deepEqual(bySet.serialized, [
+			{ issues: ["295", "386"], name: "R2", reason: "same file" },
+		]);
+
+		const byNameAndSet = deleteRule(start, { issues: ["386", "295"], name: "R2" });
+		assert.deepEqual(byNameAndSet.serialized, [{ issues: ["1", "2"], reason: "unnamed" }]);
+
+		// A set that matches a differently-named rule does not satisfy a name+narrowed request.
+		assert.throws(() => {
+			deleteRule(start, { issues: ["386"] });
+		}, /No serialization rule matches issues \(386\)/u);
+
+		assert.throws(() => {
+			deleteRule(base(), { issues: ["1", "1"] });
+		}, /contains duplicates/u);
+		assert.throws(() => {
+			deleteRule(base(), {});
+		}, /requires --name/u);
+	});
+
+	test("matchingRules reports what a delete would remove, before removing it", () => {
+		const start: QueueManifest = {
+			...base(),
+			serialized: [
+				{ issues: ["295", "386"], name: "R2", reason: "same file" },
+				{ issues: ["432", "292", "293"], name: "R2", reason: "same file" },
+			],
+		};
+
+		assert.deepEqual(matchingRules(start, { name: "R2" }), start.serialized);
+		assert.deepEqual(matchingRules(start, { issues: ["386", "295"], name: "R2" }), [
+			start.serialized[0],
+		]);
+		assert.deepEqual(matchingRules(start, { name: "R9" }), []);
+	});
+
+	test("midChainInsertionConflict names the first dispatched member after the insertion", () => {
+		const start: QueueManifest = {
+			...base(),
+			sequences: [{ issues: ["10", "11", "12"], name: "progression-work" }],
+		};
+		const inserted = addToSequence(start, {
+			after: "10",
+			issue: "99",
+			sequence: "progression-work",
+		});
+		assert.deepEqual(inserted.sequences[0]?.issues, ["10", "99", "11", "12"]);
+
+		const conflict = midChainInsertionConflict({
+			isDispatched: (member) => member === "12",
+			issue: "99",
+			manifest: inserted,
+		});
+		assert.match(
+			conflict ?? "",
+			/#12 of batch "progression-work" has already been dispatched/u,
+		);
+		assert.match(conflict ?? "", /omit --after/u);
+
+		// A dispatched member before the insertion point does not block; one after it does.
+		assert.equal(
+			midChainInsertionConflict({
+				isDispatched: (member) => member === "10",
+				issue: "99",
+				manifest: inserted,
+			}),
+			undefined,
+		);
+		assert.match(
+			midChainInsertionConflict({
+				isDispatched: (member) => member === "11",
+				issue: "99",
+				manifest: inserted,
+			}) ?? "",
+			/#11 of batch/u,
+		);
+
+		// An issue placed outside any sequence (gated/human) never chains behind a dispatched member.
+		assert.equal(
+			midChainInsertionConflict({ isDispatched: () => true, issue: "99", manifest: base() }),
+			undefined,
+		);
+	});
+
+	test("add → retire → re-declare narrower → drift zero", () => {
+		const withRule = (issues: ReadonlyArray<string>): QueueManifest => ({
+			...base(),
+			sequences: [
+				{ issues: ["201", "171"], name: "matchmaking-session-work" },
+				{ issues: ["423"], name: "ranked-policy-work" },
+			],
+			serialized: [{ issues: [...issues], name: "R10", reason: "ranked rating state" }],
+		});
+
+		// The stale clique drifts: 171 and 201 share one batch, so position already serializes them.
+		const stale = computeQueueView(
+			withRule(["423", "171", "201"]),
+			live(issue("171"), issue("201"), issue("423")),
+		);
+		assert.equal(stale.drift.length, 1);
+		assert.match(stale.drift[0] ?? "", /rule "R10" couples #171 and #201/u);
+
+		// Retire the clique and re-declare the cross-batch intent pairwise; the drift returns to zero.
+		const retired = deleteRule(withRule(["423", "171", "201"]), { name: "R10" });
+		assert.deepEqual(retired.serialized, []);
+		const narrowed = addRule(retired, {
+			issues: ["423", "171"],
+			name: "R10",
+			reason: "ranked rating state",
+		});
+		const crossOnly = addRule(narrowed, {
+			issues: ["423", "201"],
+			name: "R16",
+			reason: "ranked rating state",
+		});
+		const clean = computeQueueView(crossOnly, live(issue("171"), issue("201"), issue("423")));
+		assert.deepEqual(clean.drift, []);
 	});
 });

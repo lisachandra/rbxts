@@ -10,6 +10,7 @@
 
 import type { CliOptions } from "../cli.js";
 import { config } from "../runtime.js";
+import { readState } from "../state.js";
 import { batchNameForScope, promotableGates, scopeOf } from "./bootstrap.js";
 import { fetchLiveQueueState, type LiveIssue, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, manifestLockName } from "./lock.js";
@@ -34,7 +35,10 @@ import {
 	addToSequence,
 	clearAfterReferences,
 	defineSequence,
+	deleteRule,
 	deleteSequence,
+	matchingRules,
+	midChainInsertionConflict,
 	placeIssue,
 	promoteIssue,
 	removeIssue,
@@ -73,6 +77,22 @@ export function runQueueAdd(options: CliOptions): void {
 						issue,
 						sequence: options.queueSequence,
 					});
+		/*
+		 * `--after` is a dependency statement, not a preference: an insertion ahead of a member the
+		 * current run has already dispatched leaves that member's branch behind the insertion, and
+		 * `queue land` refuses the moved tail. Refuse here, inside the transaction, naming the fix.
+		 */
+		if (options.queueSequence !== undefined && options.after !== undefined) {
+			const conflict = midChainInsertionConflict({
+				isDispatched: (member) => readState(member) !== undefined,
+				issue,
+				manifest: next,
+			});
+			if (conflict !== undefined) {
+				throw new Error(conflict);
+			}
+		}
+
 		const where = describePlacement(locateIssue(next, issue) ?? { kind: "human" });
 		const moved =
 			previous === undefined ? "Placed" : `Moved (was ${describePlacement(previous)})`;
@@ -121,8 +141,39 @@ export function runQueueSequence(options: CliOptions): void {
 	}));
 }
 
-/** Adds or replaces a same-file serialization rule. */
+/** Adds or replaces a same-file serialization rule; `--delete` retires one. */
 export function runQueueRule(options: CliOptions): void {
+	if (options.queueDelete === true) {
+		if (options.issueNumbers.length === 0 && options.integrationName === undefined) {
+			throw new Error("queue rule --delete requires --name <R#> or --issues <a,b>.");
+		}
+
+		const params = {
+			...(options.integrationName !== undefined ? { name: options.integrationName } : {}),
+			...(options.issueNumbers.length > 0 ? { issues: options.issueNumbers } : {}),
+		};
+		const label =
+			options.integrationName ??
+			(options.issueNumbers.length > 0 ? `(${options.issueNumbers.join(",")})` : "");
+		transactQueueManifest(options, (manifest) => {
+			const removed = matchingRules(manifest, params);
+			const next = deleteRule(manifest, params);
+			const described = removed
+				.map((rule) =>
+					rule.name === undefined
+						? `(${rule.issues.join(", ")})`
+						: `${rule.name} (${rule.issues.join(", ")})`,
+				)
+				.join(", ");
+			return {
+				message: `  ✓ Retired ${removed.length} serialization rule(s): ${described}`,
+				next,
+				summary: `retire serialization rule ${label}`,
+			};
+		});
+		return;
+	}
+
 	if (options.issueNumbers.length === 0) {
 		throw new Error("queue rule requires --issues <a,b>");
 	}

@@ -519,6 +519,22 @@ describe("commaSeparated / parseArgs", () => {
 				() => parseArgs(["queue", "rule", "--reason", "x"]),
 				/queue rule requires/,
 			);
+			assert.throws(
+				() => parseArgs(["queue", "rule", "--delete"]),
+				/queue rule --delete requires --name/,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "add", "--issue", "5", "--sequence", "U2", "--delete"]),
+				/--delete removes a batch or a rule/,
+			);
+
+			const deleteByName = parseArgs(["queue", "rule", "--delete", "--name", "R2"]);
+			assert.equal(deleteByName.queueDelete, true);
+			assert.equal(deleteByName.integrationName, "R2");
+			const deleteByIssues = parseArgs(["queue", "rule", "--delete", "--issues", "1,2"]);
+			assert.equal(deleteByIssues.queueDelete, true);
+			assert.deepEqual(deleteByIssues.issueNumbers, ["1", "2"]);
+
 			assert.throws(() => parseArgs(["queue", "remove"]), /queue remove requires --issue/);
 		});
 

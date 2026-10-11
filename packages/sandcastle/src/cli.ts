@@ -940,6 +940,10 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.issueNumbers.length === 0
 		) {
 			throw new Error("queue sequence requires --issues <a,b,c> (or --delete to remove it).");
+		} else if (state.queueSubcommand === "rule" && state.queueDelete === true) {
+			if (state.issueNumbers.length === 0 && state.integrationName === undefined) {
+				throw new Error("queue rule --delete requires --name <R#> or --issues <a,b>.");
+			}
 		} else if (
 			state.queueSubcommand === "rule" &&
 			(state.issueNumbers.length === 0 || state.reason === undefined)
@@ -968,8 +972,14 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			);
 		}
 
-		if (state.queueDelete === true && state.queueSubcommand !== "sequence") {
-			throw new Error("--delete removes a batch; use it with `queue sequence`.");
+		if (
+			state.queueDelete === true &&
+			state.queueSubcommand !== "sequence" &&
+			state.queueSubcommand !== "rule"
+		) {
+			throw new Error(
+				"--delete removes a batch or a rule; use it with `queue sequence` or `queue rule`.",
+			);
 		}
 
 		if (
@@ -1265,6 +1275,7 @@ Queue workflow (batch manifest + live view):
   pnpm sandcastle queue sequence --name <batch> --issues <a,b,c> [--title <label>] [--roles <n=role,...>]
                                  [--after <integration>] [--notes <text>]
   pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>
+                             [--delete --name <R#>]
   pnpm sandcastle queue remove --issue <n>
   pnpm sandcastle queue prune --closed [--json]
   pnpm sandcastle queue list [--json] [--strict-gates]

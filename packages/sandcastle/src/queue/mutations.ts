@@ -136,6 +136,46 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 	return next;
 }
 
+export interface MidChainInsertionParams {
+	/** Returns true when the member has already been dispatched (its state file exists). */
+	isDispatched: (issue: string) => boolean;
+	/** The issue that was just inserted. */
+	issue: string;
+	/** The manifest _after_ the insertion, so the new position is visible. */
+	manifest: QueueManifest;
+}
+
+/**
+ * - Names the first already-dispatched member that now sits after the inserted issue.
+ * - @returns The refusal message, or undefined when the insertion chains nothing that ran.
+ * - @remarks Position is a dependency statement: each member's branch becomes the next member's base,
+ *   so inserting ahead of a dispatched member leaves that branch behind the insertion and `queue
+ *   land` refuses the moved tail. Pure — the caller decides what "dispatched" means, which keeps
+ *   mutations filesystem-free while the enforcement still happens on every registration.
+ */
+export function midChainInsertionConflict(params: MidChainInsertionParams): string | undefined {
+	const sequence = params.manifest.sequences.find((entry) => entry.issues.includes(params.issue));
+	if (sequence === undefined) {
+		return undefined;
+	}
+
+	const at = sequence.issues.indexOf(params.issue);
+	for (const member of sequence.issues.slice(at + 1)) {
+		if (!params.isDispatched(member)) {
+			continue;
+		}
+
+		return (
+			`#${member} of batch "${sequence.name}" has already been dispatched; inserting #${params.issue} ` +
+			"ahead of it leaves that member's branch behind the insertion and `queue land` will refuse " +
+			"the moved tail. Append to the batch tail instead (omit --after) or register it gated: " +
+			`\`sandcastle queue add --issue ${params.issue} --gated --reason "..."\`.`
+		);
+	}
+
+	return undefined;
+}
+
 export interface DefineSequenceParams {
 	/** Integration that must land on the base branch before this batch may fire. */
 	after?: string;
@@ -312,6 +352,69 @@ export function addRule(manifest: QueueManifest, params: AddRuleParams): QueueMa
 	}
 
 	return { ...manifest, serialized };
+}
+
+export interface DeleteRuleParams {
+	/** Retire only the rule whose sorted issue set matches exactly. */
+	issues?: ReadonlyArray<string>;
+	/** Retire every rule carrying this name; a name may cover several issue sets. */
+	name?: string;
+}
+
+/**
+ * - Rules matching a delete request: every rule with `name`, and/or the rule whose sorted issue set
+ *   equals `issues`.
+ * - @remarks Exported so the CLI message can print exactly what a retire removed before removing it;
+ *   {@link deleteRule} shares this matcher so the message and the mutation cannot disagree.
+ */
+export function matchingRules(
+	manifest: QueueManifest,
+	params: DeleteRuleParams,
+): QueueManifest["serialized"] {
+	const keyOf = (issues: ReadonlyArray<string>): string => [...issues].sort().join(",");
+	const key = params.issues === undefined ? undefined : keyOf(params.issues);
+	return manifest.serialized.filter(
+		(rule) =>
+			(params.name === undefined || rule.name === params.name) &&
+			(key === undefined || keyOf(rule.issues) === key),
+	);
+}
+
+/**
+ * - Retires serialization rules by name, by exact issue set, or by both.
+ * - @throws {Error} When nothing matches, so a retire never silently no-ops.
+ * - @remarks The sorted issue set stays the add key — a name is not one, which is how one name came
+ *   to cover two disjoint sets — so narrowing a rule is retire-then-redeclare, not an upsert.
+ */
+export function deleteRule(manifest: QueueManifest, params: DeleteRuleParams): QueueManifest {
+	if (params.name === undefined && params.issues === undefined) {
+		throw new Error("Retiring a rule requires --name <R#> or --issues <a,b>.");
+	}
+
+	if (params.issues !== undefined) {
+		const { issues } = params;
+		const duplicates = issues.filter((issue, index) => issues.indexOf(issue) !== index);
+		if (duplicates.length > 0) {
+			throw new Error(`--issues contains duplicates: ${duplicates.join(", ")}`);
+		}
+	}
+
+	const matches = matchingRules(manifest, params);
+	if (matches.length === 0) {
+		const described = [
+			params.name !== undefined ? `name "${params.name}"` : undefined,
+			params.issues !== undefined ? `issues (${params.issues.join(", ")})` : undefined,
+		]
+			.filter((part) => part !== undefined)
+			.join(" and ");
+		throw new Error(`No serialization rule matches ${described}.`);
+	}
+
+	const retired = new Set(matches);
+	return {
+		...manifest,
+		serialized: manifest.serialized.filter((rule) => !retired.has(rule)),
+	};
 }
 
 /** Removes an issue from every placement (sequences, gated, human). */

@@ -83,7 +83,9 @@ Two modes, one per question.
 <a,b,c>` sets membership in run order, with `--after <batch>` for a run-order gate, `--title`,
    `--roles <n=role,...>`, and `--notes`.
 4. **Serialize same-file work.** `pnpm sandcastle queue rule --name R<n> --issues <a,b> --reason
-"..."` for anything that must never be in flight together.
+"..."` for anything that must never be in flight together. Retire a stale rule with
+   `queue rule --delete --name <R#>` (or match `--issues` exactly); `queue check` flags a rule
+   whose members all sit in one batch, and retiring it is how the pre-flight returns to no-drift.
 5. **Check.** `pnpm sandcastle queue check` must report **no drift** before a batch fires — it
    exits 1 on drift and 2 when `--strict-gates` also finds a stale gate.
 6. **Hand the graph to a human** when a decision is needed: `pnpm sandcastle queue graph` renders

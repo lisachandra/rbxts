@@ -22,7 +22,8 @@ const topics = {
 		flags: [
 			"--issue <n>        Issue number (required)",
 			"--sequence <name>  Batch to place it in",
-			"--after <m>        Insert after member <m> instead of appending",
+			"--after <m>        Insert after member <m> instead of appending; refused when a later",
+			"                   member of the batch has already been dispatched",
 			"--gated            Cannot start until --reason is resolved",
 			"--human            Never queued; needs a human decision session",
 			"--reason <text>    Why the issue is gated or human",
@@ -285,7 +286,7 @@ const topics = {
 			"  migrate    Translate a v1 manifest to v2",
 			"  prune      Drop references to closed issues",
 			"  remove     Take an issue out of every placement",
-			"  rule       Declare a same-file serialization rule (R<n>)",
+			"  rule       Declare or retire a same-file serialization rule (R<n>)",
 			"  run        Fire the next READY batch",
 			"  sequence   Define or replace a batch",
 
@@ -299,14 +300,21 @@ const topics = {
 	},
 	"rule": {
 		flags: [
-			"--issues <a,b>   Issues that must never be in flight together (required)",
-			"--reason <text>  Why (required)",
+			"--issues <a,b>   Issues that must never be in flight together (required without --delete)",
+			"--reason <text>  Why (required without --delete)",
 			"--name <R#>      Rule name, e.g. R2",
+			"--delete         Retire rules matching --name and/or --issues",
 		],
 		notes: [
 			"`queue run` never dispatches a batch that shares a rule with an already-dispatched issue.",
+			"--delete removes every rule carrying --name (one name may cover several issue sets) and/or",
+			"the rule whose sorted issue set matches --issues exactly, and fails when nothing matches.",
+			"Narrowing a rule is retire-then-redeclare: the issue set is the add key, not the name.",
 		],
-		usage: ["pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>"],
+		usage: [
+			"pnpm sandcastle queue rule [--name <R#>] --issues <a,b> --reason <text>",
+			"pnpm sandcastle queue rule --delete --name <R#>",
+		],
 	},
 	"run": {
 		flags: [

@@ -209,6 +209,7 @@ sandcastle queue land --name ui-wiring-work --create-pr  # compose the batch and
 sandcastle queue land --name ui-wiring-work --recompose   # rebuild a composition that no longer matches its batch
 sandcastle queue migrate --apply                         # translate a v1 manifest (--assign names unnamed batches)
 sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
+sandcastle queue rule --delete --name R2                    # retire every rule named R2 (or match --issues)
 sandcastle queue remove --issue 43
 sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
 sandcastle queue check      # same view; exits non-zero while drift exists
