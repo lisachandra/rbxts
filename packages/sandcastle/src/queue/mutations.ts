@@ -176,6 +176,69 @@ export function midChainInsertionConflict(params: MidChainInsertionParams): stri
 	return undefined;
 }
 
+export interface RedefinitionDispatchParams {
+	/** Returns true when the member has already been dispatched (its state file exists). */
+	isDispatched: (issue: string) => boolean;
+	/** The batch being redefined. */
+	name: string;
+	/** The member order the redefinition requests. */
+	nextIssues: ReadonlyArray<string>;
+	/** The batch's current member order. */
+	previousIssues: ReadonlyArray<string>;
+}
+
+function redefinitionRefusal(name: string, member: string, why: string): string {
+	return (
+		`#${member} of batch "${name}" has already been dispatched; a redefinition that ${why}. Keep ` +
+		"the dispatched members first, in their run order, and add new work after them (or register " +
+		'it gated: `sandcastle queue add --issue <n> --gated --reason "..."`).'
+	);
+}
+
+/**
+ * - Names the first dispatched member a batch redefinition moves or drops.
+ * - @returns The refusal message, or undefined when the redefinition chains nothing that ran.
+ * - @remarks Dispatched members form the prefix the run already executed, and each member's branch
+ *   becomes the next member's base — so a redefinition is chain-safe only when it starts with the
+ *   dispatched members, in order, and keeps every one of them. Otherwise their branches sit behind
+ *   the new order and `queue land` refuses the moved tail. Pure — the caller decides what
+ *   "dispatched" means, mirroring {@link midChainInsertionConflict}.
+ */
+export function redefinitionDispatchConflict(
+	params: RedefinitionDispatchParams,
+): string | undefined {
+	const dispatched = params.previousIssues.filter((issue) => params.isDispatched(issue));
+
+	for (const [index, member] of dispatched.entries()) {
+		if (!params.nextIssues.includes(member)) {
+			return redefinitionRefusal(
+				params.name,
+				member,
+				"drops it, orphaning the members whose branches build on its work",
+			);
+		}
+
+		if (params.nextIssues.length <= index) {
+			return redefinitionRefusal(
+				params.name,
+				member,
+				"reorders it behind new members, leaving its branch behind the new order",
+			);
+		}
+
+		const ahead = params.nextIssues[index];
+		if (ahead !== member) {
+			return redefinitionRefusal(
+				params.name,
+				member,
+				`moves it behind #${ahead}, leaving its branch behind the new order`,
+			);
+		}
+	}
+
+	return undefined;
+}
+
 export interface DefineSequenceParams {
 	/** Integration that must land on the base branch before this batch may fire. */
 	after?: string;

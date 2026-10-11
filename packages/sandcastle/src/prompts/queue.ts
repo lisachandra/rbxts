@@ -45,6 +45,8 @@ const registrationRules = [
 	"     when this issue is the batch's LAST member, so the follow-up chains this branch next.",
 	"     The harness refuses an insertion ahead of a member that already ran — that member's branch",
 	"     is behind the insertion and `queue land` would refuse the moved tail — and names the fix.",
+	"     The same guard covers `queue sequence` redefinitions: a batch that already ran re-declares",
+	"     with its dispatched members first, in run order, and new work after them.",
 	'   - `pnpm sandcastle queue add --issue <N> --gated --reason "<blocking condition>"` means the',
 	"     work cannot start until something else lands,",
 	'   - `pnpm sandcastle queue add --issue <N> --human --reason "..."` means it needs a human',

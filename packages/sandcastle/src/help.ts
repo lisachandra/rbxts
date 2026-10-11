@@ -359,6 +359,8 @@ const topics = {
 			"Every batch is built from the base ref, so members never stack on an unlanded batch.",
 			"Omitted --title/--roles/--notes/--after keep what the batch already had.",
 			"Run order is the array order: a redefinition keeps its position unless --before or --last moves it.",
+			"A redefinition that moves or drops a member that already ran is refused: keep the dispatched",
+			"members first, in their run order, and add new work after them.",
 			"--after is a run-order gate: the batch stays GATED until that integration lands on the base",
 			"branch. The gate clears itself; nothing has to un-gate it by hand.",
 			"Deleting a batch another one waits on is refused until you re-point the `after`.",

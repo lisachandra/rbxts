@@ -16,7 +16,7 @@ import {
 } from "../test-helpers.js";
 import { manifestLockName, queueLockPath } from "./lock.js";
 import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
-import { runQueueAdd, runQueueRule } from "./ops.js";
+import { runQueueAdd, runQueueRule, runQueueSequence } from "./ops.js";
 
 registerTestHooks();
 
@@ -160,6 +160,69 @@ describe("queue ops", () => {
 			assert.equal(written().serialized.length, 1);
 		} finally {
 			output.done();
+		}
+	});
+
+	test("runQueueSequence refuses a redefinition that moves a dispatched member", () => {
+		const first = uniqueIssue();
+		const second = uniqueIssue();
+		const output = stage({
+			...emptyQueueManifest(),
+			sequences: [{ issues: [first, second], name: "progression-work" }],
+		});
+		writeState(makeState(first));
+
+		try {
+			assert.throws(() => {
+				runQueueSequence(
+					parseArgs([
+						"queue",
+						"sequence",
+						"--name",
+						"progression-work",
+						"--issues",
+						`${second},${first}`,
+					]),
+				);
+			}, /moves it behind/u);
+
+			// The refusal aborts the transaction: the manifest on disk keeps the run order.
+			assert.deepEqual(written().sequences[0]?.issues, [first, second]);
+		} finally {
+			output.done();
+			cleanupIssueArtifacts(first);
+		}
+	});
+
+	test("runQueueSequence appends new work after the dispatched prefix", () => {
+		const first = uniqueIssue();
+		const second = uniqueIssue();
+		const newcomer = uniqueIssue();
+		const output = stage({
+			...emptyQueueManifest(),
+			sequences: [{ issues: [first, second], name: "progression-work" }],
+		});
+		writeState(makeState(first));
+		writeState(makeState(second));
+
+		try {
+			runQueueSequence(
+				parseArgs([
+					"queue",
+					"sequence",
+					"--name",
+					"progression-work",
+					"--issues",
+					`${first},${second},${newcomer}`,
+				]),
+			);
+
+			assert.deepEqual(written().sequences[0]?.issues, [first, second, newcomer]);
+			assert.ok(output.lines.some((line) => line.includes("Defined sequence")));
+		} finally {
+			output.done();
+			cleanupIssueArtifacts(first);
+			cleanupIssueArtifacts(second);
 		}
 	});
 });

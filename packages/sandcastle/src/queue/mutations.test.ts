@@ -13,6 +13,7 @@ import {
 	matchingRules,
 	midChainInsertionConflict,
 	placeIssue,
+	redefinitionDispatchConflict,
 	removeIssue,
 } from "./mutations.js";
 import { computeQueueView } from "./render.js";
@@ -410,6 +411,76 @@ describe("queue mutations", () => {
 		// An issue placed outside any sequence (gated/human) never chains behind a dispatched member.
 		assert.equal(
 			midChainInsertionConflict({ isDispatched: () => true, issue: "99", manifest: base() }),
+			undefined,
+		);
+	});
+
+	test("redefinitionDispatchConflict refuses moving or dropping a dispatched member", () => {
+		const dispatchedFirst = (member: string): boolean => member === "1";
+
+		const moved = redefinitionDispatchConflict({
+			isDispatched: dispatchedFirst,
+			name: "progression-work",
+			nextIssues: ["2", "1", "3"],
+			previousIssues: ["1", "2", "3"],
+		});
+		assert.match(moved ?? "", /#1 of batch "progression-work" has already been dispatched/u);
+		assert.match(moved ?? "", /moves it behind #2/u);
+
+		const dropped = redefinitionDispatchConflict({
+			isDispatched: dispatchedFirst,
+			name: "progression-work",
+			nextIssues: ["2", "3"],
+			previousIssues: ["1", "2", "3"],
+		});
+		assert.match(dropped ?? "", /#1 of batch/u);
+		assert.match(dropped ?? "", /drops it/u);
+
+		// A second dispatched member moved out of order is caught even when every member survives.
+		assert.match(
+			redefinitionDispatchConflict({
+				isDispatched: (member) => member === "1" || member === "2",
+				name: "progression-work",
+				nextIssues: ["2", "1", "3"],
+				previousIssues: ["1", "2", "3"],
+			}) ?? "",
+			/#1 of batch/u,
+		);
+	});
+
+	test("redefinitionDispatchConflict accepts tail appends and prefix-preserving redefinitions", () => {
+		const dispatchedFirst = (member: string): boolean => member === "1" || member === "2";
+
+		// New work appended after the dispatched prefix chains cleanly.
+		assert.equal(
+			redefinitionDispatchConflict({
+				isDispatched: dispatchedFirst,
+				name: "progression-work",
+				nextIssues: ["1", "2", "4", "3"],
+				previousIssues: ["1", "2", "3"],
+			}),
+			undefined,
+		);
+
+		// An identical membership re-declared for labels only changes nothing that ran.
+		assert.equal(
+			redefinitionDispatchConflict({
+				isDispatched: dispatchedFirst,
+				name: "progression-work",
+				nextIssues: ["1", "2", "3"],
+				previousIssues: ["1", "2", "3"],
+			}),
+			undefined,
+		);
+
+		// Nothing dispatched yet: any order is still free.
+		assert.equal(
+			redefinitionDispatchConflict({
+				isDispatched: () => false,
+				name: "progression-work",
+				nextIssues: ["3", "2", "1"],
+				previousIssues: ["1", "2", "3"],
+			}),
 			undefined,
 		);
 	});

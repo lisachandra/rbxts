@@ -205,6 +205,7 @@ sandcastle queue add --issue 44 --human --reason "needs a human decision session
 sandcastle queue sequence --name ui-wiring-work --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --after audio-seam-work   # the batch IS the integration name
 sandcastle queue sequence --name ui-wiring-work --issues 40,41,42 --before V   # place a batch in the run order
 sandcastle queue sequence --name ui-wiring-work --delete                       # drop a batch (no --issues needed)
+# a redefinition that moves or drops an already-dispatched member is refused: dispatched members stay first, in run order
 sandcastle queue land --name ui-wiring-work --create-pr  # compose the batch and open its PR
 sandcastle queue land --name ui-wiring-work --recompose   # rebuild a composition that no longer matches its batch
 sandcastle queue migrate --apply                         # translate a v1 manifest (--assign names unnamed batches)

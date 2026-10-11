@@ -41,6 +41,7 @@ import {
 	midChainInsertionConflict,
 	placeIssue,
 	promoteIssue,
+	redefinitionDispatchConflict,
 	removeIssue,
 } from "./mutations.js";
 import { emitText } from "./output.js";
@@ -125,20 +126,35 @@ export function runQueueSequence(options: CliOptions): void {
 	}
 
 	const memberCount = options.issueNumbers.length;
-	transactQueueManifest(options, (manifest) => ({
-		message: `  ✓ Defined sequence "${name}" (${memberCount} issue(s)): ${options.issueNumbers.join(", ")}`,
-		next: defineSequence(manifest, {
-			after: options.after,
-			before: options.before,
-			issues: options.issueNumbers,
-			last: options.last,
-			name,
-			notes: options.notes,
-			roles: options.roles,
-			title: options.title,
-		}),
-		summary: `define sequence "${name}"`,
-	}));
+	transactQueueManifest(options, (manifest) => {
+		const previous = manifest.sequences.find((entry) => entry.name === name);
+		if (previous !== undefined) {
+			const conflict = redefinitionDispatchConflict({
+				isDispatched: (issue) => readState(issue) !== undefined,
+				name,
+				nextIssues: options.issueNumbers,
+				previousIssues: previous.issues,
+			});
+			if (conflict !== undefined) {
+				throw new Error(conflict);
+			}
+		}
+
+		return {
+			message: `  ✓ Defined sequence "${name}" (${memberCount} issue(s)): ${options.issueNumbers.join(", ")}`,
+			next: defineSequence(manifest, {
+				after: options.after,
+				before: options.before,
+				issues: options.issueNumbers,
+				last: options.last,
+				name,
+				notes: options.notes,
+				roles: options.roles,
+				title: options.title,
+			}),
+			summary: `define sequence "${name}"`,
+		};
+	});
 }
 
 /** Adds or replaces a same-file serialization rule; `--delete` retires one. */
