@@ -1024,12 +1024,6 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("--delete drops the batch; --last does not apply.");
 		}
 
-		if (state.queueSubcommand === "prune" && state.queueClosed !== true) {
-			throw new Error(
-				"queue prune requires --closed: it only removes references to closed issues.",
-			);
-		}
-
 		if (state.queueSubcommand === "remove" && state.issueNumber === undefined) {
 			throw new Error("queue remove requires --issue <number>.");
 		}
@@ -1047,9 +1041,21 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.cleanStale,
 			state.queueClosed,
 		];
-		if (cleanSelections.some(Boolean) && state.queueSubcommand !== "clean") {
+		/*
+		 * `queue prune --closed` is the one non-`clean` consumer of a selection flag: prune's own
+		 * contract requires --closed, so exempting exactly that shape keeps `queue prune --all`
+		 * (and every other flag-batch mismatch) refused here while the real command parses.
+		 */
+		const pruneSelection = state.queueSubcommand === "prune" && state.queueClosed === true;
+		if (cleanSelections.some(Boolean) && state.queueSubcommand !== "clean" && !pruneSelection) {
 			throw new Error(
 				"--all, --closed, --landed, --stale, --integration-worktrees, --drop-branch, and --reset select worktrees; use them with `queue clean`.",
+			);
+		}
+
+		if (state.queueSubcommand === "prune" && state.queueClosed !== true) {
+			throw new Error(
+				"queue prune requires --closed: it only removes references to closed issues.",
 			);
 		}
 

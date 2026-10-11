@@ -538,6 +538,26 @@ describe("commaSeparated / parseArgs", () => {
 			assert.throws(() => parseArgs(["queue", "remove"]), /queue remove requires --issue/);
 		});
 
+		test("parseArgs lets queue prune --closed through and keeps clean selections exclusive", () => {
+			/*
+			 * #504: prune's own contract requires --closed, so the clean-selection gate must not
+			 * reject the only shape prune accepts.
+			 */
+			const prune = parseArgs(["queue", "prune", "--closed"]);
+			assert.equal(prune.queueSubcommand, "prune");
+			assert.equal(prune.queueClosed, true);
+
+			assert.throws(
+				() => parseArgs(["queue", "prune", "--all"]),
+				/use them with `queue clean`/u,
+			);
+			assert.throws(() => parseArgs(["queue", "prune"]), /queue prune requires --closed/u);
+			assert.throws(
+				() => parseArgs(["queue", "remove", "--issue", "5", "--closed"]),
+				/use them with `queue clean`/u,
+			);
+		});
+
 		test("parseArgs parses queue run, budget, and bypass flags", () => {
 			const run = parseArgs([
 				"queue",
