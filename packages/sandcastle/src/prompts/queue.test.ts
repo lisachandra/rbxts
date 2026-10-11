@@ -86,6 +86,58 @@ describe("queue prompt rules", () => {
 		});
 	});
 
+	test("sends a follow-up to the batch that owns the seam, not the running one", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /Find out who owns the seam/u);
+			assert.match(rules, /the work belongs to that batch/u);
+			assert.match(rules, /quote the search you ran/u);
+		});
+	});
+
+	test("a follow-up is a repair of this diff, not a new subsystem", () => {
+		withQueueEnabled(true, () => {
+			assert.match(
+				queueRulesForPrompt(),
+				/repairs and completions of the diff you reviewed/u,
+			);
+		});
+	});
+
+	test("a contract contradiction is filed as its own ticket, naming the contract", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt();
+
+			assert.match(rules, /name the ticket it contradicts/u);
+			assert.match(rules, /name the ADR/u);
+		});
+	});
+
+	test("checks for a duplicate before filing a second issue", () => {
+		withQueueEnabled(true, () => {
+			assert.match(queueRulesForPrompt(), /register that number instead of/u);
+		});
+	});
+
+	test("conditions --after on being the batch's last member", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /LAST member/u);
+			assert.match(rules, /refuses a tail that moved/u);
+		});
+	});
+
+	test("prefers a gate when the finding outgrows the batch it came from", () => {
+		withQueueEnabled(true, () => {
+			assert.match(
+				queueRulesForPrompt({ batch: "audio-seam-work" }),
+				/tail growing faster than the head/u,
+			);
+		});
+	});
+
 	test("the queue is enabled by default", () => {
 		assert.equal(config.queue.enabled, true);
 		assert.equal(config.queue.commit, false);

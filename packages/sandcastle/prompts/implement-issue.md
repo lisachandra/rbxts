@@ -25,6 +25,8 @@ Follow the plan's slice breakdown. Pull the issue (`gh issue view {{ISSUE_NUMBER
 
 Explore the sibling code and test files the plan points at. Pay extra attention to test files that touch the relevant parts of the code.
 
+Do not build a second of anything. When a module with this responsibility already exists — a ticket issuer, an admission barrier, a store adapter, an envelope validator — compose it. Grep for the responsibility before you write it.
+
 ## Execution
 
 Use TDD red-green-refactor per the plan's slice breakdown:
@@ -42,6 +44,8 @@ Every line of production code in a commit must be exercised by a test in that sa
 Before each commit, follow AGENTS.md verification policies.
 
 Fix what this issue touches; report pre-existing build or lint errors in unrelated files in the issue comment and leave those files alone.
+
+Before the final commit, re-read the acceptance criteria of any closed ticket the modules you touched cite. If your implementation contradicts one, stop and report it in the issue comment instead of committing.
 
 ## GitHub issue updates
 

@@ -35,6 +35,7 @@ Explore the repo deeply enough to anchor the plan in existing practices:
 
 - Find the closest sibling code (a similar feature, an analogous module, a parallel system). The plan should follow the same shape.
 - Read relevant ADRs if `docs/adr/` exists.
+- Read the **closed** decision tickets and ADRs the modules you will touch cite — issue numbers in TSDoc and module headers, `docs/adr/`, `docs/research/`. A change that overrides a closed acceptance criterion needs an ADR that supersedes it, named in the plan.
 - Understand the test conventions and existing test patterns in nearby work.
 - Note conventions specific to this repo in `AGENTS.md` and any `docs/agents/*` or roadmap docs present.
 
@@ -61,6 +62,7 @@ If the issue is too broad, underspecified, or needs human design:
 Write the plan to `{{PLAN_PATH}}`. Structure it as:
 
 1. **Scope**: one short paragraph stating what this task does and does not change.
+   **Contracts**: the closed decision tickets and ADRs this work must not contradict, with the criteria it is held to — and, when another queue batch's member names the modules you are touching (`pnpm sandcastle queue list`), the batch that owns them.
 2. **Sibling reference**: name the existing code the implementer should mirror, with paths.
 3. **Slice breakdown**: list each behaviour slice (one test per slice). For each slice include:
     - Test name (`it("should ...")`)

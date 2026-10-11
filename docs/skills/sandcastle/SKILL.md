@@ -111,28 +111,44 @@ Two modes, one per question.
 The most common failure mode is a review that finds extra work, files issues, and stops; the queue
 never learns about them. When you run any review — a sandcastle phase or a manual `/code-review`:
 
-1. Fix it here when you can. A correction that is small, safe, and inside the reviewed work's blast
+1. Find out who owns the seam before you file anything. Search the manifest for the files and
+   modules the finding names — `queue list`, then the member bodies of every batch that mentions
+   them. When another batch already has a member naming those files or that subsystem, the work
+   belongs to **that** batch: register it there, or `--gated --reason "belongs to <batch>"` when
+   that batch cannot take it. Appending it to the batch you are running is how two batches come to
+   build the same thing twice — say which batch owns it, and quote the search you ran.
+2. Fix it here when you can. A correction that is small, safe, and inside the reviewed work's blast
    radius belongs on the branch, not in a new issue; a review that files what it could have fixed
-   leaves the branch less correct than it found it.
-2. File each remaining follow-up as a GitHub issue (conventional title, milestone, labels,
-   parent/blocker edges per `docs/agents/issue-tracker.md`).
-3. Register it in the same change — `queue add --issue <n> --sequence <batch>` (add `--after <this-issue>` when the follow-up directly continues the reviewed issue, so it chains this branch next), or `--gated
+   leaves the branch less correct than it found it. A finding that needs a subsystem the reviewed
+   issue never touched is not a follow-up to that issue: it is a new ticket, owned by the batch
+   that owns that subsystem.
+3. File each remaining follow-up as a GitHub issue (conventional title, milestone, labels,
+   parent/blocker edges per `docs/agents/issue-tracker.md`). When the finding — or the fix — would
+   change a contract another ticket owns (a closed decision, an acceptance criterion, a documented
+   boundary), do not settle it inside the follow-up's body: file the contradiction, name the ticket
+   it contradicts, and say whether that ticket is being amended (name the ADR) or the code is
+   wrong. Search open issues for the same title shape first; if it already exists, register that
+   number instead of filing a second one.
+4. Register it in the same change — `queue add --issue <n> --sequence <batch>` (add `--after <this-issue>` only when this issue is the batch's **last** member, so the follow-up chains this branch next; inserting before a member that already ran leaves that member's branch behind the insertion, and `queue land` refuses a tail that moved), or `--gated
 --reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
    Prefer continuing a running batch over parking the work: `--sequence <that batch>` appends the
    follow-up to its tail, and `queue run` re-fires the batch, skips the members that already passed
    review, and chains their branch as the new member's base, so the follow-up continues inside the
    same invocation. `--after <this-issue>` places it mid-batch instead of at the tail, which is what
-   you want when it continues this issue directly. The new issue must already carry
+   you want only when this issue is the batch's last member; otherwise the append goes to the
+   tail. A tail growing faster than the head is work being discovered rather than sliced: when a
+   finding is more than a review-sized change and touches a module the issue never named, prefer
+   `--gated` over appending it. The new issue must already carry
    `ready-for-agent`: a member without it reads GATED, and the run stops and names the batch rather
    than starting unrelated work, so a follow-up filed without the label stalls the queue.
    A batch that is **already composed** cannot take a new member — `queue land`
    refuses a hand-off whose composition predates the tail rather than shipping a PR that closes an
    issue it does not carry — so that follow-up goes into another batch, or behind `--gated`.
-4. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
+5. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
    commands commit the manifest themselves (never push); otherwise commit it, so the registration
    survives the worktree it was made in.
 
-A deferred-by-design follow-up is APPROVED, not BLOCKED: the reviewed branch is right for its scope and safe to chain once the follow-up is filed, registered, and listed. Reserve BLOCKED for a branch that is itself wrong and must not chain — the batch stops at a BLOCKED member.
+A deferred-by-design follow-up is APPROVED, not BLOCKED: the reviewed branch is right for its scope and safe to chain once the follow-up is filed, registered, and listed. Reserve BLOCKED for a branch that is itself wrong and must not chain — the batch stops at a BLOCKED member. `APPROVED` on a branch that contradicts a closed contract is correct only when the contradiction is filed as its own ticket naming that contract — never when it is buried in a follow-up's body.
 
 A review that lists follow-ups in a comment but leaves the queue untouched is incomplete: the
 queue is the runnable artifact, the comment is only the report.

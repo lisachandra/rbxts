@@ -30,6 +30,11 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 - Correct every finding whose fix is small, safe, and inside this issue's blast radius — a missing test, an unhandled case, a wrong guard, a stale doc line — then re-run validation and commit it. A review that files what it could have fixed leaves the branch less correct than it found it.
 - Register what is left over: "Follow-up issue registration" below is the contract, and a finding listed only in the comment does not count as registered.
 
+### Contract conformance
+
+- For every module the diff touches, list the closed decision tickets and ADRs it cites and check the diff against their acceptance criteria. A contradiction is a finding: either the criterion is superseded (name the ADR that does it) or the diff is wrong. Cite the ticket number in the finding.
+- Check each finding against the queue before registering it (`pnpm sandcastle queue list`). When another batch's member names the same files or subsystem, that is where it goes — a follow-up appended to this batch instead is how two batches come to build the same thing twice.
+
 ### Standards compliance
 
 - The change addresses only issue #{{ISSUE_NUMBER}}.
@@ -43,6 +48,8 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 ## Verdict
 
 `APPROVED` means the branch is right for its scope and safe to chain: acceptance criteria met or deliberately deferred, owed checks green, and every finding you could fix committed. A slice deferred by design — needs another issue's context, a decision this diff cannot make, or more than a review-sized change — is `APPROVED` once it is filed as a follow-up issue, queue-registered, and listed under `Suggested follow-up issues`. The batch continues and the next member chains this branch. `BLOCKED` means the branch itself is wrong and must not chain: a failing test, an unmet criterion with no follow-up, or a finding left unfixed that belonged on this branch. The batch stops at a `BLOCKED` member and later members never dispatch in that invocation — so reserve `BLOCKED` for do-not-chain, never for "the rest lives in a follow-up".
+
+`APPROVED` on a branch that contradicts a closed contract is correct only when the contradiction is filed as its own ticket naming that contract — never when it is buried in a follow-up's body.
 
 A check you cannot finish inside your budget is neither one. Run the largest honest part of it, then report the command, its wall time, and what stayed unverified — the operator decides the merge, and the comment is where that gap is visible.
 
