@@ -7,10 +7,16 @@ import { describe, test } from "node:test";
 import type { CliOptions } from "../cli.js";
 import { parseArgs } from "../cli.js";
 import { config, io } from "../runtime.js";
-import { registerTestHooks, tmpRoot } from "../test-helpers.js";
+import { writeState } from "../state.js";
+import { cleanupIssueArtifacts, makeState, registerTestHooks, tmpRoot } from "../test-helpers.js";
 import { queueLockPath, runLockName } from "./lock.js";
-import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
-import { mayPruneLanded, type QueueDispatch, type QueueLand, runQueueRun } from "./run.js";
+import {
+	emptyQueueManifest,
+	type QueueManifest,
+	readQueueManifest,
+	writeQueueManifest,
+} from "./manifest.js";
+import { type QueueDispatch, type QueueLand, runQueueRun } from "./run.js";
 
 registerTestHooks();
 
@@ -29,14 +35,19 @@ interface GhIssue {
 }
 
 /**
- * Stubs the two `gh` surfaces the dispatcher uses: the issue list (drives live state and drift) and
- * the batched GraphQL blocked-by query. Every issue is READY and unblocked unless a test says so.
+ * Stubs the three `gh` surfaces the dispatcher uses: the issue list (drives live state and drift),
+ * the batched GraphQL blocked-by query, and the per-issue comment read behind the review marker.
+ * Every issue is READY and unblocked unless a test says so.
  */
 function stubGh(issues: ReadonlyArray<GhIssue>): void {
 	io.execSync = ((command: string) => {
 		const text = String(command);
 		if (text.startsWith("gh issue list")) {
 			return JSON.stringify(issues);
+		}
+
+		if (text.startsWith("gh issue view")) {
+			return JSON.stringify({ comments: [{ body: `${config.reviewMarker}: APPROVED` }] });
 		}
 
 		if (text.startsWith("gh repo view")) {
@@ -78,6 +89,24 @@ function makeIssue(number: number, extra: Partial<GhIssue> = {}): GhIssue {
 		title: `feat(queue): issue ${String(number)}`,
 		...extra,
 	};
+}
+
+/**
+ * Writes complete phase state for an issue, so it reads as landed to anything keyed on approval.
+ *
+ * @remarks
+ *   Pruning must ignore this and go by the live CLOSED state instead, which is what the tests below
+ *   pin down: a regression back to an approval-keyed prune would drop the still-open member.
+ */
+function approve(issue: string): void {
+	writeState(
+		makeState(issue, {
+			commits: ["abc"],
+			design: "done",
+			implement: "done",
+			review: "done",
+		}),
+	);
 }
 
 /** Writes a manifest, stubs `gh`, and stubs `io.exit` so the loop's exits are observable. */
@@ -263,14 +292,34 @@ describe("queue run dispatch", () => {
 		}
 	});
 
-	test("prunes only after a hand-off that completed", () => {
-		assert.equal(mayPruneLanded(false, true), true, "no --land: nothing to wait for");
-		assert.equal(mayPruneLanded(true, true), true);
-		assert.equal(
-			mayPruneLanded(true, false),
-			false,
-			"a failed hand-off leaves its members open, so pruning them would be drift",
-		);
+	test("keeps a batch whose members are approved but still open", async () => {
+		stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		approve("5");
+
+		try {
+			await run(["queue", "run"], { reject: true });
+
+			assert.deepEqual(
+				readQueueManifest().sequences.map((sequence) => sequence.issues),
+				[["5"]],
+				"an open member has not landed, so a pull request closed unmerged must leave it recoverable",
+			);
+		} finally {
+			cleanupIssueArtifacts("5");
+		}
+	});
+
+	test("prunes a member GitHub has closed and drops the emptied batch", async () => {
+		stage([{ issues: ["5"], name: "U2" }], [makeIssue(5, { state: "CLOSED" })]);
+		approve("5");
+
+		try {
+			await run(["queue", "run"], { reject: true });
+
+			assert.deepEqual(readQueueManifest().sequences, [], "a landed batch leaves the queue");
+		} finally {
+			cleanupIssueArtifacts("5");
+		}
 	});
 
 	test("releases the run lock", async () => {

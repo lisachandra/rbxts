@@ -22,7 +22,7 @@ import { skillsForPrompt } from "./prompts/skills.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
-import { readState, updatePhase, writeState } from "./state.js";
+import { readState, recordedCommits, unionCommits, updatePhase, writeState } from "./state.js";
 import type {
 	AgentBackend,
 	AgentPhaseName,
@@ -171,11 +171,24 @@ async function runImplementPhase(params: {
 		"implement",
 	);
 
+	/*
+	 * Combined, not replaced: the sandbox reports only the commits made during this run, so a re-run
+	 * that finds the work already on the branch would otherwise blank the record of the run that did
+	 * it and leave the issue looking unfinished.
+	 */
+	const commits = unionCommits(
+		recordedCommits(params.state),
+		implResult.commits.map((commit) => commit.sha),
+	);
 	updatePhase(params.state, "implement", "done", {
 		buildPassed: true,
-		commits: implResult.commits.map((c) => c.sha),
+		commits,
 	});
-	console.log(`  ✓ Implement phase complete. Commits: ${implResult.commits.length}`);
+	console.log(
+		implResult.commits.length === 0 && commits.length > 0
+			? `  ✓ Implement phase complete. No new commits; ${String(commits.length)} already on the branch.`
+			: `  ✓ Implement phase complete. Commits: ${String(commits.length)}`,
+	);
 }
 
 async function runReviewPhase(params: {

@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { issueBranch } from "./git.js";
 import { io } from "./runtime.js";
-import type { PhaseStatus } from "./types.js";
+import type { PhaseState, PhaseStatus } from "./types.js";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const tmpRoot = join(repositoryRoot, ".tmp", "sandcastle-tests");
@@ -128,6 +128,7 @@ export function writePlan(issue: string, content: string): string {
 export function makeState(
 	issue: string,
 	overrides: Partial<{
+		base: NonNullable<PhaseState["base"]>;
 		commits: Array<string>;
 		design: PhaseStatus;
 		implement: PhaseStatus;
@@ -135,6 +136,7 @@ export function makeState(
 		review: PhaseStatus;
 	}> = {},
 ): {
+	base?: NonNullable<PhaseState["base"]>;
 	branch: string;
 	effort: "xhigh";
 	issue: string;
@@ -146,6 +148,7 @@ export function makeState(
 	};
 } {
 	return {
+		base: overrides.base,
 		branch: issueBranch(issue),
 		effort: "xhigh",
 		issue,

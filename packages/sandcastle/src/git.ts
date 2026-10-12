@@ -86,6 +86,24 @@ export function countNewCommits(worktreePath: string, baseRef: string): number {
 	}
 }
 
+/**
+ * - Commits on a branch that a base ref does not reach.
+ * - @param branch - Branch whose commits are counted.
+ * - @param baseRef - Ref the branch is measured against.
+ * - @returns The commit count, or 0 when either ref cannot be resolved.
+ * - @remarks Unlike {@link countNewCommits} this reads the branch itself rather than a worktree's
+ *   HEAD, so it still answers for a branch whose worktree `queue clean` has removed.
+ */
+export function countBranchCommits(branch: string, baseRef: string): number {
+	const output = gitTry(["rev-list", "--count", branch, "--not", baseRef]);
+	if (output === undefined) {
+		return 0;
+	}
+
+	const count = Number(output);
+	return Number.isFinite(count) ? count : 0;
+}
+
 export function hasUnmergedPaths(worktree: string): boolean {
 	return git(["diff", "--name-only", "--diff-filter=U"], worktree).length > 0;
 }
