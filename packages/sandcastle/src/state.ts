@@ -7,6 +7,7 @@ import { resolve as pathResolve } from "node:path";
 
 import { issueView } from "./agent.js";
 import { escapeRegExp } from "./config.js";
+import { countBranchCommits } from "./git.js";
 import { config, io, repoRoot, stateDir } from "./runtime.js";
 import type { PhaseName, PhaseState, PhaseStatus } from "./types.js";
 
@@ -40,18 +41,65 @@ export function updatePhase(
 	writeState(state);
 }
 
+/** Commit SHAs recorded on a state's implement phase; empty when none were recorded. */
+export function recordedCommits(state: undefined | PhaseState): Array<string> {
+	const commits = state?.phases.implement.extra?.commits;
+	return Array.isArray(commits)
+		? commits.filter((sha): sha is string => typeof sha === "string")
+		: [];
+}
+
 /**
- * Checks if a review ended with "blocked" status by looking at review comments. Returns true if the
- * issue review concluded with "blocked" status.
+ * - Recorded implement commits, combined with the ones a fresh run just made.
+ * - @param recorded - SHAs already on the state.
+ * - @param observed - SHAs the run that just finished produced.
+ * - @returns The union, recorded first and deduplicated.
+ * - @remarks The sandbox reports only the commits made _during that run_, so an implement re-run that
+ *   changes nothing reports none. Replacing the recorded list would erase the evidence of the run
+ *   that did the work, and {@link isIssueComplete} would then report a finished issue as
+ *   unfinished.
+ */
+export function unionCommits(
+	recorded: ReadonlyArray<string>,
+	observed: ReadonlyArray<string>,
+): Array<string> {
+	return [...new Set([...recorded, ...observed])];
+}
+
+/** Whether the issue's branch carries commits the base it was cut from does not reach. */
+function branchHasCommits(state: PhaseState): boolean {
+	const base = state.base?.ref;
+	if (base === undefined || base === "") {
+		return false;
+	}
+
+	return countBranchCommits(state.branch, base) > 0;
+}
+
+/**
+ * - Whether every phase finished and the work is actually on the issue's branch.
+ * - @param issueNumber - Issue number.
+ * - @returns True when design, implement, and review are all done and the branch carries commits.
+ * - @remarks The branch is the durable evidence. A phase re-run whose agent changed nothing records
+ *   an empty commit list over a branch that is full of work, so the recorded list is only trusted
+ *   when it is non-empty and git answers for it otherwise. That keeps this in step with the phase
+ *   evaluator, which counts the same thing the same way.
  */
 export function isIssueComplete(issueNumber: string): boolean {
 	const state = readState(issueNumber);
-	return (
-		state?.phases.design.status === "done" &&
-		state.phases.implement.status === "done" &&
-		state.phases.review.status === "done" &&
-		((state.phases.implement.extra?.commits as undefined | Array<string>)?.length ?? 0) > 0
-	);
+	if (state === undefined) {
+		return false;
+	}
+
+	if (
+		state.phases.design.status !== "done" ||
+		state.phases.implement.status !== "done" ||
+		state.phases.review.status !== "done"
+	) {
+		return false;
+	}
+
+	return recordedCommits(state).length > 0 || branchHasCommits(state);
 }
 
 export type ReviewMarker = "BLOCKED" | "APPROVED";

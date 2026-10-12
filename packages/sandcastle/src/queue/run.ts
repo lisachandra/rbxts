@@ -27,7 +27,7 @@ import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { runQueueLand } from "./land.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, runLockName } from "./lock.js";
-import { readQueueManifest, referencedIssues } from "./manifest.js";
+import { type QueueManifest, readQueueManifest, referencedIssues } from "./manifest.js";
 import { clearAfterReferences, deleteSequence, promoteIssue, removeIssue } from "./mutations.js";
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
@@ -145,12 +145,11 @@ interface QueueRunSummary {
  * - Lands a freshly dispatched batch when `--land` asked for it.
  * - @param options - Parsed CLI options; `--create-pr` decides whether the PR is opened or printed.
  * - @param name - Batch name to compose and hand over.
- * - @returns Whether the hand-off completed; the caller prunes the batch only on success and fails
- *   the invocation otherwise.
+ * - @returns Whether the hand-off completed; a failure is recorded and fails the invocation.
  * - @remarks A failed land does not stop the invocation: the integration manifest keeps the failure
  *   and the loop moves to the next batch that is not gated on it, so one blocked composition cannot
  *   strand the rest of the queue. It reports the failure instead, because a batch whose hand-off
- *   failed is still open on GitHub: pruning it would be drift.
+ *   failed is still open on GitHub.
  */
 async function landBatch(options: CliOptions, name: string): Promise<LandOutcome> {
 	try {
@@ -167,42 +166,41 @@ async function landBatch(options: CliOptions, name: string): Promise<LandOutcome
 	}
 }
 
-/**
- * - Whether a finished batch's members may be pruned from the manifest.
- * - @param landRequested - Whether the invocation asked for a hand-off (`--land`).
- * - @param handedOff - Whether that hand-off completed; `true` when none was requested, so a run
- *   without `--land` never waits on one.
- * - @returns `true` when the manifest may drop the batch's completed members.
- * - @remarks A failed hand-off leaves its members open on GitHub, so removing them is drift and the
- *   batch is the only record of what still needs composing. A run without `--land` is unchanged:
- *   there is no hand-off to wait for.
- */
-export function mayPruneLanded(landRequested: boolean, handedOff: boolean): boolean {
-	return !landRequested || handedOff === true;
+/** Members of every batch that GitHub has closed: the batch has landed and they can leave. */
+function closedMembers(manifest: QueueManifest, live: LiveQueueState): Array<string> {
+	return manifest.sequences
+		.flatMap((sequence) => sequence.issues)
+		.filter((issue) => live.issues.get(issue)?.state === "CLOSED");
 }
 
-/** Removes completed, APPROVED members so `queue check` stays green after a batch lands. */
-function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
-	const landed = issues.filter((issue) => isLanded(issue));
-	if (landed.length === 0) {
-		return;
-	}
-
+/**
+ * - Removes members GitHub has closed, so a landed batch stops being drift.
+ * - @param options - Parsed CLI options; `--dry-run` reports without writing.
+ * - @param closed - Member numbers to remove, from {@link closedMembers}.
+ * - @remarks Keyed on the merge, never on a completed hand-off. A composed batch keeps its members —
+ *   and its place in the queue — until the pull request actually lands, so a pull request that is
+ *   still open, or that is closed without merging, leaves the batch intact and recoverable instead
+ *   of deleting its only record. A batch whose members are gone cannot stay in the manifest (an
+ *   empty batch is drift) and nothing waits on it any more, so its `after` gates are cleared rather
+ *   than left to dangle.
+ */
+function pruneClosed(options: CliOptions, closed: ReadonlyArray<string>): void {
 	transactQueueManifest(options, (manifest) => {
 		let next = manifest;
-		for (const issue of landed) {
+		const removed: Array<string> = [];
+		for (const issue of closed) {
 			try {
 				next = removeIssue(next, issue);
+				removed.push(issue);
 			} catch {
 				// Already absent; nothing to prune.
 			}
 		}
 
-		/*
-		 * The landed lifecycle in one transaction: a batch whose members are gone cannot stay in the
-		 * manifest (an empty batch is drift) and nothing waits on it any more, so its `after` gates are
-		 * cleared rather than left to dangle.
-		 */
+		if (removed.length === 0) {
+			return { next: manifest, summary: "prune landed" };
+		}
+
 		const emptied = next.sequences
 			.filter((sequence) => sequence.issues.length === 0)
 			.map((sequence) => sequence.name);
@@ -212,9 +210,9 @@ function pruneLanded(issues: ReadonlyArray<string>, options: CliOptions): void {
 		}
 
 		return {
-			message: `  ✓ Pruned landed issue(s): ${landed.join(", ")}`,
+			message: `  ✓ Pruned landed issue(s): ${removed.join(", ")}`,
 			next,
-			summary: `prune landed ${landed.join(", ")}`,
+			summary: `prune landed ${removed.join(", ")}`,
 		};
 	});
 }
@@ -302,12 +300,30 @@ async function runQueueLoop(
 	const maxIssues = options.maxIssues ?? Number.POSITIVE_INFINITY;
 	let dispatched = 0;
 	let warnedDrift = false;
+	let prunedOnce = false;
 	for (;;) {
 		const manifest = readQueueManifest();
 		const live = fetchLiveQueueState({
 			numbers: referencedIssues(manifest),
 			readyLabel: config.labels.readyForAgent,
 		});
+
+		/*
+		 * Once per invocation, and before anything is selected: a member GitHub has closed has landed,
+		 * so it leaves the manifest here. Keyed on the merge rather than on a completed hand-off, so a
+		 * composed batch keeps its members — and its place in the queue — until the pull request
+		 * actually lands. Pruning first also means the selection below sees the manifest the run will
+		 * act on, rather than a batch that has already been emptied.
+		 */
+		if (!prunedOnce && options.queueKeepEntries !== true) {
+			prunedOnce = true;
+			const closed = closedMembers(manifest, live);
+			if (closed.length > 0) {
+				pruneClosed(options, closed);
+				continue;
+			}
+		}
+
 		const view = computeQueueView(manifest, live, {
 			gates: unmetIntegrationGates({ names: sequenceGateNames(manifest) }),
 			strictGates: true,
@@ -453,14 +469,6 @@ async function runQueueLoop(
 
 		if (!outcome.ok) {
 			failures.push({ batch: decision.name, error: outcome.error ?? "" });
-		}
-
-		/*
-		 * Pruning is the reward for a completed hand-off, never for a failed one: a batch removed while
-		 * its members are still open is drift, and it is the only record of what still needs landing.
-		 */
-		if (options.queueKeepEntries !== true && mayPruneLanded(landRequested, outcome.ok)) {
-			pruneLanded(decision.issues, options);
 		}
 
 		/*
