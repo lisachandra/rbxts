@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 
 import { runAll, runSingleIssue } from "./issue.js";
 import { markerPath } from "./markers.js";
-import { io } from "./runtime.js";
+import { config, io } from "./runtime.js";
 import { readState, writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
@@ -271,6 +271,96 @@ describe("orchestration with heavy stubs", () => {
 		assert.equal(state?.phases.implement.status, "done");
 		assert.equal(state?.phases.review.status, "done");
 		assert.equal(runCalls, 3);
+
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("runSingleIssue commits the worktree plan onto the issue branch", async () => {
+		/*
+		 * The plan is the branch's own record of what the issue was designed to do, so it has to be
+		 * committed there rather than left in a gitignored directory the reset path can delete.
+		 */
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-plan-commit-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+		const relativePath = `${config.dir}/plans/${issue}.md`;
+
+		const gitCalls: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				gitCalls.push([...args]);
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				// Non-empty only for the plan path, so the worktree itself still looks clean to preflight.
+				if (args[0] === "status" && args.includes(relativePath)) {
+					return `?? ${relativePath}`;
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				return "";
+			},
+		});
+
+		let runCalls = 0;
+		io.run = (async () => {
+			runCalls += 1;
+			if (runCalls === 1) {
+				// The designer writes the plan into the worktree.
+				mkdirSync(join(worktree, config.dir, "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, config.dir, "plans", `${issue}.md`),
+					"# Plan\n",
+					"utf-8",
+				);
+				const designMarker = markerPath(`${issue}.design`);
+				mkdirSync(dirname(designMarker), { recursive: true });
+				writeFileSync(designMarker, "", "utf-8");
+				return { commits: [], stdout: "plan written" };
+			}
+
+			const phase = runCalls === 2 ? "implement" : "review";
+			const phaseMarker = markerPath(`${issue}.${phase}`);
+			mkdirSync(dirname(phaseMarker), { recursive: true });
+			writeFileSync(phaseMarker, "", "utf-8");
+			return { commits: [{ sha: "c1" }], stdout: "ok" };
+		}) as unknown as typeof io.run;
+
+		await runSingleIssue(issue, "model", "low", {
+			agentBackend: "dirac",
+			baseRef: "main",
+			resume: true,
+			worktree,
+		});
+
+		const relative = `${config.dir}/plans/${issue}.md`;
+		const staged = gitCalls.some((args) => args[0] === "add" && args.includes(relative));
+		const committed = gitCalls.some(
+			(args) =>
+				args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
+		);
+		assert.equal(staged, true, "the plan was staged by its own path");
+		assert.equal(committed, true, "the plan was committed on the issue branch");
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });

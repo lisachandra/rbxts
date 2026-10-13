@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
@@ -45,6 +45,39 @@ describe("phase evaluation", () => {
 		assert.equal(evaluateDesign(state, planFile, worktree, reasons), "skip");
 		assert.match(reasons.design, /marked done/);
 
+		cleanupIssueArtifacts(issue);
+	});
+
+	test("evaluateDesign prefers the worktree plan over a stale repo-root copy", () => {
+		/*
+		 * Plans are committed on the issue branch, so that copy is the authority. A leftover plan in
+		 * the primary checkout — from an earlier run of the same issue number — must not shadow it.
+		 */
+		const issue = uniqueIssue();
+		const planFile = join(plansDir, `${issue}.md`);
+		const worktree = join(tmpRoot, `wt-precedence-${issue}`);
+		const worktreePlan = join(worktree, ".sandcastle", "plans", `${issue}.md`);
+		const reasons = { design: "", implement: "", review: "" };
+
+		// A valid repo-root plan exists, so this would be "skip" if the root copy won.
+		writePlan(issue, "# Stale plan\n\nFrom an earlier run.");
+		mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+		writeFileSync(worktreePlan, "no headings", "utf-8");
+
+		// The worktree copy is the one read, and it is malformed — so design must start.
+		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "start");
+		assert.match(reasons.design, /no headings/);
+
+		writeFileSync(worktreePlan, "# Branch plan\n\nCurrent.", "utf-8");
+		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "skip");
+		assert.match(reasons.design, new RegExp(issue, "u"));
+
+		// With no worktree copy, the repo-root plan still answers (a --phase run before any commit).
+		rmSync(worktreePlan, { force: true });
+		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "skip");
+		assert.match(reasons.design, /missing or incomplete/);
+
+		rmSync(worktree, { force: true, recursive: true });
 		cleanupIssueArtifacts(issue);
 	});
 

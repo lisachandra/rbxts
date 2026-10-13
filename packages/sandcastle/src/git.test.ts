@@ -82,6 +82,22 @@ describe("git helpers with stubs", () => {
 		stubExecSync("4");
 		assert.equal(countNewCommits(tmpRoot, "main"), 4);
 	});
+
+	test("countNewCommits excludes the plans path so a plan-only branch counts 0", () => {
+		/*
+		 * The design phase commits the plan, so without the exclusion a plan-only branch would read as
+		 * implemented work and start a review of nothing.
+		 */
+		let captured = "";
+		io.execSync = ((command: string) => {
+			captured = String(command);
+			return "0";
+		}) as unknown as typeof io.execSync;
+
+		assert.equal(countNewCommits(tmpRoot, "main"), 0);
+		assert.match(captured, /rev-list --count HEAD --not main/u);
+		assert.match(captured, /:\(exclude\)\.sandcastle\/plans/u);
+	});
 });
 
 test("issueBranch formats string and numeric issue numbers", () => {

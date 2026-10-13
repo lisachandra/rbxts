@@ -6,13 +6,13 @@
 
 import { Output, type SandboxRunOptions, type SandboxRunResult } from "@ai-hero/sandcastle";
 
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
 import { createAgent } from "./agent.js";
 import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
-import { countNewCommits, issueBranch, resolveCommit } from "./git.js";
+import { countNewCommits, git, gitTry, issueBranch, resolveCommit } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
 import { fileLogging } from "./logging.js";
 import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
@@ -99,6 +99,7 @@ async function runDesignPhase(params: {
 	logPath: string;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
+		worktreePath: string;
 	};
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
@@ -131,7 +132,42 @@ async function runDesignPhase(params: {
 	);
 
 	updatePhase(params.state, "design", "done");
+	commitPlan(params.sandbox.worktreePath, params.issueNumber);
 	console.log("  ✓ Design phase complete.");
+}
+
+/**
+ * - Commits the design plan on the issue branch so it travels with the work.
+ * - @param worktreePath - The issue's worktree, where the agent wrote the plan.
+ * - @param issueNumber - Issue number; names the plan file.
+ * - @remarks Best-effort, like the queue manifest commit: the plan is the record of what the issue
+ *   was designed to do, so a later batch member chaining this branch can read it, and a reset that
+ *   drops the worktree does not take the plan with it. A distinct unprefixed path is staged
+ *   explicitly so an agent's unrelated dirty edits are never swept into this commit.
+ */
+function commitPlan(worktreePath: string, issueNumber: string): void {
+	const relative = `${config.dir}/plans/${issueNumber}.md`;
+	if (!existsSync(pathResolve(worktreePath, relative))) {
+		return;
+	}
+
+	try {
+		if ((gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === "") {
+			return;
+		}
+
+		git(["add", "--", relative], worktreePath);
+		git(
+			["commit", "-m", `docs(sandcastle): add plan for #${issueNumber}`, "--", relative],
+			worktreePath,
+		);
+		console.log(`  ✓ Committed the plan to ${issueBranch(issueNumber)}.`);
+	} catch (err) {
+		console.warn(
+			`  ⚠ Could not commit the plan for #${issueNumber}: ${String(err)}\n` +
+				`    Commit it yourself (\`git -C ${worktreePath} add -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
+		);
+	}
 }
 
 async function runImplementPhase(params: {

@@ -146,20 +146,33 @@ function evaluateSinglePhase(
 	}
 }
 
+/**
+ * - Resolves which copy of an issue's plan is authoritative.
+ * - @param planFile - Repo-root plan path, as `runSingleIssue` builds it.
+ * - @param worktreePath - The issue's worktree.
+ * - @returns The worktree copy when present, otherwise the repo-root one, otherwise `undefined`.
+ * - @remarks The worktree comes first because that copy travels with the branch: an issue's plan is
+ *   committed there, so its own branch is the authority on what it was designed to do. The
+ *   repo-root copy is what a `--phase` run writes before any commit exists, and a leftover from an
+ *   earlier run of the same issue number must not shadow the branch's current plan.
+ */
+function resolvePlanFile(planFile: string, worktreePath: string): string | undefined {
+	const planFileName = planFile.split(/[\\/]/).pop()!;
+	const worktreePlanFile = pathResolve(worktreePath, config.dir, "plans", planFileName);
+	if (existsSync(worktreePlanFile)) {
+		return worktreePlanFile;
+	}
+
+	return existsSync(planFile) ? planFile : undefined;
+}
+
 export function evaluateDesign(
 	state: undefined | PhaseState,
 	planFile: string,
 	worktreePath: string,
 	reasons: Record<PhaseName, string>,
 ): PhaseDecision {
-	// Check both repo-root and worktree locations for the plan file.
-	const planFileName = planFile.split(/[\\/]/).pop()!;
-	const worktreePlanFile = pathResolve(worktreePath, config.dir, "plans", planFileName);
-	const resolvedPlan = existsSync(planFile)
-		? planFile
-		: existsSync(worktreePlanFile)
-			? worktreePlanFile
-			: undefined;
+	const resolvedPlan = resolvePlanFile(planFile, worktreePath);
 
 	if (resolvedPlan === undefined || resolvedPlan === "") {
 		reasons.design = "plan file does not exist";
@@ -202,10 +215,8 @@ export function evaluateImplement(
 	baseRef: string,
 	reasons: Record<PhaseName, string>,
 ): PhaseDecision {
-	// Design must be done first — check both repo-root and worktree.
-	const planFileName = planFile.split(/[\\/]/).pop()!;
-	const worktreePlanFile = pathResolve(worktreePath, config.dir, "plans", planFileName);
-	if (!existsSync(planFile) && !existsSync(worktreePlanFile)) {
+	// Design must be done first — the plan travels with the branch, so the worktree wins.
+	if (resolvePlanFile(planFile, worktreePath) === undefined) {
 		reasons.implement = "blocked — plan file does not exist (design phase needed)";
 		return "skip";
 	}

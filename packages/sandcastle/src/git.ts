@@ -6,7 +6,7 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { io, repoRoot } from "./runtime.js";
+import { config, io, repoRoot } from "./runtime.js";
 
 export interface RegisteredWorktree {
 	branch: string | undefined;
@@ -69,15 +69,27 @@ export function commitExists(commit: string, cwd = repoRoot): boolean {
 	return gitTry(["cat-file", "-e", `${commit}^{commit}`], cwd) !== undefined;
 }
 
+/**
+ * - Commits in a worktree that a base ref does not reach, ignoring plan-only commits.
+ * - @param worktreePath - Worktree whose HEAD is measured.
+ * - @param baseRef - Ref the worktree is measured against.
+ * - @returns The commit count, or 0 when the command fails.
+ * - @remarks The plan is committed by the design phase, so a bare count would make a plan-only branch
+ *   read as implemented work and start a review of nothing. Excluding the plans path keeps "has
+ *   commits" meaning "has implementation", which is what every caller is asking.
+ */
 export function countNewCommits(worktreePath: string, baseRef: string): number {
 	try {
 		const output = io
-			.execSync(`git rev-list --count HEAD --not ${baseRef}`, {
-				cwd: worktreePath,
-				encoding: "utf-8",
-				stdio: ["pipe", "pipe", "pipe"],
-				timeout: 5000,
-			})
+			.execSync(
+				`git rev-list --count HEAD --not ${baseRef} -- . ":(exclude)${config.dir}/plans"`,
+				{
+					cwd: worktreePath,
+					encoding: "utf-8",
+					stdio: ["pipe", "pipe", "pipe"],
+					timeout: 5000,
+				},
+			)
 			.toString()
 			.trim();
 		return Number(output);
