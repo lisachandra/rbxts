@@ -41,6 +41,7 @@ words:
     - gardenreset
     - getfenv
     - getmetatable
+    - gpgsign
     - gsub
     - hotbar
     - Hotbars

@@ -20,7 +20,6 @@ import { resolve as pathResolve } from "node:path";
 import type { CliOptions } from "../cli.js";
 import {
 	dirtyPaths,
-	git,
 	gitTry,
 	issueBranch,
 	mergeInProgress,
@@ -31,7 +30,7 @@ import { integrationWorktreePath, readIntegrationManifest } from "../integration
 import { resetIntegration } from "../integration/orchestrator.js";
 import { config, integrationsDir } from "../runtime.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
-import { worktreePathForBranch } from "../worktree.js";
+import { removeWorktree, worktreePathForBranch } from "../worktree.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import {
 	locateIssue,
@@ -273,7 +272,7 @@ function removeIssueWorktree(
 		return `  ⏭ Kept #${candidate.issue}: ${blocked}; pass --force to remove it anyway.`;
 	}
 
-	git(["worktree", "remove", "--force", candidate.path]);
+	removeWorktree(candidate.path, { force: true });
 	const branch = issueBranch(candidate.issue);
 	const dropped =
 		selections.dropBranch && gitTry(["branch", "-D", branch]) !== undefined
@@ -360,7 +359,7 @@ export function runQueueClean(options: CliOptions): void {
 		} else {
 			const blocked = removable(candidate.path, options.force === true);
 			if (blocked === undefined) {
-				git(["worktree", "remove", "--force", candidate.path]);
+				removeWorktree(candidate.path, { force: true });
 				emitText(options, `  ⌫ Removed the ${candidate.name} integration worktree`);
 			} else {
 				emitText(

@@ -16,6 +16,7 @@ import {
 	renameSync,
 	rmSync,
 	symlinkSync,
+	unlinkSync,
 } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
@@ -194,6 +195,104 @@ export function linkSymlinks(worktreePath: string): void {
 			console.warn(`  ⚠ Could not link ${link.path}: ${String(err)}`);
 		}
 	}
+}
+
+/**
+ * Removes the junctions/symlinks this runner created inside a worktree, leaving the link targets
+ * untouched and everything that is real content in place.
+ *
+ * `git worktree remove` recurses through directory junctions instead of unlinking them, so a linked
+ * `dir` (e.g. `.sandcastle/plans` → the primary checkout's plans) has its **target's contents
+ * deleted** and then fails with `failed to delete '…': Directory not empty`. Unlinking first is the
+ * fix; leaving them for git to walk is the data loss.
+ *
+ * Only the runner's own surface is swept — worktree-root entries and children of the configured
+ * state dir — never a recursive walk of the whole tree. Vendored submodules carry real symlinks of
+ * their own (e.g. `submodules/bedrock/**`), and those are tracked content, not links to prune.
+ *
+ * @param worktreePath - Worktree about to be removed.
+ * @returns The number of links unlinked.
+ */
+export function unlinkWorktreeLinks(worktreePath: string): number {
+	const candidates = new Set<string>();
+	const addIfLink = (path: string): boolean => {
+		if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() !== true) {
+			return false;
+		}
+
+		candidates.add(path);
+		return true;
+	};
+
+	// Configured links: the authoritative set, so a stale config still defuses existing junctions.
+	for (const link of config.symlinks) {
+		addIfLink(pathResolve(worktreePath, link.path));
+	}
+
+	// Worktree root: any link here (e.g. `.agents`, `creator-docs`) is runner-created.
+	let rootNames: Array<string> = [];
+	try {
+		rootNames = readdirSync(worktreePath);
+	} catch {
+		return 0;
+	}
+
+	for (const name of rootNames) {
+		addIfLink(pathResolve(worktreePath, name));
+	}
+
+	/*
+	 * The runner's state dir is gitignored, so it never arrives with a checkout; anything linked
+	 * under it was put there by this runner. Scanned one level deep only.
+	 */
+	const statePath = pathResolve(worktreePath, config.dir);
+	try {
+		for (const name of readdirSync(statePath)) {
+			addIfLink(pathResolve(statePath, name));
+		}
+	} catch {
+		// No state dir in this worktree.
+	}
+
+	let unlinked = 0;
+	for (const candidate of candidates) {
+		try {
+			// `unlinkSync` removes a junction itself; only `recursive` removal follows the target.
+			unlinkSync(candidate);
+			unlinked++;
+		} catch (err) {
+			console.warn(`  ⚠ Could not unlink ${candidate}: ${String(err)}`);
+		}
+	}
+
+	if (unlinked > 0) {
+		console.log(`  ✓ Unlinked ${String(unlinked)} worktree link(s) before removal.`);
+	}
+
+	return unlinked;
+}
+
+/**
+ * Removes a worktree without following the links this runner placed inside it.
+ *
+ * @remarks
+ *   Always unlinks first: git's own removal walks junctions and empties their targets, which
+ *   destroyed the primary checkout's plans in the incident this guards against. The unlink step is
+ *   best-effort — a failure there is logged and git still runs, since refusing to remove would leak
+ *   the worktree forever and the links are what make removal dangerous, not the removal itself.
+ * @param worktreePath - Worktree to remove.
+ * @param options - `force` passes `--force` to git (dirty or mid-merge worktrees); `cwd` locates
+ *   the repository that owns the worktree, defaulting to this checkout.
+ */
+export function removeWorktree(
+	worktreePath: string,
+	options: { cwd?: string; force?: boolean } = {},
+): void {
+	unlinkWorktreeLinks(worktreePath);
+	git(
+		["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath],
+		options.cwd ?? repoRoot,
+	);
 }
 
 async function createPersistentSandbox(

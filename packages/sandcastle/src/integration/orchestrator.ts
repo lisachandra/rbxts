@@ -27,7 +27,7 @@ import type {
 	IntegrationSource,
 	ResolvedAgentStep,
 } from "../types.js";
-import { sandboxProvider, setupWorktree } from "../worktree.js";
+import { removeWorktree, sandboxProvider, setupWorktree } from "../worktree.js";
 import type { SetupWorktreeOptions } from "../worktree.js";
 import {
 	assertIntegrationName,
@@ -462,7 +462,7 @@ export function cleanupIntegration(name: string, force: boolean): void {
 			);
 		}
 
-		git(["worktree", "remove", ...(force ? ["--force"] : []), worktree]);
+		removeWorktree(worktree, { force });
 	}
 
 	manifest.status = "aborted";
@@ -474,11 +474,14 @@ export function cleanupIntegration(name: string, force: boolean): void {
 /**
  * - Drops an integration's worktree, branch, and manifest so it can be composed again.
  * - @param name - Integration name.
- * - @throws {Error} When no integration carries that name.
+ * - @throws {Error} When no integration carries that name, or when the worktree cannot be removed.
  * - @remarks The member branches are untouched, so the composition is reproducible from scratch. The
- *   status is written before anything is removed, so a reset that dies part-way is legible, and
- *   removing the manifest is what makes the next composition resolve its sources afresh instead of
- *   resuming the ones the stale manifest recorded.
+ *   manifest is only rewritten when removal **fails**, and then with the true failure rather than
+ *   the success message: claiming a reset that did not happen leaves the worktree, branch, and
+ *   manifest on disk under a message that says they are gone, which is what made the original
+ *   incident so hard to read. On success the manifest is deleted, so no intermediate state needs
+ *   recording. Removing the manifest is what makes the next composition resolve its sources afresh
+ *   instead of resuming the ones the stale manifest recorded.
  */
 export function resetIntegration(name: string): void {
 	assertIntegrationName(name);
@@ -489,11 +492,16 @@ export function resetIntegration(name: string): void {
 
 	manifest.status = "aborted";
 	manifest.lastError = "Reset so the composition can be rebuilt from its sources.";
-	writeIntegrationManifest(manifest);
 
 	const worktree = integrationBasePath(manifest);
 	if (existsSync(worktree)) {
-		git(["worktree", "remove", "--force", worktree]);
+		try {
+			removeWorktree(worktree, { force: true });
+		} catch (err) {
+			manifest.lastError = `Reset failed while removing the worktree: ${String(err)}`;
+			writeIntegrationManifest(manifest);
+			throw err;
+		}
 	}
 
 	gitTry(["branch", "-D", manifest.branch]);
