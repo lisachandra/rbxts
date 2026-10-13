@@ -84,6 +84,7 @@ function collectDependencyNames(packageJson) {
 
 	for (const section of sections) {
 		if (!section || typeof section !== "object") {continue;}
+
 		for (const dependencyName of Object.keys(section)) {
 			dependencyNames.add(dependencyName);
 		}
@@ -178,6 +179,7 @@ function buildDependentsMap(selectedNames, workspaceMap) {
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
 			if (!selectedNames.has(dependencyName)) {continue;}
+
 			dependentsMap.get(dependencyName)?.add(packageName);
 		}
 	}
@@ -199,6 +201,7 @@ function buildLayers(selectedNames, workspaceMap) {
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
 			if (!selectedNames.has(dependencyName)) {continue;}
+
 			indegree.set(packageName, (indegree.get(packageName) ?? 0) + 1);
 		}
 	}
