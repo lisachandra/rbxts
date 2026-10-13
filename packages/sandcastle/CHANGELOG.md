@@ -1,5 +1,236 @@
 # @lisachandra/sandcastle
 
+## 1.1.0
+
+### Minor Changes
+
+- [`de50ea6`](https://github.com/lisachandra/rbxts/commit/de50ea642f54498e182028cb13f1438777bd8f29) Thanks [@lisachandra](https://github.com/lisachandra)! - Add `queue clean` to prune worktrees and integrations
+
+  Nothing else in the command group removed `.sandcastle/worktrees/sandcastle-issue-<n>`, so issue and
+  integration worktrees accumulated forever. `queue clean` is the one place that answers "what is safe
+  to delete?", from live GitHub state plus the queue manifest rather than from file timestamps:
+
+  - `--closed` an issue whose GitHub issue is closed, `--landed` a member whose review is APPROVED,
+    `--stale` a worktree with no manifest placement and no live issue, `--integration-worktrees` a
+    composition that reached a terminal status, `--all` every one of those.
+  - `--drop-branch` also deletes the `sandcastle/issue-<n>` branch, `--reset` drops a terminal
+    integration's worktree, branch, and manifest so it can be composed again, `--force` removes a
+    worktree that is dirty or mid-merge, and `--dry-run` / `--json` report the plan first.
+
+  It keeps any worktree that is still open and unapproved — cleaning is never a way to cancel work by
+  accident — and never touches the primary checkout. Only `sandcastle/issue-<n>` branches at the
+  runner's own worktree path are candidates, so a hand-made worktree is left alone.
+
+- [`e134522`](https://github.com/lisachandra/rbxts/commit/e13452242e87121480310deebbe57a6bfb70d7b3) Thanks [@lisachandra](https://github.com/lisachandra)! - Make the integration merge commit hook-proof, stop a failed hand-off from pruning its own batch, and
+  let a review continue the batch it came from.
+
+  - `integration.mergeSubject` (default `chore(integration): integrate {source}`) and
+    `integration.verifyHooks` (default `false`) own the merge commit that composes an integration. The
+    subject is conventional by default and the merge passes `--no-verify`, because a consumer with
+    commitlint refused the old `Integrate <source>` subject and left the merge uncommitted.
+  - A merge that fails with no unmerged paths is abandoned (`git merge --abort`) and recorded as
+    `blocked` with the real error, instead of surviving as `conflict-resolution-required` and sending a
+    conflict-free merge to the resolver.
+  - `queue run --land` prunes a batch only when its hand-off completed. A failed land no longer removes
+    its members from the manifest — which was drift, and left `queue land --name <batch>` unable to
+    resolve a batch whose integration still needed composing. The Land hint is read back after the
+    prune, so it never names a batch that is gone.
+  - `queue land` refuses a hand-off whose composition predates the batch's tail (`staleComposition`): a
+    batch that grew a member after composition would otherwise open a PR that closes an issue whose
+    commits it does not carry.
+  - Review prompts now name the batch: `queueRulesForPrompt({ batch })` tells a review to continue a
+    running batch with `--sequence <that batch>` — `queue run` re-fires the batch and chains the new
+    member's branch — while the composed integration phases are told a follow-up cannot join an
+    already-composed batch. Both prompt files also prefer fixing a small in-scope finding on the branch
+    over filing it as a new issue.
+  - `QUEUE_RULES` is injected only into the phases whose prompt references it, and the default review
+    skills include `sandcastle`, so a review reads the queue contract rather than guessing at it.
+
+- [`6b92c4d`](https://github.com/lisachandra/rbxts/commit/6b92c4d2e86230e1f066fc84a3447f8ef3cb8497) Thanks [@lisachandra](https://github.com/lisachandra)! - Rebuild a composition that no longer matches its batch with `queue land --recompose`.
+
+  - `queue land` compares the integration manifest against the batch before handing it off, so
+    divergence is caught before a resume re-merges the stale sources. Divergence is the batch's tail no
+    longer being among the composed sources, a recorded source the batch no longer carries, or a member
+    branch whose head moved after it was merged.
+  - The refusal names the fix instead of `integration-abort`. That advice never worked: an aborted
+    manifest was still resumed, so the same tail mismatch came straight back.
+  - `--recompose` drops the composition (worktree, branch, manifest) and rebuilds it from the batch's
+    current tail, in one command. A composition that did not finish — `blocked`, or any status short of
+    landed — is rebuilt too, which is what made a failed merge unrecoverable.
+  - `resetIntegration` is the new lifecycle command behind it: it marks the manifest `aborted` with a
+    reason, removes the worktree and the integration branch, then deletes the manifest. Member branches
+    are untouched, so resume still skips finished members.
+  - `integration-status` prints the same comparison as a `Divergence:` block, so a batch that drifted
+    says so when you inspect it rather than when you try to land it.
+
+- [`ca61532`](https://github.com/lisachandra/rbxts/commit/ca6153228349442c8112314d8fcf69a43759cebc) Thanks [@lisachandra](https://github.com/lisachandra)! - Prompt contract: one injected completion block, and a review told what to fix
+
+  Behaviour changes:
+
+  - `{{COMPLETION}}` replaces the completion paragraph that was copied into all six prompt files. It
+    is rendered by `src/prompts/completion.ts` with the marker path already interpolated, so no prompt
+    has to carry a nested placeholder. `agent.test.ts` fails any prompt file that stops referencing
+    it, and `{{MARKER_DIR}}`/`{{MARKER_PATH}}` are no longer prompt arguments.
+  - The planner is passed only the arguments `plan-all.md` reads (`COMPLETION`, `READY_LABEL`).
+    `BASE_REF`, `BRANCH`, `ISSUE_NUMBER`, `ISSUE_TITLE`, `PLAN_PATH`, and `SKILLS` were provided and
+    never referenced, which the runner reported on every planning run.
+  - `review-issue.md` no longer restates the follow-up contract. It named "missing tests" as
+    follow-up material ten lines above the injected rule that calls a missing test a fix-here, so the
+    file argued with `{{QUEUE_RULES}}`; the injected block is now the only owner of that rule.
+  - `review-integration.md` gives `{{QUEUE_RULES}}` its own heading instead of indenting it under
+    "Run relevant validation after corrections", and states the human-merge rule once.
+  - `implement-issue.md` asks for the plan once instead of three times, and `plan-all.md` states its
+    output rules once; the duplicated closing instructions are gone.
+  - `docs/skills/sandcastle/SKILL.md` states the `after`-gate truth table's behaviour instead of
+    reproducing it — `queue list` prints the state — and compresses the runner's dispatch guarantees.
+
+- [`6ddba91`](https://github.com/lisachandra/rbxts/commit/6ddba91546434a64ca0df39db1f46786c607a3dd) Thanks [@lisachandra](https://github.com/lisachandra)! - Fail `queue run --land` when a hand-off failed, instead of reporting it only on stderr.
+
+  - Exit 2 once a requested hand-off failed, after the loop has finished everything it can. Exit 1
+    still means nothing could fire — an unknown `--name`, or no READY batch — so a scripted caller can
+    tell the two apart. Dry runs and budget stops keep their current codes.
+  - The failure is printed as a summary with a retry line: which batches failed, why, and
+    `pnpm sandcastle queue land --name <batch>`. A failed land no longer exits 1 for the wrong reason,
+    which hid "the queue needs a human" behind "there was nothing to run".
+  - Under `--json`, every hand-off attempt emits `{ handOff: { batch, ok, error } }` alongside the
+    per-decision object, and a failed invocation emits a `failures` summary.
+
+- [`b40526e`](https://github.com/lisachandra/rbxts/commit/b40526e81a1cb0e6810192f67b98bf23b490766f) Thanks [@lisachandra](https://github.com/lisachandra)! - Review verdicts: what `BLOCKED` means, and where the full suite is owed
+
+  Behaviour changes:
+
+  - `review-issue.md` defines the two verdicts. `APPROVED` is a branch that is right; `BLOCKED` is a
+    branch that is wrong — a failing test, an unmet criterion, a finding left unfixed. A check the
+    reviewer cannot finish inside its budget is neither: it runs the largest honest part, reports the
+    command, the wall time, and what stayed unverified, and lets the verdict follow the code. That gap is
+    what turned a 1100-second suite meeting a 300-second tool budget into a batch-wide abort.
+  - The same section says how to run a suite a repo documents as slow — detached, with a log, then poll —
+    so a kill at the harness timeout reads as a missing run instead of a failing one.
+  - A `missing validation` entry in the review comment now names the command it ran, its wall time, and
+    what stayed unverified.
+  - `review-integration.md` owns the full-suite run: once per batch, on the composed branch, detached and
+    polled, with its wall time reported. The composed branch is what ships, so it is where the unbounded
+    run belongs.
+  - `plan-prompt.md` asks a plan to label every validation command `agent` or `operator`, so a manual
+    Studio spot-check stops reading as something the branch owes.
+  - `implement-issue.md` covers lint alongside build for pre-existing unrelated errors, and asks for the
+    report rather than silence.
+
+- [`f231346`](https://github.com/lisachandra/rbxts/commit/f231346b96ad7139813107b0a2f37b38e9e065e8) Thanks [@lisachandra](https://github.com/lisachandra)! - A follow-up goes to the batch that owns the seam, and a contract contradiction is filed as itself
+
+  - `queueRulesForPrompt` now opens the registration contract with an ownership step: search the
+    manifest for the files and modules the finding names, and register the work against the batch
+    that already owns them instead of appending it to the running one. A finding that needs a
+    subsystem the reviewed issue never touched is a new ticket, owned by the batch that owns that
+    subsystem — not a follow-up to the issue that found it.
+  - The contract also requires a contradiction to be filed as its own ticket naming the ticket it
+    contradicts (and whether that ticket is being amended, with the ADR named), and a duplicate search
+    before filing a second issue.
+  - `--after <this-issue>` is now conditioned on this issue being the batch's **last** member:
+    inserting before a member that already ran leaves that member's branch behind the insertion, and
+    `queue land` then refuses a tail that moved. A tail growing faster than the head is named as the
+    signal to prefer `--gated` over appending.
+  - `plan-prompt.md` gains a Contracts obligation: read the **closed** decision tickets and ADRs the
+    modules you will touch cite, name the queue batch that owns them, and stop at the readiness gate
+    when the issue as written would contradict one.
+  - `implement-issue.md` forbids building a second of anything that already exists — a ticket issuer,
+    an admission barrier, a store adapter, an envelope validator — and asks the implementer to
+    re-read the closed acceptance criteria its modules cite before the final commit.
+  - `review-issue.md` gains a **Contract conformance** checklist section and a rule that `APPROVED` on
+    a branch contradicting a closed contract is correct only when the contradiction is filed as its
+    own ticket; `review-integration.md` checks the composed batch against the closed contracts its
+    members cite and against every other batch's membership.
+  - `docs/skills/sandcastle/SKILL.md` mirrors all of it, so a manual review reads the same contract as
+    an agent.
+
+- [`bf8fcc5`](https://github.com/lisachandra/rbxts/commit/bf8fcc541cfce23f0cee949687d8d4d74c2dd138) Thanks [@lisachandra](https://github.com/lisachandra)! - A deferred-by-design follow-up is APPROVED, not BLOCKED
+
+  - `review-issue.md` verdict now says what [#442](https://github.com/lisachandra/rbxts/issues/442) taught us: a branch that is right for its scope is APPROVED once every deferred slice is filed as a follow-up issue, queue-registered, and listed — the batch continues and the next member chains this branch. BLOCKED is reserved for a branch that is itself wrong and must not chain, and the prompt says the batch stops at a BLOCKED member.
+  - `queueRulesForPrompt` ties the verdict to placement: `--sequence <batch> --after <this-issue>` when the follow-up directly continues the reviewed issue, plus the APPROVED-vs-BLOCKED rule in the shared registration block. The running-batch paragraph carries the same `--after` hint.
+  - `docs/skills/sandcastle/SKILL.md` mirrors both rules so manual reviews and agents read the same contract.
+
+- [`c30ca17`](https://github.com/lisachandra/rbxts/commit/c30ca17ae24634fc02b1062b5d9be1e87e67df62) Thanks [@lisachandra](https://github.com/lisachandra)! - Registering a queue member ahead of an already-dispatched one is now refused
+
+  `queue add --sequence <batch> --after <m>` throws when any later-position member of that batch
+  has a `.sandcastle/state/<n>.json` — the marker the runner writes when it dispatches an issue —
+  because each member's branch becomes the next member's base: an insertion ahead of a dispatched
+  member leaves that branch behind the insertion and `queue land` refuses the moved tail. This is
+  the harness-level guard behind the prose contract that already forbade it; the prompt text now
+  says the harness enforces it.
+
+  The refusal names the dispatched member, the batch, and the fix: append to the batch tail
+  instead (omit `--after`), or register the work gated. Tail appends and gated/human placements
+  are untouched, and dry-run reports the same refusal without writing.
+
+- [`2b83228`](https://github.com/lisachandra/rbxts/commit/2b83228cf81324347b442057ee54ed0f1750743d) Thanks [@lisachandra](https://github.com/lisachandra)! - fix(sandcastle): prune a batch's members when GitHub closes them, not when the hand-off succeeds
+
+  `queue run` pruned every member whose review was APPROVED as soon as a hand-off completed, so opening
+  a pull request deleted the batch's record while that pull request was still open. Closing it without
+  merging then lost the only list of what still had to land, and the still-open members reappeared as
+  "not placed in the queue" drift.
+
+  Pruning is now keyed on the merge. A member leaves the manifest when its issue is CLOSED, checked once
+  per invocation before anything is selected, so a composed batch keeps its members — and its place in
+  the queue — until the pull request actually lands. An emptied batch still has its `after` gates
+  cleared in the same transaction, and `--keep-entries` still suppresses the whole pass.
+  `mayPruneLanded` is gone with the hand-off gate it expressed.
+
+- [`fab6357`](https://github.com/lisachandra/rbxts/commit/fab63570021d959f7ac8623e9086029bbbb284a7) Thanks [@lisachandra](https://github.com/lisachandra)! - Extend the mid-chain registration guard ([#503](https://github.com/lisachandra/rbxts/issues/503)) to batch redefinitions: `queue sequence --name X --issues ...` now refuses a redefinition that moves or drops a member which has already been dispatched. Dispatched members form the prefix the run already executed, and each member's branch is the next member's base, so a reorder leaves their branches behind the new order and `queue land` refuses the moved tail. The refusal names the first offending member and the fix — keep dispatched members first, in run order, and add new work after them (or register it gated). Refuses inside the manifest transaction, so a rejected redefinition writes nothing.
+
+- [`c30ca17`](https://github.com/lisachandra/rbxts/commit/c30ca17ae24634fc02b1062b5d9be1e87e67df62) Thanks [@lisachandra](https://github.com/lisachandra)! - Serialization rules can now be retired, so a queue can be brought back to "no drift"
+
+  `queue rule --delete --name <R#>` removes every rule carrying that name (one name may cover
+  several issue sets), `--issues <a,b>` matches the rule whose sorted issue set is exactly that,
+  and both together intersect. The command goes through the normal locked manifest write, prints
+  each rule it retired, and exits non-zero naming the rule when nothing matches — it never
+  silently no-ops. `--delete` is now accepted for `queue rule` (it stays reserved to `queue
+sequence` otherwise), and the required-args gate only demands `--issues`/`--reason` when not
+  deleting.
+
+  The sorted issue set remains the add key, so narrowing a rule is retire-then-redeclare rather
+  than an upsert: re-declaring a name with a narrower set still appends, which is exactly the
+  append-only wart this unblocks cleaning up. A spec covers add → retire → re-declare narrower →
+  drift zero.
+
+### Patch Changes
+
+- [`9a3acbc`](https://github.com/lisachandra/rbxts/commit/9a3acbc0e5ed4a7d72a86ed0cdc56c9fd2ebb41f) Thanks [@lisachandra](https://github.com/lisachandra)! - Stop a batch's own serialization rule from blocking its re-fire
+
+  `queue run` re-read the manifest after every batch but could not act on what it read: `ruleConflicts`
+  counted a rule whose already-dispatched issues were members of the candidate batch itself, so any
+  batch holding two members of one `R<n>` rule conflicted with its own membership and could never
+  re-fire. A review that registered a follow-up into the batch that had just run therefore never got to
+  run it — the dispatcher silently fell through to the next READY batch. A rule now only conflicts when
+  it couples the candidate with a _different_ batch.
+
+  Two supporting changes:
+
+  - `queue run` no longer falls through silently. When the batch it just ran grew members it cannot run,
+    it stops and names that batch and the reason instead of starting unrelated work;
+    `--continue-anyway` restores the old fall-through.
+  - A landed member is skipped on a re-fire even when its worktree is gone, restoring the worktree from
+    the branch. The branch is the durable artifact and the worktree is disposable, so pruning worktrees
+    can no longer turn a re-fire into a full re-run of approved work.
+
+  `queue check` now also reports a rule that couples two members of one batch, which position already
+  serializes, so the rule is not mistaken for protection it does not provide.
+
+- [`2b83228`](https://github.com/lisachandra/rbxts/commit/2b83228cf81324347b442057ee54ed0f1750743d) Thanks [@lisachandra](https://github.com/lisachandra)! - fix(sandcastle): keep an issue's commits when an implement re-run adds none
+
+  The implement phase recorded only the commits the sandbox made during that single run, and replaced
+  whatever the state already held. A re-run that found the work already on the branch therefore wrote
+  an empty list over the record of the run that did it, and `isIssueComplete` — which required a
+  non-empty list — reported a finished issue as unfinished. The phase evaluator disagreed, because it
+  counts the same thing from git, so the issue was skipped by nothing, re-dispatched forever, and left
+  its batch unable to empty.
+
+  Recorded commits are now combined with the ones a run produces instead of replaced, and the phase logs
+  when a run added nothing, so the log no longer reads "Commits: 0" over a branch that has three.
+  `isIssueComplete` falls back to counting the branch's commits against the state's base ref when the
+  recorded list is empty, which also repairs states that were already blanked without hand-editing them.
+
+- [`06436c9`](https://github.com/lisachandra/rbxts/commit/06436c96029aac835871c8179d2134aca67da4a2) Thanks [@lisachandra](https://github.com/lisachandra)! - Fix [#504](https://github.com/lisachandra/rbxts/issues/504): `queue prune --closed` was unrunnable. The parser gate reserved `--closed` for `queue clean` and rejected every other subcommand, while prune's own contract requires `--closed` — the command could never parse. The gate now exempts exactly that shape; `queue prune --all` and every other flag-batch mismatch stay refused.
+
 ## 1.0.0
 
 ### Major Changes
