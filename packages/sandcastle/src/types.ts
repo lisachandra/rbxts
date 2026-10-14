@@ -68,9 +68,17 @@ export interface IntegrationSource {
 export interface IntegrationDrift {
 	/** Tracked paths the quarantine stash removed from the working tree. */
 	paths: Array<string>;
-	/** Stash commit; restore with `git stash apply <commit>`. */
+	/** Newest stash commit; restore with `git stash apply <commit>`. */
 	stashCommit?: string;
 	stashedAt: string;
+	/**
+	 * Every stash this composition has made, oldest first.
+	 *
+	 * A composition can quarantine twice — before a merge, and again after the review — and each
+	 * stash is the only pointer to the work it holds, so the entry accumulates rather than
+	 * overwriting. Absent on manifests written before this field existed; read `stashCommit` then.
+	 */
+	stashes?: Array<string>;
 }
 
 export interface IntegrationManifest {

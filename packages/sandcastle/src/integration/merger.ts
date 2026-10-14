@@ -119,7 +119,14 @@ export function partitionDrift(
 	return { blocking: drift.filter((path) => !submodules.includes(path)), submodules };
 }
 
-/** Stash uncommitted worktree changes so merges can proceed; the stash is recorded on the manifest. */
+/**
+ * Stash uncommitted worktree changes so merges can proceed; the stash is recorded on the manifest.
+ *
+ * @remarks
+ *   Accumulates onto any existing entry rather than replacing it. A composition can quarantine
+ *   twice — once before a merge and again after the review — and each stash commit is the only
+ *   pointer to the work it holds, so overwriting the slot silently lost the earlier one.
+ */
 export function quarantineWorktreeDrift(
 	manifest: IntegrationManifest,
 	worktree: string,
@@ -138,10 +145,17 @@ export function quarantineWorktreeDrift(
 	}
 
 	const stashCommit = merged.gitTry(["rev-parse", "--verify", "stash@{0}"], worktree);
+	const previous = manifest.drift;
+	const earlier = [...(previous?.stashes ?? []), previous?.stashCommit].filter(
+		(commit): commit is string => commit !== undefined && commit !== "",
+	);
+	const stashes =
+		stashCommit === undefined || stashCommit === "" ? earlier : [...earlier, stashCommit];
 	manifest.drift = {
-		paths,
-		stashCommit: stashCommit ?? undefined,
+		paths: [...new Set([...(previous?.paths ?? []), ...paths])],
+		stashCommit: stashes.at(-1),
 		stashedAt: new Date().toISOString(),
+		stashes,
 	};
 	if (manifestWriter !== undefined) {
 		manifestWriter(manifest);

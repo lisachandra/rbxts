@@ -39,7 +39,12 @@ import {
 	resolveIssueIntegrationSource,
 	writeIntegrationManifest,
 } from "./manifest.js";
-import { assertCleanMergeResolution, integrateManifestSource } from "./merger.js";
+import {
+	assertCleanMergeResolution,
+	integrateManifestSource,
+	partitionDrift,
+	quarantineWorktreeDrift,
+} from "./merger.js";
 import type { ConflictResolverRunner } from "./merger.js";
 
 export type { SetupWorktreeOptions } from "../worktree.js";
@@ -267,10 +272,30 @@ export async function continueIntegration(
 			steps?.integrationReview,
 		);
 		assertCleanMergeResolution(manifest);
-		if (git(["status", "--porcelain"], worktree).length > 0) {
-			throw new Error(
-				"Integration review left uncommitted changes; commit review corrections before handoff.",
-			);
+		const leftover = git(["status", "--porcelain"], worktree);
+		if (leftover.length > 0) {
+			/*
+			 * The review agent routinely leaves formatting and scratch edits behind. Failing the whole
+			 * hand-off for them is what left an integration aborted with no pull request, so a caller
+			 * that tolerates drift gets the tracked ones stashed and recorded instead.
+			 */
+			if (!quarantineDrift) {
+				throw new Error(
+					"Integration review left uncommitted changes; commit review corrections before handoff.",
+				);
+			}
+
+			const { blocking } = partitionDrift(worktree);
+			if (blocking.length > 0) {
+				quarantineWorktreeDrift(manifest, worktree, blocking);
+			}
+
+			const untracked = git(["status", "--porcelain"], worktree).length;
+			if (untracked > 0) {
+				console.warn(
+					`  ⚠ ${String(untracked)} untracked path(s) remain in the worktree; they are not on the branch.`,
+				);
+			}
 		}
 
 		manifest.headCommit = resolveCommit(manifest.branch);
@@ -412,10 +437,16 @@ export function printIntegrationStatus(name: string): void {
 	}
 
 	if (manifest.drift !== undefined && manifest.drift.paths.length > 0) {
+		// Older manifests predate `stashes`; their single commit is the whole history.
+		const stashes =
+			manifest.drift.stashes ??
+			(manifest.drift.stashCommit === undefined || manifest.drift.stashCommit === ""
+				? []
+				: [manifest.drift.stashCommit]);
 		const restore =
-			manifest.drift.stashCommit === undefined || manifest.drift.stashCommit === ""
+			stashes.length === 0
 				? ""
-				: ` (git stash apply ${manifest.drift.stashCommit})`;
+				: ` (git stash apply ${stashes.join(", then ")} — oldest first)`;
 		console.log(
 			`Drift: ${manifest.drift.paths.length} path(s) quarantined at ${manifest.drift.stashedAt}${restore}`,
 		);

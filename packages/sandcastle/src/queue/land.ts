@@ -211,6 +211,12 @@ function defaultRun(file: string, args: Array<string>): string {
  *   straight to the PR.
  */
 export async function composeLandTarget(options: CliOptions, target: LandTarget): Promise<void> {
+	/*
+	 * Landing always tolerates drift. The review agent's leftover edits are churn, and failing the
+	 * whole hand-off for them is what left an integration aborted with no pull request. They are
+	 * stashed and recorded on the manifest, never discarded.
+	 */
+	const quarantineDrift = true;
 	const existing = readIntegrationManifest(target.name);
 	if (existing !== undefined && landedStatuses.has(existing.status)) {
 		emitText(
@@ -234,7 +240,7 @@ export async function composeLandTarget(options: CliOptions, target: LandTarget)
 			options.ignoreSetup,
 			options.skipSetup,
 			options.steps,
-			options.quarantineDrift,
+			quarantineDrift,
 		);
 		return;
 	}
@@ -248,7 +254,7 @@ export async function composeLandTarget(options: CliOptions, target: LandTarget)
 		options.ignoreSetup,
 		options.skipSetup,
 		options.steps,
-		options.quarantineDrift,
+		quarantineDrift,
 	);
 }
 
