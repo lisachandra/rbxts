@@ -20,6 +20,7 @@ import { resolve as pathResolve } from "node:path";
 import type { CliOptions } from "../cli.js";
 import {
 	dirtyPaths,
+	git,
 	gitTry,
 	issueBranch,
 	mergeInProgress,
@@ -78,6 +79,8 @@ export interface CleanSelections {
 	dropBranch: boolean;
 	integrations: boolean;
 	landed: boolean;
+	/** Push each selected issue branch to `origin` before its worktree is removed. */
+	pushAndDelete: boolean;
 	reset: boolean;
 	stale: boolean;
 }
@@ -261,8 +264,19 @@ function removable(path: string, force: boolean): string | undefined {
 	return dirty.length === 0 || force ? undefined : `dirty (${dirty.length} path(s))`;
 }
 
-/** Removes one issue worktree, returning the line to report. */
-function removeIssueWorktree(
+/**
+ * Removes one issue worktree, returning the line to report.
+ *
+ * @remarks
+ *   With `--push-and-delete` the branch is pushed _before_ anything is removed: the whole point is
+ *   that the work outlives the worktree, so a failed push must leave the worktree in place. Only
+ *   issue branches are pushed here; an integration branch is pushed by `queue land --create-pr`,
+ *   and the CLI refuses the flag alongside `--integration-worktrees`. Exported only so the
+ *   push-before-remove ordering can be pinned by a test; `runQueueClean` is the sole production
+ *   caller.
+ * @internal
+ */
+export function removeIssueWorktree(
 	options: CliOptions,
 	candidate: IssueWorktreeCandidate,
 	selections: CleanSelections,
@@ -272,13 +286,19 @@ function removeIssueWorktree(
 		return `  ⏭ Kept #${candidate.issue}: ${blocked}; pass --force to remove it anyway.`;
 	}
 
-	removeWorktree(candidate.path, { force: true });
 	const branch = issueBranch(candidate.issue);
+	let pushed = "";
+	if (selections.pushAndDelete) {
+		git(["push", "-u", "origin", branch]);
+		pushed = ` and pushed ${branch}`;
+	}
+
+	removeWorktree(candidate.path, { force: true });
 	const dropped =
 		selections.dropBranch && gitTry(["branch", "-D", branch]) !== undefined
 			? ` and branch ${branch}`
 			: "";
-	return `  ⌫ Removed #${candidate.issue} worktree (${candidate.reason})${dropped}`;
+	return `  ⌫ Removed #${candidate.issue} worktree (${candidate.reason})${pushed}${dropped}`;
 }
 
 /**
@@ -295,6 +315,7 @@ export function runQueueClean(options: CliOptions): void {
 		dropBranch: options.cleanDropBranch === true,
 		integrations: options.cleanIntegrations === true || options.cleanAll === true,
 		landed: options.cleanLanded === true || options.cleanAll === true,
+		pushAndDelete: options.cleanPushAndDelete === true,
 		reset: options.cleanReset === true,
 		stale: options.cleanStale === true || options.cleanAll === true,
 	};
@@ -337,6 +358,13 @@ export function runQueueClean(options: CliOptions): void {
 
 		for (const entry of plan.kept) {
 			emitText(options, `    ⏭ kept ${entry.path}: ${entry.reason}`);
+		}
+
+		if (selections.pushAndDelete) {
+			emitText(
+				options,
+				"  (--push-and-delete: each issue branch is pushed to origin before its worktree goes)",
+			);
 		}
 	}
 

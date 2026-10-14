@@ -1,10 +1,18 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 
-import { registerTestHooks } from "../test-helpers.js";
+import type { CliOptions } from "../cli.js";
+import { gitStub, registerTestHooks, tmpRoot } from "../test-helpers.js";
 import { worktreePathForBranch } from "../worktree.js";
-import { type CleanSelections, selectIntegrations, selectIssueWorktrees } from "./clean.js";
+import {
+	type CleanSelections,
+	removeIssueWorktree,
+	selectIntegrations,
+	selectIssueWorktrees,
+} from "./clean.js";
 import type { LiveIssue, LiveQueueState } from "./live.js";
 import { emptyQueueManifest, type QueueManifest } from "./manifest.js";
 
@@ -16,6 +24,7 @@ const off: CleanSelections = {
 	dropBranch: false,
 	integrations: false,
 	landed: false,
+	pushAndDelete: false,
 	reset: false,
 	stale: false,
 };
@@ -170,5 +179,61 @@ describe("queue clean", () => {
 		});
 
 		assert.deepEqual(result.remove, []);
+	});
+});
+
+describe("queue clean --push-and-delete", () => {
+	/** Records every git invocation the removal path makes, in order. */
+	function recordingGit(): Array<Array<string>> {
+		const calls: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				calls.push([...args]);
+				return "";
+			},
+		});
+		return calls;
+	}
+
+	/**
+	 * A real (empty) directory: `removable` reads it as clean and the removal path runs for real,
+	 * rather than short-circuiting on a path that is already gone.
+	 */
+	function candidate(number: string) {
+		const path = join(tmpRoot, "push-and-delete", number);
+		mkdirSync(path, { recursive: true });
+		return { batch: undefined, issue: number, path, reason: "closed" };
+	}
+
+	test("pushes the issue branch before the worktree is removed", () => {
+		/*
+		 * The ordering is the property that matters: the whole point is that the work outlives the
+		 * worktree, so a removal that ran first would lose the thing being protected.
+		 */
+		const calls = recordingGit();
+
+		const line = removeIssueWorktree({ dryRun: false } as CliOptions, candidate("7"), {
+			...off,
+			pushAndDelete: true,
+		});
+
+		const push = calls.findIndex((args) => args[0] === "push");
+		const remove = calls.findIndex((args) => args[0] === "worktree" && args[1] === "remove");
+		assert.notEqual(push, -1, "the branch was pushed");
+		assert.notEqual(remove, -1, "the worktree was removed");
+		assert.ok(push < remove, "push ran before the removal");
+		assert.match(line, /pushed sandcastle\/issue-7/u);
+	});
+
+	test("does not push when the selection is off", () => {
+		const calls = recordingGit();
+
+		removeIssueWorktree({ dryRun: false } as CliOptions, candidate("8"), off);
+
+		assert.equal(
+			calls.some((args) => args[0] === "push"),
+			false,
+			"no push without the flag",
+		);
 	});
 });

@@ -45,6 +45,7 @@ export interface CliOptions {
 	readonly cleanDropBranch?: boolean;
 	readonly cleanIntegrations?: boolean;
 	readonly cleanLanded?: boolean;
+	readonly cleanPushAndDelete?: boolean;
 	readonly cleanReset?: boolean;
 	readonly cleanStale?: boolean;
 	readonly command: CliCommand;
@@ -158,6 +159,7 @@ interface ParsedArgState {
 	cleanDropBranch: boolean;
 	cleanIntegrations: boolean;
 	cleanLanded: boolean;
+	cleanPushAndDelete: boolean;
 	cleanReset: boolean;
 	cleanStale: boolean;
 	command: CliCommand;
@@ -232,6 +234,7 @@ function createParsedArgState(): ParsedArgState {
 		cleanDropBranch: false,
 		cleanIntegrations: false,
 		cleanLanded: false,
+		cleanPushAndDelete: false,
 		cleanReset: false,
 		cleanStale: false,
 		command: "issue",
@@ -777,6 +780,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 		state.landRecompose = true;
 	},
 
+	"--push-and-delete": (state) => {
+		state.cleanPushAndDelete = true;
+	},
 	"--require-clean": (state) => {
 		state.queueRequireClean = true;
 	},
@@ -1037,6 +1043,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			state.cleanDropBranch,
 			state.cleanIntegrations,
 			state.cleanLanded,
+			state.cleanPushAndDelete,
 			state.cleanReset,
 			state.cleanStale,
 			state.queueClosed,
@@ -1049,7 +1056,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		const pruneSelection = state.queueSubcommand === "prune" && state.queueClosed === true;
 		if (cleanSelections.some(Boolean) && state.queueSubcommand !== "clean" && !pruneSelection) {
 			throw new Error(
-				"--all, --closed, --landed, --stale, --integration-worktrees, --drop-branch, and --reset select worktrees; use them with `queue clean`.",
+				"--all, --closed, --landed, --stale, --integration-worktrees, --drop-branch, --push-and-delete, and --reset select worktrees; use them with `queue clean`.",
 			);
 		}
 
@@ -1062,6 +1069,17 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		if (state.queueSubcommand === "clean" && !cleanSelections.some(Boolean)) {
 			throw new Error(
 				"queue clean requires a selection: --closed, --landed, --stale, --integration-worktrees, or --all.",
+			);
+		}
+
+		/*
+		 * Pushing is only meaningful for an issue branch: integration branches are pushed by
+		 * `queue land --create-pr`, and a landing is already the hand-off. Refusing the combination
+		 * keeps one obvious path per branch kind.
+		 */
+		if (state.cleanPushAndDelete === true && state.cleanIntegrations === true) {
+			throw new Error(
+				"--push-and-delete applies to issue worktrees only; it cannot be combined with --integration-worktrees.",
 			);
 		}
 
@@ -1164,6 +1182,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		cleanDropBranch: state.cleanDropBranch,
 		cleanIntegrations: state.cleanIntegrations,
 		cleanLanded: state.cleanLanded,
+		cleanPushAndDelete: state.cleanPushAndDelete,
 		cleanReset: state.cleanReset,
 		cleanStale: state.cleanStale,
 		command: state.command,
