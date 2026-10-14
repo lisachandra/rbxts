@@ -361,6 +361,34 @@ describe("junction-safe worktree removal", () => {
 		assert.equal(existsSync(join(target, "plan.md")), true, "target survived");
 	});
 
+	test("unlinkWorktreeLinks sweeps links outside the runner's own surface", () => {
+		/*
+		 * The field shape: the runner's configured links sit at the worktree root and in `dir`, but a
+		 * worktree also carries links under `.workspace-links/**`, `.vscode/**`, and
+		 * `node_modules/**`. A root-and-state-dir-only sweep found 3 of roughly 12,000 links, and the
+		 * ones it missed are what a recursive removal followed out of the worktree.
+		 */
+		const root = makeRepo("nested");
+		const worktree = addWorktree(root, "sandcastle/issue-6");
+		const target = resolve(root, "nested-target");
+		mkdirSync(target, { recursive: true });
+		writeFileSync(join(target, "keep.md"), "# keep", "utf-8");
+
+		config.symlinks = [];
+		linkInto(worktree, join("packages", "@internal", "pkg", "out"), target);
+		linkInto(worktree, join("node_modules", "dep"), target);
+		linkInto(worktree, join(".vscode", "mise-tools"), target);
+
+		const unlinked = unlinkWorktreeLinks(worktree);
+
+		assert.equal(unlinked, 3, "every nested link was found");
+		assert.equal(existsSync(join(target, "keep.md")), true, "target survived the sweep");
+
+		removeWorktree(worktree, { cwd: root, force: true });
+		assert.equal(existsSync(join(target, "keep.md")), true, "target survived the removal");
+		assert.equal(existsSync(worktree), false, "worktree removed");
+	});
+
 	test("removeWorktree tolerates a worktree with no links", () => {
 		const root = makeRepo("plain");
 		const worktree = addWorktree(root, "sandcastle/issue-5");

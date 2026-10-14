@@ -198,70 +198,65 @@ export function linkSymlinks(worktreePath: string): void {
 }
 
 /**
- * Removes the junctions/symlinks this runner created inside a worktree, leaving the link targets
- * untouched and everything that is real content in place.
+ * Removes every junction/symlink inside a worktree, leaving the link targets untouched and all real
+ * content in place.
  *
  * `git worktree remove` recurses through directory junctions instead of unlinking them, so a linked
  * `dir` (e.g. `.sandcastle/plans` → the primary checkout's plans) has its **target's contents
  * deleted** and then fails with `failed to delete '…': Directory not empty`. Unlinking first is the
- * fix; leaving them for git to walk is the data loss.
+ * fix; leaving them for a recursive removal to walk is the data loss.
  *
- * Only the runner's own surface is swept — worktree-root entries and children of the configured
- * state dir — never a recursive walk of the whole tree. Vendored submodules carry real symlinks of
- * their own (e.g. `submodules/bedrock/**`), and those are tracked content, not links to prune.
+ * The sweep covers the **whole tree**, not just the runner's own surface. A worktree also carries
+ * links under `.workspace-links/**`, `.vscode/**`, and `node_modules/**` (pnpm's store links), and
+ * any one of them pointing outside the worktree is enough to destroy content elsewhere — a
+ * root-and-state-dir-only sweep found 3 of roughly 12,000 links in the field. Symlinks are never
+ * followed, only unlinked, so vendored submodule links are removed as links and never traversed.
  *
  * @param worktreePath - Worktree about to be removed.
  * @returns The number of links unlinked.
  */
 export function unlinkWorktreeLinks(worktreePath: string): number {
-	const candidates = new Set<string>();
-	const addIfLink = (path: string): boolean => {
-		if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() !== true) {
-			return false;
+	const links: Array<string> = [];
+	const pending: Array<string> = [worktreePath];
+
+	while (pending.length > 0) {
+		const dir = pending.pop()!;
+		let names: Array<string> = [];
+		try {
+			names = readdirSync(dir);
+		} catch {
+			// Unreadable or already gone; nothing under it to unlink.
+			continue;
 		}
 
-		candidates.add(path);
-		return true;
-	};
+		for (const name of names) {
+			// A worktree's `.git` is a pointer to the real git dir; its contents are not ours.
+			if (name === ".git") {
+				continue;
+			}
 
-	// Configured links: the authoritative set, so a stale config still defuses existing junctions.
-	for (const link of config.symlinks) {
-		addIfLink(pathResolve(worktreePath, link.path));
-	}
+			const path = pathResolve(dir, name);
+			const stats = lstatSync(path, { throwIfNoEntry: false });
+			if (stats === undefined) {
+				continue;
+			}
 
-	// Worktree root: any link here (e.g. `.agents`, `creator-docs`) is runner-created.
-	let rootNames: Array<string> = [];
-	try {
-		rootNames = readdirSync(worktreePath);
-	} catch {
-		return 0;
-	}
-
-	for (const name of rootNames) {
-		addIfLink(pathResolve(worktreePath, name));
-	}
-
-	/*
-	 * The runner's state dir is gitignored, so it never arrives with a checkout; anything linked
-	 * under it was put there by this runner. Scanned one level deep only.
-	 */
-	const statePath = pathResolve(worktreePath, config.dir);
-	try {
-		for (const name of readdirSync(statePath)) {
-			addIfLink(pathResolve(statePath, name));
+			if (stats.isSymbolicLink()) {
+				links.push(path);
+			} else if (stats.isDirectory()) {
+				pending.push(path);
+			}
 		}
-	} catch {
-		// No state dir in this worktree.
 	}
 
 	let unlinked = 0;
-	for (const candidate of candidates) {
+	for (const link of links) {
 		try {
 			// `unlinkSync` removes a junction itself; only `recursive` removal follows the target.
-			unlinkSync(candidate);
+			unlinkSync(link);
 			unlinked++;
 		} catch (err) {
-			console.warn(`  ⚠ Could not unlink ${candidate}: ${String(err)}`);
+			console.warn(`  ⚠ Could not unlink ${link}: ${String(err)}`);
 		}
 	}
 
