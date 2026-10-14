@@ -13,11 +13,11 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import { createAgent } from "./agent.js";
 import { completionRules } from "./prompts/completion.js";
-import { config, repoRoot } from "./runtime.js";
+import { config, stateRoot } from "./runtime.js";
 import type { AgentBackend } from "./types.js";
 
 export function markersDir(): string {
-	return pathResolve(repoRoot, config.dir, "markers");
+	return pathResolve(stateRoot, config.dir, "markers");
 }
 
 /** Absolute host path for a scoped completion marker, e.g. `<scope>.completed`. */

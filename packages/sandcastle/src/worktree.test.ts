@@ -1,11 +1,19 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
-import { config, io } from "./runtime.js";
+import { config, io, normalizedPath, sharedStateRoot } from "./runtime.js";
 import { registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
 	linkSymlinks,
@@ -218,6 +226,50 @@ describe("prepareIssueWorktree", () => {
 				);
 			}
 		});
+
+		test("keeps the backup when a preserved entry collides with the target", () => {
+			/*
+			 * A colliding entry cannot be moved and exists nowhere else, so deleting the backup
+			 * destroyed it without a word. The target's own entry wins, and the colliding one survives
+			 * in a backup whose path the warning names.
+			 *
+			 * The collision is a file against a directory: renaming a file over an existing file
+			 * succeeds (and overwrites it) on both platforms, so only a type mismatch actually fails.
+			 */
+			const worktree = makeDir("link-collide");
+			const target = makeDir("link-target-collide");
+			mkdirSync(join(target, "7.md"), { recursive: true });
+
+			const plansPath = join(worktree, ".sandcastle", "plans");
+			mkdirSync(plansPath, { recursive: true });
+			writeFileSync(join(plansPath, "7.md"), "# worktree", "utf-8");
+
+			config.symlinks = [{ path: ".sandcastle/plans", target }];
+			linkSymlinks(worktree);
+
+			if (process.platform === "win32") {
+				assert.equal(
+					lstatSync(plansPath).isSymbolicLink(),
+					true,
+					"the junction was created",
+				);
+				assert.equal(
+					lstatSync(join(target, "7.md")).isDirectory(),
+					true,
+					"the target kept its own entry",
+				);
+
+				const backups = readdirSync(dirname(plansPath)).filter((entry) =>
+					entry.startsWith("plans.backup"),
+				);
+				assert.equal(backups.length, 1, "the backup was kept rather than deleted");
+				assert.equal(
+					readFileSync(join(dirname(plansPath), backups[0] ?? "", "7.md"), "utf-8"),
+					"# worktree",
+					"the colliding entry survived",
+				);
+			}
+		});
 	});
 });
 
@@ -396,5 +448,26 @@ describe("junction-safe worktree removal", () => {
 
 		assert.doesNotThrow(() => removeWorktree(worktree, { cwd: root, force: true }));
 		assert.equal(existsSync(worktree), false);
+	});
+
+	test("sharedStateRoot sends a linked worktree to the checkout that owns the state", () => {
+		/*
+		 * The bug this guards: an agent whose cwd is a worktree mints state there, and the runner —
+		 * which reads state from the checkout that owns the run — never sees it. A marker written by
+		 * the agent is then invisible to the phase waiting on it.
+		 */
+		const root = makeRepo("state-root");
+		const worktree = addWorktree(root, "sandcastle/issue-9");
+
+		assert.equal(
+			normalizedPath(sharedStateRoot(worktree)),
+			normalizedPath(root),
+			"a worktree resolves to the primary checkout",
+		);
+		assert.equal(
+			normalizedPath(sharedStateRoot(root)),
+			normalizedPath(root),
+			"the primary checkout resolves to itself",
+		);
 	});
 });

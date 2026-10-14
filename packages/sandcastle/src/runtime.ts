@@ -1,9 +1,10 @@
 /*
  * Runtime context shared by every Sandcastle module.
  *
- * The repository root is always the process working directory, and the typed
- * `sandcastle.config.ts` is loaded once here. The `io` object is the single
- * injectable boundary tests stub out; production keeps the real Node and
+ * `repoRoot` is the process working directory — the checkout the caller stands in — while `stateRoot`
+ * is the checkout that owns the runner's shared state, which differs only when the caller is inside
+ * a linked worktree. The typed `sandcastle.config.ts` is loaded once here, from `repoRoot`. The `io`
+ * object is the single injectable boundary tests stub out; production keeps the real Node and
  * sandcastle implementations.
  */
 
@@ -30,12 +31,55 @@ const sandcastleDir = dirname(fileURLToPath(import.meta.url));
 export const packageRoot = pathResolve(sandcastleDir, "..");
 /** The repository the runner operates on; always the process working directory. */
 export const repoRoot = process.cwd();
+/**
+ * Root of the runner's shared state.
+ *
+ * `repoRoot` is not it when the caller sits inside a linked worktree. An agent whose cwd is
+ * `.sandcastle/worktrees/<branch>` would mint state there while the runner reads state from the
+ * checkout that owns the run, so a marker the agent wrote would be invisible to the phase waiting
+ * on it — which is exactly how a completion marker went missing. Only that case is redirected: a
+ * run from the checkout itself, or from a subdirectory of it, keeps the caller's directory.
+ */
+export const stateRoot = sharedStateRoot(repoRoot);
 export const config = loadConfig(repoRoot);
-export const logsDir = pathResolve(repoRoot, config.dir, "logs");
-export const plansDir = pathResolve(repoRoot, config.dir, "plans");
-export const stateDir = pathResolve(repoRoot, config.dir, "state");
-export const integrationsDir = pathResolve(repoRoot, config.dir, "integrations");
+export const logsDir = pathResolve(stateRoot, config.dir, "logs");
+export const plansDir = pathResolve(stateRoot, config.dir, "plans");
+export const stateDir = pathResolve(stateRoot, config.dir, "state");
+export const integrationsDir = pathResolve(stateRoot, config.dir, "integrations");
 export const sandcastleEnvPath = pathResolve(repoRoot, config.dir, ".env");
+
+/** `git rev-parse <args>` from `cwd`, or `undefined` when git cannot answer. */
+function gitRevParse(args: ReadonlyArray<string>, cwd: string): string | undefined {
+	try {
+		const output = execFileSync("git", ["rev-parse", ...args], {
+			cwd,
+			encoding: "utf-8",
+			stdio: ["pipe", "pipe", "pipe"],
+		}).trim();
+		return output === "" ? undefined : output;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * - The checkout that owns the runner's shared state.
+ * - @param cwd - Directory to inspect.
+ * - @returns `cwd`, unless it is a linked worktree, in which case the primary checkout.
+ * - @remarks A linked worktree and its primary checkout share one `.git` common directory, and the
+ *   worktree's own toplevel is not that directory's parent. Only that difference redirects, so a
+ *   run from the checkout itself or from a subdirectory of it is unaffected.
+ */
+export function sharedStateRoot(cwd: string): string {
+	const toplevel = gitRevParse(["--show-toplevel"], cwd);
+	const common = gitRevParse(["--path-format=absolute", "--git-common-dir"], cwd);
+	if (toplevel === undefined || common === undefined) {
+		return cwd;
+	}
+
+	const primary = dirname(pathResolve(cwd, common));
+	return normalizedPath(toplevel) === normalizedPath(primary) ? cwd : primary;
+}
 
 // Load Sandcastle configuration without replacing variables exported by the shell.
 if (existsSync(sandcastleEnvPath)) {

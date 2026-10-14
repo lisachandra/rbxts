@@ -9,8 +9,14 @@ emptied the **target** of every linked dir and then failed with `failed to delet
 empty`. In the wild that destroyed the primary checkout's `.sandcastle/plans` when an integration
 worktree was reset: the plans were gitignored, so there was no git copy to restore from.
 
-- New `removeWorktree` unlinks the links this runner created and only then calls git. It is now the
-  only removal path: `resetIntegration`, `cleanupIntegration`, and both `queue clean` sites.
+- New `removeWorktree` is the only removal path: `resetIntegration`, `cleanupIntegration`, and both
+  `queue clean` sites. On Windows it deletes the directory with `rmdir /s /q` and then runs
+  `git worktree prune`; everywhere else — and on Windows when `rmdir` leaves the directory behind —
+  it falls back to the unlink sweep followed by git.
+- `rmdir /s` deletes a directory junction or a file symlink itself and never recurses into its
+  target, verified against both link kinds, so it needs no sweep at all. That matters because the
+  sweep is not cheap: a worktree carries roughly 12,000 links, and walking them takes minutes per
+  worktree.
 - New `unlinkWorktreeLinks` sweeps the **whole tree** and unlinks every link it finds, never following
   one. A root-and-state-dir-only sweep found 3 of roughly 12,000 links in the field, and the ones it
   missed — under `.workspace-links/**`, `.vscode/**`, and `node_modules/**` — are exactly what a

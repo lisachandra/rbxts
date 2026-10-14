@@ -121,9 +121,16 @@ export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): stri
  * contents into the target. Repairs drift left by an earlier phase whose junction failed to link
  * (e.g. gitignored `.sandcastle/plans`), while keeping plan files an agent already wrote.
  *
- * @returns The number of entries preserved into the target.
+ * @remarks
+ *   An entry whose name already exists in the target cannot be moved, and it exists nowhere else.
+ *   The backup is therefore only deleted once it is empty: deleting it unconditionally destroyed
+ *   every colliding entry without a word.
+ * @returns How many entries were preserved, and the backup path when entries remain in it.
  */
-function replaceDirectoryWithJunction(linkPath: string, targetPath: string): number {
+function replaceDirectoryWithJunction(
+	linkPath: string,
+	targetPath: string,
+): { backup?: string; preserved: number } {
 	const backup = `${linkPath}.backup-${Date.now()}`;
 	renameSync(linkPath, backup);
 	try {
@@ -138,12 +145,16 @@ function replaceDirectoryWithJunction(linkPath: string, targetPath: string): num
 				renameSync(pathResolve(backup, entry), pathResolve(targetPath, entry));
 				preserved++;
 			} catch {
-				// Entry collides with an existing target file; leave it in the backup dir.
+				// Entry collides with an existing target file; it stays in the backup below.
 			}
 		}
 
+		if (readdirSync(backup).length > 0) {
+			return { backup, preserved };
+		}
+
 		rmSync(backup, { force: true, recursive: true });
-		return preserved;
+		return { preserved };
 	} catch (err) {
 		// Restore the original directory so nothing is lost, then surface the failure.
 		renameSync(backup, linkPath);
@@ -182,10 +193,16 @@ export function linkSymlinks(worktreePath: string): void {
 				}
 
 				// A real dir minted by an earlier phase occupies the link path; preserve it into the junction.
-				const preserved = replaceDirectoryWithJunction(linkPath, targetPath);
+				const replaced = replaceDirectoryWithJunction(linkPath, targetPath);
 				console.log(
-					`  ✓ Linked ${link.path} → ${targetPath} (preserved ${preserved} pre-existing item(s))`,
+					`  ✓ Linked ${link.path} → ${targetPath} (preserved ${String(replaced.preserved)} pre-existing item(s))`,
 				);
+				if (replaced.backup !== undefined) {
+					console.warn(
+						`  ⚠ Entries that collided with ${targetPath} were kept at ${replaced.backup}; move them out yourself.`,
+					);
+				}
+
 				continue;
 			}
 
@@ -283,11 +300,40 @@ export function removeWorktree(
 	worktreePath: string,
 	options: { cwd?: string; force?: boolean } = {},
 ): void {
+	const cwd = options.cwd ?? repoRoot;
+	if (removeWithRmdir(worktreePath)) {
+		// The directory is gone; git only has to forget the registration it still holds.
+		gitTry(["worktree", "prune"], cwd);
+		return;
+	}
+
 	unlinkWorktreeLinks(worktreePath);
-	git(
-		["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath],
-		options.cwd ?? repoRoot,
-	);
+	git(["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath], cwd);
+}
+
+/**
+ * - Deletes a directory with Windows' own `rmdir /s /q`.
+ * - @param worktreePath - Directory to delete.
+ * - @returns True when the directory is gone afterwards.
+ * - @remarks `rmdir /s` deletes a directory junction or a file symlink itself and never recurses into
+ *   its target — verified against both link kinds — so it needs no unlink sweep first and costs a
+ *   fraction of walking a worktree's ~12,000 links. A path it cannot delete (read-only files, a
+ *   path over the long-path limit) simply returns false and the caller falls back.
+ */
+function removeWithRmdir(worktreePath: string): boolean {
+	if (process.platform !== "win32") {
+		return false;
+	}
+
+	try {
+		io.execFileSync("cmd", ["/c", "rmdir", "/s", "/q", worktreePath], {
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+	} catch {
+		// rmdir is noisy about what it could not delete; the existence check below decides.
+	}
+
+	return !existsSync(worktreePath);
 }
 
 async function createPersistentSandbox(
