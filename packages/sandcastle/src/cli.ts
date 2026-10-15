@@ -42,10 +42,11 @@ export interface CliOptions {
 	readonly before?: string;
 	readonly branch: string;
 	readonly cleanAll?: boolean;
+	readonly cleanBatch?: string;
 	readonly cleanDropBranch?: boolean;
 	readonly cleanIntegrations?: boolean;
 	readonly cleanLanded?: boolean;
-	readonly cleanPushAndDelete?: boolean;
+	readonly cleanPruneGit?: boolean;
 	readonly cleanReset?: boolean;
 	readonly cleanStale?: boolean;
 	readonly command: CliCommand;
@@ -72,6 +73,7 @@ export interface CliOptions {
 	readonly noResume?: boolean;
 	readonly notes?: string;
 	readonly phase?: PhaseName;
+	readonly pushAndDelete?: boolean;
 	readonly quarantineDrift?: boolean;
 	readonly queueApply?: boolean;
 	readonly queueAssigns?: string;
@@ -156,10 +158,11 @@ interface ParsedArgState {
 	before: string | undefined;
 	branch: string | undefined;
 	cleanAll: boolean;
+	cleanBatch: string | undefined;
 	cleanDropBranch: boolean;
 	cleanIntegrations: boolean;
 	cleanLanded: boolean;
-	cleanPushAndDelete: boolean;
+	cleanPruneGit: boolean;
 	cleanReset: boolean;
 	cleanStale: boolean;
 	command: CliCommand;
@@ -186,6 +189,7 @@ interface ParsedArgState {
 	noResume: boolean;
 	notes: string | undefined;
 	phase: PhaseName | undefined;
+	pushAndDelete: boolean;
 	quarantineDrift: boolean;
 	queueApply: boolean;
 	queueAssigns: string | undefined;
@@ -231,10 +235,11 @@ function createParsedArgState(): ParsedArgState {
 		before: undefined,
 		branch: undefined,
 		cleanAll: false,
+		cleanBatch: undefined,
 		cleanDropBranch: false,
 		cleanIntegrations: false,
 		cleanLanded: false,
-		cleanPushAndDelete: false,
+		cleanPruneGit: false,
 		cleanReset: false,
 		cleanStale: false,
 		command: "issue",
@@ -261,6 +266,7 @@ function createParsedArgState(): ParsedArgState {
 		noResume: false,
 		notes: undefined,
 		phase: undefined,
+		pushAndDelete: false,
 		quarantineDrift: false,
 		queueApply: false,
 		queueAssigns: undefined,
@@ -416,6 +422,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--base": (state, next, index) => {
 		state.base = next ?? state.base;
+		return index + 1;
+	},
+	"--batch": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--batch requires a batch name");
+		}
+
+		state.cleanBatch = next;
 		return index + 1;
 	},
 	"--before": (state, next, index) => {
@@ -780,8 +794,11 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 		state.landRecompose = true;
 	},
 
+	"--prune-git": (state) => {
+		state.cleanPruneGit = true;
+	},
 	"--push-and-delete": (state) => {
-		state.cleanPushAndDelete = true;
+		state.pushAndDelete = true;
 	},
 	"--require-clean": (state) => {
 		state.queueRequireClean = true;
@@ -1038,12 +1055,18 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("queue land requires --name <batch>.");
 		}
 
-		const cleanSelections = [
+		/*
+		 * Selection flags only `queue clean` understands. `--push-and-delete` is handled apart because
+		 * `queue run` consumes it as well: there it reclaims each member's worktree as the member
+		 * finishes, rather than selecting worktrees for a cleanup pass.
+		 */
+		const cleanOnlySelections = [
 			state.cleanAll,
+			state.cleanBatch !== undefined,
 			state.cleanDropBranch,
 			state.cleanIntegrations,
 			state.cleanLanded,
-			state.cleanPushAndDelete,
+			state.cleanPruneGit,
 			state.cleanReset,
 			state.cleanStale,
 			state.queueClosed,
@@ -1054,9 +1077,23 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		 * (and every other flag-batch mismatch) refused here while the real command parses.
 		 */
 		const pruneSelection = state.queueSubcommand === "prune" && state.queueClosed === true;
-		if (cleanSelections.some(Boolean) && state.queueSubcommand !== "clean" && !pruneSelection) {
+		if (
+			cleanOnlySelections.some(Boolean) &&
+			state.queueSubcommand !== "clean" &&
+			!pruneSelection
+		) {
 			throw new Error(
-				"--all, --closed, --landed, --stale, --integration-worktrees, --drop-branch, --push-and-delete, and --reset select worktrees; use them with `queue clean`.",
+				"--all, --batch, --closed, --landed, --stale, --integration-worktrees, --drop-branch, --prune-git, and --reset select worktrees; use them with `queue clean`.",
+			);
+		}
+
+		if (
+			state.pushAndDelete === true &&
+			state.queueSubcommand !== "clean" &&
+			state.queueSubcommand !== "run"
+		) {
+			throw new Error(
+				"--push-and-delete reclaims issue worktrees; use it with `queue clean` or `queue run`.",
 			);
 		}
 
@@ -1066,9 +1103,13 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			);
 		}
 
-		if (state.queueSubcommand === "clean" && !cleanSelections.some(Boolean)) {
+		if (
+			state.queueSubcommand === "clean" &&
+			!cleanOnlySelections.some(Boolean) &&
+			state.pushAndDelete !== true
+		) {
 			throw new Error(
-				"queue clean requires a selection: --closed, --landed, --stale, --integration-worktrees, or --all.",
+				"queue clean requires a selection: --closed, --landed, --stale, --integration-worktrees, --all, --batch <name>, or --prune-git.",
 			);
 		}
 
@@ -1077,7 +1118,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		 * `queue land --create-pr`, and a landing is already the hand-off. Refusing the combination
 		 * keeps one obvious path per branch kind.
 		 */
-		if (state.cleanPushAndDelete === true && state.cleanIntegrations === true) {
+		if (state.pushAndDelete === true && state.cleanIntegrations === true) {
 			throw new Error(
 				"--push-and-delete applies to issue worktrees only; it cannot be combined with --integration-worktrees.",
 			);
@@ -1179,10 +1220,11 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		before: state.before,
 		branch: state.branch ?? "",
 		cleanAll: state.cleanAll,
+		cleanBatch: state.cleanBatch,
 		cleanDropBranch: state.cleanDropBranch,
 		cleanIntegrations: state.cleanIntegrations,
 		cleanLanded: state.cleanLanded,
-		cleanPushAndDelete: state.cleanPushAndDelete,
+		cleanPruneGit: state.cleanPruneGit,
 		cleanReset: state.cleanReset,
 		cleanStale: state.cleanStale,
 		command: state.command,
@@ -1209,6 +1251,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		noResume: state.noResume,
 		notes: state.notes,
 		phase: state.phase,
+		pushAndDelete: state.pushAndDelete,
 		quarantineDrift: state.quarantineDrift,
 		queueApply: state.queueApply,
 		queueAssigns: state.queueAssigns,

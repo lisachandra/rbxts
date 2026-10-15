@@ -29,9 +29,9 @@ import {
 } from "../git.js";
 import { integrationWorktreePath, readIntegrationManifest } from "../integration/manifest.js";
 import { resetIntegration } from "../integration/orchestrator.js";
-import { config, integrationsDir } from "../runtime.js";
+import { config, integrationsDir, worktreePathForBranch } from "../runtime.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
-import { removeWorktree, worktreePathForBranch } from "../worktree.js";
+import { pruneWorktreeRegistrations, pushThenRemoveWorktree, removeWorktree } from "../worktree.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import {
 	locateIssue,
@@ -75,10 +75,14 @@ export interface CleanPlan {
 /** Which selections the invocation asked for. */
 export interface CleanSelections {
 	all: boolean;
+	/** Restrict issue-worktree selection to this batch's members. */
+	batch?: string;
 	closed: boolean;
 	dropBranch: boolean;
 	integrations: boolean;
 	landed: boolean;
+	/** Sweep worktree registrations whose worktree directory is already gone. */
+	pruneGit: boolean;
 	/** Push each selected issue branch to `origin` before its worktree is removed. */
 	pushAndDelete: boolean;
 	reset: boolean;
@@ -143,7 +147,8 @@ function removalReason(params: {
  * - @returns The candidates to remove plus everything kept and why.
  * - @remarks Only `sandcastle/issue-<n>` branches whose registered path is this repository's own
  *   worktree path are considered, so a hand-made worktree is never a candidate. An issue that is
- *   still open and not approved is kept: it may yet run.
+ *   still open and not approved is kept: it may yet run. `selections.batch` narrows the candidates
+ *   to one batch's members, which is how a batch is cleaned right after it is composed.
  */
 export function selectIssueWorktrees(params: {
 	live: LiveQueueState;
@@ -154,6 +159,7 @@ export function selectIssueWorktrees(params: {
 	const { live, manifest, selections, worktrees } = params;
 	const remove: Array<IssueWorktreeCandidate> = [];
 	const kept: Array<KeptWorktree> = [];
+	const { batch } = selections;
 
 	for (const worktree of worktrees) {
 		const issue = issueOfWorktree(worktree.branch);
@@ -169,6 +175,11 @@ export function selectIssueWorktrees(params: {
 
 		const state = live.issues.get(issue);
 		const placement = locateIssue(manifest, issue);
+		if (batch !== undefined && (placement?.kind !== "sequence" || placement.name !== batch)) {
+			kept.push({ path: worktree.path, reason: `not in batch "${batch}"` });
+			continue;
+		}
+
 		const reason = removalReason({
 			closed: state?.state === "CLOSED",
 			landed: isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED",
@@ -289,11 +300,13 @@ export function removeIssueWorktree(
 	const branch = issueBranch(candidate.issue);
 	let pushed = "";
 	if (selections.pushAndDelete) {
-		git(["push", "-u", "origin", branch]);
+		// The shared helper owns the push-before-remove order; a failed push throws, so nothing goes.
+		pushThenRemoveWorktree(branch, candidate.path);
 		pushed = ` and pushed ${branch}`;
+	} else {
+		removeWorktree(candidate.path, { force: true });
 	}
 
-	removeWorktree(candidate.path, { force: true });
 	const dropped =
 		selections.dropBranch && gitTry(["branch", "-D", branch]) !== undefined
 			? ` and branch ${branch}`
@@ -311,16 +324,19 @@ export function removeIssueWorktree(
 export function runQueueClean(options: CliOptions): void {
 	const selections: CleanSelections = {
 		all: options.cleanAll === true,
+		batch: options.cleanBatch,
 		closed: options.queueClosed === true || options.cleanAll === true,
 		dropBranch: options.cleanDropBranch === true,
 		integrations: options.cleanIntegrations === true || options.cleanAll === true,
 		landed: options.cleanLanded === true || options.cleanAll === true,
-		pushAndDelete: options.cleanPushAndDelete === true,
+		pruneGit: options.cleanPruneGit === true,
+		pushAndDelete: options.pushAndDelete === true,
 		reset: options.cleanReset === true,
 		stale: options.cleanStale === true || options.cleanAll === true,
 	};
 
 	const manifest = readQueueManifest();
+	assertBatchExists(manifest, selections.batch);
 	const live = fetchLiveQueueState({
 		numbers: referencedIssues(manifest),
 		readyLabel: config.labels.readyForAgent,
@@ -360,10 +376,21 @@ export function runQueueClean(options: CliOptions): void {
 			emitText(options, `    ⏭ kept ${entry.path}: ${entry.reason}`);
 		}
 
+		if (selections.batch !== undefined) {
+			emitText(options, `  (--batch ${selections.batch}: only that batch's members)`);
+		}
+
 		if (selections.pushAndDelete) {
 			emitText(
 				options,
 				"  (--push-and-delete: each issue branch is pushed to origin before its worktree goes)",
+			);
+		}
+
+		if (selections.pruneGit) {
+			emitText(
+				options,
+				"  (--prune-git: worktree registrations whose directory is already gone are swept)",
 			);
 		}
 	}
@@ -398,8 +425,37 @@ export function runQueueClean(options: CliOptions): void {
 		}
 	}
 
+	if (selections.pruneGit) {
+		const swept = pruneWorktreeRegistrations();
+		emitText(
+			options,
+			swept.length === 0
+				? "  ✓ No orphaned worktree registrations."
+				: `  ✓ Swept ${String(swept.length)} orphaned worktree registration(s): ${swept.join(", ")}`,
+		);
+	}
+
 	emitText(
 		options,
 		`  ✓ Cleaned ${String(plan.issueWorktrees.length + plan.integrations.length)} worktree(s).`,
 	);
+}
+
+/**
+ * - Refuses a `--batch` that names no sequence.
+ * - @param manifest - Queue manifest.
+ * - @param batch - Batch name the invocation asked for, if any.
+ * - @remarks Cleaning nothing because a name was mistyped reads exactly like cleaning everything that
+ *   happened to be ineligible, so the two must not be confused.
+ */
+function assertBatchExists(manifest: QueueManifest, batch: string | undefined): void {
+	if (batch === undefined || batch === "") {
+		return;
+	}
+
+	if (!manifest.sequences.some((sequence) => sequence.name === batch)) {
+		throw new Error(
+			`No batch named "${batch}" in the queue manifest; \`pnpm sandcastle queue list\` shows the batches.`,
+		);
+	}
 }

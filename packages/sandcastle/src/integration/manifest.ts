@@ -12,8 +12,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import { commitExists, git, gitTry, issueBranch, resolveCommit } from "../git.js";
-import { config, integrationsDir } from "../runtime.js";
-import { getLatestReviewMarker, readState } from "../state.js";
+import { config, integrationsDir, stateRoot } from "../runtime.js";
+import { getLatestReviewMarker, isReviewComplete, readState } from "../state.js";
 import type {
 	IntegrationKind,
 	IntegrationManifest,
@@ -80,16 +80,42 @@ export function writeIntegrationManifest(
 /**
  * - Absolute path of an integration worktree.
  * - @param name - Integration name.
+ * - @param fs - Filesystem used to spot a pre-rename directory; defaults to `node:fs`.
  * - @returns The worktree path under the integrations directory.
- * - @remarks A function of the name, not of the manifest: a caller holding only a name still needs
- *   the path, and should not fabricate a manifest to get it.
+ * - @remarks The directory is named after the integration rather than `worktree`, because `git
+ *   worktree add` registers a worktree under the **basename** of its path: a fixed `worktree`
+ *   basename made every integration collide in `.git/worktrees`, and git disambiguated them into
+ *   `worktree4`, `worktree5`, and so on — unreadable registrations that outlive the worktree they
+ *   name. A `worktree` directory left by an earlier run is still that integration's worktree, so it
+ *   keeps resolving; only new integrations get the unambiguous name.
  */
-export function integrationWorktreePath(name: string): string {
-	return pathResolve(integrationsDir, name, "worktree");
+export function integrationWorktreePath(
+	name: string,
+	fs: Pick<ManifestFs, "existsSync"> = defaultFs,
+): string {
+	const named = pathResolve(integrationsDir, name, name);
+	const legacy = pathResolve(integrationsDir, name, "worktree");
+	return fs.existsSync(legacy) && !fs.existsSync(named) ? legacy : named;
 }
 
-export function integrationBasePath(manifest: IntegrationManifest): string {
-	return integrationWorktreePath(manifest.name);
+/**
+ * - Absolute path of the worktree an integration manifest records.
+ * - @param manifest - Integration manifest.
+ * - @param fs - Filesystem used to spot a pre-rename directory; defaults to `node:fs`.
+ * - @returns The recorded worktree path when the manifest carries one, otherwise a derived path.
+ * - @remarks The recorded path wins so a manifest written before the rename keeps pointing at the
+ *   directory that actually holds its composition, rather than at a path nothing created.
+ */
+export function integrationBasePath(
+	manifest: IntegrationManifest,
+	fs: Pick<ManifestFs, "existsSync"> = defaultFs,
+): string {
+	const recorded = manifest.worktree;
+	if (recorded !== undefined && recorded !== "") {
+		return pathResolve(stateRoot, recorded);
+	}
+
+	return integrationWorktreePath(manifest.name, fs);
 }
 
 export function createIntegrationManifest(
@@ -128,7 +154,7 @@ export function createIntegrationManifest(
 		sources: sources.map((source, index) => ({ ...source, order: index + 1 })),
 		status: "created",
 		updatedAt: now,
-		worktree: `${config.dir}/integrations/${name}/worktree`,
+		worktree: `${config.dir}/integrations/${name}/${name}`,
 	};
 
 	try {
@@ -140,20 +166,14 @@ export function createIntegrationManifest(
 			throw new Error(`Branch ${manifest.branch} already exists.`);
 		}
 
-		if (fs.existsSync(integrationBasePath(manifest))) {
-			throw new Error(`Worktree path already exists: ${integrationBasePath(manifest)}`);
+		const worktree = integrationBasePath(manifest, fs);
+		if (fs.existsSync(worktree)) {
+			throw new Error(`Worktree path already exists: ${worktree}`);
 		}
 
 		writeIntegrationManifest(manifest, fs);
-		fs.mkdirSync(dirname(integrationBasePath(manifest)), { recursive: true });
-		gitCmd([
-			"worktree",
-			"add",
-			"-b",
-			manifest.branch,
-			integrationBasePath(manifest),
-			manifest.base.commit,
-		]);
+		fs.mkdirSync(dirname(worktree), { recursive: true });
+		gitCmd(["worktree", "add", "-b", manifest.branch, worktree, manifest.base.commit]);
 	} catch (err) {
 		manifest.status = "preflight-failed";
 		manifest.lastError = String(err);
@@ -185,7 +205,7 @@ export function resolveIssueIntegrationSource(
 	const readStateCmd = deps.readState ?? readState;
 	const branch = issueBranch(issueNumber);
 	const state = readStateCmd(issueNumber);
-	if (!allowUnreviewed && state?.phases.review.status !== "done") {
+	if (!allowUnreviewed && !isReviewComplete(state)) {
 		throw new Error(
 			`Cannot integrate issue #${issueNumber}: its review phase is not complete. Use --allow-unreviewed to override.`,
 		);

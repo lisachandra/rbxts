@@ -13,16 +13,16 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
-import { config, io, normalizedPath, sharedStateRoot } from "./runtime.js";
+import { config, io, normalizedPath, sharedStateRoot, worktreePathForBranch } from "./runtime.js";
 import { registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
 	linkSymlinks,
 	prepareIssueWorktree,
+	pruneWorktreeRegistrations,
 	removeWorktree,
 	setupDirectories,
 	setupWorktree,
 	unlinkWorktreeLinks,
-	worktreePathForBranch,
 } from "./worktree.js";
 
 registerTestHooks();
@@ -448,6 +448,35 @@ describe("junction-safe worktree removal", () => {
 
 		assert.doesNotThrow(() => removeWorktree(worktree, { cwd: root, force: true }));
 		assert.equal(existsSync(worktree), false);
+	});
+
+	test("pruneWorktreeRegistrations sweeps a hand-deleted worktree and keeps a live one", () => {
+		const root = makeRepo("prune");
+		const gone = addWorktree(root, "sandcastle/issue-6");
+		const live = addWorktree(root, "sandcastle/issue-7");
+
+		// What a manual `rm -rf` of a worktree leaves behind: no directory, registration intact.
+		rmSync(gone, { force: true, recursive: true });
+		assert.equal(
+			existsSync(join(root, ".git", "worktrees", "sandcastle-issue-6")),
+			true,
+			"precondition: the registration outlives the directory",
+		);
+
+		const swept = pruneWorktreeRegistrations({ cwd: root });
+
+		assert.ok(swept.includes("sandcastle-issue-6"), "the orphaned registration was swept");
+		assert.equal(
+			existsSync(join(root, ".git", "worktrees", "sandcastle-issue-6")),
+			false,
+			"its registration directory is gone",
+		);
+		assert.equal(
+			existsSync(join(root, ".git", "worktrees", "sandcastle-issue-7")),
+			true,
+			"a worktree that still exists keeps its registration",
+		);
+		assert.equal(existsSync(live), true, "and its directory");
 	});
 
 	test("sharedStateRoot sends a linked worktree to the checkout that owns the state", () => {

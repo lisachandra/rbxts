@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 
 import { main } from "./main.js";
+import { worktreePathForBranch } from "./runtime.js";
 import { ExitError, gitStub, registerTestHooks, stubExit, tmpRoot } from "./test-helpers.js";
-import { worktreePathForBranch } from "./worktree.js";
 
 registerTestHooks();
 

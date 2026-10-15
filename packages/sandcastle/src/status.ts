@@ -3,12 +3,11 @@
  */
 
 import { existsSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
 
 import { evaluatePhases } from "./evaluate.js";
 import { issueBranch } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
-import { config, repoRoot } from "./runtime.js";
+import { worktreePathForBranch } from "./runtime.js";
 import { readState } from "./state.js";
 import type { AgentPhaseName, PhaseName, ResolvedAgentStep } from "./types.js";
 
@@ -20,9 +19,7 @@ export function printStatus(
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 ): void {
 	const branchName = issueBranch(issueNumber);
-	const worktreePath =
-		worktree ??
-		pathResolve(repoRoot, config.dir, "worktrees", `sandcastle-issue-${issueNumber}`);
+	const worktreePath = worktree ?? worktreePathForBranch(branchName);
 	const state = readState(issueNumber);
 
 	// Fetch issue title.

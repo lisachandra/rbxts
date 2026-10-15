@@ -33,6 +33,25 @@ export function gitTry(args: ReadonlyArray<string>, cwd = repoRoot): string | un
 }
 
 /**
+ * - The repository's shared git directory, even when the process runs inside a linked worktree.
+ * - @param cwd - Directory to inspect; defaults to the process working directory.
+ * - @returns Absolute path of the common `.git` directory, or `undefined` when git cannot report it.
+ * - @remarks Every worktree of a repository reports the same common directory, which is where the
+ *   worktree registrations live (`<commonDir>/worktrees/<id>`). Git may print it relative to `cwd`,
+ *   so a relative answer is resolved against the directory that was asked about.
+ */
+export function gitCommonDir(cwd = repoRoot): string | undefined {
+	const common = gitTry(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
+	if (common === undefined || common === "") {
+		return undefined;
+	}
+
+	return /^[A-Za-z]:[\\/]/u.test(common) || common.startsWith("/")
+		? common
+		: pathResolve(cwd, common);
+}
+
+/**
  * - Root of the primary checkout, even when the process runs inside a linked worktree.
  * - @param cwd - Directory to inspect; defaults to the process working directory.
  * - @returns Absolute path of the primary checkout, or `repoRoot` when git cannot report it.
@@ -42,16 +61,8 @@ export function gitTry(args: ReadonlyArray<string>, cwd = repoRoot): string | un
  *   common directory, and its parent is the checkout that owns that shared state.
  */
 export function primaryRepoRoot(cwd = repoRoot): string {
-	const common = gitTry(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
-	if (common === undefined || common === "") {
-		return repoRoot;
-	}
-
-	const absolute =
-		/^[A-Za-z]:[\\/]/u.test(common) || common.startsWith("/")
-			? common
-			: pathResolve(cwd, common);
-	return dirname(pathResolve(absolute));
+	const common = gitCommonDir(cwd);
+	return common === undefined ? repoRoot : dirname(common);
 }
 
 export function resolveCommit(ref: string, cwd = repoRoot): string {
@@ -67,6 +78,83 @@ export function resolveCommit(ref: string, cwd = repoRoot): string {
 export function commitExists(commit: string, cwd = repoRoot): boolean {
 	// oxlint-disable-next-line unicorn-js/no-incorrect-template-string-interpolation -- git commit peel syntax
 	return gitTry(["cat-file", "-e", `${commit}^{commit}`], cwd) !== undefined;
+}
+
+/** A branch that resolves, and the ref to hand to git as a base for it. */
+export interface BranchTip {
+	/** Resolved commit id. */
+	commit: string;
+	/** Whether the branch exists locally rather than only on `origin`. */
+	local: boolean;
+	/** Ref usable as a base: the branch itself, or `origin/<branch>` when only the remote has it. */
+	ref: string;
+}
+
+/** `resolveCommit` without the throw, for a ref that may not exist. */
+function tryResolveCommit(ref: string, cwd: string): string | undefined {
+	try {
+		return resolveCommit(ref, cwd);
+	} catch {
+		return undefined;
+	}
+}
+
+/** Whether a full ref name exists, silently. */
+function refExists(ref: string, cwd: string): boolean {
+	return gitTry(["show-ref", "--verify", "--quiet", ref], cwd) !== undefined;
+}
+
+/** The remote-tracking ref for a branch: `origin/<branch>`. */
+const remoteRef = (branch: string): string => `origin/${branch}`;
+
+/**
+ * - Resolves a branch, locally or on `origin`.
+ * - @param branch - Branch name, e.g. `sandcastle/issue-12`.
+ * - @param cwd - Directory to inspect; defaults to the process working directory.
+ * - @returns The tip and the ref to use as a base, or `undefined` when neither ref exists.
+ * - @remarks A cleanup that pushes a branch and drops the local copy leaves the work safe on
+ *   `origin`, so a local-only check would report a landed member as missing and re-run it.
+ *   Preferring the local branch keeps `origin` a fallback rather than a replacement: a member that
+ *   ran again after being pushed must chain from its local tip, not a stale remote one.
+ */
+export function branchTip(branch: string, cwd = repoRoot): BranchTip | undefined {
+	const local = `refs/heads/${branch}`;
+	if (refExists(local, cwd)) {
+		const commit = tryResolveCommit(local, cwd);
+		return commit === undefined ? undefined : { commit, local: true, ref: branch };
+	}
+
+	const remote = remoteRef(branch);
+	const remoteFull = `refs/remotes/${remote}`;
+	if (!refExists(remoteFull, cwd)) {
+		return undefined;
+	}
+
+	const commit = tryResolveCommit(remoteFull, cwd);
+	return commit === undefined ? undefined : { commit, local: false, ref: remote };
+}
+
+/**
+ * - Creates the local branch for a remote-only branch.
+ * - @param branch - Branch name to create locally.
+ * - @param cwd - Directory to inspect; defaults to the process working directory.
+ * - @returns True when a local branch was created.
+ * - @remarks The chain base and `git worktree add` both need a local ref, so a member whose local
+ *   branch a cleanup dropped has to be restored from `origin` before the next member can be cut
+ *   from it. A no-op when the branch is already local or the remote does not have it.
+ */
+export function ensureLocalBranch(branch: string, cwd = repoRoot): boolean {
+	if (refExists(`refs/heads/${branch}`, cwd)) {
+		return false;
+	}
+
+	const remote = remoteRef(branch);
+	if (!refExists(`refs/remotes/${remote}`, cwd)) {
+		return false;
+	}
+
+	git(["branch", "--track", branch, remote], cwd);
+	return true;
 }
 
 /**

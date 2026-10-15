@@ -7,9 +7,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { countNewCommits } from "./git.js";
-import { config, repoRoot } from "./runtime.js";
-import { readState } from "./state.js";
+import { countNewCommits, issueBranch } from "./git.js";
+import { config, repoRoot, worktreePathForBranch } from "./runtime.js";
+import { isReviewComplete, readState } from "./state.js";
 import type { EvaluationResult, PhaseDecision, PhaseName, PhaseState } from "./types.js";
 
 export function evaluatePhases(
@@ -25,9 +25,7 @@ export function evaluatePhases(
 ): EvaluationResult {
 	void opts.resume;
 	const planFile = pathResolve(repoRoot, config.dir, "plans", `${issueNumber}.md`);
-	const worktreePath =
-		opts.worktree ??
-		pathResolve(repoRoot, config.dir, "worktrees", `sandcastle-issue-${issueNumber}`);
+	const worktreePath = opts.worktree ?? worktreePathForBranch(issueBranch(issueNumber));
 	const state = readState(issueNumber);
 	const baseRef = opts.baseRef ?? state?.base?.ref ?? config.baseBranch;
 	const reasons: Record<PhaseName, string> = { design: "", implement: "", review: "" };
@@ -281,8 +279,8 @@ export function evaluateReview(
 		return "start";
 	}
 
-	// Already reviewed.
-	if (state?.phases.review.status === "done") {
+	// Already reviewed — or skipped because there was nothing to review.
+	if (isReviewComplete(state)) {
 		reasons.review = "review already completed";
 		return "skip";
 	}

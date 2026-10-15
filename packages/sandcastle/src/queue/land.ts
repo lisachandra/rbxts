@@ -15,7 +15,7 @@
  */
 
 import type { CliOptions } from "../cli.js";
-import { resolveCommit } from "../git.js";
+import { branchTip } from "../git.js";
 import { integrationBranch, readIntegrationManifest } from "../integration/manifest.js";
 import {
 	resetIntegration,
@@ -282,14 +282,14 @@ function compositionBlocker(
 /** Reads a member branch's head commit; injected so this check needs no repository. */
 export type BranchHead = (branch: string) => string | undefined;
 
-/** Head commit of a branch, or `undefined` when the branch no longer resolves. */
-function branchHead(branch: string): string | undefined {
-	try {
-		return resolveCommit(branch);
-	} catch {
-		return undefined;
-	}
-}
+/**
+ * Head commit of a branch, or `undefined` when it no longer resolves.
+ *
+ * Local first, `origin/<branch>` second: a cleanup that pushed a member branch and dropped the
+ * local copy leaves the work safe on the remote, and reading only the local ref would report the
+ * member as gone and refuse a hand-off that is still perfectly reconstructible.
+ */
+const branchHead: BranchHead = (branch) => branchTip(branch)?.commit;
 
 /**
  * - Every way a composed integration has drifted from the batch the queue now defines.

@@ -71,6 +71,15 @@ Two modes, one per question.
    `--after <batch>` become READY on their own; the next `queue run` skips landed members and
    drops the batch. `queue land --name <batch> --finish` does the cleanup explicitly, and
    `--dry-run` reports it first.
+6. **Reclaim the disk.** A worktree is disposable and its branch is the durable artifact, so
+   `queue run --push-and-delete` pushes each member's branch and removes its worktree **as that
+   member finishes** — the chain base is the branch, never the worktree, so nothing needs it
+   afterwards. Use it on long batches: a 31-member batch otherwise holds 31 checkouts, each with
+   whatever `setupCommands` installed. `queue clean --batch <name> --push-and-delete` does the same
+   for a batch you already ran, and `queue clean --prune-git` clears the `.git/worktrees`
+   registrations a hand-deleted worktree leaves behind. A member with uncommitted tracked paths
+   keeps its worktree (a review can leave corrections that exist nowhere else); `--force` on
+   `queue clean` is the explicit override.
 
 ### Shape the queue
 

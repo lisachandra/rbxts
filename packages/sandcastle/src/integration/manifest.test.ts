@@ -78,8 +78,29 @@ describe("integration manifest seam", () => {
 			join(integrationsDir, "wave-1", "manifest.json"),
 		);
 		assert.equal(
-			integrationBasePath({ name: "wave-1" } as IntegrationManifest),
+			integrationBasePath({ name: "wave-1" } as IntegrationManifest, {
+				existsSync: () => false,
+			}),
+			join(integrationsDir, "wave-1", "wave-1"),
+			"the worktree directory is named after the integration, so git registers a unique name",
+		);
+		assert.equal(
+			integrationBasePath({ name: "wave-1" } as IntegrationManifest, {
+				existsSync: (path) => path === join(integrationsDir, "wave-1", "worktree"),
+			}),
 			join(integrationsDir, "wave-1", "worktree"),
+			"a directory left by a pre-rename run still resolves",
+		);
+		assert.equal(
+			integrationBasePath(
+				{
+					name: "wave-1",
+					worktree: ".sandcastle/integrations/wave-1/worktree",
+				} as IntegrationManifest,
+				{ existsSync: () => false },
+			),
+			join(integrationsDir, "wave-1", "worktree"),
+			"a recorded path wins, so an in-flight composition is never orphaned",
 		);
 
 		const { fs, read } = memoryFs();

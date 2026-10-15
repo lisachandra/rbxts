@@ -8,6 +8,7 @@ import {
 	getLatestReviewMarker,
 	isIssueBlocked,
 	isIssueComplete,
+	isReviewComplete,
 	readState,
 	recordedCommits,
 	unionCommits,
@@ -131,6 +132,52 @@ describe("phase state", () => {
 				isIssueComplete(issue),
 				false,
 				"a branch with nothing on it is unfinished",
+			);
+		} finally {
+			cleanupIssueArtifacts(issue);
+		}
+	});
+
+	test("isReviewComplete accepts a skip only when it recorded there was nothing to review", () => {
+		assert.equal(
+			isReviewComplete(makeState("1", { review: "done" }) as never),
+			true,
+			"a completed review is terminal",
+		);
+		assert.equal(
+			isReviewComplete(makeState("1", { review: "skipped" }) as never),
+			false,
+			"a bare skip is the fresh-state value, not a verdict",
+		);
+
+		const skipped = makeState("1", { review: "skipped", reviewExtra: { noCommits: true } });
+		assert.equal(
+			isReviewComplete(skipped as never),
+			true,
+			"a review skipped for lack of commits is terminal",
+		);
+	});
+
+	test("isIssueComplete treats a no-commit member as finished", () => {
+		const issue = uniqueIssue();
+		writeState(
+			makeState(issue, {
+				base: { commit: "f66704f5", ref: "main" },
+				commits: [],
+				design: "done",
+				implement: "done",
+				review: "skipped",
+				// The design phase commits the plan onto the branch, so the branch is never empty here.
+				reviewExtra: { noCommits: true },
+			}) as never,
+		);
+
+		try {
+			gitStub({ file: (argv) => (argv[0] === "rev-list" ? "1" : undefined) });
+			assert.equal(
+				isIssueComplete(issue),
+				true,
+				"a member with nothing to review must not re-run forever",
 			);
 		} finally {
 			cleanupIssueArtifacts(issue);

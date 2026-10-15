@@ -164,6 +164,10 @@ describe("integration manifest I/O", () => {
 		assert.equal(existsSync(worktree), false, "the composed worktree is gone");
 		assert.deepEqual(gitCalls, [
 			`worktree remove --force ${worktree}`,
+			// `pruneWorktreeRegistrations` reads the registration names either side of the prune.
+			"rev-parse --path-format=absolute --git-common-dir",
+			"worktree prune --expire now",
+			"rev-parse --path-format=absolute --git-common-dir",
 			`branch -D ${integrationBranch(name)}`,
 		]);
 		assert.equal(

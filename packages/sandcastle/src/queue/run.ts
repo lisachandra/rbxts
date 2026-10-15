@@ -49,10 +49,12 @@ const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
 		options.effort,
 		options.agentBackend,
 		resume,
-		undefined,
-		options.ignoreSetup,
-		options.skipSetup,
-		options.steps,
+		{
+			ignoreSetup: options.ignoreSetup,
+			pushAndDelete: options.pushAndDelete === true,
+			skipSetup: options.skipSetup,
+			steps: options.steps,
+		},
 	);
 };
 

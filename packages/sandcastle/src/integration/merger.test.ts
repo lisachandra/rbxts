@@ -78,7 +78,8 @@ describe("merger adapter seam", () => {
 	test("should verify clean merge resolution and commit when merge is in progress", () => {
 		const manifest = manifestFor("wave-1");
 		const worktree = integrationBasePath(manifest);
-		assert.equal(worktree, join(integrationsDir, "wave-1", "worktree"));
+		// The worktree directory is named after the integration so git registers a unique name.
+		assert.equal(worktree, join(integrationsDir, "wave-1", "wave-1"));
 
 		// Clean: no unmerged paths, no merge in progress → no git calls.
 		const clean = fakeDeps();

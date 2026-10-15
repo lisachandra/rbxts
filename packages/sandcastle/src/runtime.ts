@@ -46,7 +46,21 @@ export const logsDir = pathResolve(stateRoot, config.dir, "logs");
 export const plansDir = pathResolve(stateRoot, config.dir, "plans");
 export const stateDir = pathResolve(stateRoot, config.dir, "state");
 export const integrationsDir = pathResolve(stateRoot, config.dir, "integrations");
+/**
+ * Root of the persistent issue worktrees.
+ *
+ * Resolved against `stateRoot` like every other state path, not against `repoRoot`. A run started
+ * inside a linked worktree would otherwise create and look for issue worktrees in a branch-local
+ * `.sandcastle/worktrees`, while `queue clean` — which compares registered paths against this one —
+ * would treat every worktree it found as foreign and silently keep all of them.
+ */
+export const worktreesDir = pathResolve(stateRoot, config.dir, "worktrees");
 export const sandcastleEnvPath = pathResolve(repoRoot, config.dir, ".env");
+
+/** Deterministic worktree path for a branch under the configured state dir. */
+export function worktreePathForBranch(branch: string): string {
+	return pathResolve(worktreesDir, branch.replace(/\//g, "-"));
+}
 
 /** `git rev-parse <args>` from `cwd`, or `undefined` when git cannot answer. */
 function gitRevParse(args: ReadonlyArray<string>, cwd: string): string | undefined {

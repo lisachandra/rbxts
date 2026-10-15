@@ -22,7 +22,14 @@ import { skillsForPrompt } from "./prompts/skills.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
-import { readState, recordedCommits, unionCommits, updatePhase, writeState } from "./state.js";
+import {
+	isReviewComplete,
+	readState,
+	recordedCommits,
+	unionCommits,
+	updatePhase,
+	writeState,
+} from "./state.js";
 import type {
 	AgentBackend,
 	AgentPhaseName,
@@ -276,7 +283,13 @@ async function runReviewPhase(params: {
 	}
 
 	console.log("\n  ⏭ Skipping review — no commits produced.");
-	updatePhase(params.state, "review", "skipped");
+	/*
+	 * `noCommits` is what makes the skip terminal: review had nothing to look at, so the issue is
+	 * finished rather than unfinished. Recording the reason is load-bearing — `skipped` on its own is
+	 * also the fresh-state value, and treating that as reviewed would let a run that died between
+	 * implement and review pass as complete.
+	 */
+	updatePhase(params.state, "review", "skipped", { noCommits: true });
 }
 
 function createOrLoadIssueState(params: {
@@ -449,8 +462,7 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 
 	if (
 		!params.options?.phase &&
-		(params.state.phases.implement.status !== "done" ||
-			params.state.phases.review.status !== "done")
+		(params.state.phases.implement.status !== "done" || !isReviewComplete(params.state))
 	) {
 		throw new Error(
 			"Issue workflow incomplete: implementation and review must both complete before handoff.",

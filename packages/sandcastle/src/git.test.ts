@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 
 import {
+	branchTip,
 	checkoutBranch,
 	commitExists,
 	countNewCommits,
+	ensureLocalBranch,
 	issueBranch,
 	registeredWorktrees,
 	resolveCommit,
@@ -110,4 +112,99 @@ test("issueBranch rejects invalid or non-digit issue numbers", () => {
 	assert.throws(() => issueBranch(""), /Invalid issue number/);
 	assert.throws(() => issueBranch(-1), /Invalid issue number/);
 	assert.throws(() => issueBranch("1.2"), /Invalid issue number/);
+});
+
+describe("branchTip", () => {
+	test("prefers the local branch", () => {
+		gitStub({
+			file: (args) => {
+				if (args[0] === "show-ref") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse") {
+					return "0123456789abcdef";
+				}
+
+				return "";
+			},
+		});
+
+		assert.deepEqual(branchTip("sandcastle/issue-7"), {
+			commit: "0123456789abcdef",
+			local: true,
+			ref: "sandcastle/issue-7",
+		});
+	});
+
+	test("falls back to origin when only the remote has the branch", () => {
+		gitStub({
+			file: (args) => {
+				if (args[0] === "show-ref" && args.includes("refs/heads/sandcastle/issue-7")) {
+					throw new Error("no local branch");
+				}
+
+				if (args[0] === "show-ref") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse") {
+					return "0123456789abcdef";
+				}
+
+				return "";
+			},
+		});
+
+		assert.deepEqual(
+			branchTip("sandcastle/issue-7"),
+			{ commit: "0123456789abcdef", local: false, ref: "origin/sandcastle/issue-7" },
+			"a pushed-and-dropped branch still resolves",
+		);
+	});
+
+	test("answers undefined when neither ref exists", () => {
+		gitStub({
+			file: () => {
+				throw new Error("no such ref");
+			},
+		});
+
+		assert.equal(branchTip("sandcastle/issue-7"), undefined);
+	});
+
+	test("ensureLocalBranch tracks from origin, and is a no-op when it cannot", () => {
+		const calls: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				calls.push([...args]);
+				if (args[0] === "show-ref" && args.includes("refs/heads/sandcastle/issue-7")) {
+					throw new Error("no local branch");
+				}
+
+				if (args[0] === "show-ref") {
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		assert.equal(ensureLocalBranch("sandcastle/issue-7"), true);
+		assert.deepEqual(
+			calls.find((args) => args[0] === "branch"),
+			["branch", "--track", "sandcastle/issue-7", "origin/sandcastle/issue-7"],
+		);
+
+		gitStub({
+			file: () => {
+				throw new Error("nothing resolves");
+			},
+		});
+		assert.equal(
+			ensureLocalBranch("sandcastle/issue-8"),
+			false,
+			"no remote branch, no restore",
+		);
+	});
 });

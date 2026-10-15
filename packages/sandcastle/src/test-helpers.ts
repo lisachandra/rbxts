@@ -134,6 +134,8 @@ export function makeState(
 		implement: PhaseStatus;
 		model: string;
 		review: PhaseStatus;
+		/** Extra review record fields, e.g. `noCommits` for a review with nothing to look at. */
+		reviewExtra: Record<string, unknown>;
 	}> = {},
 ): {
 	base?: NonNullable<PhaseState["base"]>;
@@ -144,7 +146,7 @@ export function makeState(
 	phases: {
 		design: { status: PhaseStatus; timestamp: string };
 		implement: { extra?: { commits: Array<string> }; status: PhaseStatus; timestamp: string };
-		review: { status: PhaseStatus; timestamp: string };
+		review: { extra?: Record<string, unknown>; status: PhaseStatus; timestamp: string };
 	};
 } {
 	return {
@@ -164,6 +166,7 @@ export function makeState(
 				timestamp: "2026-01-01T00:00:00.000Z",
 			},
 			review: {
+				extra: overrides.reviewExtra,
 				status: overrides.review ?? "skipped",
 				timestamp: "2026-01-01T00:00:00.000Z",
 			},

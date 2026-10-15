@@ -219,8 +219,28 @@ sandcastle queue graph      # Mermaid diagram of the run order (--format json|as
 sandcastle queue serve      # the same graph as a local page (--port, --host, --open)
 sandcastle queue run --name ui-wiring-work  # fire the next READY batch; re-reads the manifest after each one
 sandcastle queue run --land                 # ...and compose each batch as it finishes
+sandcastle queue run --push-and-delete      # ...and reclaim each member's worktree as it finishes
+sandcastle queue clean --batch ui-wiring-work --push-and-delete  # reclaim one batch's worktrees
+sandcastle queue clean --prune-git          # sweep .git/worktrees debris; removes no worktree
 sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
 ```
+
+A worktree is disposable and its branch is the durable artifact, so `--push-and-delete` pushes a
+member's branch and then removes its worktree. On `queue run` it does that **per member, as the member
+finishes** — the next member is cut from the previous member's branch, never from its worktree, so
+nothing is left needing it. That matters for disk: a 31-member batch otherwise holds 31 full
+checkouts, each with whatever `setupCommands` installed. `queue clean --batch <name>
+--push-and-delete` does the same for a batch you ran earlier.
+
+Two guards, both deliberate. A member with uncommitted tracked paths keeps its worktree — a review can
+leave corrections that exist nowhere else — and the line is reported so you can commit them or drop
+them with `--force`. A failed push also keeps it, since the push is what makes the worktree
+disposable. Re-running a phase after a reclaim costs a fresh checkout plus `setupCommands` again; that
+is the trade `--push-and-delete` makes.
+
+`--prune-git` clears the registrations a hand-deleted worktree leaves in `.git/worktrees`, which is
+what makes a repository's `.git` grow without bound. It removes no worktree and respects git's locks:
+a locked worktree's registration is git's to keep.
 
 Every batch is built from `--base`, so nothing stacks on an unlanded integration and there is one
 answer to "when do I merge?": when its pull request is open and reviewed. `sandcastle queue land

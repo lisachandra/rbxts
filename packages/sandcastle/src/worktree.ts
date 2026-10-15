@@ -20,7 +20,14 @@ import {
 } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { checkoutBranch, git, gitTry, registeredWorktrees, resolveCommit } from "./git.js";
+import {
+	checkoutBranch,
+	git,
+	gitCommonDir,
+	gitTry,
+	registeredWorktrees,
+	resolveCommit,
+} from "./git.js";
 import {
 	config,
 	integrationsDir,
@@ -30,11 +37,11 @@ import {
 	plansDir,
 	repoRoot,
 	stateDir,
+	worktreePathForBranch,
+	worktreesDir,
 } from "./runtime.js";
 
 export const sandboxProvider = noSandbox();
-
-const worktreesDir = pathResolve(repoRoot, config.dir, "worktrees");
 
 /** Runner state directories created under the configured state dir. */
 export const setupDirectories: ReadonlyArray<string> = [
@@ -45,15 +52,52 @@ export const setupDirectories: ReadonlyArray<string> = [
 	integrationsDir,
 ];
 
-/** Deterministic worktree path for a branch under the configured state dir. */
-export function worktreePathForBranch(branch: string): string {
-	return pathResolve(worktreesDir, branch.replace(/\//g, "-"));
-}
-
 /** Create the runner's state directories (worktrees, logs, plans, state, integrations). */
 export function ensureSetupDirs(): void {
 	for (const dir of setupDirectories) {
 		mkdirSync(dir, { recursive: true });
+	}
+}
+
+/**
+ * - Sweeps worktree registrations whose worktree directory is gone.
+ * - @param options - `cwd` locates the repository that owns the registrations.
+ * - @returns The registration ids that went away, sorted.
+ * - @remarks Deleting a worktree directory by hand leaves its registration behind: git keeps listing
+ *   the path until a prune notices the directory is missing, and `.git/worktrees` then accumulates
+ *   entries nothing will ever claim again — the debris a batch of `rm -rf` leaves. `git worktree
+ *   prune --expire now` is the sweep, and git is left to decide what is prunable rather than this
+ *   reading each registration's pointer file itself: a **locked** worktree is deliberately
+ *   protected (an external drive, say), and a hand-rolled sweep would delete exactly the
+ *   registration git refuses to. The names are read before and after so the caller can report what
+ *   went, since prune is silent.
+ */
+export function pruneWorktreeRegistrations(options: { cwd?: string } = {}): Array<string> {
+	const cwd = options.cwd ?? repoRoot;
+	const before = worktreeRegistrationNames(cwd);
+	gitTry(["worktree", "prune", "--expire", "now"], cwd);
+	const after = new Set(worktreeRegistrationNames(cwd));
+
+	const swept = before.filter((name) => !after.has(name)).sort();
+	if (swept.length > 0) {
+		console.log(`  ✓ Pruned ${String(swept.length)} orphaned worktree registration(s).`);
+	}
+
+	return swept;
+}
+
+/** Registration directory names under the repository's `.git/worktrees`, or none when unreadable. */
+function worktreeRegistrationNames(cwd: string): Array<string> {
+	const common = gitCommonDir(cwd);
+	if (common === undefined) {
+		return [];
+	}
+
+	try {
+		return readdirSync(pathResolve(common, "worktrees"));
+	} catch {
+		// No registrations at all.
+		return [];
 	}
 }
 
@@ -303,12 +347,28 @@ export function removeWorktree(
 	const cwd = options.cwd ?? repoRoot;
 	if (removeWithRmdir(worktreePath)) {
 		// The directory is gone; git only has to forget the registration it still holds.
-		gitTry(["worktree", "prune"], cwd);
+		pruneWorktreeRegistrations({ cwd });
 		return;
 	}
 
 	unlinkWorktreeLinks(worktreePath);
 	git(["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath], cwd);
+	pruneWorktreeRegistrations({ cwd });
+}
+
+/**
+ * - Pushes a branch, then removes the worktree holding it.
+ * - @param branch - Branch to push to `origin`.
+ * - @param worktreePath - The branch's worktree.
+ * - @remarks The order is the invariant, not an implementation detail: the push is what makes the
+ *   worktree disposable, so a removal that ran first would delete the only copy of the work it was
+ *   protecting. A failed push throws before anything is removed, which is what leaves the worktree
+ *   in place for the caller to report. Both the immediate per-member reclaim and `queue clean
+ *   --push-and-delete` go through here so neither can get the order wrong on its own.
+ */
+export function pushThenRemoveWorktree(branch: string, worktreePath: string): void {
+	git(["push", "-u", "origin", branch]);
+	removeWorktree(worktreePath, { force: true });
 }
 
 /**

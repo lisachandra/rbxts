@@ -77,6 +77,28 @@ function branchHasCommits(state: PhaseState): boolean {
 }
 
 /**
+ * - Whether the review phase reached a satisfied, terminal outcome.
+ * - @param state - Persisted phase state, or `undefined` when there is none.
+ * - @returns True for a completed review, or a review skipped because there was nothing to review.
+ * - @remarks `skipped` is the fresh-state initial value for every phase, so it cannot be accepted on
+ *   its own: a run that died between implement and review would then read as reviewed. Only a skip
+ *   that recorded `noCommits` is terminal, which is the one case where review had nothing to look
+ *   at — a member whose implementation produced no commits of its own. Without this, such a member
+ *   could never be complete, and every `queue run` would re-run it and fail the batch at hand-off.
+ */
+export function isReviewComplete(state: undefined | PhaseState): boolean {
+	const review = state?.phases.review;
+	if (review === undefined) {
+		return false;
+	}
+
+	return (
+		review.status === "done" ||
+		(review.status === "skipped" && review.extra?.noCommits === true)
+	);
+}
+
+/**
  * - Whether every phase finished and the work is actually on the issue's branch.
  * - @param issueNumber - Issue number.
  * - @returns True when design, implement, and review are all done and the branch carries commits.
@@ -94,7 +116,7 @@ export function isIssueComplete(issueNumber: string): boolean {
 	if (
 		state.phases.design.status !== "done" ||
 		state.phases.implement.status !== "done" ||
-		state.phases.review.status !== "done"
+		!isReviewComplete(state)
 	) {
 		return false;
 	}

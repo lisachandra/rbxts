@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 
 import type { CliOptions } from "../cli.js";
+import { worktreePathForBranch } from "../runtime.js";
 import { gitStub, registerTestHooks, tmpRoot } from "../test-helpers.js";
-import { worktreePathForBranch } from "../worktree.js";
 import {
 	type CleanSelections,
 	removeIssueWorktree,
@@ -24,6 +24,7 @@ const off: CleanSelections = {
 	dropBranch: false,
 	integrations: false,
 	landed: false,
+	pruneGit: false,
 	pushAndDelete: false,
 	reset: false,
 	stale: false,
@@ -150,6 +151,43 @@ describe("queue clean", () => {
 			result.remove.map((entry) => entry.issue),
 			["8"],
 		);
+	});
+
+	test("--batch narrows the selection to one batch's members", () => {
+		const mine = worktree("11");
+		const other = worktree("12");
+		const result = selectIssueWorktrees({
+			live: live(issue("11", { state: "CLOSED" }), issue("12", { state: "CLOSED" })),
+			manifest: manifest({
+				sequences: [
+					{ issues: ["11"], name: "chat-work" },
+					{ issues: ["12"], name: "vfx-work" },
+				],
+			}),
+			selections: { ...off, batch: "chat-work", closed: true },
+			worktrees: [mine, other],
+		});
+
+		assert.deepEqual(
+			result.remove.map((entry) => entry.issue),
+			["11"],
+			"only the named batch is a candidate",
+		);
+		assert.equal(result.kept[0]?.path, other.path);
+		assert.match(result.kept[0]?.reason ?? "", /not in batch "chat-work"/u);
+	});
+
+	test("--batch keeps an unplaced worktree even when --stale is on", () => {
+		const unplaced = worktree("13");
+		const result = selectIssueWorktrees({
+			live: live(),
+			manifest: manifest({ sequences: [{ issues: ["11"], name: "chat-work" }] }),
+			selections: { ...off, batch: "chat-work", stale: true },
+			worktrees: [unplaced],
+		});
+
+		assert.deepEqual(result.remove, [], "--stale does not override --batch");
+		assert.match(result.kept[0]?.reason ?? "", /not in batch "chat-work"/u);
 	});
 
 	test("selects only terminal integrations, and only when asked", () => {

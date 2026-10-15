@@ -34,10 +34,10 @@ import {
 import { runAll, runSingleIssue } from "./issue.js";
 import { runQueueCommand } from "./queue/commands.js";
 import { printQueueDivergence } from "./queue/land.js";
-import { io, normalizedPath } from "./runtime.js";
+import { io, normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
-import { ensurePersistentWorktree, setupWorktree, worktreePathForBranch } from "./worktree.js";
+import { ensurePersistentWorktree, setupWorktree } from "./worktree.js";
 
 export * from "./agent.js";
 export * from "./cli.js";
@@ -262,10 +262,13 @@ export async function main(): Promise<void> {
 			options.effort,
 			options.agentBackend,
 			options.resume,
-			options.worktree,
-			options.ignoreSetup,
-			options.skipSetup,
-			options.steps,
+			{
+				ignoreSetup: options.ignoreSetup,
+				pushAndDelete: options.pushAndDelete === true,
+				skipSetup: options.skipSetup,
+				steps: options.steps,
+				worktree: options.worktree,
+			},
 		);
 		return;
 	}
