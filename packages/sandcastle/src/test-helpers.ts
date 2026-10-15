@@ -97,10 +97,22 @@ export function withEnv(overrides: Record<string, string | undefined>, run: () =
 	}
 }
 
+/** Counter making `uniqueIssue` unique within one process as well as across processes. */
+let uniqueIssueCounter = 0;
+
+/**
+ * - A digits-only issue number no other test can be using.
+ * - @param prefix - Leading digit(s); defaults to `9`.
+ * - @returns An issue number unique across the whole suite.
+ * - @remarks The pid is what makes that true. Node runs each test file in its own process, in
+ *   parallel, and a timestamp-plus-random suffix collides across files whose first call lands in
+ *   the same millisecond: two files then share one `.sandcastle/state/<n>.json` and clobber each
+ *   other, which surfaced as an intermittent failure in whichever test asserted on the state it
+ *   just wrote.
+ */
 export function uniqueIssue(prefix = "9"): string {
-	return `${prefix}${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 100)
-		.toString()
-		.padStart(2, "0")}`;
+	uniqueIssueCounter += 1;
+	return `${prefix}${String(process.pid)}${String(uniqueIssueCounter)}${Date.now().toString().slice(-6)}`;
 }
 
 export function cleanupIssueArtifacts(issue: string): void {
