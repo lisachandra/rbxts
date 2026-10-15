@@ -14,8 +14,9 @@ import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
 import { config, io, normalizedPath, sharedStateRoot, worktreePathForBranch } from "./runtime.js";
-import { registerTestHooks, tmpRoot } from "./test-helpers.js";
+import { gitStub, registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
+	completeWorktreeRemoval,
 	linkSymlinks,
 	prepareIssueWorktree,
 	pruneWorktreeRegistrations,
@@ -477,6 +478,74 @@ describe("junction-safe worktree removal", () => {
 			"a worktree that still exists keeps its registration",
 		);
 		assert.equal(existsSync(live), true, "and its directory");
+	});
+
+	test("rmdir's output is not buffered, so a noisy delete cannot be killed mid-way", () => {
+		/*
+		 * `execFileSync` buffers a piped child against a 1 MiB `maxBuffer`. rmdir prints one line per
+		 * path it cannot delete, and on a worktree with submodules that overflowed: the ENOBUFS kill
+		 * arrived about two minutes in with the tree half-deleted, `.git` already gone, which then made
+		 * `git worktree remove` refuse the path. `stdio: "ignore"` is what stops that.
+		 */
+		const root = makeRepo("rmdir-io");
+		const worktree = addWorktree(root, "sandcastle/issue-8");
+		config.symlinks = [];
+
+		const calls: Array<{ args: ReadonlyArray<string>; options: unknown }> = [];
+		const realExecFileSync = io.execFileSync;
+		io.execFileSync = ((command: string, args: Array<string>, options: unknown) => {
+			if (command === "cmd") {
+				calls.push({ args, options });
+				// Report failure without touching the tree, so the caller falls back.
+				throw new Error("rmdir unavailable");
+			}
+
+			return realExecFileSync(command, args, options as never);
+		}) as typeof io.execFileSync;
+
+		try {
+			removeWorktree(worktree, { cwd: root, force: true });
+		} finally {
+			io.execFileSync = realExecFileSync;
+		}
+
+		assert.equal(calls.length, 1, "rmdir ran once");
+		const options = calls[0]?.options as undefined | { stdio?: unknown; timeout?: unknown };
+		assert.deepEqual(
+			options?.stdio,
+			["ignore", "ignore", "ignore"],
+			"a piped rmdir is buffered, and an over-buffer kill leaves a half-deleted tree",
+		);
+		assert.equal(typeof options?.timeout, "number", "an unbounded delete has a bound");
+	});
+
+	test("finishes a removal whose .git a partial delete already took", () => {
+		/*
+		 * What a killed rmdir leaves: the worktree marker gone, everything else still there.
+		 * `git worktree remove` refuses that path outright, so the removal has to be completed
+		 * directly — otherwise the worktree can never be removed and every retry repeats the work.
+		 */
+		const root = makeRepo("half-deleted");
+		const worktree = addWorktree(root, "sandcastle/issue-9");
+		rmSync(join(worktree, ".git"), { force: true });
+		assert.equal(existsSync(join(worktree, ".git")), false, "precondition: the marker is gone");
+
+		const calls: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				calls.push([...args]);
+				return "";
+			},
+		});
+
+		completeWorktreeRemoval(worktree, { cwd: root, force: true });
+
+		assert.equal(existsSync(worktree), false, "the directory is gone");
+		assert.equal(
+			calls.some((args) => args[0] === "worktree" && args[1] === "remove"),
+			false,
+			"git is not asked to remove a path it cannot validate",
+		);
 	});
 
 	test("sharedStateRoot sends a linked worktree to the checkout that owns the state", () => {

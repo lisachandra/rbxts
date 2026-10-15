@@ -43,6 +43,15 @@ import {
 
 export const sandboxProvider = noSandbox();
 
+/**
+ * How long the Windows directory delete may run before it is treated as failed.
+ *
+ * Generous, because deleting a worktree with submodules legitimately takes minutes — but bounded,
+ * so a delete that is never going to finish falls back to the unlink sweep instead of running
+ * forever with no output.
+ */
+const rmdirTimeoutMs = 15 * 60 * 1000;
+
 /** Runner state directories created under the configured state dir. */
 export const setupDirectories: ReadonlyArray<string> = [
 	worktreesDir,
@@ -351,8 +360,44 @@ export function removeWorktree(
 		return;
 	}
 
+	/*
+	 * The slow path, and it is slow: this walks every link in the tree before git runs, which on a
+	 * worktree with submodules takes minutes. Say so, because the alternative is an operator watching
+	 * a silent command and concluding it has hung.
+	 */
+	console.log(`  ⏳ ${worktreePath}: unlinking links before removal (this can take minutes).`);
 	unlinkWorktreeLinks(worktreePath);
-	git(["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath], cwd);
+	completeWorktreeRemoval(worktreePath, options);
+}
+
+/**
+ * - Finishes a removal whose directory is still on disk.
+ * - @param worktreePath - Worktree to finish removing.
+ * - @param options - `force` passes `--force` to git; `cwd` locates the owning repository.
+ * - @remarks A partial delete can take the worktree's `.git` file with it and leave everything else —
+ *   exactly what a killed `rmdir` leaves behind. `git worktree remove` then refuses the path
+ *   outright ("cannot remove working tree: '<path>/.git' does not exist"), so the removal can never
+ *   complete and every retry repeats the same work. With the marker gone the directory is no longer
+ *   a worktree as far as git is concerned, so it is deleted directly and the prune forgets the
+ *   registration. Exported only so the missing-`.git` branch can be pinned by a test;
+ *   `removeWorktree` is the sole production caller.
+ *
+ * @internal
+ */
+export function completeWorktreeRemoval(
+	worktreePath: string,
+	options: { cwd?: string; force?: boolean } = {},
+): void {
+	const cwd = options.cwd ?? repoRoot;
+	if (existsSync(pathResolve(worktreePath, ".git"))) {
+		git(
+			["worktree", "remove", ...(options.force === true ? ["--force"] : []), worktreePath],
+			cwd,
+		);
+	} else {
+		rmSync(worktreePath, { force: true, recursive: true });
+	}
+
 	pruneWorktreeRegistrations({ cwd });
 }
 
@@ -379,6 +424,13 @@ export function pushThenRemoveWorktree(branch: string, worktreePath: string): vo
  *   its target — verified against both link kinds — so it needs no unlink sweep first and costs a
  *   fraction of walking a worktree's ~12,000 links. A path it cannot delete (read-only files, a
  *   path over the long-path limit) simply returns false and the caller falls back.
+ *
+ *   `stdio: "ignore"` is load-bearing rather than tidiness. rmdir prints one line per path it cannot
+ *   delete, and `execFileSync` buffers a piped child against a 1 MiB `maxBuffer`: on a worktree with
+ *   submodules that overflowed and the `ENOBUFS` kill arrived about two minutes in, with the tree
+ *   half-deleted — `.git` gone, the rest still there — which then made `git worktree remove` refuse
+ *   the path and left the worktree unremovable. Nothing here reads that output; the existence check
+ *   below decides, and the timeout turns an unbounded delete into a reported failure.
  */
 function removeWithRmdir(worktreePath: string): boolean {
 	if (process.platform !== "win32") {
@@ -387,7 +439,8 @@ function removeWithRmdir(worktreePath: string): boolean {
 
 	try {
 		io.execFileSync("cmd", ["/c", "rmdir", "/s", "/q", worktreePath], {
-			stdio: ["pipe", "pipe", "pipe"],
+			stdio: ["ignore", "ignore", "ignore"],
+			timeout: rmdirTimeoutMs,
 		});
 	} catch {
 		// rmdir is noisy about what it could not delete; the existence check below decides.

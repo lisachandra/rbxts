@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
@@ -240,6 +240,11 @@ describe("queue clean --push-and-delete", () => {
 	function candidate(number: string) {
 		const path = join(tmpRoot, "push-and-delete", number);
 		mkdirSync(path, { recursive: true });
+		/*
+		 * A worktree carries a `.git` marker file; without it the directory is not a worktree git can
+		 * remove, and the removal takes the plain-delete path instead.
+		 */
+		writeFileSync(join(path, ".git"), `gitdir: ${join(path, "..", "reg", number)}\n`, "utf-8");
 		return { batch: undefined, issue: number, path, reason: "closed" };
 	}
 

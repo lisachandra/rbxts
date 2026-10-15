@@ -10,6 +10,7 @@ import:
 
 words:
     - despawned
+    - gitdir
     - gitlink
     - spatializes
     - idempotently

@@ -127,6 +127,8 @@ describe("integration manifest I/O", () => {
 		const dir = join(integrationsDir, name);
 		const worktree = join(dir, "worktree");
 		mkdirSync(worktree, { recursive: true });
+		// The `.git` marker a worktree carries; without it the directory is not a worktree git removes.
+		writeFileSync(join(worktree, ".git"), `gitdir: ${join(dir, "reg")}\n`, "utf-8");
 		writeIntegrationManifest({
 			base: { commit: "abc1234", ref: "main" },
 			branch: integrationBranch(name),

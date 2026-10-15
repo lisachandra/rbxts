@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
@@ -279,11 +279,17 @@ describe("immediate push-and-delete", () => {
 
 	/**
 	 * The runner's own worktree path for a branch, created on disk. A real directory, so the
-	 * removal path runs rather than short-circuiting on a missing path.
+	 * removal path runs rather than short-circuiting on a missing path, carrying the `.git` marker
+	 * file a worktree has — without it the directory is not a worktree git can remove.
 	 */
 	function runnerWorktree(branch: string): string {
 		const path = worktreePathForBranch(branch);
 		mkdirSync(path, { recursive: true });
+		writeFileSync(
+			join(path, ".git"),
+			`gitdir: ${join(repositoryRoot, ".git", "worktrees", branch)}\n`,
+			"utf-8",
+		);
 		return path;
 	}
 
