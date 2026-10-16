@@ -128,8 +128,20 @@ interface DigestEntry {
 }
 
 /**
+ * Whether an assistant markdown chunk is a rules-context dump.
+ *
+ * Dirac emits `{"rules":[...]}` as assistant markdown when rules load, which is metadata rather
+ * than prose. The dirac provider already drops it from the terminal stream, so the digest drops it
+ * too instead of filling the log with one JSON blob per rule lookup.
+ */
+function isRulesDump(text: string): boolean {
+	return text.trimStart().startsWith('{"rules"');
+}
+
+/**
  * Extracts a readable rendering from a single raw stream event line, or `undefined` when the line
- * carries nothing worth rendering (reasoning traces, token usage, control events).
+ * carries nothing worth rendering (reasoning traces, rules-context dumps, token usage, control
+ * events).
  */
 function renderEventLine(line: string): undefined | DigestEntry {
 	if (line.trim() === "") {
@@ -162,7 +174,8 @@ function renderEventLine(line: string): undefined | DigestEntry {
 		content.isReasoning !== true &&
 		content.role !== "user" &&
 		typeof content.content === "string" &&
-		content.content.trim() !== ""
+		content.content.trim() !== "" &&
+		!isRulesDump(content.content)
 	) {
 		return { body: content.content, header: "" };
 	}

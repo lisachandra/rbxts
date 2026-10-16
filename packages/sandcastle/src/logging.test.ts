@@ -123,6 +123,30 @@ describe("fileLogging", () => {
 		assert.doesNotMatch(digest, /user prompt/);
 	});
 
+	test("drops rules-context dumps from the digest", () => {
+		const dir = tempDir();
+		const logPath = join(dir, "issue-1.log");
+		const logging = fileLogging(logPath, { digest: true });
+		if (logging.type !== "file" || logging.onAgentStreamEvent === undefined) {
+			assert.fail("expected file logging with an event handler");
+		}
+
+		logging.onAgentStreamEvent(
+			rawEvent(
+				markdownLine(
+					JSON.stringify({
+						rules: [{ name: "workspace:.diracrules\\rules\\typescript.md" }],
+					}),
+				),
+			),
+		);
+		logging.onAgentStreamEvent(rawEvent(markdownLine("real assistant answer", {})));
+
+		const digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		assert.match(digest, /real assistant answer/);
+		assert.doesNotMatch(digest, /workspace:.diracrules/);
+	});
+
 	test("appends a new marker when the digest already exists", () => {
 		const dir = tempDir();
 		const logPath = join(dir, "issue-1.log");
