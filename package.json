@@ -26,7 +26,7 @@
 		"build:packages": "node ./scripts/build.mjs --scope packages",
 		"build:test": "node ./scripts/build.mjs --scope test",
 		"dev:packages": "pnpm -r  --parallel --filter \"./packages/**\" dev",
-		"dev:test": "pnpm -r  --parallel --filter \"./test/**\" dev",
+		"dev:test": "pnpm -r --parallel --filter \"./test/**\" dev",
 		"release": "pnpm -r publish --access=public && pnpm changeset tag",
 		"version": "changeset version",
 		"hoist": "node ./scripts/hoist.mjs",
