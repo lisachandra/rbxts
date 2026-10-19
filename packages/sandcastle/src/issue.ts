@@ -11,7 +11,12 @@ import { resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
 import { createAgent } from "./agent.js";
-import { createFreshPhaseEvaluation, evaluatePhases } from "./evaluate.js";
+import {
+	createFreshPhaseEvaluation,
+	evaluatePhases,
+	resolvePlanFile,
+	worktreePlanPath,
+} from "./evaluate.js";
 import { countNewCommits, git, gitTry, issueBranch, resolveCommit } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
 import { fileLogging } from "./logging.js";
@@ -21,7 +26,7 @@ import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
-import { config, io, logsDir, plansDir, stateDir } from "./runtime.js";
+import { config, io, logsDir, plansDir, stateDir, worktreePathForBranch } from "./runtime.js";
 import {
 	isReviewComplete,
 	readState,
@@ -159,6 +164,25 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 	}
 
 	try {
+		/*
+		 * --porcelain prints nothing for an *ignored* untracked path, which is indistinguishable
+		 * from "already committed". A base whose .gitignore still said `.sandcastle/**` with no
+		 * `!.sandcastle/plans/**` negation therefore made every plan commit a silent no-op, and
+		 * nothing carried the plan to the next batch member. Ask whether the path is ignored, and
+		 * say so, before reading an empty status as "nothing to do".
+		 */
+		if (gitTry(["check-ignore", "--quiet", "--", relative], worktreePath) !== undefined) {
+			console.warn(
+				"  ! Not committing the plan for #" +
+					issueNumber +
+					": " +
+					relative +
+					" is gitignored on this branch.\n    Negate it in .gitignore so later batch members can read it from the branch.",
+			);
+
+			return;
+		}
+
 		if ((gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === "") {
 			return;
 		}
@@ -419,8 +443,29 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 		console.log("\n── Phase 1: Design — SKIPPED ──");
 	}
 
+	/*
+	 * The design marker and the design plan are separate artifacts, and the marker is the only
+	 * one the runner verifies. A plan written anywhere but the worktree path therefore counted
+	 * as a finished design: implement was skipped for a missing plan, review had no commits to
+	 * read, and the run failed blaming review. Refuse the hand-off here instead, naming the one
+	 * path the implementer will open.
+	 */
+	const repoPlanPath = pathResolve(plansDir, `${params.issueNumber}.md`);
+	if (
+		params.state.phases.design.status === "done" &&
+		resolvePlanFile(repoPlanPath, params.sandbox.worktreePath) === undefined
+	) {
+		throw new Error(
+			`Design completed but no plan was found at ${worktreePlanPath(
+				params.sandbox.worktreePath,
+				params.issueNumber,
+			)} or ${repoPlanPath}. Write the plan to the worktree path, then resume.`,
+		);
+	}
+
 	// Re-evaluate implement after design: a resumed run may have just produced the plan.
-	if (reEvaluatePhase(params, "implement") !== "skip") {
+	const implementDecision = reEvaluatePhase(params, "implement");
+	if (implementDecision !== "skip") {
 		params.attempted.add("implement");
 		await runImplementPhase({
 			issueLabels: params.issueLabels,
@@ -494,7 +539,13 @@ function resolveActiveFailedPhase(
 		return "design";
 	}
 
-	if (eval_.implement !== "skip" && state.phases.implement.status !== "done") {
+	/*
+	 * A skipped implement is still the phase that failed when design reported success: there is
+	 * nothing to review, so blaming review sends the operator to the wrong phase. This is the
+	 * shape a plan written outside the worktree produced - design "done", implement "skipped",
+	 * review "failed".
+	 */
+	if (state.phases.implement.status !== "done") {
 		return "implement";
 	}
 
@@ -522,7 +573,10 @@ export async function runSingleIssue(
 			? validateExistingWorktree(options.worktree)
 			: undefined;
 	const branchName = suppliedWorktree?.branch ?? issueBranch(issueNumber);
-	const planPath = `${config.dir}/plans/${issueNumber}.md`;
+	/*
+	 * The repo-root plan directory still exists for `--phase` runs, which can write a plan
+	 * before any worktree commit carries it; `plansDir` is created below for that reason.
+	 */
 	const logPath = pathResolve(logsDir, `issue-${issueNumber}.log`);
 
 	mkdirSync(logsDir, { recursive: true });
@@ -585,13 +639,21 @@ export async function runSingleIssue(
 	}
 
 	const { issueLabels, issueTitle } = loadIssueContext(issueNumber);
+
+	/*
+	 * Absolute, and inside the worktree the agents run in. A relative
+	 * `<config.dir>/plans/<n>.md` put the meaning of that path in the agent's hands: a
+	 * designer whose cwd is the worktree listed an empty state directory, concluded "repo
+	 * root", and wrote to `<repo>/plans/<n>.md` - a third path neither reader looked at, so
+	 * implement skipped as "design phase needed" right after design reported success.
+	 */
+	const worktreePath = suppliedWorktree?.path ?? worktreePathForBranch(branchName);
 	const sharedArgs = {
 		BASE_REF: options?.baseRef ?? config.baseBranch,
 		BRANCH: branchName,
 		ISSUE_NUMBER: issueNumber,
 		ISSUE_TITLE: issueTitle,
-		PLAN_PATH: planPath,
-
+		PLAN_PATH: worktreePlanPath(worktreePath, issueNumber),
 		SKILLS: skillsForPrompt("design", issueLabels),
 	};
 

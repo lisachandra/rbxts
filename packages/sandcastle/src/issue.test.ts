@@ -298,6 +298,15 @@ describe("orchestration with heavy stubs", () => {
 					return "abc1234567890";
 				}
 
+				/*
+				 * `git check-ignore --quiet` exits 1 for a path that is NOT ignored, and the stub
+				 * signals a non-zero exit by throwing - which is what `gitTry` reads as undefined.
+				 * Returning "" here would mean "ignored" and silently skip the commit.
+				 */
+				if (args[0] === "check-ignore") {
+					throw new Error("not ignored");
+				}
+
 				// Non-empty only for the plan path, so the worktree itself still looks clean to preflight.
 				if (args[0] === "status" && args.includes(relativePath)) {
 					return `?? ${relativePath}`;
@@ -359,8 +368,108 @@ describe("orchestration with heavy stubs", () => {
 			(args) =>
 				args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
 		);
+		const checkedIgnore = gitCalls.some((args) => args[0] === "check-ignore");
+		assert.equal(checkedIgnore, true, "the plan commit checks whether the path is gitignored");
 		assert.equal(staged, true, "the plan was staged by its own path");
 		assert.equal(committed, true, "the plan was committed on the issue branch");
+
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("runSingleIssue warns instead of committing a gitignored plan", async () => {
+		/*
+		 * A base whose .gitignore still says `.sandcastle/**` with no `!.sandcastle/plans/**`
+		 * negation makes `git status --porcelain` print nothing for the plan, which is
+		 * indistinguishable from "already committed". The guard must say so rather than exit
+		 * silently, because a silent skip is how the plan stops travelling with the branch.
+		 */
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-plan-ignored-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+		const relativePath = `${config.dir}/plans/${issue}.md`;
+
+		const gitCalls: Array<Array<string>> = [];
+		const warnings: Array<string> = [];
+		const originalWarn = console.warn;
+		console.warn = (...args: Array<unknown>) => {
+			warnings.push(args.map(String).join(" "));
+		};
+
+		gitStub({
+			file: (args) => {
+				gitCalls.push([...args]);
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				// Empty stdout means "ignored" for `check-ignore --quiet`.
+				if (args[0] === "check-ignore") {
+					return "";
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				return "";
+			},
+		});
+
+		let runCalls = 0;
+		io.run = (async () => {
+			runCalls += 1;
+			if (runCalls === 1) {
+				mkdirSync(join(worktree, config.dir, "plans"), { recursive: true });
+				writeFileSync(join(worktree, config.dir, "plans", `${issue}.md`), "# Plan\n", "utf-8");
+				const designMarker = markerPath(`${issue}.design`);
+				mkdirSync(dirname(designMarker), { recursive: true });
+				writeFileSync(designMarker, "", "utf-8");
+				return { commits: [], stdout: "plan written" };
+			}
+
+			const phase = runCalls === 2 ? "implement" : "review";
+			const phaseMarker = markerPath(`${issue}.${phase}`);
+			mkdirSync(dirname(phaseMarker), { recursive: true });
+			writeFileSync(phaseMarker, "", "utf-8");
+			return { commits: [{ sha: "c1" }], stdout: "ok" };
+		}) as unknown as typeof io.run;
+
+		try {
+			await runSingleIssue(issue, "model", "low", {
+				agentBackend: "dirac",
+				baseRef: "main",
+				resume: true,
+				worktree,
+			});
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		const committed = gitCalls.some(
+			(args) => args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
+		);
+		assert.equal(committed, false, "a gitignored plan is not committed");
+		assert.equal(
+			warnings.some((line) => line.includes("gitignored on this branch")),
+			true,
+			"the skip is reported rather than silent",
+		);
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });

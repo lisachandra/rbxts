@@ -145,8 +145,20 @@ function evaluateSinglePhase(
 }
 
 /**
+ * - Absolute path of an issue's plan as the designing agent writes it inside its worktree.
+ * - @param worktreePath - The issue's worktree.
+ * - @param issueNumber - Issue number; names the plan file.
+ * - @returns `<worktree>/<config.dir>/plans/<issueNumber>.md`.
+ * - @remarks The agents' `cwd` is the worktree, so this is the one path a designer and an implementer
+ *   can both open without deciding what a relative `.sandcastle/plans/…` means.
+ */
+export function worktreePlanPath(worktreePath: string, issueNumber: string): string {
+	return pathResolve(worktreePath, config.dir, "plans", `${issueNumber}.md`);
+}
+
+/**
  * - Resolves which copy of an issue's plan is authoritative.
- * - @param planFile - Repo-root plan path, as `runSingleIssue` builds it.
+ * - @param planFile - Repo-root plan path.
  * - @param worktreePath - The issue's worktree.
  * - @returns The worktree copy when present, otherwise the repo-root one, otherwise `undefined`.
  * - @remarks The worktree comes first because that copy travels with the branch: an issue's plan is
@@ -154,7 +166,7 @@ function evaluateSinglePhase(
  *   repo-root copy is what a `--phase` run writes before any commit exists, and a leftover from an
  *   earlier run of the same issue number must not shadow the branch's current plan.
  */
-function resolvePlanFile(planFile: string, worktreePath: string): string | undefined {
+export function resolvePlanFile(planFile: string, worktreePath: string): string | undefined {
 	const planFileName = planFile.split(/[\\/]/).pop()!;
 	const worktreePlanFile = pathResolve(worktreePath, config.dir, "plans", planFileName);
 	if (existsSync(worktreePlanFile)) {
@@ -209,13 +221,19 @@ export function evaluateImplement(
 	model: string,
 	planFile: string,
 	worktreePath: string,
-	_issueNumber: string,
+	issueNumber: string,
 	baseRef: string,
 	reasons: Record<PhaseName, string>,
 ): PhaseDecision {
 	// Design must be done first — the plan travels with the branch, so the worktree wins.
-	if (resolvePlanFile(planFile, worktreePath) === undefined) {
-		reasons.implement = "blocked — plan file does not exist (design phase needed)";
+	const resolvedPlan = resolvePlanFile(planFile, worktreePath);
+	if (resolvedPlan === undefined) {
+		/*
+		 * Name both paths a plan could have been at. The old one-liner said only "does not exist",
+		 * which reads as harmless next to a design phase that just reported success — so a plan
+		 * written to a third path looked like a normal continuation instead of the bug it was.
+		 */
+		reasons.implement = `blocked — no plan at ${worktreePlanPath(worktreePath, issueNumber)} or ${planFile}`;
 		return "skip";
 	}
 
