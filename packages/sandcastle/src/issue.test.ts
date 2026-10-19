@@ -377,12 +377,13 @@ describe("orchestration with heavy stubs", () => {
 		rmSync(worktree, { force: true, recursive: true });
 	});
 
-	test("runSingleIssue warns instead of committing a gitignored plan", async () => {
+	test("runSingleIssue commits a gitignored plan anyway", async () => {
 		/*
 		 * A base whose .gitignore still says `.sandcastle/**` with no `!.sandcastle/plans/**`
 		 * negation makes `git status --porcelain` print nothing for the plan, which is
-		 * indistinguishable from "already committed". The guard must say so rather than exit
-		 * silently, because a silent skip is how the plan stops travelling with the branch.
+		 * indistinguishable from "already committed". Reporting the skip left the batch member
+		 * without a plan — the state the whole ui-wiring-work chain was in — so the commit must
+		 * happen anyway, with `-f`, and say that it did.
 		 */
 		const issue = uniqueIssue();
 		const worktree = join(tmpRoot, `run-plan-ignored-${issue}`);
@@ -461,14 +462,18 @@ describe("orchestration with heavy stubs", () => {
 			console.warn = originalWarn;
 		}
 
+		const forced = gitCalls.some(
+			(args) => args[0] === "add" && args.includes("-f") && args.includes(relativePath),
+		);
 		const committed = gitCalls.some(
 			(args) => args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
 		);
-		assert.equal(committed, false, "a gitignored plan is not committed");
+		assert.equal(forced, true, "a gitignored plan is staged with -f");
+		assert.equal(committed, true, "a gitignored plan is still committed");
 		assert.equal(
-			warnings.some((line) => line.includes("gitignored on this branch")),
+			warnings.some((line) => line.includes("committed it anyway")),
 			true,
-			"the skip is reported rather than silent",
+			"the ignored base is reported even though the commit happened",
 		);
 
 		cleanupIssueArtifacts(issue);

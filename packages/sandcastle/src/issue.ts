@@ -166,37 +166,36 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 	try {
 		/*
 		 * --porcelain prints nothing for an *ignored* untracked path, which is indistinguishable
-		 * from "already committed". A base whose .gitignore still said `.sandcastle/**` with no
-		 * `!.sandcastle/plans/**` negation therefore made every plan commit a silent no-op, and
-		 * nothing carried the plan to the next batch member. Ask whether the path is ignored, and
-		 * say so, before reading an empty status as "nothing to do".
+		 * from "already committed", so a base whose .gitignore still said `.sandcastle/**` with no
+		 * `!.sandcastle/plans/**` negation made every plan commit a silent no-op and nothing carried
+		 * the plan to the next batch member.
+		 *
+		 * The plan is the issue's own artifact and the runner owns this path, so an ignoring
+		 * `.gitignore` on the base is not a reason to drop it: `-f` stages it anyway. Reporting the
+		 * skip instead left the batch member without a plan, which is the state #391 and the whole
+		 * ui-wiring-work chain were in — a branch whose plan exists only inside a worktree that the
+		 * next `queue clean` deletes.
 		 */
-		if (gitTry(["check-ignore", "--quiet", "--", relative], worktreePath) !== undefined) {
-			console.warn(
-				"  ! Not committing the plan for #" +
-					issueNumber +
-					": " +
-					relative +
-					" is gitignored on this branch.\n    Negate it in .gitignore so later batch members can read it from the branch.",
-			);
-
+		const ignored = gitTry(["check-ignore", "--quiet", "--", relative], worktreePath) !== undefined;
+		if (!ignored && (gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === "") {
 			return;
 		}
 
-		if ((gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === "") {
-			return;
-		}
-
-		git(["add", "--", relative], worktreePath);
+		git(["add", "-f", "--", relative], worktreePath);
 		git(
 			["commit", "-m", `docs(sandcastle): add plan for #${issueNumber}`, "--", relative],
 			worktreePath,
 		);
 		console.log(`  ✓ Committed the plan to ${issueBranch(issueNumber)}.`);
+		if (ignored) {
+			console.warn(
+				`  ! ${relative} is gitignored on this branch; committed it anyway. Negate it in .gitignore so a plain \`git add\` sees it too.`,
+			);
+		}
 	} catch (err) {
 		console.warn(
 			`  ⚠ Could not commit the plan for #${issueNumber}: ${String(err)}\n` +
-				`    Commit it yourself (\`git -C ${worktreePath} add -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
+			`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
 		);
 	}
 }
@@ -344,10 +343,10 @@ function createOrLoadIssueState(params: {
 			},
 			phasesConfig: params.steps
 				? {
-						design: params.steps.design,
-						implement: params.steps.implement,
-						review: params.steps.review,
-					}
+					design: params.steps.design,
+					implement: params.steps.implement,
+					review: params.steps.review,
+				}
 				: params.phasesConfig,
 		}
 	);
@@ -626,12 +625,12 @@ export async function runSingleIssue(
 	const eval_ =
 		resume || options?.phase
 			? evaluatePhases(issueNumber, models, {
-					baseRef: options?.baseRef,
-					force: options?.force,
-					phase: options?.phase,
-					resume,
-					worktree: options?.worktree,
-				})
+				baseRef: options?.baseRef,
+				force: options?.force,
+				phase: options?.phase,
+				resume,
+				worktree: options?.worktree,
+			})
 			: createFreshPhaseEvaluation();
 
 	if (resume || options?.phase) {
@@ -769,7 +768,7 @@ export async function runAll(
 	const queue = [...issues];
 	const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () =>
 		(async () => {
-			for (;;) {
+			for (; ;) {
 				const issue = queue.shift();
 				if (issue === undefined || issue === "") {
 					break;
