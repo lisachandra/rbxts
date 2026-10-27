@@ -94,8 +94,8 @@ const integrationScope = "integration";
 /**
  * - Conventional title for the batch's PR, so commitlint-gated merges accept the squash.
  * - @param target - Output of {@link resolveLandTarget}.
- * - @returns `chore(integration): land <batch> (<title>)`, with the parenthetical only when the
- *   batch carries a title.
+ * - @returns `chore(integration): land <batch> (<title>)`, with the parenthetical only when the batch
+ *   carries a title.
  * - @remarks `gh pr squash` titles the merge commit from the PR title, so a repository that runs
  *   commitlint on merges rejects a bare `<name>: <title>`. The batch name is a kebab-case
  *   integration name, not a scope; `integration` is the scope that names what lands.
@@ -480,12 +480,17 @@ export function finishLand(options: CliOptions, target: LandTarget, run: LandDep
 			}
 		}
 
+		/*
+		 * Consumers must lose their `after` gate before this sequence is deleted:
+		 * deleteSequence refuses a batch that is still waited on, so clearing the
+		 * references afterwards would throw on every gated landing.
+		 */
+		const cleared = next.sequences.filter((sequence) => sequence.after === target.name).length;
+		next = clearAfterReferences(next, target.name);
+
 		if (next.sequences.some((sequence) => sequence.name === target.name)) {
 			next = deleteSequence(next, target.name);
 		}
-
-		const cleared = next.sequences.filter((sequence) => sequence.after === target.name).length;
-		next = clearAfterReferences(next, target.name);
 		return {
 			message: `  ✓ Landed "${target.name}": removed ${landed.length} member(s), cleared ${cleared} after gate(s)`,
 			next,

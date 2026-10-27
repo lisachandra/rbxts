@@ -14,7 +14,12 @@ import {
 	runQueueLand,
 	staleComposition,
 } from "./land.js";
-import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
+import {
+	emptyQueueManifest,
+	type QueueManifest,
+	readQueueManifest,
+	writeQueueManifest,
+} from "./manifest.js";
 
 registerTestHooks();
 
@@ -93,6 +98,22 @@ async function capture(run: () => Promise<void>): Promise<string> {
 	}) as typeof console.log;
 	try {
 		await run();
+	} finally {
+		console.log = original;
+	}
+
+	return lines.join("\n");
+}
+
+/** Sync variant of {@link capture} for the synchronous finish path. */
+function captureSync(run: () => void): string {
+	const lines: Array<string> = [];
+	const original = console.log;
+	console.log = ((...args: Array<unknown>) => {
+		lines.push(args.map(String).join(" "));
+	}) as typeof console.log;
+	try {
+		run();
 	} finally {
 		console.log = original;
 	}
@@ -348,5 +369,77 @@ describe("queue landing", () => {
 		);
 		assert.match(output, /Open the pull request yourself/u);
 		assert.doesNotMatch(output, /Recomposing/u);
+	});
+
+	test("--finish clears the gates waiting on the batch before deleting it", () => {
+		config.queue.file = relativeManifest;
+		config.queue.commit = false;
+		writeQueueManifest(
+			manifest({
+				sequences: [
+					{ issues: ["382", "383"], name: "ui-wiring-work" },
+					{ after: "ui-wiring-work", issues: ["414"], name: "club-system-work" },
+				],
+			}),
+			join(primary, relativeManifest),
+		);
+
+		const originalExecSync = io.execSync;
+		const originalExecFileSync = io.execFileSync;
+		io.execSync = ((command: string) => {
+			const text = String(command);
+			if (text.startsWith("gh issue list")) {
+				return JSON.stringify([
+					{ labels: [], number: 382, state: "CLOSED", title: "shell" },
+					{ labels: [], number: 383, state: "CLOSED", title: "data seam" },
+					{ labels: [], number: 414, state: "OPEN", title: "club schema" },
+				]);
+			}
+
+			if (text.startsWith("gh repo view")) {
+				return "owner/repo";
+			}
+
+			throw new Error(`unexpected execSync: ${text}`);
+		}) as typeof io.execSync;
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			const argv = Array.isArray(args) ? args.map(String) : [];
+			if (command === "git" && argv.includes("--git-common-dir")) {
+				return join(primary, ".git");
+			}
+
+			if (command === "gh" && argv[0] === "api") {
+				return JSON.stringify({
+					data: { repository: { i382: null, i383: null } },
+				});
+			}
+
+			throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
+		}) as typeof io.execFileSync;
+		try {
+			const output = captureSync(() => {
+				runQueueLand(parseArgs(["queue", "land", "--name", "ui-wiring-work", "--finish"]), {
+					run: () => "",
+				});
+			});
+
+			assert.match(output, /Landed "ui-wiring-work"/u);
+			assert.match(output, /cleared 1 after gate/u);
+			const next = readQueueManifest(join(primary, relativeManifest));
+			assert.deepEqual(
+				next.sequences.map((sequence) => sequence.name),
+				["club-system-work"],
+				"the landed batch leaves the queue",
+			);
+			assert.equal(
+				next.sequences[0]?.after,
+				undefined,
+				"a gate on a landed integration is stale bookkeeping, not information",
+			);
+			assert.deepEqual(next.sequences[0]?.issues, ["414"], "the consumer keeps its members");
+		} finally {
+			io.execSync = originalExecSync;
+			io.execFileSync = originalExecFileSync;
+		}
 	});
 });
