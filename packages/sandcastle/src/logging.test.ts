@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
-import { diracDigestPath, fileLogging, formatRunStarted } from "./logging.js";
+import { backendSupportsDigest, digestPath, fileLogging, formatRunStarted } from "./logging.js";
 import { registerTestHooks } from "./test-helpers.js";
 
 registerTestHooks();
@@ -60,15 +60,15 @@ describe("fileLogging", () => {
 		assert.equal(logging.path, logPath);
 		assert.equal(logging.verbose, true);
 		assert.equal(logging.onAgentStreamEvent, undefined);
-		assert.equal(existsSync(diracDigestPath(logPath)), false);
+		assert.equal(existsSync(digestPath(logPath)), false);
 	});
 
-	test("creates the dirac digest immediately with a run marker", () => {
+	test("creates the digest immediately with a run marker", () => {
 		const dir = tempDir();
 		const logPath = join(dir, "issue-1.log");
 		fileLogging(logPath, { digest: true });
 
-		const digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		const digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.match(digest, /# Readable agent log digest/);
 		assert.match(digest, /--- Run started:.*---/);
 		assert.match(digest, /\(local: .*GMT[+-]\d{2}:\d{2}\)/);
@@ -84,7 +84,7 @@ describe("fileLogging", () => {
 
 		logging.onAgentStreamEvent(rawEvent(markdownLine("# Heading\n\nBody")));
 		// Visible before the run ends — no finalize step required.
-		let digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		let digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.match(digest, /# Heading/);
 		assert.match(digest, /Body/);
 
@@ -96,7 +96,7 @@ describe("fileLogging", () => {
 				}),
 			),
 		);
-		digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.match(digest, /> Plan Accepted/);
 		assert.match(digest, /plan body/);
 	});
@@ -117,7 +117,7 @@ describe("fileLogging", () => {
 		logging.onAgentStreamEvent(rawEvent("not-json"));
 		logging.onAgentStreamEvent(rawEvent(markdownLine("real assistant answer", {})));
 
-		const digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		const digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.match(digest, /real assistant answer/);
 		assert.doesNotMatch(digest, /reasoning trace/);
 		assert.doesNotMatch(digest, /user prompt/);
@@ -142,7 +142,7 @@ describe("fileLogging", () => {
 		);
 		logging.onAgentStreamEvent(rawEvent(markdownLine("real assistant answer", {})));
 
-		const digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		const digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.match(digest, /real assistant answer/);
 		assert.doesNotMatch(digest, /workspace:.diracrules/);
 	});
@@ -153,15 +153,25 @@ describe("fileLogging", () => {
 		fileLogging(logPath, { digest: true });
 		fileLogging(logPath, { digest: true });
 
-		const digest = readFileSync(diracDigestPath(logPath), "utf-8");
+		const digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.equal(digest.match(/--- Run started:/g)?.length, 2);
 	});
 });
 
-describe("diracDigestPath", () => {
+describe("digestPath", () => {
 	test("strips the .log suffix", () => {
-		assert.equal(diracDigestPath("/logs/issue-1.log"), "/logs/issue-1.dirac.log");
-		assert.equal(diracDigestPath("/logs/issue-1"), "/logs/issue-1.dirac.log");
+		assert.equal(digestPath("/logs/issue-1.log"), "/logs/issue-1.digest.log");
+		assert.equal(digestPath("/logs/issue-1"), "/logs/issue-1.digest.log");
+	});
+});
+
+describe("backendSupportsDigest", () => {
+	test("enables dirac and zcode only", () => {
+		assert.equal(backendSupportsDigest("dirac"), true);
+		assert.equal(backendSupportsDigest("zcode"), true);
+		assert.equal(backendSupportsDigest("pi"), false);
+		assert.equal(backendSupportsDigest("claude-code"), false);
+		assert.equal(backendSupportsDigest(undefined), false);
 	});
 });
 

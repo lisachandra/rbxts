@@ -86,7 +86,7 @@ describe("commaSeparated / parseArgs", () => {
 		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
 			assert.throws(
 				() => parseArgs(["--issue", "1", "--agent", "nope"]),
-				/claude-code, codex, copilot, cursor, dirac, opencode, pi/,
+				/claude-code, codex, copilot, cursor, dirac, opencode, pi, zcode/,
 			);
 			assert.throws(
 				() => parseArgs(["--issue", "1", "--effort", "nope"]),

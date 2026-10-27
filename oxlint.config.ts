@@ -158,6 +158,7 @@ export default isentinel(
 			".diracrules/**",
 			".bedrock/**",
 			".sandcastle/**",
+			"packages/sandcastle/assets/**",
 			"**/barrel.ts",
 			"!packages/@internal/**",
 			"**/out/**",

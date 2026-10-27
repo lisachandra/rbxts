@@ -41,6 +41,7 @@ const agentBackendSchema = z.enum([
 	"dirac",
 	"opencode",
 	"pi",
+	"zcode",
 ]);
 
 export const phaseNames: ReadonlyArray<PhaseName> = ["design", "implement", "review"];
@@ -172,6 +173,7 @@ export const sandcastleConfigSchema = z
 						"dirac": z.string().optional(),
 						"opencode": z.string().optional(),
 						"pi": z.string().optional(),
+						"zcode": z.string().optional(),
 					})
 					.optional(),
 				steps: agentStepsSchema,
@@ -246,7 +248,7 @@ export type SandcastleUserConfig = z.input<typeof sandcastleConfigSchema>;
 const defaultConfig: SandcastleConfig = {
 	agents: {
 		default: "dirac",
-		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
+		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi", "zcode"],
 		models: {},
 		steps: {},
 	},
@@ -338,6 +340,9 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 					? { opencode: parsed.agents.models.opencode }
 					: {}),
 				...(parsed.agents?.models?.pi !== undefined ? { pi: parsed.agents.models.pi } : {}),
+				...(parsed.agents?.models?.zcode !== undefined
+					? { zcode: parsed.agents.models.zcode }
+					: {}),
 			},
 			steps: parsed.agents?.steps ?? {},
 		},

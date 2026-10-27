@@ -116,9 +116,13 @@ describe("diracAgent", () => {
 		assert.doesNotMatch(command.command, /--reasoning-effort xhigh/);
 	});
 
-	test("resolveBackendEffort keeps max for dirac/claude-code, maps to xhigh elsewhere", () => {
+	test("resolveBackendEffort keeps max for dirac/claude-code/zcode, maps to xhigh elsewhere", () => {
 		assert.equal(resolveBackendEffort("max", "dirac"), "max");
 		assert.equal(resolveBackendEffort("max", "claude-code"), "max");
+		assert.equal(resolveBackendEffort("max", "zcode"), "max");
+		assert.equal(resolveBackendEffort("xhigh", "zcode"), "high");
+		assert.equal(resolveBackendEffort("high", "zcode"), "high");
+		assert.equal(resolveBackendEffort("low", "zcode"), "low");
 		assert.equal(resolveBackendEffort("max", "pi"), "xhigh");
 		assert.equal(resolveBackendEffort("max", "codex"), "xhigh");
 		assert.equal(resolveBackendEffort("max"), "xhigh");
@@ -135,6 +139,7 @@ describe("createAgent", () => {
 		"dirac",
 		"opencode",
 		"pi",
+		"zcode",
 	];
 
 	test("returns a marker-wrapped provider for every backend", () => {
@@ -156,7 +161,10 @@ describe("createAgent", () => {
 
 		for (const backend of backends) {
 			const agent = createAgent(backend, "m", "low", MARKER);
-			assert.equal(agent.name, backend === "dirac" ? "dirac" : `${backend}:m`);
+			assert.equal(
+				agent.name,
+				backend === "dirac" || backend === "zcode" ? backend : `${backend}:m`,
+			);
 			assert.equal(agent.env.SANDCASTLE_MARKER_COMPLETED, MARKER);
 			assert.match(
 				agent.buildPrintCommand({ dangerouslySkipPermissions: false, prompt: "p" }).command,

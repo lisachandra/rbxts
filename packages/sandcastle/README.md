@@ -13,7 +13,7 @@ It also composes reviewed issue branches into integration branches for a human m
 
 - Node.js ≥ 20.12 and pnpm ≥ 11 (for the `gh:` registry alias used with private GitHub Packages)
 - The `gh` CLI authenticated for the target repository
-- An agent backend (`dirac` or `pi`) with its model configured via `.sandcastle/.env`
+- An agent backend (`zcode`, `dirac`, or `pi`) with its model configured in `sandcastle.config.ts`
 
 ## Install
 
@@ -87,7 +87,7 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 | `labels.readyForAgent`     | `ready-for-agent`                        | Issue label that marks AFK-ready issues                                                                                                                                                                                |
 | `reviewMarker`             | `Sandcastle-Review`                      | Comment marker prefix (`<marker>: APPROVED                                                                                                                                                                             | BLOCKED`) |
 | `issueCommand`             | `gh issue view {issue}`                  | Command template used to fetch issue data                                                                                                                                                                              |
-| `agents.enabled`           | all supported backends                   | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`)                                                                                                                        |
+| `agents.enabled`           | all supported backends                   | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`, `zcode`)                                                                                                               |
 | `agents.default`           | `dirac`                                  | Backend used when `--agent` is not passed                                                                                                                                                                              |
 | `agents.models`            | `{}`                                     | Default model per backend, used when `--model` is not passed                                                                                                                                                           |
 | `agents.steps`             | `{}`                                     | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview`                                                                                         |
@@ -183,7 +183,7 @@ directory — the shape paseo hands you for a clean worktree.
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
 `.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log` (live upstream log output;
-`issue-<n>.dirac.log` additionally streams a clean markdown digest for dirac runs). Each phase agent
+`issue-<n>.digest.log` additionally streams a clean markdown digest for dirac and zcode runs). Each phase agent
 finishes by creating a scoped `.completed` marker as its final action; the runner treats a
 clean exit without that marker as a phase failure. The runner never closes issues, merges
 branches, or publishes releases; the final human merge is yours.
@@ -324,12 +324,12 @@ schedule.
 
 ## Backends
 
-Sandcastle supports `dirac` (default), `pi`, `codex`, `claude-code`, `cursor`, `opencode`,
-and `copilot`. Dirac is the custom default; the native backends come from
-`@ai-hero/sandcastle` and are wrapped by the same marker-based completion layer. The marker
-file is the only completion contract — no completion token is used. The agent backend,
-default model, and effort are configured in `sandcastle.config.ts`; only credentials belong
-in the environment:
+Sandcastle supports `zcode` (default in this repo), `dirac`, `pi`, `codex`, `claude-code`,
+`cursor`, `opencode`, and `copilot`. The custom backends (`zcode`, `dirac`) live in
+`src/providers/`; the rest come from `@ai-hero/sandcastle`. Every backend is wrapped by the
+same marker-based completion layer. The marker file is the only completion contract — no
+completion token is used. The agent backend, default model, and effort are configured in
+`sandcastle.config.ts`; only credentials belong in the environment:
 
 ```ini
 # Credentials only (loaded from .sandcastle/.env or the process environment)
@@ -341,6 +341,28 @@ GH_TOKEN=
 Legacy `SANDCASTLE_AGENT`, `SANDCASTLE_EFFORT`, `DIRAC_SANDCASTLE_MODEL`, and
 `PI_SANDCASTLE_MODEL` environment variables still work as fallbacks but print deprecation
 warnings; move them into `sandcastle.config.ts` (`agents.default`, `agents.models`, `effort`).
+
+### zcode backend
+
+`zcode` drives the ZCode CLI headlessly through its `zcode app-server` stdio protocol (the
+same protocol paseo's zcode provider speaks). Binary discovery order:
+
+1. `ZCODE_SANDCASTLE_BIN` environment variable (tests point this at a stub app-server)
+2. `zcode` on `PATH`
+3. the ZCode desktop app's bundled CLI (`%LOCALAPPDATA%\Programs\ZCode\resources\glm\zcode.cjs`
+   on Windows, with darwin/linux app paths as fallbacks) run via `node`
+
+Authentication is zcode's own (`zcode login` / the desktop app's OAuth) — no API keys in
+`.sandcastle/.env` are needed. Model ids are `"<zcode-provider-id>/<modelId>"` pairs, e.g.
+`71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash`; the provider UUID prefix comes from
+zcode's own model registry (`~/.zcode/v2/config.json`). Reasoning effort maps sandcastle's
+vocabulary onto zcode's per-model thought levels: `max` and `low` pass through, `xhigh`
+becomes `high` (zcode has no `xhigh`), and models that only support a binary reasoning flag
+(e.g. `enabled`) take that level verbatim via `--effort`. `permissions`/hooks come from
+zcode's own config; the wrapper auto-answers any permission request with the first `allow`
+option, so runs are only safe with a model/mode you trust (default is `--mode yolo`).
+
+Readable per-phase logs live at `issue-<n>.digest.log` for both `dirac` and `zcode` runs.
 
 ## Development
 

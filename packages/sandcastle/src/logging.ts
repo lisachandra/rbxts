@@ -5,9 +5,10 @@
  * (`FileDisplay` output with `verbose: true`, so raw agent stdout JSONL is
  * interleaved) — the same behavior as before the three-file split.
  *
- * For dirac runs only, `fileLogging` additionally streams a clean markdown
- * digest into `<name>.dirac.log` as agent events arrive, so the readable
- * output is visible while the run is still in flight and survives failures.
+ * For runs whose backend renders a digest (dirac, zcode), `fileLogging`
+ * additionally streams a clean markdown digest into `<name>.digest.log` as
+ * agent events arrive, so the readable output is visible while the run is
+ * still in flight and survives failures.
  */
 
 import type { AgentStreamEvent, LoggingOption } from "@ai-hero/sandcastle";
@@ -15,17 +16,30 @@ import type { AgentStreamEvent, LoggingOption } from "@ai-hero/sandcastle";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
+/** Backends whose stream renderer is supported by the readable digest. */
+const DIGEST_BACKENDS: ReadonlySet<string> = new Set(["dirac", "zcode"]);
+
 /**
- * Digest file path for a dirac run. Strips a trailing `.log` so `issue-1.log` maps to
- * `issue-1.dirac.log`.
+ * Whether a backend's stream should be rendered into the readable digest.
+ *
+ * - @param backend - Agent backend identifier.
+ * - @returns True when `fileLogging` should stream `<name>.digest.log`.
+ */
+export function backendSupportsDigest(backend: string | undefined): boolean {
+	return backend !== undefined && DIGEST_BACKENDS.has(backend);
+}
+
+/**
+ * Digest file path for a digest-enabled run. Strips a trailing `.log` so `issue-1.log` maps to
+ * `issue-1.digest.log`.
  *
  * - @param logPath - Primary upstream log path.
- * - @returns Path of the dirac-only markdown digest.
+ * - @returns Path of the markdown digest.
  */
-export function diracDigestPath(logPath: string): string {
+export function digestPath(logPath: string): string {
 	return logPath.endsWith(".log")
-		? `${logPath.slice(0, -".log".length)}.dirac.log`
-		: `${logPath}.dirac.log`;
+		? `${logPath.slice(0, -".log".length)}.digest.log`
+		: `${logPath}.digest.log`;
 }
 
 /**
@@ -55,28 +69,28 @@ export function formatRunStarted(now: Date = new Date()): string {
  * Builds file logging for an agent run.
  *
  * The primary log is plain upstream file-mode output (`verbose: true`, matching pre-split
- * behavior). When `digest` is set (dirac runs), the digest file is created synchronously with a
- * header and `Run started` marker, and every subsequent `raw` stream event is rendered to markdown
- * and appended immediately — so the digest exists from run start even if the run fails or is killed
- * mid-flight.
+ * behavior). When `digest` is set (digest-enabled backends), the digest file is created
+ * synchronously with a header and `Run started` marker, and every subsequent `raw` stream event is
+ * rendered to markdown and appended immediately — so the digest exists from run start even if the
+ * run fails or is killed mid-flight.
  *
  * - @param logPath - Primary upstream log path.
- * - @param options - Set `digest: true` for dirac runs to stream `<name>.dirac.log`.
+ * - @param options - Set `digest: true` for digest-enabled backends to stream `<name>.digest.log`.
  * - @returns Logging options for the sandbox `run()` call.
  */
 export function fileLogging(logPath: string, options?: { digest?: boolean }): LoggingOption {
-	const digestPath = options?.digest === true ? diracDigestPath(logPath) : undefined;
-	if (digestPath !== undefined) {
-		ensureLogDir(digestPath);
+	const digestFilePath = options?.digest === true ? digestPath(logPath) : undefined;
+	if (digestFilePath !== undefined) {
+		ensureLogDir(digestFilePath);
 		try {
-			if (!existsSync(digestPath)) {
+			if (!existsSync(digestFilePath)) {
 				writeFileSync(
-					digestPath,
+					digestFilePath,
 					`# Readable agent log digest\n\n--- Run started: ${formatRunStarted()} ---\n`,
 					"utf-8",
 				);
 			} else {
-				appendFileSync(digestPath, `\n--- Run started: ${formatRunStarted()} ---\n`);
+				appendFileSync(digestFilePath, `\n--- Run started: ${formatRunStarted()} ---\n`);
 			}
 		} catch {
 			// Best-effort: digest capture must never break the run.
@@ -84,7 +98,7 @@ export function fileLogging(logPath: string, options?: { digest?: boolean }): Lo
 	}
 
 	const onAgentStreamEvent =
-		digestPath === undefined
+		digestFilePath === undefined
 			? undefined
 			: (event: AgentStreamEvent): void => {
 					if (event.type !== "raw") {
@@ -108,7 +122,7 @@ export function fileLogging(logPath: string, options?: { digest?: boolean }): Lo
 ${headerBlock}${rendered.body}
 `;
 					try {
-						appendFileSync(digestPath, entry);
+						appendFileSync(digestFilePath, entry);
 					} catch {
 						// Best-effort: digest capture must never break the run.
 					}
@@ -156,11 +170,18 @@ function renderEventLine(line: string): undefined | DigestEntry {
 			role?: unknown;
 			type?: unknown;
 		};
+		text?: unknown;
+		type?: unknown;
 	};
 	try {
 		parsed = JSON.parse(line) as typeof parsed;
 	} catch {
 		return undefined;
+	}
+
+	// zcode wrapper events: assistant text slices carry the readable payload.
+	if (parsed.type === "text" && typeof parsed.text === "string" && parsed.text.trim() !== "") {
+		return { body: parsed.text, header: "" };
 	}
 
 	const { content } = parsed;

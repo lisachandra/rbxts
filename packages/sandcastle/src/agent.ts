@@ -19,6 +19,7 @@ import { diracProvider } from "./providers/dirac.js";
 import { withMarkerCompletion } from "./providers/marker.js";
 import { opencodeProvider } from "./providers/opencode.js";
 import { piProvider } from "./providers/pi.js";
+import { zcodeProvider } from "./providers/zcode.js";
 import type { AgentBackend, SandcastleEffort } from "./types.js";
 
 export { fetchIssueLabels, issueMetadata, issueView } from "./issue-metadata.js";
@@ -26,14 +27,25 @@ export { queueRulesForPrompt } from "./prompts/queue.js";
 export { skillsForPrompt, uniqueSkills } from "./prompts/skills.js";
 export { diracProvider as diracAgent } from "./providers/dirac.js";
 export { withMarkerCompletion } from "./providers/marker.js";
+export { zcodeProvider as zcodeAgent } from "./providers/zcode.js";
 
 /**
  * Backend effort levels. "max" is a first-class level in dirac (see
  * `OPENAI_REASONING_EFFORT_OPTIONS` in dirac's `src/shared/storage/types.ts`) and is forwarded
- * untouched to dirac/claude-code. Backends whose CLIs cap out at "xhigh" (pi, codex) map "max" down
- * to "xhigh".
+ * untouched to dirac/claude-code/zcode. Backends whose CLIs cap out at "xhigh" (pi, codex) map
+ * "max" down to "xhigh". zcode additionally only accepts the zcode-native levels a model registers
+ * (`low|high|max` for glm/deepseek), so "xhigh" maps down to "high" there.
  */
 export function resolveBackendEffort(effort: string, backend?: AgentBackend): SandcastleEffort {
+	if (backend === "zcode") {
+		if (effort === "max") {
+			return "max";
+		}
+
+		// zcode has no "xhigh" thought level; glm/deepseek-class models accept "high".
+		return effort === "xhigh" ? "high" : (effort as SandcastleEffort);
+	}
+
 	if (effort !== "max") {
 		return effort as SandcastleEffort;
 	}
@@ -83,6 +95,10 @@ export function createAgent(
 		}
 		case "pi": {
 			inner = piProvider(model, resolvedEffort);
+			break;
+		}
+		case "zcode": {
+			inner = zcodeProvider(model, { effort: resolvedEffort });
 			break;
 		}
 	}

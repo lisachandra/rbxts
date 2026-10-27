@@ -19,7 +19,7 @@ import {
 } from "./evaluate.js";
 import { countNewCommits, git, gitTry, issueBranch, resolveCommit } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
-import { fileLogging } from "./logging.js";
+import { backendSupportsDigest, fileLogging } from "./logging.js";
 import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
 import { completionPromptArgs } from "./prompts/completion.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
@@ -136,7 +136,7 @@ async function runDesignPhase(params: {
 				run: params.sandbox.run,
 				runOptions: {
 					logging: fileLogging(params.logPath, {
-						digest: params.step.agentBackend === "dirac",
+						digest: backendSupportsDigest(params.step.agentBackend),
 					}),
 				},
 			}),
@@ -176,8 +176,12 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 		 * ui-wiring-work chain were in — a branch whose plan exists only inside a worktree that the
 		 * next `queue clean` deletes.
 		 */
-		const ignored = gitTry(["check-ignore", "--quiet", "--", relative], worktreePath) !== undefined;
-		if (!ignored && (gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === "") {
+		const ignored =
+			gitTry(["check-ignore", "--quiet", "--", relative], worktreePath) !== undefined;
+		if (
+			!ignored &&
+			(gitTry(["status", "--porcelain", "--", relative], worktreePath) ?? "") === ""
+		) {
 			return;
 		}
 
@@ -195,7 +199,7 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 	} catch (err) {
 		console.warn(
 			`  ⚠ Could not commit the plan for #${issueNumber}: ${String(err)}\n` +
-			`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
+				`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
 		);
 	}
 }
@@ -230,7 +234,7 @@ async function runImplementPhase(params: {
 				run: params.sandbox.run,
 				runOptions: {
 					logging: fileLogging(params.logPath, {
-						digest: params.step.agentBackend === "dirac",
+						digest: backendSupportsDigest(params.step.agentBackend),
 					}),
 				},
 			}),
@@ -293,7 +297,7 @@ async function runReviewPhase(params: {
 					run: params.sandbox.run,
 					runOptions: {
 						logging: fileLogging(params.logPath, {
-							digest: params.step.agentBackend === "dirac",
+							digest: backendSupportsDigest(params.step.agentBackend),
 						}),
 					},
 				}),
@@ -343,10 +347,10 @@ function createOrLoadIssueState(params: {
 			},
 			phasesConfig: params.steps
 				? {
-					design: params.steps.design,
-					implement: params.steps.implement,
-					review: params.steps.review,
-				}
+						design: params.steps.design,
+						implement: params.steps.implement,
+						review: params.steps.review,
+					}
 				: params.phasesConfig,
 		}
 	);
@@ -625,12 +629,12 @@ export async function runSingleIssue(
 	const eval_ =
 		resume || options?.phase
 			? evaluatePhases(issueNumber, models, {
-				baseRef: options?.baseRef,
-				force: options?.force,
-				phase: options?.phase,
-				resume,
-				worktree: options?.worktree,
-			})
+					baseRef: options?.baseRef,
+					force: options?.force,
+					phase: options?.phase,
+					resume,
+					worktree: options?.worktree,
+				})
 			: createFreshPhaseEvaluation();
 
 	if (resume || options?.phase) {
@@ -768,7 +772,7 @@ export async function runAll(
 	const queue = [...issues];
 	const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () =>
 		(async () => {
-			for (; ;) {
+			for (;;) {
 				const issue = queue.shift();
 				if (issue === undefined || issue === "") {
 					break;

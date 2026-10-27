@@ -28,6 +28,7 @@ describe("config loading", () => {
 			"dirac",
 			"opencode",
 			"pi",
+			"zcode",
 		]);
 		assert.equal(config.prompts.plan.endsWith("plan-prompt.md"), true);
 		assert.equal(config.integration.mergeSubject, "chore(integration): integrate {source}");

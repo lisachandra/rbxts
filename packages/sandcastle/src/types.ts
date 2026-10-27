@@ -13,13 +13,15 @@ export type AgentBackend =
 	| "pi"
 	| "codex"
 	| "dirac"
+	| "zcode"
 	| "cursor"
 	| "copilot"
 	| "opencode"
 	| "claude-code";
 /**
- * Backend effort levels. "max" is natively supported by dirac and claude-code and is forwarded
- * untouched; backends capped at "xhigh" (pi, codex) map it down via `resolveBackendEffort`.
+ * Backend effort levels. "max" is natively supported by dirac, claude-code, and zcode and is
+ * forwarded untouched; backends capped at "xhigh" (pi, codex) map it down via
+ * `resolveBackendEffort`.
  */
 export type SandcastleEffort = "low" | "max" | "high" | "xhigh" | "medium";
 

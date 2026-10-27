@@ -2,16 +2,38 @@ import type { SandcastleUserConfig } from "@lisachandra/sandcastle";
 
 const config: SandcastleUserConfig = {
 	agents: {
-		default: "dirac",
-		enabled: ["dirac", "pi"],
-		models: { dirac: "ag/gemini-3.8-flash-high" },
+		default: "zcode",
+		enabled: ["zcode", "dirac", "pi"],
+		/*
+		 * zcode routes models as "<zcode-provider-id>/<modelId>"; the CPAMC
+		 * provider's glm-5.3-flash is the only currently working model.
+		 */
+		models: { zcode: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash" },
 		steps: {
-			design: { effort: "xhigh", model: "ag/gemini-3.8-flash-high" },
-			implement: { effort: "max", model: "ix/deepseek-v4-flash" },
-			integrationReview: { effort: "xhigh", model: "by/muse-spark-1.3-contributor" },
-			planner: { effort: "xhigh", model: "ag/gemini-3.8-flash-high" },
-			resolve: { effort: "max", model: "ix/deepseek-v4-flash" },
-			review: { effort: "xhigh", model: "by/muse-spark-1.3-contributor" },
+			design: {
+				effort: "high",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
+			implement: {
+				effort: "max",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
+			integrationReview: {
+				effort: "high",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
+			planner: {
+				effort: "high",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
+			resolve: {
+				effort: "max",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
+			review: {
+				effort: "high",
+				model: "71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash",
+			},
 		},
 	},
 	baseBranch: "main",

@@ -316,7 +316,8 @@ function isAgentBackend(value: string | undefined): value is AgentBackend {
 		value === "cursor" ||
 		value === "dirac" ||
 		value === "opencode" ||
-		value === "pi"
+		value === "pi" ||
+		value === "zcode"
 	);
 }
 
@@ -373,7 +374,7 @@ function setStepBackend(
 ): void {
 	if (!isAgentBackend(value)) {
 		throw new Error(
-			`${flag} must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi`,
+			`${flag} must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi, zcode`,
 		);
 	}
 
@@ -405,7 +406,7 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	"--agent": (state, next, index) => {
 		if (!isAgentBackend(next)) {
 			throw new Error(
-				"--agent must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi",
+				"--agent must be one of: claude-code, codex, copilot, cursor, dirac, opencode, pi, zcode",
 			);
 		}
 
@@ -1385,7 +1386,7 @@ Queue workflow (batch manifest + live view):
   manifest after every mutation (never pushes).
 Shared options:
       --model <model>        Workflow-wide model; also used for integration review
-	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi (default: dirac)
+	      --agent <backend>      claude-code | codex | copilot | cursor | dirac | opencode | pi | zcode (default: dirac)
       --effort <level>       low | medium | high | xhigh | max (max → xhigh)
       --allow-unreviewed     Explicitly allow sources whose review is incomplete
       --dry-run              Print resolved config without starting an agent

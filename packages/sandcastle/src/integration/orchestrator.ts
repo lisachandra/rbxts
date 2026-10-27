@@ -14,7 +14,7 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
-import { fileLogging } from "../logging.js";
+import { backendSupportsDigest, fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
 import { queueRulesForPrompt } from "../prompts/queue.js";
 import { skillsForPrompt } from "../prompts/skills.js";
@@ -122,7 +122,7 @@ export async function runConflictResolver(
 			}),
 		runOptions: {
 			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
-				digest: resolveBackend === "dirac",
+				digest: backendSupportsDigest(resolveBackend),
 			}),
 		},
 	});
@@ -167,7 +167,7 @@ export async function runIntegrationReview(
 			}),
 		runOptions: {
 			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
-				digest: reviewBackend === "dirac",
+				digest: backendSupportsDigest(reviewBackend),
 			}),
 		},
 	});
