@@ -87,9 +87,28 @@ export function resolveLandTarget(manifest: QueueManifest, name: string): LandTa
 	};
 }
 
-/** `ui-wiring-work: ui wiring`, or the bare name when the batch carries no title. */
+/** The conventional type and scope every integration PR title carries. */
+const integrationType = "chore";
+const integrationScope = "integration";
+
+/**
+ * - Conventional title for the batch's PR, so commitlint-gated merges accept the squash.
+ * - @param target - Output of {@link resolveLandTarget}.
+ * - @returns `chore(integration): land <batch> (<title>)`, with the parenthetical only when the
+ *   batch carries a title.
+ * - @remarks `gh pr squash` titles the merge commit from the PR title, so a repository that runs
+ *   commitlint on merges rejects a bare `<name>: <title>`. The batch name is a kebab-case
+ *   integration name, not a scope; `integration` is the scope that names what lands.
+ * - @example
+ *
+ *   ```ts
+ *   landPrTitle(resolveLandTarget(manifest, "vfx-ephemeral-work"));
+ *   // "chore(integration): land vfx-ephemeral-work (ephemeral car VFX + ball trail)"
+ *   ```
+ */
 export function landPrTitle(target: LandTarget): string {
-	return target.title === undefined ? target.name : `${target.name}: ${target.title}`;
+	const subject = target.title === undefined ? target.name : `${target.name} (${target.title})`;
+	return `${integrationType}(${integrationScope}): land ${subject}`;
 }
 
 /**

@@ -128,10 +128,10 @@ describe("queue landing", () => {
 		);
 	});
 
-	test("titles the pull request with the batch name, reading as the batch's title when it has one", () => {
+	test("titles the pull request in conventional format so commitlint-gated merges accept it", () => {
 		assert.equal(
 			landPrTitle(resolveLandTarget(manifest(), "ui-wiring-work")),
-			"ui-wiring-work: ui wiring",
+			"chore(integration): land ui-wiring-work (ui wiring)",
 		);
 		assert.equal(
 			landPrTitle(
@@ -140,7 +140,7 @@ describe("queue landing", () => {
 					"solo-work",
 				),
 			),
-			"solo-work",
+			"chore(integration): land solo-work",
 		);
 	});
 
