@@ -103,41 +103,63 @@ rl.on("line", (line) => {
 		}
 
 		emit("message.upserted", { content: "working", messageId: "msg-1" }, sessionId);
+
+		/*
+		 * Desktop-continuous delivery: the shapes a real app-server streams
+		 * (model.streaming deltas + tool.updated lifecycle). The part.* shapes
+		 * below cover the legacy contract.
+		 */
 		emit(
-			"part.upserted",
-			{ part: { type: "text", partId: "p-1", sessionId, text: "working hard" } },
+			"model.streaming",
+			{ kind: "text_delta", delta: "working ", assistantMessageId: "msg-1" },
 			sessionId,
 		);
 		emit(
-			"part.upserted",
+			"model.streaming",
+			{ kind: "tool_input_start", toolCallId: "tc-1", delta: "echo stub-run" },
+			sessionId,
+		);
+		emit(
+			"model.streaming",
+			{ kind: "tool_call", toolCallId: "tc-1", toolName: "Bash" },
+			sessionId,
+		);
+		emit(
+			"tool.updated",
 			{
-				part: {
-					type: "tool",
-					partId: "p-2",
-					sessionId,
-					state: { status: "running" },
-					tool: "bash",
+				toolCallId: "tc-1",
+				toolName: "Bash",
+				kind: "progress",
+				outputPreview: { text: "" },
+			},
+			sessionId,
+		);
+		emit(
+			"tool.updated",
+			{
+				toolCallId: "tc-1",
+				toolName: "Bash",
+				kind: "result",
+				success: true,
+				result: {
+					success: true,
+					content: "stub-run",
+					perf: { detail: { kind: "command", command: { exitCode: 0 } } },
 				},
 			},
 			sessionId,
 		);
 		emit(
-			"part.upserted",
-			{
-				part: {
-					type: "tool",
-					partId: "p-2",
-					sessionId,
-					state: {
-						status: "completed",
-						input: { command: "echo stub-run" },
-						output: "stub-run\n",
-					},
-					tool: "bash",
-				},
-			},
+			"model.streaming",
+			{ kind: "text_delta", delta: "hard", assistantMessageId: "msg-1" },
 			sessionId,
 		);
+		emit(
+			"session.titleUpdated",
+			{ previousTitle: "", source: "first_input", title: "stub title" },
+			sessionId,
+		);
+
 		if (failTurn) {
 			emit("turn.failed", { error: { type: "stub", message: "stub explosion" } }, sessionId);
 			return;

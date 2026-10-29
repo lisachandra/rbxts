@@ -16,9 +16,12 @@
  * ZCODE_BUILTIN_PROVIDER_CONFIG_FILE (plus ZCODE_PERSONAL_PROVIDER_CONFIG_FILE
  * when resolvable) before spawning; preset values pass through untouched.
  * Events are emitted as one JSON object per line:
- * {type:"text"|"tool"|"note"|"result"|"usage"|"keepalive"}. Tool events carry
- * a `detail` excerpt (input/command, output, error) on terminal states so the
- * digest can render tool activity at dirac's card-level parity. The final
+ * {type:"text"|"tool"|"note"|"result"|"usage"|"keepalive"}. In
+ * desktop-continuous delivery the app-server streams model.streaming deltas
+ * (text_delta / tool_input_*) and tool.updated lifecycle events
+ * (scheduled/started/progress/result) — the result kind carries the command,
+ * exit code and output preview, which the wrapper folds into the tool
+ * event's `detail` for digest parity with dirac's cards. The final
  * turn.completed response becomes the single `result` event. Unknown lines
  * (non-JSON, stderr noise) are ignored by the provider's parser.
  */
@@ -395,20 +398,57 @@ function excerptValue(value) {
 }
 
 /*
- * Extracts the readable slice of a tool part — the input/command (or zcode's
- * human title) plus any output/error the part carries. Mirrors what dirac's
- * card bodies put in the digest: what ran, and what came back.
+ * Extracts the readable slice of a tool.updated result payload — what ran and
+ * what came back, mirroring what dirac's card bodies put in the digest.
  */
-function toolDetail(part) {
-	const state = part?.state ?? {};
-	const input = excerptValue(
-		state.input ?? part.input ?? state.command ?? part.command ?? state.title ?? part.title,
-	);
-	const output = excerptValue(state.output ?? state.result ?? part.output);
-	const error = excerptValue(state.error);
-	return [input, output === "" ? "" : `→ ${output}`, error === "" ? "" : `! ${error}`]
-		.filter((piece) => piece !== "")
-		.join("\n");
+function toolResultDetail(result) {
+	if (result === null || typeof result !== "object") {
+		return excerptValue(result);
+	}
+
+	const pieces = [];
+	const content = result.content ?? result.output ?? result.text;
+	if (content !== null && typeof content === "object") {
+		const output = excerptValue(content.content ?? content.text);
+		if (output !== "") {
+			pieces.push(`→ ${output}`);
+		}
+	} else {
+		const output = excerptValue(content);
+		if (output !== "") {
+			pieces.push(`→ ${output}`);
+		}
+	}
+
+	const perf = result.perf?.detail;
+	if (perf?.command?.exitCode !== undefined) {
+		pieces.push(`exit ${perf.command.exitCode}`);
+	}
+
+	if (result.success === false) {
+		pieces.push("! failed");
+	}
+
+	return pieces.join("\n");
+}
+
+/*
+ * Streaming progress detail while a tool runs: the running command (from
+ * tool_input deltas) plus any output preview.
+ */
+function toolProgressDetail(progress, toolInputs) {
+	const pieces = [];
+	const input = excerptValue(toolInputs.get(progress.toolCallId));
+	if (input !== "") {
+		pieces.push(input);
+	}
+
+	const output = excerptValue(progress.outputPreview?.text ?? progress.stdoutTail);
+	if (output !== "") {
+		pieces.push(`→ ${output}`);
+	}
+
+	return pieces.join("\n");
 }
 
 function markActivity() {
@@ -433,6 +473,99 @@ function emitTextSlice(partId, fullText) {
 	emittedTextLengths.set(partId, fullText.length);
 	markActivity();
 	emit({ type: "text", text: slice });
+}
+
+/** ToolCallId → accumulated tool_input text for progress detail. */
+const toolInputs = new Map();
+/** ToolCallId → last known tool name (result payloads omit toolName). */
+const toolNames = new Map();
+/** Signature of the last emitted tool event, for consecutive-duplicate suppression. */
+let lastToolEmitKey = "";
+
+function emitToolEvent(name, state, detail) {
+	const key = `${name}:${state}:${detail}`;
+	if (key === lastToolEmitKey) {
+		return; // Real streams repeat started/running snapshots; keep the digest clean.
+	}
+
+	lastToolEmitKey = key;
+	emit({ type: "tool", name, state, ...(detail !== "" ? { detail } : {}) });
+}
+
+function handleModelStreaming(payload) {
+	markActivity();
+	const kind = String(payload?.kind ?? "");
+	if (kind === "text_delta") {
+		const delta = String(payload?.delta ?? "");
+		if (delta !== "") {
+			emit({ type: "text", text: delta });
+		}
+		return;
+	}
+
+	if (kind === "tool_input_start" || kind === "tool_input_delta") {
+		toolInputs.set(
+			payload?.toolCallId,
+			(toolInputs.get(payload?.toolCallId) ?? "") +
+				String(payload?.delta ?? payload?.input ?? ""),
+		);
+		if (typeof payload?.toolName === "string" && payload.toolName !== "") {
+			toolNames.set(payload?.toolCallId, payload.toolName);
+		}
+		return;
+	}
+
+	if (kind === "tool_call") {
+		if (typeof payload?.toolName === "string" && payload.toolName !== "") {
+			toolNames.set(payload?.toolCallId, payload.toolName);
+		}
+		emitToolEvent(
+			String(payload?.toolName ?? toolNames.get(payload?.toolCallId) ?? "unknown"),
+			"started",
+			"",
+		);
+	}
+	// reasoning_delta / tool_input_end carry nothing readable.
+}
+
+function handleToolUpdated(payload) {
+	markActivity();
+	const kind = String(payload?.kind ?? "");
+	const toolCallId = payload?.toolCallId;
+	if (typeof payload?.toolName === "string" && payload.toolName !== "") {
+		toolNames.set(toolCallId, payload.toolName);
+	}
+	const name = String(payload?.toolName ?? toolNames.get(toolCallId) ?? "unknown");
+
+	if (kind === "scheduled") {
+		// Input may be omitted here; details come with tool_call + progress.
+		return;
+	}
+
+	if (kind === "started") {
+		emitToolEvent(name, "started", "");
+		return;
+	}
+
+	if (kind === "progress") {
+		emitToolEvent(name, "running", toolProgressDetail(payload, toolInputs));
+		return;
+	}
+
+	if (kind === "result") {
+		emitToolEvent(
+			name,
+			"completed",
+			[excerptValue(toolInputs.get(toolCallId)), toolResultDetail(payload?.result)]
+				.filter((piece) => piece !== "")
+				.join("\n"),
+		);
+		return;
+	}
+
+	if (kind === "batch") {
+		// Summary counts add nothing the per-tool events above missed.
+	}
 }
 
 function handleSessionEvent(parameters) {
@@ -460,6 +593,24 @@ function handleSessionEvent(parameters) {
 				`zcode turn failed: ${payload?.error?.message ?? JSON.stringify(payload?.error ?? payload)}`,
 			),
 		);
+		return;
+	}
+
+	if (type === "model.streaming") {
+		handleModelStreaming(payload);
+		return;
+	}
+
+	if (type === "tool.updated") {
+		handleToolUpdated(payload);
+		return;
+	}
+
+	if (type === "session.titleUpdated") {
+		const title = String(payload?.title ?? "");
+		if (title !== "") {
+			emit({ type: "note", text: `session title: ${title.slice(0, TOOL_DETAIL_LIMIT)}` });
+		}
 		return;
 	}
 
@@ -491,9 +642,8 @@ function handleSessionEvent(parameters) {
 		return;
 	}
 
-	if (type === "part.delta") {
-		// Deltas are folded into the next part.upserted snapshot; nothing to do.
-	}
+	// part.delta, streamRecovery.updated, session.updated and unknown types
+	// carry nothing readable.
 }
 
 const stdout = createInterface({ input: child.stdout });

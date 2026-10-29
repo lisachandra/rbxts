@@ -201,7 +201,7 @@ describe("zcode wrapper (stub app-server)", () => {
 		assert.match(stdout, /"type":"session_id"/);
 	});
 
-	test("emits tool detail on terminal tool states", () => {
+	test("emits tool detail from desktop-continuous tool.updated results", () => {
 		const { status, stderr, stdout } = runWrapper("Do the thing");
 		assert.equal(status, 0, `wrapper failed: ${stderr}`);
 
@@ -214,17 +214,28 @@ describe("zcode wrapper (stub app-server)", () => {
 			name: string;
 			state: string;
 		}>;
+		const textEvents = lines.filter((line) => line.type === "text") as Array<{
+			text: string;
+		}>;
 
-		// One running transition (no detail) and one completed transition (with detail).
+		// tool.updated lifecycle: started, progress (no detail — empty preview), result.
 		assert.deepEqual(
 			toolEvents.map((event) => [event.name, event.state]),
 			[
-				["bash", "running"],
-				["bash", "completed"],
+				["Bash", "started"],
+				["Bash", "running"],
+				["Bash", "completed"],
 			],
 		);
 		assert.equal(toolEvents[0]?.detail, undefined);
-		assert.equal(toolEvents[1]?.detail, "echo stub-run\n→ stub-run");
+		assert.equal(toolEvents[2]?.detail, "echo stub-run\n→ stub-run\nexit 0");
+
+		// model.streaming text deltas relay as text events.
+		assert.equal(textEvents.map((event) => event.text).join(""), "working hard");
+
+		// The auto-generated title surfaces as a note.
+		const notes = lines.filter((line) => line.type === "note") as Array<{ text: string }>;
+		assert.match(notes.at(-1)?.text ?? "", /session title: stub title/);
 	});
 
 	test("omits the model param when --model is absent", () => {
