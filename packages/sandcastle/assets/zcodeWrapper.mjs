@@ -11,14 +11,20 @@
  *   --reasoning-effort <level> thought level; forwarded per-session
  *
  * Binary resolution order: $ZCODE_SANDCASTLE_BIN, `zcode` on PATH, then the
- * ZCode desktop app's bundled CLI. Events are emitted as one JSON object per
- * line: {type:"text"|"tool"|"result"|"usage"|"keepalive"}. The final
- * turn.completed response becomes the single `result` event. Unknown lines
- * (non-JSON, stderr noise) are ignored by the provider's parser.
+ * ZCode desktop app's bundled CLI. Outside the desktop app the CLI cannot
+ * locate its built-in provider catalog, so the wrapper injects
+ * ZCODE_BUILTIN_PROVIDER_CONFIG_FILE (plus ZCODE_PERSONAL_PROVIDER_CONFIG_FILE
+ * when resolvable) before spawning; preset values pass through untouched.
+ * Events are emitted as one JSON object per line:
+ * {type:"text"|"tool"|"result"|"usage"|"keepalive"}. The final turn.completed
+ * response becomes the single `result` event. Unknown lines (non-JSON, stderr
+ * noise) are ignored by the provider's parser.
  */
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 import { createInterface } from "node:readline";
 
 const RUNTIME_PREFERENCES = {
@@ -102,26 +108,102 @@ function resolveBinary() {
 	return undefined;
 }
 
+/*
+ * ZCode's bundled CLI resolves its built-in provider catalog relative to its
+ * own entrypoint (entry_dir/provider/zcode-builtin.json, then entry_dir/../
+ * config/provider/zcode-builtin.json) and aborts at startup when neither
+ * exists — the ZCode desktop app normally injects these paths via env, which
+ * is why running `zcode app-server` from a bare shell fails. Mirror the
+ * desktop app here: use preset env values when set, otherwise fall back to
+ * the desktop install's packaged catalog and ~/.zcode/v2/provider_config.json.
+ */
+function findPackagedBuiltinConfig() {
+	const isWindows = process.platform === "win32";
+	const localAppData = process.env.LocalAppData ?? "";
+	const candidates =
+		isWindows && localAppData !== ""
+			? [path.join(localAppData, "Programs", "ZCode", "resources", "config", "provider")]
+			: process.platform === "darwin"
+				? ["/Applications/ZCode.app/Contents/Resources/config/provider"]
+				: [
+						"/opt/ZCode/resources/config/provider",
+						"/usr/lib/zcode/resources/config/provider",
+					];
+	for (const directory of candidates) {
+		const candidate = path.join(directory, "zcode-builtin.json");
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+	}
+
+	return undefined;
+}
+
+function resolveProviderConfigEnv() {
+	const env = {};
+	const builtinKey = "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE";
+	const personalKey = "ZCODE_PERSONAL_PROVIDER_CONFIG_FILE";
+	const envPath = (key) => (process.env[key] ?? "").trim();
+	const builtinPreset = envPath(builtinKey) !== "";
+	const personalPreset = envPath(personalKey) !== "";
+	if (builtinPreset && personalPreset) {
+		return env; // The CLI resolves everything from env; nothing to inject.
+	}
+
+	if (!builtinPreset) {
+		const packaged = findPackagedBuiltinConfig();
+		if (packaged === undefined) {
+			emitNoteOnce(
+				"ZCODE_BUILTIN_PROVIDER_CONFIG_FILE unset and no desktop install found; " +
+					"relying on zcode's own lookup",
+			);
+			return env;
+		}
+
+		env[builtinKey] = packaged;
+	}
+
+	if (!personalPreset) {
+		const personal = path.join(homedir(), ".zcode", "v2", "provider_config.json");
+		if (existsSync(personal)) {
+			env[personalKey] = personal;
+		}
+	}
+
+	return env;
+}
+
+let providerConfigNoteEmitted = false;
+function emitNoteOnce(message) {
+	if (providerConfigNoteEmitted) {
+		return;
+	}
+
+	providerConfigNoteEmitted = true;
+	emitNote(message);
+}
+
 function spawnServer(binary) {
 	const isWindows = process.platform === "win32";
 	const isScript = /\.(cjs|mjs|js)$/i.test(binary);
 	const isShellShim = isWindows && /\.cmd$/i.test(binary);
+	const childEnv = { ...process.env, ...resolveProviderConfigEnv() };
 	if (isScript) {
 		return spawn(process.execPath, [binary, "app-server"], {
-			env: process.env,
+			env: childEnv,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 	}
 
 	if (isShellShim) {
 		return spawn("cmd.exe", ["/c", binary, "app-server"], {
-			env: process.env,
+			env: childEnv,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 	}
 
 	return spawn(binary, ["app-server"], {
-		env: process.env,
+		env: childEnv,
 		stdio: ["pipe", "pipe", "pipe"],
 	});
 }

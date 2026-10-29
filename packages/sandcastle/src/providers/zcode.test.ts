@@ -1,8 +1,8 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
@@ -202,6 +202,82 @@ describe("zcode wrapper (stub app-server)", () => {
 	test("exits non-zero when the turn fails", () => {
 		const { status } = runWrapper("hi", { failTurn: true });
 		assert.notEqual(status, 0);
+	});
+
+	describe("provider-config env injection", () => {
+		interface StubEnvSnapshot {
+			builtin: null | string;
+			personal: null | string;
+		}
+
+		function runWrapperEnv(
+			extraEnv: Record<string, string | undefined>,
+		): StubEnvSnapshot & { status: null | number; stderr: string } {
+			const dir = tempDir();
+			const envFile = join(dir, "env.json");
+			const env: Record<string, string | undefined> = {
+				...(process.env as Record<string, string | undefined>),
+				STUB_ENV_FILE: envFile,
+				ZCODE_SANDCASTLE_BIN: stubPath,
+			};
+			for (const [key, value] of Object.entries(extraEnv)) {
+				if (value === undefined) {
+					delete env[key];
+				} else {
+					env[key] = value;
+				}
+			}
+
+			const result = spawnSync("sh", ["-c", `node "${wrapperPath}" --mode yolo`], {
+				encoding: "utf-8",
+				env,
+				input: "hi",
+				timeout: 30_000,
+			});
+			let snapshot: StubEnvSnapshot = { builtin: null, personal: null };
+			try {
+				snapshot = JSON.parse(readFileSync(envFile, "utf-8")) as StubEnvSnapshot;
+			} catch {
+				// Stub never spawned; assertions below report the failure.
+			}
+
+			return { ...snapshot, status: result.status, stderr: result.stderr };
+		}
+
+		test("injects the packaged builtin config outside the desktop app", () => {
+			const { builtin, personal, status, stderr } = runWrapperEnv({
+				ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: undefined,
+				ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: undefined,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+			/*
+			 * The desktop app's packaged catalog exists on dev machines; when it
+			 * does, the wrapper must point the CLI at it explicitly.
+			 */
+			const packaged = join(
+				process.env.LocalAppData ?? "",
+				"Programs",
+				"ZCode",
+				"resources",
+				"config",
+				"provider",
+				"zcode-builtin.json",
+			);
+			if (existsSync(packaged)) {
+				assert.equal(builtin, packaged);
+				assert.equal(personal, join(homedir(), ".zcode", "v2", "provider_config.json"));
+			}
+		});
+
+		test("preserves preset provider-config env untouched", () => {
+			const preset = join(tempDir(), "preset-builtin.json");
+			writeFileSync(preset, "{}", "utf-8");
+			const { builtin, status, stderr } = runWrapperEnv({
+				ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: preset,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+			assert.equal(builtin, preset);
+		});
 	});
 });
 

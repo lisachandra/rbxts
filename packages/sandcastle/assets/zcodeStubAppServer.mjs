@@ -25,6 +25,17 @@ const mode = process.env.STUB_MODE ?? "yolo";
 const failTurn = process.env.STUB_FAIL_TURN === "1";
 const requestPermission = process.env.STUB_REQUEST_PERMISSION === "1";
 
+// Snapshot the spawn env early: tests assert on the wrapper's env injection.
+if (process.env.STUB_ENV_FILE !== undefined && process.env.STUB_ENV_FILE !== "") {
+	writeFileSync(
+		process.env.STUB_ENV_FILE,
+		JSON.stringify({
+			builtin: process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE ?? null,
+			personal: process.env.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE ?? null,
+		}),
+	);
+}
+
 const rl = createInterface({ input: process.stdin });
 rl.on("line", (line) => {
 	const trimmed = line.trim();
