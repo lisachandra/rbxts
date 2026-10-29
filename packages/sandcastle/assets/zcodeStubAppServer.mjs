@@ -121,6 +121,23 @@ rl.on("line", (line) => {
 			},
 			sessionId,
 		);
+		emit(
+			"part.upserted",
+			{
+				part: {
+					type: "tool",
+					partId: "p-2",
+					sessionId,
+					state: {
+						status: "completed",
+						input: { command: "echo stub-run" },
+						output: "stub-run\n",
+					},
+					tool: "bash",
+				},
+			},
+			sessionId,
+		);
 		if (failTurn) {
 			emit("turn.failed", { error: { type: "stub", message: "stub explosion" } }, sessionId);
 			return;

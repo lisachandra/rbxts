@@ -46,8 +46,10 @@ export function zcodeProvider(
 
 		parseStreamLine(line: string): Array<StreamEvent> {
 			let parsed: {
+				detail?: unknown;
 				name?: unknown;
 				result?: unknown;
+				state?: unknown;
 				text?: unknown;
 				type?: unknown;
 				usage?: Record<string, unknown>;
@@ -90,9 +92,28 @@ export function zcodeProvider(
 			}
 
 			/*
-			 * {type:"session_id"}, {type:"tool"}, {type:"keepalive"} and unknown
-			 * shapes carry nothing the runner consumes; they still count as output
-			 * upstream (idle timeout), which is why the wrapper emits keep-alive events.
+			 * Tool activity surfaces as a typed `tool_call` event — upstream
+			 * renders `name + args` into the file log and its toolCall stream
+			 * event, matching dirac's card-level visibility. Note events
+			 * (permission auto-answers, user-input cancels) reach the raw `.log`
+			 * through the upstream stdout tee and need no typed mapping.
+			 */
+			if (parsed.type === "tool" && typeof parsed.name === "string") {
+				return [
+					{
+						type: "tool_call",
+						args: typeof parsed.detail === "string" ? parsed.detail : "",
+						name: parsed.name,
+					},
+				];
+			}
+
+			/*
+			 * {type:"session_id"}, {type:"note"}, {type:"keepalive"} and unknown
+			 * shapes carry nothing the runner consumes (note text reaches the
+			 * raw .log through upstream's stdout tee); they still count as
+			 * output upstream (idle timeout), which is why the wrapper emits
+			 * keep-alive events.
 			 */
 			return [];
 		},

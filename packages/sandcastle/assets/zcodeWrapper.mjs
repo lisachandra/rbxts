@@ -16,9 +16,11 @@
  * ZCODE_BUILTIN_PROVIDER_CONFIG_FILE (plus ZCODE_PERSONAL_PROVIDER_CONFIG_FILE
  * when resolvable) before spawning; preset values pass through untouched.
  * Events are emitted as one JSON object per line:
- * {type:"text"|"tool"|"result"|"usage"|"keepalive"}. The final turn.completed
- * response becomes the single `result` event. Unknown lines (non-JSON, stderr
- * noise) are ignored by the provider's parser.
+ * {type:"text"|"tool"|"note"|"result"|"usage"|"keepalive"}. Tool events carry
+ * a `detail` excerpt (input/command, output, error) on terminal states so the
+ * digest can render tool activity at dirac's card-level parity. The final
+ * turn.completed response becomes the single `result` event. Unknown lines
+ * (non-JSON, stderr noise) are ignored by the provider's parser.
  */
 
 import { spawn } from "node:child_process";
@@ -297,9 +299,11 @@ function handleServerRequest(frame) {
 	if (method === "interaction/requestPermission") {
 		const options = Array.isArray(params?.options) ? params.options : [];
 		const allow = options.find((option) => option?.response?.decision === "allow");
-		emitNote(
-			`auto-answered permission for ${params?.toolName ?? "unknown tool"} (risk ${params?.riskLevel ?? "?"})`,
-		);
+		const note =
+			`auto-answered permission for ${params?.toolName ?? "unknown tool"} ` +
+			`(risk ${params?.riskLevel ?? "?"})`;
+		emitNote(note);
+		emit({ type: "note", text: note });
 		respond(
 			id,
 			allow?.response ?? {
@@ -311,7 +315,9 @@ function handleServerRequest(frame) {
 	}
 
 	if (method === "interaction/requestUserInput") {
-		emitNote("auto-cancelled user input request (headless run)");
+		const note = "auto-cancelled user input request (headless run)";
+		emitNote(note);
+		emit({ type: "note", text: note });
 		respond(id, { cancelled: true, value: "" });
 		return;
 	}
@@ -344,6 +350,67 @@ function settleTurn(error) {
 const emittedTextLengths = new Map();
 let lastToolEventKey = "";
 let keepaliveTimer;
+
+const TOOL_DETAIL_LIMIT = 400;
+
+/** Trims a value into a bounded single string; non-strings fall back to JSON. */
+function excerptValue(value) {
+	if (typeof value === "string") {
+		return value.trim().slice(0, TOOL_DETAIL_LIMIT);
+	}
+
+	if (typeof value === "object" && value !== null) {
+		/*
+		 * Inputs like {command: "..."} or {filePath: "..."} read better as the
+		 * field value than as JSON; stringify only multi-field or non-string
+		 * payloads.
+		 */
+		const entries = Object.entries(value).filter(
+			([, fieldValue]) => typeof fieldValue === "string" && fieldValue.trim() !== "",
+		);
+		if (entries.length === 1) {
+			return entries[0][1].trim().slice(0, TOOL_DETAIL_LIMIT);
+		}
+
+		if (entries.length > 1) {
+			return entries
+				.map(
+					([key, fieldValue]) =>
+						`${key}=${fieldValue.trim().slice(0, TOOL_DETAIL_LIMIT)}`,
+				)
+				.join(" ")
+				.slice(0, TOOL_DETAIL_LIMIT);
+		}
+	}
+
+	if (value === undefined || value === null) {
+		return "";
+	}
+
+	try {
+		return JSON.stringify(value).slice(0, TOOL_DETAIL_LIMIT);
+	} catch {
+		return "";
+	}
+}
+
+/*
+ * Extracts the readable slice of a tool part — the input/command (or zcode's
+ * human title) plus any output/error the part carries. Mirrors what dirac's
+ * card bodies put in the digest: what ran, and what came back.
+ */
+function toolDetail(part) {
+	const state = part?.state ?? {};
+	const input = excerptValue(
+		state.input ?? part.input ?? state.command ?? part.command ?? state.title ?? part.title,
+	);
+	const output = excerptValue(state.output ?? state.result ?? part.output);
+	const error = excerptValue(state.error);
+	return [input, output === "" ? "" : `→ ${output}`, error === "" ? "" : `! ${error}`]
+		.filter((piece) => piece !== "")
+		.join("\n");
+}
+
 function markActivity() {
 	if (keepaliveTimer !== undefined) {
 		clearInterval(keepaliveTimer);
@@ -404,14 +471,18 @@ function handleSessionEvent(parameters) {
 		}
 
 		if (part?.type === "tool") {
-			const key = `${part.tool}:${part.state?.status ?? ""}`;
+			const state = String(part.state?.status ?? "unknown");
+			const key = `${part.tool}:${state}`;
 			if (key !== lastToolEventKey) {
 				lastToolEventKey = key;
 				markActivity();
 				emit({
 					type: "tool",
 					name: String(part.tool),
-					state: String(part.state?.status ?? "unknown"),
+					state,
+					...(key.includes("completed") || key.includes("failed") || key.includes("error")
+						? { detail: toolDetail(part) }
+						: {}),
 				});
 			}
 		}
@@ -545,8 +616,13 @@ try {
 		"session/create",
 		{
 			mode: args.mode,
-			persistence: "deferred",
-			titleGenerationEnabled: false,
+			/*
+			 * "immediate" persists the session into zcode's shared store at
+			 * create time, so the run is visible in the desktop app under this
+			 * workspace even if it dies before its first turn completes
+			 * ("deferred" only persists after a completed turn).
+			 */
+			persistence: "immediate",
 			workspace: { workspaceKey: cwd, workspacePath: cwd },
 			...(hasExplicitModel
 				? {

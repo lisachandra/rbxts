@@ -61,11 +61,11 @@ describe("zcodeAgent", () => {
 			agent.parseStreamLine(JSON.stringify({ type: "session_id", sessionId: "s" })),
 			[],
 		);
+		assert.deepEqual(agent.parseStreamLine(JSON.stringify({ type: "keepalive" })), []);
 		assert.deepEqual(
-			agent.parseStreamLine(JSON.stringify({ type: "tool", state: "running", tool: "bash" })),
+			agent.parseStreamLine(JSON.stringify({ type: "note", text: "auto-answered" })),
 			[],
 		);
-		assert.deepEqual(agent.parseStreamLine(JSON.stringify({ type: "keepalive" })), []);
 
 		const text = agent.parseStreamLine(JSON.stringify({ type: "text", text: "partial" }));
 		assert.deepEqual(text, [{ type: "text", text: "partial" }]);
@@ -98,6 +98,17 @@ describe("zcodeAgent", () => {
 				},
 			},
 		]);
+
+		// Tool events map to upstream's typed tool_call; notes are dropped here.
+		const tool = agent.parseStreamLine(
+			JSON.stringify({ type: "tool", detail: "ls → out", name: "bash", state: "completed" }),
+		);
+		assert.deepEqual(tool, [{ type: "tool_call", args: "ls → out", name: "bash" }]);
+
+		const toolNoDetail = agent.parseStreamLine(
+			JSON.stringify({ type: "tool", name: "read", state: "running" }),
+		);
+		assert.deepEqual(toolNoDetail, [{ type: "tool_call", args: "", name: "read" }]);
 	});
 });
 
@@ -166,9 +177,15 @@ describe("zcode wrapper (stub app-server)", () => {
 		const create = seen.find((frame) => frame.method === "session/create");
 		const createParams = create?.params as {
 			mode?: string;
+			persistence?: string;
 			workspace?: { workspacePath?: string };
 		};
 		assert.equal(createParams?.mode, "yolo");
+		/*
+		 * Sessions persist at create so they are visible in the desktop app even
+		 * when the run dies before its first turn completes.
+		 */
+		assert.equal(createParams?.persistence, "immediate");
 		// The wrapper forwards its cwd as the session workspace unchanged.
 		assert.equal(createParams?.workspace?.workspacePath, process.cwd());
 
@@ -182,6 +199,32 @@ describe("zcode wrapper (stub app-server)", () => {
 		assert.match(stdout, /"inputTokens":10/);
 		// Session id surfaces for the provider to ignore but logs to keep.
 		assert.match(stdout, /"type":"session_id"/);
+	});
+
+	test("emits tool detail on terminal tool states", () => {
+		const { status, stderr, stdout } = runWrapper("Do the thing");
+		assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+		const lines = stdout
+			.split("\n")
+			.filter((line) => line.trim() !== "")
+			.map((line) => JSON.parse(line) as Record<string, unknown>);
+		const toolEvents = lines.filter((line) => line.type === "tool") as Array<{
+			detail?: string;
+			name: string;
+			state: string;
+		}>;
+
+		// One running transition (no detail) and one completed transition (with detail).
+		assert.deepEqual(
+			toolEvents.map((event) => [event.name, event.state]),
+			[
+				["bash", "running"],
+				["bash", "completed"],
+			],
+		);
+		assert.equal(toolEvents[0]?.detail, undefined);
+		assert.equal(toolEvents[1]?.detail, "echo stub-run\n→ stub-run");
 	});
 
 	test("omits the model param when --model is absent", () => {

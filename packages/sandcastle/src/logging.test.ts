@@ -147,6 +147,37 @@ describe("fileLogging", () => {
 		assert.doesNotMatch(digest, /workspace:.diracrules/);
 	});
 
+	test("renders zcode tool events with header and detail", () => {
+		const dir = tempDir();
+		const logPath = join(dir, "issue-1.log");
+		const logging = fileLogging(logPath, { digest: true });
+		if (logging.type !== "file" || logging.onAgentStreamEvent === undefined) {
+			assert.fail("expected file logging with an event handler");
+		}
+
+		logging.onAgentStreamEvent(
+			rawEvent(JSON.stringify({ type: "tool", name: "bash", state: "running" })),
+		);
+		logging.onAgentStreamEvent(
+			rawEvent(
+				JSON.stringify({
+					type: "tool",
+					detail: "echo stub-run\n→ stub-run",
+					name: "bash",
+					state: "completed",
+				}),
+			),
+		);
+
+		const digest = readFileSync(digestPath(logPath), "utf-8");
+		assert.match(digest, /> bash \(completed\)/);
+		assert.match(digest, /echo stub-run/);
+		assert.match(digest, /→ stub-run/);
+		// The running transition renders with its state and no detail body.
+		assert.match(digest, /> bash \(running\)/);
+		assert.match(digest, /\(running\)/);
+	});
+
 	test("appends a new marker when the digest already exists", () => {
 		const dir = tempDir();
 		const logPath = join(dir, "issue-1.log");

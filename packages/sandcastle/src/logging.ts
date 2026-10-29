@@ -170,6 +170,9 @@ function renderEventLine(line: string): undefined | DigestEntry {
 			role?: unknown;
 			type?: unknown;
 		};
+		detail?: unknown;
+		name?: unknown;
+		state?: unknown;
 		text?: unknown;
 		type?: unknown;
 	};
@@ -182,6 +185,16 @@ function renderEventLine(line: string): undefined | DigestEntry {
 	// zcode wrapper events: assistant text slices carry the readable payload.
 	if (parsed.type === "text" && typeof parsed.text === "string" && parsed.text.trim() !== "") {
 		return { body: parsed.text, header: "" };
+	}
+
+	// zcode wrapper tool events render like dirac's card headers: what ran, what came back.
+	if (parsed.type === "tool" && typeof parsed.name === "string") {
+		const state = typeof parsed.state === "string" ? parsed.state : "unknown";
+		const detail = typeof parsed.detail === "string" ? parsed.detail.trim() : "";
+		return {
+			body: detail === "" ? `(${state})` : detail,
+			header: `> ${parsed.name} (${state})`,
+		};
 	}
 
 	const { content } = parsed;
