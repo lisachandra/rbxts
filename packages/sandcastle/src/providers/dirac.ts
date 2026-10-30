@@ -9,14 +9,30 @@
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { packageRoot } from "../runtime.js";
+import { sandcastleSessionStorage } from "./session-storage.js";
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
+
+/**
+ * Marker scope a provider instance's sessions are stored under. Providers are constructed per phase
+ * with the marker path (`<issue>.<phase>.completed`); deriving the scope from it keeps the store
+ * aligned with `runMarkerPhase`.
+ */
+export function scopeForMarkerPath(markerPath: string): string {
+	return markerPath
+		.replaceAll("\\", "/")
+		.split("/")
+		.at(-1)!
+		.replace(/\.completed$/, "");
+}
 
 export function diracProvider(
 	model: string,
 	options?: {
 		effort?: string;
 		env?: Record<string, string>;
+		/** Marker scope for the session store (issue phases and planner scopes). */
+		scope?: string;
 	},
 ): AgentProvider {
 	// oxlint-disable-next-line typescript/prefer-optional-chain -- Access with index string for env
@@ -27,20 +43,25 @@ export function diracProvider(
 		captureSessions: false,
 		env: options?.env ?? {},
 		name: "dirac",
+		...(options?.scope !== undefined
+			? { sessionStorage: sandcastleSessionStorage(options.scope, "dirac") }
+			: {}),
 
-		buildPrintCommand({ dangerouslySkipPermissions, prompt }): PrintCommand {
+		buildPrintCommand({ dangerouslySkipPermissions, prompt, resumeSession }): PrintCommand {
 			const yoloFlag = dangerouslySkipPermissions ? " -y" : "";
 			const effortFlag =
 				options?.effort !== undefined && options.effort !== ""
 					? ` --reasoning-effort ${options.effort}`
 					: "";
+			// dirac resumes a task by id with `-T <taskId>` (see dirac's cli/src/index.ts).
+			const resumeFlag = resumeSession !== undefined ? ` -T ${resumeSession}` : "";
 			const wrapperPath = `${packageRoot}/assets/dirac-wrapper.sh`.replaceAll("\\", "/");
 			return {
 				/*
 				 * The wrapper captures stdin to a temp file and passes it as a CLI
 				 * argument with stdin from /dev/null, avoiding Ink's raw-mode error.
 				 */
-				command: `bash ${wrapperPath} --json${yoloFlag}${effortFlag} --api-error-max-retries 0 ${provider} -m ${JSON.stringify(model)}`,
+				command: `bash ${wrapperPath} --json${yoloFlag}${effortFlag}${resumeFlag} --api-error-max-retries 0 ${provider} -m ${JSON.stringify(model)}`,
 				stdin: prompt,
 			};
 		},
@@ -49,6 +70,15 @@ export function diracProvider(
 			try {
 				const parsed = JSON.parse(line);
 				const events: Array<StreamEvent> = [];
+
+				/*
+				 * The first stream line announces the task id (`{"type":"task_started",
+				 * "taskId"}`); surfacing it as a session_id event is what lets upstream
+				 * record it on the iteration and the retry loop resume it later.
+				 */
+				if (parsed.type === "task_started" && typeof parsed.taskId === "string") {
+					events.push({ type: "session_id", sessionId: parsed.taskId });
+				}
 
 				if (
 					parsed.content?.type === "markdown" &&

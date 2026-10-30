@@ -4,7 +4,13 @@
  * dispatches it with bounded concurrency.
  */
 
-import { Output, type SandboxRunOptions, type SandboxRunResult } from "@ai-hero/sandcastle";
+import {
+	type AgentStreamEvent,
+	type LoggingOption,
+	Output,
+	type SandboxRunOptions,
+	type SandboxRunResult,
+} from "@ai-hero/sandcastle";
 
 import { existsSync, mkdirSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
@@ -27,6 +33,7 @@ import { skillsForPrompt } from "./prompts/skills.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir, worktreePathForBranch } from "./runtime.js";
+import { runSessioned } from "./session-resume.js";
 import {
 	isReviewComplete,
 	readState,
@@ -119,27 +126,32 @@ async function runDesignPhase(params: {
 }): Promise<void> {
 	console.log(`\n── Phase 1: Design (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.design`);
+	const scope = `${params.issueNumber}.design`;
 
 	await runPhaseWithRetry(
 		() =>
-			runMarkerPhase({
-				agentBackend: params.step.agentBackend,
-				effort: params.step.effort,
-				marker,
-				model: params.step.model,
-				name: `designer #${params.issueNumber}`,
-				promptArgs: {
-					...params.sharedArgs,
-					SKILLS: skillsForPrompt("design", params.issueLabels),
-				},
-				promptFile: config.prompts.plan,
-				run: params.sandbox.run,
-				runOptions: {
-					logging: fileLogging(params.logPath, {
-						digest: backendSupportsDigest(params.step.agentBackend),
-					}),
-				},
-			}),
+			runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
+				runMarkerPhase({
+					agentBackend: params.step.agentBackend,
+					effort: params.step.effort,
+					marker,
+					model: params.step.model,
+					name: `designer #${params.issueNumber}`,
+					promptArgs: {
+						...params.sharedArgs,
+						SKILLS: skillsForPrompt("design", params.issueLabels),
+					},
+					promptFile: config.prompts.plan,
+					run: params.sandbox.run,
+					runOptions: {
+						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+						logging: fileLogging(params.logPath, {
+							digest: backendSupportsDigest(params.step.agentBackend),
+							sessionCapture: capture,
+						}),
+					},
+				}),
+			),
 		"design",
 	);
 
@@ -217,27 +229,32 @@ async function runImplementPhase(params: {
 }): Promise<void> {
 	console.log(`\n── Phase 2: Implement (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.implement`);
+	const scope = `${params.issueNumber}.implement`;
 
 	const implResult = await runPhaseWithRetry(
 		() =>
-			runMarkerPhase({
-				agentBackend: params.step.agentBackend,
-				effort: params.step.effort,
-				marker,
-				model: params.step.model,
-				name: `implementer #${params.issueNumber}`,
-				promptArgs: {
-					...params.sharedArgs,
-					SKILLS: skillsForPrompt("implement", params.issueLabels),
-				},
-				promptFile: config.prompts.implement,
-				run: params.sandbox.run,
-				runOptions: {
-					logging: fileLogging(params.logPath, {
-						digest: backendSupportsDigest(params.step.agentBackend),
-					}),
-				},
-			}),
+			runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
+				runMarkerPhase({
+					agentBackend: params.step.agentBackend,
+					effort: params.step.effort,
+					marker,
+					model: params.step.model,
+					name: `implementer #${params.issueNumber}`,
+					promptArgs: {
+						...params.sharedArgs,
+						SKILLS: skillsForPrompt("implement", params.issueLabels),
+					},
+					promptFile: config.prompts.implement,
+					run: params.sandbox.run,
+					runOptions: {
+						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+						logging: fileLogging(params.logPath, {
+							digest: backendSupportsDigest(params.step.agentBackend),
+							sessionCapture: capture,
+						}),
+					},
+				}),
+			),
 		"implement",
 	);
 
@@ -277,30 +294,35 @@ async function runReviewPhase(params: {
 	if (params.hasCommits || params.evalReview === "force") {
 		console.log(`\n── Phase 3: Review (issue #${params.issueNumber}) ──`);
 		const marker = markerPath(`${params.issueNumber}.review`);
+		const scope = `${params.issueNumber}.review`;
 
 		await runPhaseWithRetry(
 			() =>
-				runMarkerPhase({
-					agentBackend: params.step.agentBackend,
-					effort: params.step.effort,
-					marker,
-					model: params.step.model,
-					name: `reviewer #${params.issueNumber}`,
-					promptArgs: {
-						...params.sharedArgs,
-						QUEUE_RULES: queueRulesForPrompt({
-							batch: queueBatchForIssue(params.issueNumber),
-						}),
-						SKILLS: skillsForPrompt("review", params.issueLabels),
-					},
-					promptFile: config.prompts.review,
-					run: params.sandbox.run,
-					runOptions: {
-						logging: fileLogging(params.logPath, {
-							digest: backendSupportsDigest(params.step.agentBackend),
-						}),
-					},
-				}),
+				runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
+					runMarkerPhase({
+						agentBackend: params.step.agentBackend,
+						effort: params.step.effort,
+						marker,
+						model: params.step.model,
+						name: `reviewer #${params.issueNumber}`,
+						promptArgs: {
+							...params.sharedArgs,
+							QUEUE_RULES: queueRulesForPrompt({
+								batch: queueBatchForIssue(params.issueNumber),
+							}),
+							SKILLS: skillsForPrompt("review", params.issueLabels),
+						},
+						promptFile: config.prompts.review,
+						run: params.sandbox.run,
+						runOptions: {
+							...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+							logging: fileLogging(params.logPath, {
+								digest: backendSupportsDigest(params.step.agentBackend),
+								sessionCapture: capture,
+							}),
+						},
+					}),
+				),
 			"review",
 		);
 
@@ -730,23 +752,47 @@ export async function runAll(
 	};
 	const planResult = await runPhaseWithRetry(
 		() =>
-			io.run({
-				agent: createAgent(
-					plannerStep.agentBackend,
-					plannerStep.model,
-					plannerStep.effort,
-					marker,
-				),
-				maxIterations: 1,
-				name: "planner",
-				output: Output.object({ schema: PlanSchema, tag: "plan" }),
-				promptArgs: {
-					...completionPromptArgs(marker, { before: "the `<plan>` block is printed" }),
-					READY_LABEL: config.labels.readyForAgent,
-				},
-				promptFile: config.prompts.planAll,
-				sandbox: sandboxProvider,
-			}),
+			runSessioned(
+				{ backend: plannerStep.agentBackend, scope: "planner" },
+				({ capture, resumed }) =>
+					io.run({
+						agent: createAgent(
+							plannerStep.agentBackend,
+							plannerStep.model,
+							plannerStep.effort,
+							marker,
+							{
+								scope: "planner",
+							},
+						),
+						maxIterations: 1,
+						name: "planner",
+						output: Output.object({ schema: PlanSchema, tag: "plan" }),
+						promptArgs: {
+							...completionPromptArgs(marker, {
+								before: "the `<plan>` block is printed",
+							}),
+							READY_LABEL: config.labels.readyForAgent,
+						},
+						promptFile: config.prompts.planAll,
+						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+						...(capture !== undefined
+							? {
+									logging: {
+										type: "file",
+										onAgentStreamEvent: (event: AgentStreamEvent): void => {
+											if (event.type === "raw") {
+												capture.onStreamLine(event.line);
+											}
+										},
+										path: pathResolve(logsDir, "planner.log"),
+										verbose: true,
+									} satisfies LoggingOption,
+								}
+							: {}),
+						sandbox: sandboxProvider,
+					}),
+			),
 		"planner",
 	);
 

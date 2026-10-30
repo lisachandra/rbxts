@@ -25,7 +25,7 @@ import type { AgentBackend, SandcastleEffort } from "./types.js";
 export { fetchIssueLabels, issueMetadata, issueView } from "./issue-metadata.js";
 export { queueRulesForPrompt } from "./prompts/queue.js";
 export { skillsForPrompt, uniqueSkills } from "./prompts/skills.js";
-export { diracProvider as diracAgent } from "./providers/dirac.js";
+export { diracProvider as diracAgent, scopeForMarkerPath } from "./providers/dirac.js";
 export { withMarkerCompletion } from "./providers/marker.js";
 export { zcodeProvider as zcodeAgent } from "./providers/zcode.js";
 
@@ -58,6 +58,10 @@ export function createAgent(
 	model: string,
 	effort: string,
 	markerPath: string,
+	options?: {
+		/** Marker scope for the session store; enables resume for dirac/zcode. */
+		scope?: string;
+	},
 ): AgentProvider {
 	const resolvedEffort = resolveBackendEffort(effort, backend);
 	let inner: AgentProvider;
@@ -86,6 +90,7 @@ export function createAgent(
 					OPENAI_API_BASE: process.env.OPENAI_API_BASE ?? "https://router.bynara.id/v1",
 					OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
 				},
+				...(options?.scope !== undefined ? { scope: options.scope } : {}),
 			});
 			break;
 		}
@@ -98,7 +103,10 @@ export function createAgent(
 			break;
 		}
 		case "zcode": {
-			inner = zcodeProvider(model, { effort: resolvedEffort });
+			inner = zcodeProvider(model, {
+				effort: resolvedEffort,
+				...(options?.scope !== undefined ? { scope: options.scope } : {}),
+			});
 			break;
 		}
 	}

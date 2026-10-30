@@ -89,3 +89,5 @@ words:
     - xyflow
     - zcode
     - wsarecv
+    - sessioned
+    - precheck

@@ -9,6 +9,7 @@
  *   --mode <mode>              permission mode: yolo (default) or build
  *   --model <providerId/modelId>  model selection; omitted uses zcode's default
  *   --reasoning-effort <level> thought level; forwarded per-session
+ *   --resume-session <id>      resume a persisted session instead of creating one
  *
  * Binary resolution order: $ZCODE_SANDCASTLE_BIN, `zcode` on PATH, then the
  * ZCode desktop app's bundled CLI. Outside the desktop app the CLI cannot
@@ -43,7 +44,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const HEARTBEAT_INTERVAL_MS = 120_000;
 
 function parseArgs(argv) {
-	const args = { effort: "", mode: "yolo", model: "" };
+	const args = { effort: "", mode: "yolo", model: "", resumeSession: "" };
 	for (let index = 0; index < argv.length; index++) {
 		const value = argv[index + 1] ?? "";
 		if (value === "") {
@@ -65,6 +66,12 @@ function parseArgs(argv) {
 			}
 			case "--reasoning-effort": {
 				args.effort = value;
+				index++;
+
+				break;
+			}
+			case "--resume-session": {
+				args.resumeSession = value;
 				index++;
 
 				break;
@@ -779,48 +786,82 @@ const [providerId, ...modelIdParts] = args.model.split("/");
 const hasExplicitModel =
 	args.model !== "" && providerId !== "" && modelIdParts.join("/").trim() !== "";
 
+/*
+ * Resume the persisted session when asked (the app-server's session/resume
+ * keeps the conversation history), otherwise create a fresh one. Model and
+ * thought-level flags forward the same way on both paths.
+ */
 let created;
 try {
-	created = await request(
-		"session/create",
-		{
-			mode: args.mode,
-			/*
-			 * "immediate" persists the session into zcode's shared store at
-			 * create time, so the run is visible in the desktop app under this
-			 * workspace even if it dies before its first turn completes
-			 * ("deferred" only persists after a completed turn).
-			 */
-			persistence: "immediate",
-			workspace: { workspaceKey: cwd, workspacePath: cwd },
-			...(hasExplicitModel
-				? {
-						model: {
-							modelId: modelIdParts.join("/"),
-							providerId,
-							...(args.effort !== ""
-								? { options: { reasoningLevel: args.effort } }
-								: {}),
-						},
-					}
-				: {}),
-			/*
-			 * session/create flattens model.options after bootstrap validation
-			 * (setModel receives "providerId/modelId"), so the thought level must
-			 * also be re-applied top-level or level-required models fail their
-			 * first turn with "Reasoning level is required".
-			 */
-			...(hasExplicitModel && args.effort !== "" ? { thoughtLevel: args.effort } : {}),
-		},
-		120_000,
-	);
+	if (args.resumeSession !== "") {
+		created = await request(
+			"session/resume",
+			{
+				sessionId: args.resumeSession,
+				workspace: { workspaceKey: cwd, workspacePath: cwd },
+				...(hasExplicitModel
+					? {
+							model: {
+								modelId: modelIdParts.join("/"),
+								providerId,
+								...(args.effort !== ""
+									? { options: { reasoningLevel: args.effort } }
+									: {}),
+							},
+						}
+					: {}),
+				...(args.effort !== "" ? { thoughtLevel: args.effort } : {}),
+			},
+			120_000,
+		);
+	} else {
+		created = await request(
+			"session/create",
+			{
+				mode: args.mode,
+				/*
+				 * "immediate" persists the session into zcode's shared store at
+				 * create time, so the run is visible in the desktop app under this
+				 * workspace even if it dies before its first turn completes
+				 * ("deferred" only persists after a completed turn).
+				 */
+				persistence: "immediate",
+				workspace: { workspaceKey: cwd, workspacePath: cwd },
+				...(hasExplicitModel
+					? {
+							model: {
+								modelId: modelIdParts.join("/"),
+								providerId,
+								...(args.effort !== ""
+									? { options: { reasoningLevel: args.effort } }
+									: {}),
+							},
+						}
+					: {}),
+				/*
+				 * session/create flattens model.options after bootstrap validation
+				 * (setModel receives "providerId/modelId"), so the thought level must
+				 * also be re-applied top-level or level-required models fail their
+				 * first turn with "Reasoning level is required".
+				 */
+				...(hasExplicitModel && args.effort !== "" ? { thoughtLevel: args.effort } : {}),
+			},
+			120_000,
+		);
+	}
 } catch (err) {
-	fail(`session/create failed: ${err.message}`);
+	fail(
+		`${args.resumeSession !== "" ? "session/resume" : "session/create"} failed: ${err.message}`,
+	);
 }
 
 const sessionId = created?.session?.sessionId;
 if (sessionId === undefined || sessionId === "") {
-	fail(`session/create returned no sessionId: ${JSON.stringify(created)?.slice(0, 400)}`);
+	fail(
+		`${
+			args.resumeSession !== "" ? "session/resume" : "session/create"
+		} returned no sessionId: ${JSON.stringify(created)?.slice(0, 400)}`,
+	);
 }
 
 emit({ type: "session_id", sessionId });

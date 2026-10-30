@@ -2,9 +2,9 @@
  * Stub zcode app-server for wrapper tests.
  *
  * Speaks the subset of the ZCode Protocol the sandcastle wrapper uses: the
- * runtime-preferences client-bound request, session/create, session/subscribe,
- * session/send, session/close, and session/event streaming. Mirrors the shape
- * of paseo's zcode-provider stub.
+ * runtime-preferences client-bound request, session/create, session/resume,
+ * session/subscribe, session/send, session/close, and session/event streaming.
+ * Mirrors the shape of paseo's zcode-provider stub.
  */
 
 import { writeFileSync } from "node:fs";
@@ -64,6 +64,21 @@ rl.on("line", (line) => {
 				mode,
 				model: params?.model ?? { modelId: "default-model", providerId: "stub" },
 				sessionId: "stub-session-1",
+				status: "idle",
+				title: "",
+				workspace: params?.workspace ?? { workspaceKey: "", workspacePath: "" },
+			},
+		});
+		return;
+	}
+
+	if (method === "session/resume") {
+		reply(id, {
+			session: {
+				mode,
+				model: params?.model ?? { modelId: "default-model", providerId: "stub" },
+				// A resume echoes the requested id back; the wrapper asserts on it.
+				sessionId: params?.sessionId ?? "stub-session-resumed",
 				status: "idle",
 				title: "",
 				workspace: params?.workspace ?? { workspaceKey: "", workspacePath: "" },

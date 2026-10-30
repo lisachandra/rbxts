@@ -42,6 +42,25 @@ describe("zcodeAgent", () => {
 		assert.equal(command.stdin, "hi");
 	});
 
+	test("buildPrintCommand forwards resumeSession as --resume-session", () => {
+		const agent = zcodeAgent("prov/model-x");
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: true,
+			prompt: "hi",
+			resumeSession: "session-42",
+		});
+		assert.match(command.command, /--resume-session session-42/);
+	});
+
+	test("buildPrintCommand omits the resume flag when no session is set", () => {
+		const agent = zcodeAgent("prov/model-x");
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: true,
+			prompt: "hi",
+		});
+		assert.doesNotMatch(command.command, /--resume-session/);
+	});
+
 	test("buildPrintCommand omits model/effort flags when unset", () => {
 		const agent = zcodeAgent("", {});
 		const command = agent.buildPrintCommand({
@@ -57,9 +76,10 @@ describe("zcodeAgent", () => {
 		const agent = zcodeAgent("prov/model-x");
 
 		assert.deepEqual(agent.parseStreamLine("not-json"), []);
+		// The session id is the typed event upstream records on the iteration.
 		assert.deepEqual(
 			agent.parseStreamLine(JSON.stringify({ type: "session_id", sessionId: "s" })),
-			[],
+			[{ type: "session_id", sessionId: "s" }],
 		);
 		assert.deepEqual(agent.parseStreamLine(JSON.stringify({ type: "keepalive" })), []);
 		assert.deepEqual(
@@ -114,6 +134,7 @@ describe("zcodeAgent", () => {
 
 describe("zcode wrapper (stub app-server)", () => {
 	interface StubOptions {
+		extraArgs?: string;
 		failTurn?: boolean;
 		requestPermission?: boolean;
 	}
@@ -144,12 +165,16 @@ describe("zcode wrapper (stub app-server)", () => {
 		}
 
 		// Run the wrapper the same way @ai-hero's sandbox does: `sh -c`, prompt on stdin.
-		const result = spawnSync("sh", ["-c", `node "${wrapperPath}" --mode yolo`], {
-			encoding: "utf-8",
-			env,
-			input: prompt,
-			timeout: 30_000,
-		});
+		const result = spawnSync(
+			"sh",
+			["-c", `node "${wrapperPath}" --mode yolo${stubOptions.extraArgs ?? ""}`],
+			{
+				encoding: "utf-8",
+				env,
+				input: prompt,
+				timeout: 30_000,
+			},
+		);
 
 		let seen: Array<{ method: string; params?: Record<string, unknown> }> = [];
 		try {
@@ -246,6 +271,33 @@ describe("zcode wrapper (stub app-server)", () => {
 			model?: unknown;
 		};
 		assert.equal(createParams?.model, undefined);
+	});
+
+	test("--resume-session issues session/resume with the requested id", () => {
+		const { seen, status, stderr, stdout } = runWrapper("continue", {
+			extraArgs: " --resume-session session-42",
+		});
+		assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+		const methods = seen.map((frame) => frame.method);
+		assert.ok(methods.includes("session/resume"), `no resume in ${JSON.stringify(methods)}`);
+		assert.ok(!methods.includes("session/create"), "resume must not create a fresh session");
+
+		const resume = seen.find((frame) => frame.method === "session/resume");
+		const resumeParams = resume?.params as {
+			sessionId?: string;
+			workspace?: { workspacePath?: string };
+		};
+		assert.equal(resumeParams?.sessionId, "session-42");
+		assert.equal(resumeParams?.workspace?.workspacePath, process.cwd());
+
+		// Subscribe + send run against the resumed session, and the id is re-announced.
+		const subscribe = seen.find((frame) => frame.method === "session/subscribe");
+		assert.equal((subscribe?.params as { sessionId?: string })?.sessionId, "session-42");
+		const send = seen.find((frame) => frame.method === "session/send");
+		assert.equal((send?.params as { sessionId?: string })?.sessionId, "session-42");
+		assert.match(stdout, /"type":"session_id","sessionId":"session-42"/);
+		assert.match(stdout, /"result":"stub-pong"/);
 	});
 
 	test("auto-answers permission requests with the allow option", () => {

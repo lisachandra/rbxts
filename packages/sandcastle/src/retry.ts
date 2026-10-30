@@ -2,11 +2,12 @@
  * Provider-failure detection and retry for agent sandbox runs.
  *
  * A phase run is retried indefinitely by default: providers fail transiently
- * (rate limits, HTTP 5xx, connection resets, stream drops) and every retry
- * starts a fresh agent session, so the only errors that propagate immediately
- * are ones no retry can fix — bad credentials, unknown models, missing
- * binaries. `SANDCASTLE_PHASE_MAX_RETRIES` caps the retries when a caller
- * wants exhaustion instead of persistence.
+ * (rate limits, HTTP 5xx, connection resets, stream drops) and each retry
+ * resumes the agent session captured from the previous attempt when one exists
+ * (see `session-resume.ts`), so the conversation context survives the failure.
+ * The only errors that propagate immediately are ones no retry can fix — bad
+ * credentials, unknown models, missing binaries. `SANDCASTLE_PHASE_MAX_RETRIES`
+ * caps the retries when a caller wants exhaustion instead of persistence.
  */
 
 import { io } from "./runtime.js";
@@ -38,7 +39,6 @@ const FATAL_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
 	/binary not found/,
 	/无法定位/,
 ];
-
 /**
  * Whether an error is hopeless — retrying it can never succeed.
  *

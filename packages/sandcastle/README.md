@@ -364,6 +364,18 @@ option, so runs are only safe with a model/mode you trust (default is `--mode yo
 
 Readable per-phase logs live at `issue-<n>.digest.log` for both `dirac` and `zcode` runs.
 
+### Session resume (`dirac` and `zcode`)
+
+Both custom backends support session resume: when a phase run fails mid-flight, the
+next attempt of the same phase continues the previous agent conversation instead of
+starting over. Sandcastle captures the session id each run announces (dirac's
+`task_started` JSON line, the zcode wrapper's `session_id` event), persists it per
+phase scope under `<.sandcastle>/sessions/`, and offers it back on the next attempt
+(dirac `-T <taskId>`, zcode `session/resume`). A session id the backend no longer
+knows is cleared so the following retry starts fresh. Set
+`SANDCASTLE_NO_SESSION_RESUME=1` to disable resume entirely. Other backends always
+start fresh sessions.
+
 ## Development
 
 ```bash

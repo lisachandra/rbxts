@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import { runAll, runSingleIssue } from "./issue.js";
 import { markerPath } from "./markers.js";
+import { clearSession, saveSession } from "./providers/session-store.js";
 import { config, io } from "./runtime.js";
 import { readState, writeState } from "./state.js";
 import {
@@ -437,7 +438,11 @@ describe("orchestration with heavy stubs", () => {
 			runCalls += 1;
 			if (runCalls === 1) {
 				mkdirSync(join(worktree, config.dir, "plans"), { recursive: true });
-				writeFileSync(join(worktree, config.dir, "plans", `${issue}.md`), "# Plan\n", "utf-8");
+				writeFileSync(
+					join(worktree, config.dir, "plans", `${issue}.md`),
+					"# Plan\n",
+					"utf-8",
+				);
 				const designMarker = markerPath(`${issue}.design`);
 				mkdirSync(dirname(designMarker), { recursive: true });
 				writeFileSync(designMarker, "", "utf-8");
@@ -466,7 +471,8 @@ describe("orchestration with heavy stubs", () => {
 			(args) => args[0] === "add" && args.includes("-f") && args.includes(relativePath),
 		);
 		const committed = gitCalls.some(
-			(args) => args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
+			(args) =>
+				args[0] === "commit" && args.some((arg) => arg.startsWith("docs(sandcastle)")),
 		);
 		assert.equal(forced, true, "a gitignored plan is staged with -f");
 		assert.equal(committed, true, "a gitignored plan is still committed");
@@ -550,6 +556,88 @@ describe("orchestration with heavy stubs", () => {
 		assert.equal(state?.phases.review.status, "skipped");
 		assert.match(state?.lastError ?? "", /implementer crashed/);
 
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("implement phase offers a pre-seeded session id as resumeSession", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-resume-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		// A prior attempt of this phase died after announcing its session id.
+		saveSession(`${issue}.implement`, { backend: "dirac", sessionId: "task-777" });
+
+		const resumeOptionsSeen: Array<string | undefined> = [];
+		let runCalls = 0;
+		io.run = (async (options: { resumeSession?: string }) => {
+			runCalls += 1;
+			resumeOptionsSeen.push(options.resumeSession);
+			if (runCalls === 1) {
+				mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, ".sandcastle", "plans", `${issue}.md`),
+					"# Plan",
+					"utf-8",
+				);
+				const designMarker = markerPath(`${issue}.design`);
+				mkdirSync(dirname(designMarker), { recursive: true });
+				writeFileSync(designMarker, "", "utf-8");
+				return { commits: [], stdout: "plan written" };
+			}
+
+			// The implement attempt rejects; with retries capped at 0 the phase fails.
+			throw new Error("implementer crashed");
+		}) as unknown as typeof io.run;
+
+		await assert.rejects(
+			async () =>
+				runSingleIssue(issue, "model", "low", {
+					agentBackend: "dirac",
+					baseRef: "main",
+					resume: true,
+					worktree,
+				}),
+			/implementer crashed/,
+		);
+
+		// Design (attempt 1) had no stored session; implement (attempt 2) resumed task-777.
+		assert.deepEqual(resumeOptionsSeen, [undefined, "task-777"]);
+
+		clearSession(`${issue}.implement`);
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });
 	});

@@ -10,6 +10,7 @@
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
 import { packageRoot } from "../runtime.js";
+import { sandcastleSessionStorage } from "./session-storage.js";
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 
@@ -17,6 +18,8 @@ export function zcodeProvider(
 	model: string,
 	options?: {
 		effort?: string;
+		/** Marker scope for the session store (issue phases and planner scopes). */
+		scope?: string;
 	},
 ): AgentProvider {
 	const wrapperPath = `${packageRoot}/assets/zcodeWrapper.mjs`.replaceAll("\\", "/");
@@ -31,15 +34,21 @@ export function zcodeProvider(
 		// zcode brings its own OAuth credentials; no env injection needed.
 		env: {},
 		name: "zcode",
+		...(options?.scope !== undefined
+			? { sessionStorage: sandcastleSessionStorage(options.scope, "zcode") }
+			: {}),
 
-		buildPrintCommand({ dangerouslySkipPermissions, prompt }): PrintCommand {
+		buildPrintCommand({ dangerouslySkipPermissions, prompt, resumeSession }): PrintCommand {
 			/*
 			 * @ai-hero's run() always passes dangerouslySkipPermissions: true; the
 			 * yolo mode maps to it, while the fallback keeps zcode's default build mode.
 			 */
 			const modeFlag = dangerouslySkipPermissions ? " --mode yolo" : "";
+			// The wrapper maps --resume-session to the app-server's session/resume.
+			const resumeFlag =
+				resumeSession !== undefined ? ` --resume-session ${resumeSession}` : "";
 			return {
-				command: `node ${wrapperPath}${modeFlag}${modelFlag}${effortFlag}`,
+				command: `node ${wrapperPath}${modeFlag}${modelFlag}${effortFlag}${resumeFlag}`,
 				stdin: prompt,
 			};
 		},
@@ -49,6 +58,7 @@ export function zcodeProvider(
 				detail?: unknown;
 				name?: unknown;
 				result?: unknown;
+				sessionId?: unknown;
 				state?: unknown;
 				text?: unknown;
 				type?: unknown;
@@ -109,12 +119,17 @@ export function zcodeProvider(
 			}
 
 			/*
-			 * {type:"session_id"}, {type:"note"}, {type:"keepalive"} and unknown
-			 * shapes carry nothing the runner consumes (note text reaches the
-			 * raw .log through upstream's stdout tee); they still count as
-			 * output upstream (idle timeout), which is why the wrapper emits
-			 * keep-alive events.
+			 * {type:"session_id"} is the wrapper announcing the session id — the
+			 * typed event upstream records on the iteration so the retry loop can
+			 * resume it. {type:"note"}, {type:"keepalive"} and unknown shapes
+			 * carry nothing the runner consumes (note text reaches the raw .log
+			 * through upstream's stdout tee); they still count as output upstream
+			 * (idle timeout), which is why the wrapper emits keep-alive events.
 			 */
+			if (parsed.type === "session_id" && typeof parsed.sessionId === "string") {
+				return [{ type: "session_id", sessionId: parsed.sessionId }];
+			}
+
 			return [];
 		},
 	};

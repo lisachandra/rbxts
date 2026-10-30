@@ -11,7 +11,7 @@ import type { SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
-import { createAgent } from "./agent.js";
+import { createAgent, scopeForMarkerPath } from "./agent.js";
 import { completionRules } from "./prompts/completion.js";
 import { config, stateRoot } from "./runtime.js";
 import type { AgentBackend } from "./types.js";
@@ -66,7 +66,10 @@ export async function runMarkerPhase(params: {
 	>;
 }): Promise<SandboxRunResult> {
 	clearMarker(params.marker);
-	const agent = createAgent(params.agentBackend, params.model, params.effort, params.marker);
+	// The marker scope doubles as the session-store scope, keyed per issue+phase.
+	const agent = createAgent(params.agentBackend, params.model, params.effort, params.marker, {
+		scope: scopeForMarkerPath(params.marker),
+	});
 	const result = await params.run({
 		...params.runOptions,
 		agent,

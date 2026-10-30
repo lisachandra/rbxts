@@ -16,6 +16,8 @@ import type { AgentStreamEvent, LoggingOption } from "@ai-hero/sandcastle";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
+import type { SessionCapture } from "./providers/session-capture.js";
+
 /** Backends whose stream renderer is supported by the readable digest. */
 const DIGEST_BACKENDS: ReadonlySet<string> = new Set(["dirac", "zcode"]);
 
@@ -72,14 +74,21 @@ export function formatRunStarted(now: Date = new Date()): string {
  * behavior). When `digest` is set (digest-enabled backends), the digest file is created
  * synchronously with a header and `Run started` marker, and every subsequent `raw` stream event is
  * rendered to markdown and appended immediately — so the digest exists from run start even if the
- * run fails or is killed mid-flight.
+ * run fails or is killed mid-flight. When `sessionCapture` is set, every raw stream line feeds the
+ * capture so the agent's session id survives even a failed run — the failure case is exactly when
+ * resume needs it.
  *
  * - @param logPath - Primary upstream log path.
- * - @param options - Set `digest: true` for digest-enabled backends to stream `<name>.digest.log`.
+ * - @param options - Set `digest: true` for digest-enabled backends to stream `<name>.digest.log`;
+ *   pass `sessionCapture` to record the agent's session id from the raw stream.
  * - @returns Logging options for the sandbox `run()` call.
  */
-export function fileLogging(logPath: string, options?: { digest?: boolean }): LoggingOption {
+export function fileLogging(
+	logPath: string,
+	options?: { digest?: boolean; sessionCapture?: SessionCapture },
+): LoggingOption {
 	const digestFilePath = options?.digest === true ? digestPath(logPath) : undefined;
+	const sessionCapture = options?.sessionCapture;
 	if (digestFilePath !== undefined) {
 		ensureLogDir(digestFilePath);
 		try {
@@ -98,10 +107,16 @@ export function fileLogging(logPath: string, options?: { digest?: boolean }): Lo
 	}
 
 	const onAgentStreamEvent =
-		digestFilePath === undefined
+		digestFilePath === undefined && sessionCapture === undefined
 			? undefined
 			: (event: AgentStreamEvent): void => {
 					if (event.type !== "raw") {
+						return;
+					}
+
+					sessionCapture?.onStreamLine(event.line);
+
+					if (digestFilePath === undefined) {
 						return;
 					}
 
