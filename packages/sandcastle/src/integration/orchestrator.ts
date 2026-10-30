@@ -18,6 +18,7 @@ import { backendSupportsDigest, fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
 import { queueRulesForPrompt } from "../prompts/queue.js";
 import { skillsForPrompt } from "../prompts/skills.js";
+import { runPhaseWithRetry } from "../retry.js";
 import { config, io, logsDir } from "../runtime.js";
 import type {
 	AgentBackend,
@@ -98,34 +99,38 @@ export async function runConflictResolver(
 	const resolveBackend = step?.agentBackend ?? agentBackend;
 	const resolveEffort = step?.effort ?? effort;
 	const resolveModel = step?.model ?? model;
-	await runMarkerPhase({
-		agentBackend: resolveBackend,
-		effort: resolveEffort,
-		marker,
-		model: resolveModel,
-		name: `resolve ${manifest.name} <- ${source.name}`,
-		promptArgs: {
-			INTEGRATION_NAME: manifest.name,
-			SKILLS: "- resolving-merge-conflicts",
-			SOURCE_CONTEXT: sourceContext,
+	await runPhaseWithRetry(
+		() =>
+			runMarkerPhase({
+				agentBackend: resolveBackend,
+				effort: resolveEffort,
+				marker,
+				model: resolveModel,
+				name: `resolve ${manifest.name} <- ${source.name}`,
+				promptArgs: {
+					INTEGRATION_NAME: manifest.name,
+					SKILLS: "- resolving-merge-conflicts",
+					SOURCE_CONTEXT: sourceContext,
 
-			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
-			SOURCE_NAME: source.name,
-		},
-		promptFile: config.prompts.resolveConflicts,
-		run: (options) =>
-			io.run({
-				...options,
-				branchStrategy: { type: "head" },
-				cwd: worktree,
-				sandbox: sandboxProvider,
+					QUEUE_RULES: queueRulesForPrompt({ composed: true }),
+					SOURCE_NAME: source.name,
+				},
+				promptFile: config.prompts.resolveConflicts,
+				run: (options) =>
+					io.run({
+						...options,
+						branchStrategy: { type: "head" },
+						cwd: worktree,
+						sandbox: sandboxProvider,
+					}),
+				runOptions: {
+					logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
+						digest: backendSupportsDigest(resolveBackend),
+					}),
+				},
 			}),
-		runOptions: {
-			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
-				digest: backendSupportsDigest(resolveBackend),
-			}),
-		},
-	});
+		`resolve ${manifest.name}`,
+	);
 }
 
 /** Run the integration review agent pass and record its marker. */
@@ -141,36 +146,40 @@ export async function runIntegrationReview(
 	const reviewBackend = step?.agentBackend ?? agentBackend;
 	const reviewEffort = step?.effort ?? effort;
 	const reviewModel = step?.model ?? model;
-	await runMarkerPhase({
-		agentBackend: reviewBackend,
-		effort: reviewEffort,
-		marker,
-		model: reviewModel,
-		name: `review integration ${manifest.name}`,
-		promptArgs: {
-			BASE_COMMIT: manifest.base.commit,
-			BASE_REF: manifest.base.ref,
-			BRANCH: manifest.branch,
-			INTEGRATION_NAME: manifest.name,
-			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
+	await runPhaseWithRetry(
+		() =>
+			runMarkerPhase({
+				agentBackend: reviewBackend,
+				effort: reviewEffort,
+				marker,
+				model: reviewModel,
+				name: `review integration ${manifest.name}`,
+				promptArgs: {
+					BASE_COMMIT: manifest.base.commit,
+					BASE_REF: manifest.base.ref,
+					BRANCH: manifest.branch,
+					INTEGRATION_NAME: manifest.name,
+					QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 
-			SKILLS: skillsForPrompt("review"),
-			SOURCES: sourceContext,
-		},
-		promptFile: config.prompts.reviewIntegration,
-		run: (options) =>
-			io.run({
-				...options,
-				branchStrategy: { type: "head" },
-				cwd: integrationBasePath(manifest),
-				sandbox: sandboxProvider,
+					SKILLS: skillsForPrompt("review"),
+					SOURCES: sourceContext,
+				},
+				promptFile: config.prompts.reviewIntegration,
+				run: (options) =>
+					io.run({
+						...options,
+						branchStrategy: { type: "head" },
+						cwd: integrationBasePath(manifest),
+						sandbox: sandboxProvider,
+					}),
+				runOptions: {
+					logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
+						digest: backendSupportsDigest(reviewBackend),
+					}),
+				},
 			}),
-		runOptions: {
-			logging: fileLogging(pathResolve(logsDir, `integration-${manifest.name}.log`), {
-				digest: backendSupportsDigest(reviewBackend),
-			}),
-		},
-	});
+		`review integration ${manifest.name}`,
+	);
 }
 
 /** Injectable seam for the orchestrator's worktree prep and marker agent phases. */

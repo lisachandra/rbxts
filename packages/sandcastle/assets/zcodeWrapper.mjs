@@ -188,11 +188,30 @@ function emitNoteOnce(message) {
 	emitNote(message);
 }
 
+/*
+ * Zcode gives up on a model request after 10 retries (~11 attempts, capped
+ * 2s..60s backoff). A flaky provider endpoint (HTTP 5xx, connection resets)
+ * then fails the whole sandcastle phase. Retry effectively forever unless the
+ * caller preset ZCODE_MODEL_RETRY_MAX_RETRIES: at the 60s backoff cap the
+ * budget spans years, and zcode still honors Retry-After for rate limits.
+ */
+const DEFAULT_RETRY_BUDGET = "100000";
+function resolveRetryEnv() {
+	const key = "ZCODE_MODEL_RETRY_MAX_RETRIES";
+	const preset = (process.env[key] ?? "").trim();
+	if (preset !== "") {
+		return {};
+	}
+
+	emitNote(`injecting ${key}=${DEFAULT_RETRY_BUDGET} (set the env to override)`);
+	return { [key]: DEFAULT_RETRY_BUDGET };
+}
+
 function spawnServer(binary) {
 	const isWindows = process.platform === "win32";
 	const isScript = /\.(cjs|mjs|js)$/i.test(binary);
 	const isShellShim = isWindows && /\.cmd$/i.test(binary);
-	const childEnv = { ...process.env, ...resolveProviderConfigEnv() };
+	const childEnv = { ...process.env, ...resolveProviderConfigEnv(), ...resolveRetryEnv() };
 	if (isScript) {
 		return spawn(process.execPath, [binary, "app-server"], {
 			env: childEnv,

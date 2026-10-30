@@ -241,6 +241,13 @@ export function registerTestHooks(): void {
 		mkdirSync(tmpRoot, { recursive: true });
 		restoreIo();
 		process.argv = [...originalArgv];
+		/*
+		 * Phase retries are unlimited in production, with 30s+ backoff — tests
+		 * stub agents to fail and expect errors to propagate, so persistence
+		 * would spin through real sleeps for hours. Tests opt out globally;
+		 * retry.test.ts re-enables the behavior it pins per test.
+		 */
+		process.env.SANDCASTLE_PHASE_MAX_RETRIES = "0";
 	});
 
 	afterEach(() => {

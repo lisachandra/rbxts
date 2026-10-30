@@ -728,18 +728,27 @@ export async function runAll(
 		effort: effort as ResolvedAgentStep["effort"],
 		model,
 	};
-	const planResult = await io.run({
-		agent: createAgent(plannerStep.agentBackend, plannerStep.model, plannerStep.effort, marker),
-		maxIterations: 1,
-		name: "planner",
-		output: Output.object({ schema: PlanSchema, tag: "plan" }),
-		promptArgs: {
-			...completionPromptArgs(marker, { before: "the `<plan>` block is printed" }),
-			READY_LABEL: config.labels.readyForAgent,
-		},
-		promptFile: config.prompts.planAll,
-		sandbox: sandboxProvider,
-	});
+	const planResult = await runPhaseWithRetry(
+		() =>
+			io.run({
+				agent: createAgent(
+					plannerStep.agentBackend,
+					plannerStep.model,
+					plannerStep.effort,
+					marker,
+				),
+				maxIterations: 1,
+				name: "planner",
+				output: Output.object({ schema: PlanSchema, tag: "plan" }),
+				promptArgs: {
+					...completionPromptArgs(marker, { before: "the `<plan>` block is printed" }),
+					READY_LABEL: config.labels.readyForAgent,
+				},
+				promptFile: config.prompts.planAll,
+				sandbox: sandboxProvider,
+			}),
+		"planner",
+	);
 
 	if (!markerExists(marker)) {
 		throw new Error("Planner finished without a completion marker.");

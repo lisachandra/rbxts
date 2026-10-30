@@ -32,6 +32,7 @@ if (process.env.STUB_ENV_FILE !== undefined && process.env.STUB_ENV_FILE !== "")
 		JSON.stringify({
 			builtin: process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE ?? null,
 			personal: process.env.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE ?? null,
+			retryMaxRetries: process.env.ZCODE_MODEL_RETRY_MAX_RETRIES ?? null,
 		}),
 	);
 }

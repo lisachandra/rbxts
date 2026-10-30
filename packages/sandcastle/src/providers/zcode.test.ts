@@ -262,6 +262,7 @@ describe("zcode wrapper (stub app-server)", () => {
 		interface StubEnvSnapshot {
 			builtin: null | string;
 			personal: null | string;
+			retryMaxRetries: null | string;
 		}
 
 		function runWrapperEnv(
@@ -288,7 +289,11 @@ describe("zcode wrapper (stub app-server)", () => {
 				input: "hi",
 				timeout: 30_000,
 			});
-			let snapshot: StubEnvSnapshot = { builtin: null, personal: null };
+			let snapshot: StubEnvSnapshot = {
+				builtin: null,
+				personal: null,
+				retryMaxRetries: null,
+			};
 			try {
 				snapshot = JSON.parse(readFileSync(envFile, "utf-8")) as StubEnvSnapshot;
 			} catch {
@@ -331,6 +336,24 @@ describe("zcode wrapper (stub app-server)", () => {
 			});
 			assert.equal(status, 0, `wrapper failed: ${stderr}`);
 			assert.equal(builtin, preset);
+		});
+
+		test("injects the near-infinite retry budget when unset", () => {
+			const { retryMaxRetries, status, stderr } = runWrapperEnv({
+				ZCODE_MODEL_RETRY_MAX_RETRIES: undefined,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+			assert.equal(retryMaxRetries, "100000");
+			assert.match(stderr, /injecting ZCODE_MODEL_RETRY_MAX_RETRIES/);
+		});
+
+		test("preserves a preset retry budget untouched", () => {
+			const { retryMaxRetries, status, stderr } = runWrapperEnv({
+				ZCODE_MODEL_RETRY_MAX_RETRIES: "3",
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+			assert.equal(retryMaxRetries, "3");
+			assert.doesNotMatch(stderr, /injecting ZCODE_MODEL_RETRY_MAX_RETRIES/);
 		});
 	});
 });

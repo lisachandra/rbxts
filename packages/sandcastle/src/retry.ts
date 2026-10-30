@@ -1,48 +1,128 @@
 /*
- * Rate-limit detection and retry for agent sandbox runs.
+ * Provider-failure detection and retry for agent sandbox runs.
+ *
+ * A phase run is retried indefinitely by default: providers fail transiently
+ * (rate limits, HTTP 5xx, connection resets, stream drops) and every retry
+ * starts a fresh agent session, so the only errors that propagate immediately
+ * are ones no retry can fix — bad credentials, unknown models, missing
+ * binaries. `SANDCASTLE_PHASE_MAX_RETRIES` caps the retries when a caller
+ * wants exhaustion instead of persistence.
  */
 
 import { io } from "./runtime.js";
 
-export function isRateLimitError(err: unknown): boolean {
+const INITIAL_BACKOFF_SECONDS = 30;
+const MAX_BACKOFF_SECONDS = 300;
+
+/**
+ * Errors that retrying cannot fix; the phase fails on the first occurrence.
+ *
+ * Matched against the lowercased error string, which for an agent failure is the provider's stderr
+ * (HTTP status lines, provider error dumps). The list is deliberately narrow: everything else —
+ * including unrecognized errors — is treated as transient and retried.
+ */
+const FATAL_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
+	/\b40[13]\b/, // HTTP 401/403: credentials
+	/unauthorized/,
+	/forbidden/,
+	/authentication/,
+	/invalid[ _-]api[ _-]?key/,
+	/incorrect[ _-]api[ _-]?key/,
+	/missing[ _-]api[ _-]?key/,
+	// Unknown model/config: zcode reports 「Provider Registry 中不存在 Model」.
+	/不存在/,
+	/provider registry/,
+	/unknown model/,
+	/model[ _-]not[ _-]?found/,
+	// Environment/setup failures that would repeat on every attempt.
+	/binary not found/,
+	/无法定位/,
+];
+
+/**
+ * Whether an error is hopeless — retrying it can never succeed.
+ *
+ * @param err - The thrown phase error.
+ * @returns `true` only for credential, model-selection, and setup failures.
+ */
+export function isFatalProviderError(err: unknown): boolean {
 	const msg = String(err).toLowerCase();
-	return (
-		msg.includes("429") ||
-		msg.includes("rate_limit") ||
-		msg.includes("rate limit") ||
-		msg.includes("too many requests") ||
-		msg.includes("quota exceeded") ||
-		msg.includes("resource_exhausted")
-	);
+	return FATAL_ERROR_PATTERNS.some((pattern) => pattern.test(msg));
+}
+
+/** Retry cap from `SANDCASTLE_PHASE_MAX_RETRIES`; unset or invalid means no cap. */
+function resolveDefaultMaxRetries(): number {
+	const raw = (process.env.SANDCASTLE_PHASE_MAX_RETRIES ?? "").trim();
+	if (raw === "") {
+		return Number.POSITIVE_INFINITY;
+	}
+
+	const parsed = Number(raw);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		console.warn(`  ⚠ Invalid SANDCASTLE_PHASE_MAX_RETRIES "${raw}" — retrying indefinitely.`);
+		return Number.POSITIVE_INFINITY;
+	}
+
+	return parsed;
+}
+
+/** First line of the error, truncated for the one-line retry log. */
+function errorSummary(err: unknown): string {
+	const line = String(err).split("\n", 1)[0] ?? "";
+	return line.length > 300 ? `${line.slice(0, 297)}...` : line;
 }
 
 /**
- * Wraps a sandbox.run() call with retry logic for rate-limit errors. Other errors propagate
- * immediately.
+ * Wraps a sandbox.run() call with retry logic for transient provider errors.
  *
- * @rejects {Error} When the phase fails for a non-rate-limit reason or retries are exhausted.
+ * Retries indefinitely by default — set `maxRetries` (or the `SANDCASTLE_PHASE_MAX_RETRIES` env) to
+ * cap the retries; fatal errors (see {@link isFatalProviderError}) always propagate immediately.
+ * Backoff starts at 30s and doubles up to a 5-minute cap, so an endpoint outage spanning hours
+ * still recovers into the same phase run.
+ *
+ * @param sandboxRun - The phase invocation; each attempt starts fresh.
+ * @param phaseName - Label used in retry log lines.
+ * @param maxRetries - Retries after the first attempt; defaults to the
+ *   `SANDCASTLE_PHASE_MAX_RETRIES` env, or unlimited when unset.
+ * @returns Whatever `sandboxRun` resolves with on the first successful attempt.
+ * @rejects {Error} When the phase fails for a fatal reason or retries are exhausted.
  */
-export async function runPhaseWithRetry(
-	sandboxRun: () => Promise<{ commits: Array<{ sha: string }>; stdout: string }>,
+export async function runPhaseWithRetry<T>(
+	sandboxRun: () => Promise<T>,
 	phaseName: string,
-	maxRetries = 3,
-): Promise<{ commits: Array<{ sha: string }>; stdout: string }> {
-	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+	maxRetries?: number,
+): Promise<T> {
+	const resolvedMaxRetries = maxRetries ?? resolveDefaultMaxRetries();
+	const startedAt = Date.now();
+
+	for (let attempt = 1; ; attempt++) {
 		try {
 			return await sandboxRun();
 		} catch (err) {
-			if (isRateLimitError(err) && attempt < maxRetries) {
-				const backoff = 30 * attempt;
-				console.warn(
-					`  ⚠ Rate limited during ${phaseName}. Retrying in ${backoff}s (attempt ${attempt}/${maxRetries})...`,
-				);
-				await io.sleep(backoff * 1000);
-				continue;
+			if (isFatalProviderError(err) || attempt > resolvedMaxRetries) {
+				throw err;
 			}
 
-			throw err;
+			const backoffSeconds = Math.min(
+				INITIAL_BACKOFF_SECONDS * 2 ** (attempt - 1),
+				MAX_BACKOFF_SECONDS,
+			);
+			console.warn(
+				`  ⚠ ${phaseName} failed (attempt ${attempt} of ${
+					resolvedMaxRetries === Number.POSITIVE_INFINITY
+						? "unlimited"
+						: String(resolvedMaxRetries + 1)
+				}). Retrying in ${backoffSeconds}s...`,
+			);
+			console.warn(`    ${errorSummary(err)}`);
+			if (attempt % 10 === 0) {
+				const elapsedMinutes = Math.round((Date.now() - startedAt) / 60_000);
+				console.warn(
+					`  ⚠ ${phaseName}: still retrying after ${elapsedMinutes} min (attempt ${attempt})...`,
+				);
+			}
+
+			await io.sleep(backoffSeconds * 1000);
 		}
 	}
-
-	throw new Error("unreachable");
 }
