@@ -73,10 +73,28 @@ rl.on("line", (line) => {
 	}
 
 	if (method === "session/resume") {
+		/*
+		 * The real app-server's resume schema rejects a root `model` key with
+		 * "Invalid params — (root): Unrecognized key: model" (unlike create,
+		 * which accepts it). Mirror that so wrapper tests catch regressions to
+		 * forwarding the model on resume.
+		 */
+		if (params?.model !== undefined) {
+			write({
+				id,
+				error: {
+					code: -32602,
+					data: { message: 'Unrecognized key: "model"', name: "ZodError" },
+					message: 'Invalid params — (root): Unrecognized key: "model"',
+				},
+			});
+			return;
+		}
+
 		reply(id, {
 			session: {
 				mode,
-				model: params?.model ?? { modelId: "default-model", providerId: "stub" },
+				model: { modelId: "default-model", providerId: "stub" },
 				// A resume echoes the requested id back; the wrapper asserts on it.
 				sessionId: params?.sessionId ?? "stub-session-resumed",
 				status: "idle",

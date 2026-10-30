@@ -285,11 +285,18 @@ describe("zcode wrapper (stub app-server)", () => {
 
 		const resume = seen.find((frame) => frame.method === "session/resume");
 		const resumeParams = resume?.params as {
+			model?: unknown;
 			sessionId?: string;
 			workspace?: { workspacePath?: string };
 		};
 		assert.equal(resumeParams?.sessionId, "session-42");
 		assert.equal(resumeParams?.workspace?.workspacePath, process.cwd());
+		/*
+		 * The app-server's resume schema rejects a root `model` key ("Unrecognized
+		 * key"), so the wrapper must never forward one — the session keeps the
+		 * model it was created with. The stub enforces this too.
+		 */
+		assert.equal(resumeParams?.model, undefined);
 
 		// Subscribe + send run against the resumed session, and the id is re-announced.
 		const subscribe = seen.find((frame) => frame.method === "session/subscribe");

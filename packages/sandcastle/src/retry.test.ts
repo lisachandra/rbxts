@@ -80,6 +80,36 @@ describe("phase retry", () => {
 		assert.equal(backoffAttempts, 6);
 	});
 
+	test("the retry log includes the error's later lines", async () => {
+		/*
+		 * Agent failures carry the real cause after the first line ("zcode exited
+		 * with code 1:"); the one-line retry warning must show it, not truncate.
+		 */
+		process.env.SANDCASTLE_PHASE_MAX_RETRIES = "1";
+		io.sleep = async () => {};
+
+		const logged: Array<string> = [];
+		const original = console.warn;
+		console.warn = (...args: Array<unknown>) => {
+			logged.push(args.join(" "));
+		};
+
+		try {
+			await assert.rejects(async () =>
+				runPhaseWithRetry(async () => {
+					throw new Error(
+						"zcode exited with code 1:\nzcode-wrapper: session/resume failed: Invalid params",
+					);
+				}, "review"),
+			);
+		} finally {
+			console.warn = original;
+		}
+
+		const summary = logged.find((line) => line.includes("session/resume failed"));
+		assert.ok(summary !== undefined, `no multi-line summary in ${JSON.stringify(logged)}`);
+	});
+
 	test("fatal errors rethrow immediately without sleeping", async () => {
 		const sleeps: Array<number> = [];
 		io.sleep = async (ms: number) => {

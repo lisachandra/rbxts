@@ -98,6 +98,29 @@ describe("session resume", () => {
 		assert.equal(loadSession(scope), undefined, "stale session must be cleared");
 	});
 
+	test("endSessionedAttempt clears a session whose resume the schema rejected", () => {
+		/*
+		 * The real app-server rejects malformed resume params with a Zod
+		 * "Unrecognized key" error; that can only mean the resume request itself
+		 * is broken, so the store must drop the id instead of retrying forever.
+		 */
+		const scope = `resume-schema-${Date.now()}`;
+		saveSession(scope, { backend: "zcode", sessionId: "schema-session" });
+		const resumed = resumableSession(scope, "zcode");
+		let capture: undefined | SessionCapture;
+		beginSessionedAttempt({ backend: "zcode", scope }, (resolved) => {
+			capture = resolved;
+		});
+		endSessionedAttempt(
+			scope,
+			"zcode",
+			capture!,
+			resumed,
+			new Error('session/resume: Invalid params — (root): Unrecognized key: "model"'),
+		);
+		assert.equal(loadSession(scope), undefined, "schema-rejected resume must be cleared");
+	});
+
 	test("endSessionedAttempt keeps the store for ordinary failures", () => {
 		const scope = `resume-keep-${Date.now()}`;
 		saveSession(scope, { backend: "zcode", sessionId: "keep" });
@@ -138,6 +161,12 @@ describe("session resume", () => {
 	test("isStaleSessionError matches the backends' not-found messages", () => {
 		assert.equal(isStaleSessionError(new Error("Task not found: 1792")), true);
 		assert.equal(isStaleSessionError(new Error("session not found")), true);
+		assert.equal(
+			isStaleSessionError(
+				new Error('session/resume: Invalid params — (root): Unrecognized key: "model"'),
+			),
+			true,
+		);
 		assert.equal(isStaleSessionError(new Error("HTTP 500 upstream exploded")), false);
 	});
 

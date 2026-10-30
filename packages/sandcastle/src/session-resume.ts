@@ -157,9 +157,12 @@ export function endSessionedAttempt(
 
 /**
  * Whether an error means the resumed session id was rejected (dirac prints "Task not found: <id>";
- * zcode's session/resume fails on unknown sessions).
+ * zcode's session/resume fails on unknown sessions, and its schema rejects malformed resume params
+ * — e.g. an unexpected root key — with "Invalid params — (root): Unrecognized key: ...").
  */
 export function isStaleSessionError(err: unknown): boolean {
 	const message = String(err).toLowerCase();
-	return /task not found|session not found|unknown session|no such session/.test(message);
+	return /task not found|session not found|unknown session|no such session|invalid params|unrecognized key/.test(
+		message,
+	);
 }

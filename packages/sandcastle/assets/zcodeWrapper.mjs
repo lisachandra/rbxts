@@ -243,6 +243,20 @@ function emit(event) {
 	process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
+/*
+ * Stdout/stderr pipes are async in Node: a write queued right before
+ * process.exit() can be dropped. Every diagnostic below rides on stderr
+ * (agent-wrapper.sh merges it into stdout), so failing paths flush it before
+ * exiting or the real error never reaches the runner's error detail.
+ */
+function writeFlushed(stream, text) {
+	return new Promise((resolve) => {
+		if (stream.write(text, () => resolve())) {
+			resolve();
+		}
+	});
+}
+
 function emitNote(message) {
 	process.stderr.write(`zcode-wrapper: ${message}\n`);
 }
@@ -250,10 +264,11 @@ function emitNote(message) {
 const args = parseArgs(process.argv.slice(2));
 const binary = resolveBinary();
 if (binary === undefined) {
-	emitNote(
-		"zcode binary not found. Set ZCODE_SANDCASTLE_BIN to the CLI entry (e.g. the desktop bundle zcode.cjs), install zcode on PATH, or install the ZCode desktop app.",
-	);
-	process.exit(1);
+	void writeFlushed(
+		process.stderr,
+		"zcode-wrapper: zcode binary not found. Set ZCODE_SANDCASTLE_BIN to the CLI entry " +
+			"(e.g. the desktop bundle zcode.cjs), install zcode on PATH, or install the ZCode desktop app.\n",
+	).then(() => process.exit(1));
 }
 
 const child = spawnServer(binary);
@@ -266,18 +281,26 @@ child.stderr.on("data", (chunk) => {
 });
 child.on("exit", (code, signal) => {
 	if (!finished) {
-		emitNote(
-			`zcode app-server exited early (code=${code ?? "null"} signal=${signal ?? "null"})`,
-		);
-		dumpStderrTail();
-		process.exit(1);
+		finished = true;
+		void (async () => {
+			await writeFlushed(
+				process.stderr,
+				`zcode-wrapper: zcode app-server exited early (code=${code ?? "null"} signal=${signal ?? "null"})\n`,
+			);
+			await dumpStderrTail();
+			process.exit(1);
+		})();
 	}
 });
 
-function dumpStderrTail() {
+/** Dump the buffered app-server stderr to the wrapper's stderr, flushed. */
+async function dumpStderrTail() {
 	const tail = stderrTail.join("").trim();
 	if (tail !== "") {
-		emitNote(`--- zcode stderr (last ${stderrTail.length} chunks) ---\n${tail.slice(-8_000)}`);
+		await writeFlushed(
+			process.stderr,
+			`zcode-wrapper: --- zcode stderr (last ${stderrTail.length} chunks) ---\n${tail.slice(-8_000)}\n`,
+		);
 	}
 }
 
@@ -750,22 +773,32 @@ async function shutdown(sessionId) {
 	}, 100);
 }
 
-function fail(message) {
-	emitNote(message);
-	dumpStderrTail();
+async function fail(message) {
+	await writeFlushed(process.stderr, `zcode-wrapper: ${message}\n`);
+	const tail = stderrTail.join("").trim();
+	if (tail !== "") {
+		await writeFlushed(
+			process.stderr,
+			`zcode-wrapper: --- zcode stderr (last ${stderrTail.length} chunks) ---\n${tail.slice(-8_000)}\n`,
+		);
+	}
+
 	finished = true;
 	child.kill();
 	process.exit(1);
 }
 
 child.on("error", (error) => {
-	fail(`failed to spawn zcode (${binary}): ${error.message}`);
+	void fail(`failed to spawn zcode (${binary}): ${error.message}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
 	process.on(signal, () => {
-		emitNote(`received ${signal}; aborting session`);
-		process.exit(130);
+		finished = true;
+		void writeFlushed(
+			process.stderr,
+			`zcode-wrapper: received ${signal}; aborting session\n`,
+		).then(() => process.exit(130));
 	});
 }
 
@@ -788,8 +821,11 @@ const hasExplicitModel =
 
 /*
  * Resume the persisted session when asked (the app-server's session/resume
- * keeps the conversation history), otherwise create a fresh one. Model and
- * thought-level flags forward the same way on both paths.
+ * keeps the conversation history), otherwise create a fresh one. The resume
+ * schema is stricter than create's: a root `model` key is rejected with
+ * "Unrecognized key: model" (verified against the desktop app-server), so
+ * resume keeps the session's existing model and forwards only the thought
+ * level.
  */
 let created;
 try {
@@ -799,17 +835,6 @@ try {
 			{
 				sessionId: args.resumeSession,
 				workspace: { workspaceKey: cwd, workspacePath: cwd },
-				...(hasExplicitModel
-					? {
-							model: {
-								modelId: modelIdParts.join("/"),
-								providerId,
-								...(args.effort !== ""
-									? { options: { reasoningLevel: args.effort } }
-									: {}),
-							},
-						}
-					: {}),
 				...(args.effort !== "" ? { thoughtLevel: args.effort } : {}),
 			},
 			120_000,
@@ -850,14 +875,14 @@ try {
 		);
 	}
 } catch (err) {
-	fail(
+	await fail(
 		`${args.resumeSession !== "" ? "session/resume" : "session/create"} failed: ${err.message}`,
 	);
 }
 
 const sessionId = created?.session?.sessionId;
 if (sessionId === undefined || sessionId === "") {
-	fail(
+	await fail(
 		`${
 			args.resumeSession !== "" ? "session/resume" : "session/create"
 		} returned no sessionId: ${JSON.stringify(created)?.slice(0, 400)}`,
@@ -869,7 +894,7 @@ emit({ type: "session_id", sessionId });
 try {
 	await request("session/subscribe", { deliveryKind: DELIVERY_KIND, sessionId }, 15_000);
 } catch (err) {
-	fail(`session/subscribe failed: ${err.message}`);
+	await fail(`session/subscribe failed: ${err.message}`);
 }
 
 markActivity();
@@ -877,14 +902,14 @@ try {
 	await request("session/send", { content: prompt, sessionId }, 30_000);
 } catch (err) {
 	await shutdown(sessionId);
-	fail(`session/send failed: ${err.message}`);
+	await fail(`session/send failed: ${err.message}`);
 }
 
 await turnSettledPromise;
 await shutdown(sessionId);
 
 if (turnError !== undefined) {
-	fail(turnError.message);
+	await fail(turnError.message);
 }
 
 process.exit(0);

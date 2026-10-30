@@ -66,10 +66,19 @@ function resolveDefaultMaxRetries(): number {
 	return parsed;
 }
 
-/** First line of the error, truncated for the one-line retry log. */
+/**
+ * Bounded error detail for the retry log. Agent failures carry the real cause on later lines (the
+ * first line is often just "zcode exited with code 1:"), so the summary keeps the leading lines up
+ * to a small cap instead of one.
+ */
 function errorSummary(err: unknown): string {
-	const line = String(err).split("\n", 1)[0] ?? "";
-	return line.length > 300 ? `${line.slice(0, 297)}...` : line;
+	const summary = String(err)
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "")
+		.slice(0, 4)
+		.join(" | ");
+	return summary.length > 400 ? `${summary.slice(0, 397)}...` : summary;
 }
 
 /**
