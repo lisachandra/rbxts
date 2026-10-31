@@ -194,6 +194,21 @@ rl.on("line", (line) => {
 			sessionId,
 		);
 
+		if (process.env.STUB_LEGACY_TOOL_PART === "1") {
+			emit(
+				"part.upserted",
+				{
+					part: {
+						partId: "part-1",
+						state: { output: "legacy-out", status: "completed" },
+						tool: "Grep",
+						type: "tool",
+					},
+				},
+				sessionId,
+			);
+		}
+
 		if (failTurn) {
 			emit("turn.failed", { error: { type: "stub", message: "stub explosion" } }, sessionId);
 			return;

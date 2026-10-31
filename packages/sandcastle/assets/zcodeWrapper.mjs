@@ -500,6 +500,15 @@ function toolProgressDetail(progress, toolInputs) {
 	return pieces.join("\n");
 }
 
+/*
+ * Readable detail for a legacy part.* tool event that reached a terminal
+ * state: the part's own output/result/error slice.
+ */
+function toolDetail(part) {
+	const state = part?.state ?? {};
+	return excerptValue(state.output ?? state.result ?? state.error ?? state.text);
+}
+
 function markActivity() {
 	if (keepaliveTimer !== undefined) {
 		clearInterval(keepaliveTimer);

@@ -263,6 +263,38 @@ describe("zcode wrapper (stub app-server)", () => {
 		assert.match(notes.at(-1)?.text ?? "", /session title: stub title/);
 	});
 
+	test("emits detail for a legacy part.* tool part in a terminal state", () => {
+		/*
+		 * Pins the legacy part.* contract: a terminal tool part must produce a
+		 * tool event with its output slice as detail (the helper behind this was
+		 * once referenced but never defined, crashing the readline handler).
+		 */
+		const env: Record<string, string> = {
+			...((process.env as Record<string, string | undefined>) ?? {}),
+			STUB_LEGACY_TOOL_PART: "1",
+			ZCODE_SANDCASTLE_BIN: stubPath,
+		};
+		const result = spawnSync("sh", ["-c", `node "${wrapperPath}" --mode yolo`], {
+			encoding: "utf-8",
+			env,
+			input: "hi",
+			timeout: 30_000,
+		});
+		assert.equal(result.status, 0, `wrapper failed: ${result.stderr}`);
+
+		const lines = result.stdout
+			.split("\n")
+			.filter((line) => line.trim() !== "")
+			.map((line) => JSON.parse(line) as Record<string, unknown>);
+		const grepEvents = lines.filter(
+			(line) => line.type === "tool" && line.name === "Grep",
+		) as Array<{ detail?: string; name: string; state: string }>;
+		assert.deepEqual(
+			grepEvents.map((event) => [event.name, event.state, event.detail]),
+			[["Grep", "completed", "legacy-out"]],
+		);
+	});
+
 	test("omits the model param when --model is absent", () => {
 		const { seen, status } = runWrapper("hi");
 		assert.equal(status, 0);
