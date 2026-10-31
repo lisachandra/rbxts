@@ -30,6 +30,7 @@ import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers
 import { completionPromptArgs } from "./prompts/completion.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
+import { saveSession } from "./providers/session-store.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir, worktreePathForBranch } from "./runtime.js";
@@ -147,6 +148,11 @@ async function runDesignPhase(params: {
 						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
 						logging: fileLogging(params.logPath, {
 							digest: backendSupportsDigest(params.step.agentBackend),
+							onSessionCaptured: (sessionId) =>
+								saveSession(scope, {
+									backend: params.step.agentBackend,
+									sessionId,
+								}),
 							sessionCapture: capture,
 						}),
 					},
@@ -250,6 +256,11 @@ async function runImplementPhase(params: {
 						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
 						logging: fileLogging(params.logPath, {
 							digest: backendSupportsDigest(params.step.agentBackend),
+							onSessionCaptured: (sessionId) =>
+								saveSession(scope, {
+									backend: params.step.agentBackend,
+									sessionId,
+								}),
 							sessionCapture: capture,
 						}),
 					},
@@ -318,6 +329,11 @@ async function runReviewPhase(params: {
 							...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
 							logging: fileLogging(params.logPath, {
 								digest: backendSupportsDigest(params.step.agentBackend),
+								onSessionCaptured: (sessionId) =>
+									saveSession(scope, {
+										backend: params.step.agentBackend,
+										sessionId,
+									}),
 								sessionCapture: capture,
 							}),
 						},
@@ -783,6 +799,14 @@ export async function runAll(
 										onAgentStreamEvent: (event: AgentStreamEvent): void => {
 											if (event.type === "raw") {
 												capture.onStreamLine(event.line);
+												const sessionId = capture.sessionId();
+												if (sessionId !== undefined) {
+													// Write-through: durable before the first turn completes.
+													saveSession("planner", {
+														backend: plannerStep.agentBackend,
+														sessionId,
+													});
+												}
 											}
 										},
 										path: pathResolve(logsDir, "planner.log"),

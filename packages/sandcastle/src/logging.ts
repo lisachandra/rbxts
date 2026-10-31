@@ -76,19 +76,27 @@ export function formatRunStarted(now: Date = new Date()): string {
  * rendered to markdown and appended immediately — so the digest exists from run start even if the
  * run fails or is killed mid-flight. When `sessionCapture` is set, every raw stream line feeds the
  * capture so the agent's session id survives even a failed run — the failure case is exactly when
- * resume needs it.
+ * resume needs it. When `onSessionCaptured` is also set, it fires the moment the capture parses a
+ * session id (write-through): a run killed externally never reaches the attempt-end persist, so the
+ * id must be durable before the first turn completes.
  *
  * - @param logPath - Primary upstream log path.
  * - @param options - Set `digest: true` for digest-enabled backends to stream `<name>.digest.log`;
- *   pass `sessionCapture` to record the agent's session id from the raw stream.
+ *   pass `sessionCapture` to record the agent's session id from the raw stream; pass
+ *   `onSessionCaptured` to persist the id as soon as it is parsed.
  * - @returns Logging options for the sandbox `run()` call.
  */
 export function fileLogging(
 	logPath: string,
-	options?: { digest?: boolean; sessionCapture?: SessionCapture },
+	options?: {
+		digest?: boolean;
+		onSessionCaptured?: (sessionId: string) => void;
+		sessionCapture?: SessionCapture;
+	},
 ): LoggingOption {
 	const digestFilePath = options?.digest === true ? digestPath(logPath) : undefined;
 	const sessionCapture = options?.sessionCapture;
+	const onSessionCaptured = options?.onSessionCaptured;
 	if (digestFilePath !== undefined) {
 		ensureLogDir(digestFilePath);
 		try {
@@ -106,6 +114,7 @@ export function fileLogging(
 		}
 	}
 
+	let capturedNotified = false;
 	const onAgentStreamEvent =
 		digestFilePath === undefined && sessionCapture === undefined
 			? undefined
@@ -115,6 +124,17 @@ export function fileLogging(
 					}
 
 					sessionCapture?.onStreamLine(event.line);
+					if (onSessionCaptured !== undefined && !capturedNotified) {
+						const sessionId = sessionCapture?.sessionId();
+						if (sessionId !== undefined) {
+							capturedNotified = true;
+							try {
+								onSessionCaptured(sessionId);
+							} catch {
+								// Best-effort: persistence must never break the run.
+							}
+						}
+					}
 
 					if (digestFilePath === undefined) {
 						return;

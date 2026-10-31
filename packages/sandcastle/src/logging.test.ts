@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
 import { backendSupportsDigest, digestPath, fileLogging, formatRunStarted } from "./logging.js";
+import { createSessionCapture } from "./providers/session-capture.js";
 import { registerTestHooks } from "./test-helpers.js";
 
 registerTestHooks();
@@ -186,6 +187,61 @@ describe("fileLogging", () => {
 
 		const digest = readFileSync(digestPath(logPath), "utf-8");
 		assert.equal(digest.match(/--- Run started:/g)?.length, 2);
+	});
+
+	test("fires onSessionCaptured write-through on the first session-id line", () => {
+		const dir = tempDir();
+		const logPath = join(dir, "issue-1.log");
+		const captured: Array<string> = [];
+		const logging = fileLogging(logPath, {
+			digest: true,
+			onSessionCaptured: (sessionId) => {
+				captured.push(sessionId);
+			},
+			sessionCapture: createSessionCapture(),
+		});
+		if (logging.type !== "file" || logging.onAgentStreamEvent === undefined) {
+			assert.fail("expected file logging with an event handler");
+		}
+
+		// Pre-session lines and unrelated JSON do not fire the sink.
+		logging.onAgentStreamEvent(rawEvent(markdownLine("# Heading")));
+		logging.onAgentStreamEvent(rawEvent("not-json"));
+		assert.deepEqual(captured, []);
+
+		logging.onAgentStreamEvent(
+			rawEvent(JSON.stringify({ type: "session_id", sessionId: "session-a" })),
+		);
+		assert.deepEqual(captured, ["session-a"]);
+
+		// The sink fires once; later ids (none expected per attempt) are ignored.
+		logging.onAgentStreamEvent(
+			rawEvent(JSON.stringify({ type: "session_id", sessionId: "session-b" })),
+		);
+		assert.deepEqual(captured, ["session-a"]);
+	});
+
+	test("a throwing onSessionCaptured never breaks the run", () => {
+		const dir = tempDir();
+		const logPath = join(dir, "issue-1.log");
+		const logging = fileLogging(logPath, {
+			digest: true,
+			onSessionCaptured: () => {
+				throw new Error("disk full");
+			},
+			sessionCapture: createSessionCapture(),
+		});
+		if (logging.type !== "file" || logging.onAgentStreamEvent === undefined) {
+			assert.fail("expected file logging with an event handler");
+		}
+
+		const onEvent = logging.onAgentStreamEvent;
+
+		assert.doesNotThrow(() => {
+			onEvent(rawEvent(JSON.stringify({ type: "session_id", sessionId: "session-a" })));
+			onEvent(rawEvent(markdownLine("# Heading")));
+		});
+		assert.match(readFileSync(digestPath(logPath), "utf-8"), /# Heading/);
 	});
 });
 

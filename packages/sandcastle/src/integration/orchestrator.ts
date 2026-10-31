@@ -18,6 +18,7 @@ import { backendSupportsDigest, fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
 import { queueRulesForPrompt } from "../prompts/queue.js";
 import { skillsForPrompt } from "../prompts/skills.js";
+import { saveSession } from "../providers/session-store.js";
 import { runPhaseWithRetry } from "../retry.js";
 import { config, io, logsDir } from "../runtime.js";
 import { runSessioned } from "../session-resume.js";
@@ -132,6 +133,8 @@ export async function runConflictResolver(
 							pathResolve(logsDir, `integration-${manifest.name}.log`),
 							{
 								digest: backendSupportsDigest(resolveBackend),
+								onSessionCaptured: (sessionId) =>
+									saveSession(scope, { backend: resolveBackend, sessionId }),
 								sessionCapture: capture,
 							},
 						),
@@ -189,6 +192,8 @@ export async function runIntegrationReview(
 							pathResolve(logsDir, `integration-${manifest.name}.log`),
 							{
 								digest: backendSupportsDigest(reviewBackend),
+								onSessionCaptured: (sessionId) =>
+									saveSession(scope, { backend: reviewBackend, sessionId }),
 								sessionCapture: capture,
 							},
 						),

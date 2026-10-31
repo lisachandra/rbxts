@@ -86,7 +86,9 @@ export function beginSessionedAttempt(
  *
  * @remarks
  *   Captured ids persist on both success and failure — the failure case is exactly when resume
- *   matters.
+ *   matters. For durability against an externally killed process (which never reaches the
+ *   attempt-end persist), call sites also pass `onSessionCaptured` into `fileLogging` and save the
+ *   id write-through the moment the stream announces it.
  * @param params - Scope and backend of the phase.
  * @param attempt - Invoked once with the capture (thread it into `fileLogging`'s `sessionCapture`)
  *   and the resumable session (thread its id into `runOptions.resumeSession`); its promise is the
