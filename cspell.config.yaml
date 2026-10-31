@@ -91,3 +91,7 @@ words:
     - wsarecv
     - sessioned
     - precheck
+    - CPAMC
+    - unparseable
+    - zpreflight
+    - keepalives

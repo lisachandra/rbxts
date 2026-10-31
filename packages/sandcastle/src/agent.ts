@@ -19,6 +19,7 @@ import { diracProvider } from "./providers/dirac.js";
 import { withMarkerCompletion } from "./providers/marker.js";
 import { opencodeProvider } from "./providers/opencode.js";
 import { piProvider } from "./providers/pi.js";
+import { assertZcodeModelSelectable } from "./providers/zcode-preflight.js";
 import { zcodeProvider } from "./providers/zcode.js";
 import type { AgentBackend, SandcastleEffort } from "./types.js";
 
@@ -27,6 +28,7 @@ export { queueRulesForPrompt } from "./prompts/queue.js";
 export { skillsForPrompt, uniqueSkills } from "./prompts/skills.js";
 export { diracProvider as diracAgent, scopeForMarkerPath } from "./providers/dirac.js";
 export { withMarkerCompletion } from "./providers/marker.js";
+export { ZcodePreflightError } from "./providers/zcode-preflight.js";
 export { zcodeProvider as zcodeAgent } from "./providers/zcode.js";
 
 /**
@@ -103,6 +105,7 @@ export function createAgent(
 			break;
 		}
 		case "zcode": {
+			assertZcodeModelSelectable(model, resolvedEffort);
 			inner = zcodeProvider(model, {
 				effort: resolvedEffort,
 				...(options?.scope !== undefined ? { scope: options.scope } : {}),

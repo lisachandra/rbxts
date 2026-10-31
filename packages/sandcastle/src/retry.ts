@@ -10,6 +10,8 @@
  * caps the retries when a caller wants exhaustion instead of persistence.
  */
 
+import { PhaseBudgetError } from "./markers.js";
+import { ZcodePreflightError } from "./providers/zcode-preflight.js";
 import { io } from "./runtime.js";
 
 const INITIAL_BACKOFF_SECONDS = 30;
@@ -46,6 +48,16 @@ const FATAL_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
  * @returns `true` only for credential, model-selection, and setup failures.
  */
 export function isFatalProviderError(err: unknown): boolean {
+	// A wall-clock kill is the trigger for a resume-backed retry, never a dead end.
+	if (err instanceof PhaseBudgetError) {
+		return false;
+	}
+
+	// A provably invalid model/effort selection needs operator action, not retries.
+	if (err instanceof ZcodePreflightError) {
+		return true;
+	}
+
 	const msg = String(err).toLowerCase();
 	return FATAL_ERROR_PATTERNS.some((pattern) => pattern.test(msg));
 }

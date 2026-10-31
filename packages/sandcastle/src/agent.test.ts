@@ -160,7 +160,9 @@ describe("createAgent", () => {
 		io.copilot = stubProvider<typeof io.copilot>("copilot");
 
 		for (const backend of backends) {
-			const agent = createAgent(backend, "m", "low", MARKER);
+			// A well-formed zcode model (the preflight rejects bare stubs like "m").
+			const model = backend === "zcode" ? "prov/model-m" : "m";
+			const agent = createAgent(backend, model, "low", MARKER);
 			assert.equal(
 				agent.name,
 				backend === "dirac" || backend === "zcode" ? backend : `${backend}:m`,
