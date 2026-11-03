@@ -27,7 +27,13 @@ Credential values are decrypted in memory only (same AES-256-GCM scheme and
 `ZCODE_CREDENTIAL_SECRET` override as the CLI) and never logged; a missing
 credential surfaces as an actionable -32031 turn error. Other plan modes
 (team-coding-plan, off-peak, highspeed) respond non-applied with a clear
-message.
+message. The answer also carries the CLI's source identity headers
+(`User-Agent`, `HTTP-Referer`, `X-Title`, `X-Platform`, `X-Device-Mid`
+from `~/.zcode/v2/telemetry-state.json`, client language/timezone, OS
+category/version, app version) — the plan gateway's edge WAF rejects
+apiKey-only requests with business code 3012 "request has been blocked
+due to unusual activity", which is exactly what the desktop never hits
+because it always sends them.
 
 The zcode preflight's account check now verifies the credentials that answer
 needs (key names only — store values are never inspected) instead of

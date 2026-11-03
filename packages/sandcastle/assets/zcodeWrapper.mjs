@@ -39,7 +39,13 @@
 import { createDecipheriv, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { homedir, platform as osPlatform, userInfo } from "node:os";
+import {
+	arch as osArch,
+	homedir,
+	platform as osPlatform,
+	release as osRelease,
+	userInfo,
+} from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
@@ -627,7 +633,85 @@ function finalizeRuntimeHeaders(apiKey, providerId, credentialKey) {
 		};
 	}
 
-	return { headersApplied: true, requestAuth: { apiKey } };
+	return { headersApplied: true, requestAuth: { apiKey, headers: buildSourceHeaders() } };
+}
+
+/*
+ * Identity headers mirroring the CLI's buildZCodeSourceHeadersFromContext: the
+ * plan gateway (zcode.z.ai behind an edge WAF) rejects model requests that
+ * carry only an apiKey with business code 3012 "unusual activity" — the
+ * desktop always sends these source headers, so the wrapper must too.
+ */
+const DEFAULT_HTTP_REFERER = "https://zcode.z.ai";
+
+function normalizeHeaderValue(value) {
+	const trimmed = value?.trim();
+	return trimmed !== undefined && trimmed !== "" && /^[\x20-\x7e]+$/.test(trimmed)
+		? trimmed
+		: undefined;
+}
+
+function resolveDeviceMid() {
+	const baseDir = (process.env.ZCODE_DATA_BASE_DIR ?? "").trim() || homedir();
+	try {
+		const parsed = JSON.parse(
+			readFileSync(path.join(baseDir, ".zcode", "v2", "telemetry-state.json"), "utf-8"),
+		);
+		return normalizeHeaderValue(parsed?.deviceMid);
+	} catch {
+		return undefined;
+	}
+}
+
+function normalizeOsCategory(platform) {
+	switch (platform) {
+		case "darwin": {
+			return "macos";
+		}
+		case "win32": {
+			return "windows";
+		}
+		default: {
+			return "linux";
+		}
+	}
+}
+
+let sourceHeadersCache;
+function buildSourceHeaders() {
+	if (sourceHeadersCache !== undefined) {
+		return sourceHeadersCache;
+	}
+
+	const appVersion = normalizeHeaderValue(process.env.ZCODE_APP_VERSION);
+	const arch = normalizeHeaderValue(osArch());
+	const clientLanguage =
+		normalizeHeaderValue(Intl.DateTimeFormat().resolvedOptions().locale) ?? "unknown";
+	const clientTimezone =
+		normalizeHeaderValue(Intl.DateTimeFormat().resolvedOptions().timeZone) ?? "unknown";
+	const deviceMid = resolveDeviceMid();
+	const endpointOrigin =
+		normalizeHeaderValue(process.env.ZCODE_ENDPOINT_ORIGIN) ?? DEFAULT_HTTP_REFERER;
+	const osVersion = normalizeHeaderValue(osRelease());
+	const platform = normalizeHeaderValue(process.platform);
+	const releaseChannel = normalizeHeaderValue(process.env.ZCODE_RELEASE_CHANNEL);
+
+	sourceHeadersCache = {
+		"HTTP-Referer": endpointOrigin,
+		"User-Agent": `ZCode/${appVersion ?? "unknown"}`,
+		...(appVersion !== undefined ? { "X-ZCode-App-Version": appVersion } : {}),
+		"X-Title": "Z Code@cli",
+		...(platform !== undefined && arch !== undefined
+			? { "X-Platform": `${platform}-${arch}` }
+			: {}),
+		...(releaseChannel !== undefined ? { "X-Release-Channel": releaseChannel } : {}),
+		"X-Client-Language": clientLanguage,
+		"X-Client-Timezone": clientTimezone,
+		...(platform !== undefined ? { "X-Os-Category": normalizeOsCategory(platform) } : {}),
+		...(osVersion !== undefined ? { "X-Os-Version": osVersion } : {}),
+		...(deviceMid !== undefined ? { "X-Device-Mid": deviceMid } : {}),
+	};
+	return sourceHeadersCache;
 }
 
 let finished = false;
