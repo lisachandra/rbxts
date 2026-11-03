@@ -33,7 +33,11 @@ from `~/.zcode/v2/telemetry-state.json`, client language/timezone, OS
 category/version, app version) — the plan gateway's edge WAF rejects
 apiKey-only requests with business code 3012 "request has been blocked
 due to unusual activity", which is exactly what the desktop never hits
-because it always sends them.
+because it always sends them. When `ZCODE_APP_VERSION` is unset (runner
+environments, unlike the desktop, don't set it), the app version falls
+back to the newest runtime dir under
+`~/.zcode/v2/runtime/provider/<platform>-<arch>/` — `ZCode/unknown` as
+the user agent gets the same 3012 block.
 
 The zcode preflight's account check now verifies the credentials that answer
 needs (key names only — store values are never inspected) instead of

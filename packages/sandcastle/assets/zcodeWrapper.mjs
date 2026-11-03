@@ -24,7 +24,12 @@
  * role headless — it delivers `provider/updateAccountConfig` for the selected
  * provider (keyed to the injected builtin catalog's revision) and answers
  * `interaction/requestProviderRuntimeHeaders` from the shared zcode
- * credential store, the way the desktop host does.
+ * credential store, the way the desktop host does. The identity headers carry
+ * the desktop app's version even when `ZCODE_APP_VERSION` is unset in the
+ * runner environment: the newest runtime dir under
+ * `.zcode/v2/runtime/provider/<platform>-<arch>/` names the version the
+ * desktop currently runs, and the gateway rejects `ZCode/unknown` agents with
+ * the same 3012 as header-less requests.
  * Events are emitted as one JSON object per line:
  * {type:"text"|"tool"|"note"|"result"|"usage"|"keepalive"}. In
  * desktop-continuous delivery the app-server streams model.streaming deltas
@@ -38,7 +43,7 @@
 
 import { createDecipheriv, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import {
 	arch as osArch,
 	homedir,
@@ -677,13 +682,54 @@ function normalizeOsCategory(platform) {
 	}
 }
 
+/*
+ * Runner environments (sandcastle agents, CI) do not set ZCODE_APP_VERSION —
+ * only the desktop injects it — and `ZCode/unknown` gets the same 3012 WAF
+ * block as a header-less request. The desktop installs its CLI runtimes under
+ * `.zcode/v2/runtime/provider/<platform>-<arch>/<semver>/` (dir names like
+ * `windows-x86_64`, where node's arch is `x64`), and the newest version-named
+ * dir is the version the desktop currently runs, so that is the honest
+ * fallback. Matching on the platform prefix alone tolerates the arch-spelling
+ * difference; versions are compared numerically, not lexically.
+ */
+function resolveAppVersionFallback() {
+	const baseDir = (process.env.ZCODE_DATA_BASE_DIR ?? "").trim() || homedir();
+	const providerRoot = path.join(baseDir, ".zcode", "v2", "runtime", "provider");
+	const platformPrefix = `${normalizeOsCategory(process.platform)}-`;
+	try {
+		const versions = [];
+		for (const dir of readdirSync(providerRoot)) {
+			if (!dir.startsWith(platformPrefix)) {
+				continue;
+			}
+			for (const entry of readdirSync(path.join(providerRoot, dir))) {
+				if (
+					/^\d+\.\d+\.\d+$/.test(entry) &&
+					statSync(path.join(providerRoot, dir, entry)).isDirectory()
+				) {
+					versions.push(entry);
+				}
+			}
+		}
+		versions.sort((a, b) => {
+			const [aMajor, aMinor, aPatch] = a.split(".").map(Number);
+			const [bMajor, bMinor, bPatch] = b.split(".").map(Number);
+			return bMajor - aMajor || bMinor - aMinor || bPatch - aPatch;
+		});
+		return versions[0];
+	} catch {
+		return undefined;
+	}
+}
+
 let sourceHeadersCache;
 function buildSourceHeaders() {
 	if (sourceHeadersCache !== undefined) {
 		return sourceHeadersCache;
 	}
 
-	const appVersion = normalizeHeaderValue(process.env.ZCODE_APP_VERSION);
+	const appVersion =
+		normalizeHeaderValue(process.env.ZCODE_APP_VERSION) ?? resolveAppVersionFallback();
 	const arch = normalizeHeaderValue(osArch());
 	const clientLanguage =
 		normalizeHeaderValue(Intl.DateTimeFormat().resolvedOptions().locale) ?? "unknown";
