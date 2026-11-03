@@ -133,6 +133,12 @@ export interface SharedPromptArgs {
 	ISSUE_TITLE?: string;
 	PLAN_PATH?: string;
 	READY_LABEL?: string;
+	/**
+	 * One-line report of a setup failure the run continued past, or the empty string when setup
+	 * succeeded. The prompt files interpolate it verbatim, so it is always set — a missing key
+	 * would leave a literal `{{SETUP_NOTE}}` in the agent's instructions.
+	 */
+	SETUP_NOTE?: string;
 	SKILLS: string;
 }
 

@@ -70,10 +70,13 @@ export function prepareIntegrationWorktree(
 	worktree: string,
 	ignoreSetup: boolean,
 	skipSetup: boolean,
-	worktreePreparer: (path: string, options: SetupWorktreeOptions) => void = setupWorktree,
-): void {
+	worktreePreparer: (
+		path: string,
+		options: SetupWorktreeOptions,
+	) => string | undefined = setupWorktree,
+): string | undefined {
 	const preparer = worktreePreparer ?? setupWorktree;
-	preparer(worktree, { ignoreSetup, skipSetup });
+	return preparer(worktree, { ignoreSetup, skipSetup });
 }
 
 /** Resolve a merge conflict on the integration worktree via the resolving-merge-conflicts agent. */
@@ -117,6 +120,7 @@ export async function runConflictResolver(
 						SOURCE_CONTEXT: sourceContext,
 
 						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
+						SETUP_NOTE: "",
 						SOURCE_NAME: source.name,
 					},
 					promptFile: config.prompts.resolveConflicts,
@@ -175,6 +179,7 @@ export async function runIntegrationReview(
 						INTEGRATION_NAME: manifest.name,
 						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 
+						SETUP_NOTE: "",
 						SKILLS: skillsForPrompt("review"),
 						SOURCES: sourceContext,
 					},
@@ -206,7 +211,11 @@ export async function runIntegrationReview(
 
 /** Injectable seam for the orchestrator's worktree prep and marker agent phases. */
 export interface OrchestratorDeps {
-	prepareWorktree: (worktree: string, ignoreSetup: boolean, skipSetup: boolean) => void;
+	prepareWorktree: (
+		worktree: string,
+		ignoreSetup: boolean,
+		skipSetup: boolean,
+	) => string | undefined;
 	runConflictResolver: ConflictResolverRunner;
 	runIntegrationReview: IntegrationReviewRunner;
 }

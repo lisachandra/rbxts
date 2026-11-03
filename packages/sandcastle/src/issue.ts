@@ -23,7 +23,14 @@ import {
 	resolvePlanFile,
 	worktreePlanPath,
 } from "./evaluate.js";
-import { countNewCommits, git, gitTry, issueBranch, resolveCommit } from "./git.js";
+import {
+	countNewCommits,
+	countStaleCommits,
+	git,
+	gitTry,
+	issueBranch,
+	resolveCommit,
+} from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
 import { backendSupportsDigest, fileLogging } from "./logging.js";
 import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
@@ -689,14 +696,31 @@ export async function runSingleIssue(
 	 * implement skipped as "design phase needed" right after design reported success.
 	 */
 	const worktreePath = suppliedWorktree?.path ?? worktreePathForBranch(branchName);
-	const sharedArgs = {
-		BASE_REF: options?.baseRef ?? config.baseBranch,
+	const baseRef = options?.baseRef ?? config.baseBranch;
+	// Explicit annotation: SETUP_NOTE is assigned after setup runs, below.
+	const sharedArgs: SharedPromptArgs = {
+		BASE_REF: baseRef,
 		BRANCH: branchName,
 		ISSUE_NUMBER: issueNumber,
 		ISSUE_TITLE: issueTitle,
 		PLAN_PATH: worktreePlanPath(worktreePath, issueNumber),
 		SKILLS: skillsForPrompt("design", issueLabels),
 	};
+
+	/*
+	 * A persistent worktree is reused as-is across runs, so its branch can lag far behind a base
+	 * that has since moved — the state #498 ran in, where a 144-commit-stale base made setup
+	 * crash on a bug main had already fixed. The banner above prints on every resume/--phase run,
+	 * so this is the one checkpoint where the operator is guaranteed to be looking.
+	 */
+	if (existsSync(worktreePath)) {
+		const staleCommits = countStaleCommits(worktreePath, baseRef);
+		if (staleCommits > 0) {
+			console.warn(
+				`  ⚠ Worktree is ${String(staleCommits)} commits behind ${baseRef} — phases run against a stale base.`,
+			);
+		}
+	}
 
 	const state = createOrLoadIssueState({
 		branchName,
@@ -712,7 +736,28 @@ export async function runSingleIssue(
 	const attempted = new Set<PhaseName>();
 	try {
 		if (eval_.design !== "skip" || eval_.implement !== "skip" || eval_.review !== "skip") {
-			prepareIssueWorktree(sandbox.worktreePath, options?.ignoreSetup, options?.skipSetup);
+			const setupNote = prepareIssueWorktree(
+				sandbox.worktreePath,
+				options?.ignoreSetup,
+				options?.skipSetup,
+				baseRef,
+			);
+
+			/*
+			 * The prompt files interpolate `{{SETUP_NOTE}}` verbatim, so the key must exist even when
+			 * setup succeeded — a missing key would leave a literal placeholder in the instructions.
+			 * When setup did fail, the agent gets the failure line up front instead of rediscovering
+			 * it by burning its budget on free diagnostic work.
+			 */
+			sharedArgs.SETUP_NOTE =
+				setupNote === undefined
+					? ""
+					: [
+							"Environment warning — the worktree setup commands FAILED and the run continued anyway:",
+							`    ${setupNote}`,
+							"The environment may be broken. Verify what you depend on before trusting it (builds, tests, node_modules, submodules).",
+							"Do not spend the phase repairing the environment; work around what you can, and report the breakage in your final response.",
+						].join("\n");
 		}
 
 		await executeIssuePhases({
@@ -789,6 +834,7 @@ export async function runAll(
 								before: "the `<plan>` block is printed",
 							}),
 							READY_LABEL: config.labels.readyForAgent,
+							SETUP_NOTE: "",
 						},
 						promptFile: config.prompts.planAll,
 						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),

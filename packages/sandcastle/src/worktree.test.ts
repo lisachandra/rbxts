@@ -17,6 +17,7 @@ import { config, io, normalizedPath, sharedStateRoot, worktreePathForBranch } fr
 import { gitStub, registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
 	completeWorktreeRemoval,
+	ensurePersistentWorktree,
 	linkSymlinks,
 	prepareIssueWorktree,
 	pruneWorktreeRegistrations,
@@ -81,6 +82,68 @@ describe("prepareIssueWorktree", () => {
 		if (process.platform === "win32") {
 			assert.equal(existsSync(join(worktree, "docs")), true);
 		}
+	});
+
+	test("ignoreSetup returns the swallowed setup error as a single bounded line", () => {
+		const worktree = makeDir("ignore-setup-note");
+		config.setupCommands = ["failing-cmd"];
+		config.symlinks = [];
+		io.execSync = (() => {
+			throw new Error("line one\nline two\nline three\nline four");
+		}) as unknown as typeof io.execSync;
+
+		const note = prepareIssueWorktree(worktree, true, false);
+		assert.match(note ?? "", /line one \| line two \| line three/);
+		assert.doesNotMatch(note ?? "", /line four/);
+	});
+
+	test("successful setup returns undefined", () => {
+		const worktree = makeDir("setup-ok-note");
+		config.setupCommands = ["setup-cmd"];
+		config.symlinks = [];
+		io.execSync = (() => "") as unknown as typeof io.execSync;
+
+		assert.equal(prepareIssueWorktree(worktree, true, false), undefined);
+	});
+
+	test("skips the auto-rebase for paths that are not registered worktrees", () => {
+		/*
+		 * A plain directory (a test temp dir, a scratch path) resolves git commands to whatever
+		 * repository contains it — here the rbxts checkout itself — and a rebase there would be a
+		 * destructive surprise. Only registered worktrees qualify.
+		 */
+		const worktree = makeDir("not-a-worktree");
+		config.setupCommands = ["setup-cmd"];
+		config.symlinks = [];
+		const gitCalls: Array<string> = [];
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			if (command === "git") {
+				gitCalls.push((Array.isArray(args) ? args : [args]).map(String).join(" "));
+			}
+
+			return "";
+		}) as unknown as typeof io.execFileSync;
+		io.execSync = (() => "") as unknown as typeof io.execSync;
+
+		assert.equal(prepareIssueWorktree(worktree, true, false, "main"), undefined);
+		// The registration check ran...
+		assert.equal(
+			gitCalls.some((call) => call.includes("worktree list")),
+			true,
+		);
+		/*
+		 * ...but no staleness probe or rebase followed. The setup command runs on a
+		 * different io seam (execSync), so gitCalls holds nothing but the registration check.
+		 */
+		assert.equal(
+			gitCalls.some((call) => call.includes("rev-list")),
+			false,
+		);
+		assert.equal(
+			gitCalls.some((call) => call.startsWith("rebase")),
+			false,
+		);
+		assert.deepEqual(gitCalls, ["worktree list --porcelain"]);
 	});
 
 	test("throws when setup fails without ignoreSetup", () => {
@@ -271,6 +334,85 @@ describe("prepareIssueWorktree", () => {
 				);
 			}
 		});
+	});
+});
+
+describe("ensurePersistentWorktree reuse staleness", () => {
+	test("reusing an existing branch warns when it lags the requested base", () => {
+		const branch = `sandcastle/stale-reuse-${Date.now()}`;
+		const path = worktreePathForBranch(branch);
+		mkdirSync(path, { recursive: true });
+		createdDirs.push(path);
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${path}\nbranch refs/heads/${branch}\n`;
+				}
+
+				// rev-list --count HEAD..base → 12 commits behind; gitTry swallows the rest.
+				if (args[0] === "rev-list" && args[1] === "--count") {
+					return "12";
+				}
+
+				return undefined;
+			},
+		});
+
+		const warnings: Array<string> = [];
+		const originalWarn = console.warn;
+		console.warn = (message?: unknown) => {
+			warnings.push(String(message));
+		};
+
+		try {
+			assert.equal(ensurePersistentWorktree(branch, "main"), path);
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		const staleness = warnings.find((line) => line.includes("commits behind main"));
+		assert.match(staleness ?? "", /Reusing worktree .*sandcastle\/stale-reuse/);
+		assert.match(staleness ?? "", /12 commits behind main/);
+	});
+
+	test("reusing a current branch stays silent", () => {
+		const branch = `sandcastle/fresh-reuse-${Date.now()}`;
+		const path = worktreePathForBranch(branch);
+		mkdirSync(path, { recursive: true });
+		createdDirs.push(path);
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${path}\nbranch refs/heads/${branch}\n`;
+				}
+
+				// rev-list --count → 0 behind.
+				if (args[0] === "rev-list" && args[1] === "--count") {
+					return "0";
+				}
+
+				return undefined;
+			},
+		});
+
+		const warnings: Array<string> = [];
+		const originalWarn = console.warn;
+		console.warn = (message?: unknown) => {
+			warnings.push(String(message));
+		};
+
+		try {
+			assert.equal(ensurePersistentWorktree(branch, "main"), path);
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		assert.equal(
+			warnings.some((line) => line.includes("commits behind")),
+			false,
+		);
 	});
 });
 

@@ -2,6 +2,10 @@
 
 Review the complete Sandcastle integration `{{INTEGRATION_NAME}}` before human merge.
 
+## Environment
+
+{{SETUP_NOTE}}
+
 ## Required skills
 
 Use these skills when available:

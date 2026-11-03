@@ -204,6 +204,28 @@ export function countBranchCommits(branch: string, baseRef: string): number {
 	return Number.isFinite(count) ? count : 0;
 }
 
+/**
+ * - Commits a base ref carries that a worktree's HEAD does not — the behind direction.
+ * - @param worktreePath - Worktree whose HEAD is measured.
+ * - @param baseRef - Ref the worktree is measured against.
+ * - @returns The commit count, or 0 when the command fails.
+ * - @remarks {@link countNewCommits} answers "how much work does this branch have"; this answers the
+ *   complementary "how much has the base moved since the branch was cut". A persistent worktree is
+ *   reused as-is across runs, so a branch cut days ago can sit far behind a base whose fixes it
+ *   never saw — the state #498 ran its setup against. Callers use the count to warn, or to rebase a
+ *   clean tree before setup runs.
+ */
+export function countStaleCommits(worktreePath: string, baseRef: string): number {
+	// `HEAD..base` is the commits base reaches that HEAD does not — the behind direction.
+	const output = gitTry(["rev-list", "--count", `HEAD..${baseRef}`], worktreePath);
+	if (output === undefined) {
+		return 0;
+	}
+
+	const count = Number(output);
+	return Number.isFinite(count) ? count : 0;
+}
+
 export function hasUnmergedPaths(worktree: string): boolean {
 	return git(["diff", "--name-only", "--diff-filter=U"], worktree).length > 0;
 }

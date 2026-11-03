@@ -4,6 +4,10 @@ Implement GitHub issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}`
 
 This is a Sandcastle no-sandbox run: you are operating on the host machine in a dedicated git branch/worktree.
 
+## Environment
+
+{{SETUP_NOTE}}
+
 ## Required skills
 
 Use these skills when available for this phase:

@@ -4,6 +4,10 @@ Review the Sandcastle implementation branch `{{BRANCH}}` for GitHub issue #{{ISS
 
 You are the reviewer. The implementer was an agent working from a plan; you have the full context plus `AGENTS.md` and the project's ADRs at your disposal.
 
+## Environment
+
+{{SETUP_NOTE}}
+
 ## Required skills
 
 Use these skills when available for this phase:

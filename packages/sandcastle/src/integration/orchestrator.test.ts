@@ -39,9 +39,10 @@ describe("orchestrator worktree setup seam", () => {
 		let capturedWorktree: string | undefined;
 		let capturedOptions: undefined | SetupWorktreeOptions;
 
-		const preparer = (path: string, options: SetupWorktreeOptions): void => {
+		const preparer = (path: string, options: SetupWorktreeOptions): string | undefined => {
 			capturedWorktree = path;
 			capturedOptions = options;
+			return undefined;
 		};
 
 		// Default options → ignoreSetup/skipSetup false.
@@ -98,6 +99,7 @@ describe("orchestrator state machine", () => {
 				assert.equal(w, worktree);
 				assert.equal(ignoreSetup, false);
 				assert.equal(skipSetup, false);
+				return undefined;
 			},
 			runConflictResolver: async () => {
 				conflictResolverRan = true;

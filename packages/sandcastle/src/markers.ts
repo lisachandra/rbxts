@@ -147,6 +147,26 @@ export async function runMarkerPhase(params: {
 		}
 
 		return result;
+	} catch (err) {
+		/*
+		 * A kill can land after the agent has already written the marker: the abort fires upstream,
+		 * which rethrows the reason verbatim and never reaches this function's own marker check, so
+		 * the attempt's success was invisible. The marker is proof enough — it was cleared at the top
+		 * of this attempt, so only this attempt can have written it, and the retry that would
+		 * otherwise consume the error deletes it as its first act, destroying the evidence and
+		 * re-running a phase that had already finished. The commits field is the only result any
+		 * caller reads; upstream collects commits after the abort, so an empty list is the honest
+		 * value and the implement caller unions it with the attempts it has already recorded.
+		 */
+		if (markerExists(params.marker)) {
+			console.warn(
+				`  ⚠ ${params.name} ${err instanceof PhaseBudgetError ? "hit the phase budget" : "failed"}, ` +
+					"but the completion marker exists — treating the attempt as complete.",
+			);
+			return { commits: [], iterations: [], stdout: "" };
+		}
+
+		throw err;
 	} finally {
 		if (budgetTimer !== undefined) {
 			clearTimeout(budgetTimer);

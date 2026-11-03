@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
@@ -103,6 +103,75 @@ describe("phase budget", () => {
 				run: async () => ({ commits: [] }) as never,
 			}),
 			/marker/,
+		);
+	});
+
+	test("a budget kill after the marker was written counts as complete", async () => {
+		process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = "1";
+		const marker = markerPathFor();
+		/*
+		 * The production race: the agent touches the marker, then the budget fires and upstream
+		 * rejects with the abort reason before runMarkerPhase's own marker check runs. The marker
+		 * was cleared at attempt start, so its presence is proof this attempt finished — the phase
+		 * must resolve, not reject into a retry that deletes the marker.
+		 */
+		const result = await runMarkerPhase({
+			agentBackend: "dirac",
+			effort: "high",
+			marker,
+			model: "m",
+			name: "budget test",
+			promptArgs: {},
+			promptFile: "unused.md",
+			run: (options) => {
+				writeFileSync(marker, "");
+				// Never resolves: rejects only on the budget abort, exactly as upstream does.
+				return new Promise<never>((_resolve, reject) => {
+					options.signal?.addEventListener("abort", () => {
+						reject(options.signal?.reason);
+					});
+				});
+			},
+		});
+		assert.deepEqual(result.commits, []);
+	});
+
+	test("a non-budget failure after the marker was written also counts as complete", async () => {
+		process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = "0";
+		const marker = markerPathFor();
+		const result = await runMarkerPhase({
+			agentBackend: "dirac",
+			effort: "high",
+			marker,
+			model: "m",
+			name: "budget test",
+			promptArgs: {},
+			promptFile: "unused.md",
+			run: async () => {
+				writeFileSync(marker, "");
+				throw new Error("agent crashed after finishing");
+			},
+		});
+		assert.deepEqual(result.commits, []);
+	});
+
+	test("a failure with no marker still rejects", async () => {
+		process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = "0";
+		const marker = markerPathFor();
+		await assert.rejects(
+			runMarkerPhase({
+				agentBackend: "dirac",
+				effort: "high",
+				marker,
+				model: "m",
+				name: "budget test",
+				promptArgs: {},
+				promptFile: "unused.md",
+				run: async () => {
+					throw new Error("agent crashed before finishing");
+				},
+			}),
+			/agent crashed before finishing/,
 		);
 	});
 

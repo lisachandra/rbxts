@@ -2,6 +2,10 @@
 
 Resolve the active Git merge conflict in integration `{{INTEGRATION_NAME}}`.
 
+## Environment
+
+{{SETUP_NOTE}}
+
 ## Required skill
 
 Use the `resolving-merge-conflicts` skill for this phase:

@@ -22,6 +22,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import {
 	checkoutBranch,
+	countStaleCommits,
 	git,
 	gitCommonDir,
 	gitTry,
@@ -132,6 +133,7 @@ export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): stri
 			);
 		}
 
+		reportReusedWorktreeStaleness(worktreePath, branch, baseRef);
 		return worktreePath;
 	}
 
@@ -151,6 +153,7 @@ export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): stri
 		}
 
 		git(["worktree", "repair", worktreePath]);
+		reportReusedWorktreeStaleness(worktreePath, branch, baseRef);
 		return worktreePath;
 	}
 
@@ -161,12 +164,42 @@ export function ensurePersistentWorktree(branch: string, baseRef = "HEAD"): stri
 	}
 
 	if (gitTry(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]) !== undefined) {
+		/*
+		 * The branch exists, so it is checked out as-is and `baseRef` is silently not used — a stale
+		 * branch cut days ago reads exactly like a fresh one. Say which base the caller asked for
+		 * and how far the branch lags it, so a reused stale member (the #200 batch) is visible
+		 * instead of only surfacing later as a failed install.
+		 */
 		git(["worktree", "add", worktreePath, branch]);
+		reportReusedWorktreeStaleness(worktreePath, branch, baseRef);
 	} else {
 		git(["worktree", "add", "-b", branch, worktreePath, baseRef]);
 	}
 
 	return worktreePath;
+}
+
+/**
+ * - Warn when a reused worktree's branch lags the base the caller asked for.
+ * - @param worktreePath - The worktree about to be reused.
+ * - @param branch - The branch checked out in it.
+ * - @param baseRef - The base the run would have used for a fresh cut.
+ * - @remarks `ensurePersistentWorktree` reuses an existing branch as-is and drops `baseRef` on the
+ *   floor, so the caller's base only takes effect for brand-new branches. The staleness itself is
+ *   reported (not repaired) here — repair is the setup-phase rebase's job, which runs with the
+ *   dirty-tree and registration guards.
+ */
+function reportReusedWorktreeStaleness(
+	worktreePath: string,
+	branch: string,
+	baseRef: string,
+): void {
+	const staleCommits = countStaleCommits(worktreePath, baseRef);
+	if (staleCommits > 0) {
+		console.warn(
+			`  ℹ Reusing worktree ${worktreePath} at ${branch} — ${String(staleCommits)} commits behind ${baseRef}.`,
+		);
+	}
 }
 
 /**
@@ -539,8 +572,16 @@ export interface SetupWorktreeOptions {
  * `dryRun` prints a JSON summary of what would happen without executing anything. `skipSetup` skips
  * the setup commands but still copies `.env` and links symlinks; `ignoreSetup` continues (with a
  * warning) when the setup commands fail.
+ *
+ * @returns The swallowed setup error when `ignoreSetup` absorbed one, else `undefined`. A setup
+ *   failure the phase prompt never mentions sends the agent into free diagnostic work — the #498
+ *   implement phase spent its whole budget diagnosing an environment main had already fixed — so
+ *   the caller threads this into the prompt as a `{{SETUP_NOTE}}`.
  */
-export function setupWorktree(worktreePath: string, options: SetupWorktreeOptions = {}): void {
+export function setupWorktree(
+	worktreePath: string,
+	options: SetupWorktreeOptions = {},
+): string | undefined {
 	ensureSetupDirs();
 	const { dryRun = false, ignoreSetup = false, skipSetup = false } = options;
 
@@ -568,7 +609,7 @@ export function setupWorktree(worktreePath: string, options: SetupWorktreeOption
 				2,
 			),
 		);
-		return;
+		return undefined;
 	}
 
 	console.log("\n── Setup ──");
@@ -578,6 +619,7 @@ export function setupWorktree(worktreePath: string, options: SetupWorktreeOption
 		console.log(`  ✓ Copied .env → ${pathResolve(worktreePath, ".env")}`);
 	}
 
+	let ignoredSetupError: string | undefined;
 	if (skipSetup) {
 		console.log("  ⏭ Skipping setup commands.");
 	} else if (setupCommand !== "") {
@@ -589,6 +631,7 @@ export function setupWorktree(worktreePath: string, options: SetupWorktreeOption
 			}
 
 			console.warn(`  ⚠ Setup failed (continuing): ${String(err)}`);
+			ignoredSetupError = singleLine(err);
 		}
 	}
 
@@ -598,12 +641,77 @@ export function setupWorktree(worktreePath: string, options: SetupWorktreeOption
 	 */
 	linkSymlinks(worktreePath);
 	console.log("  ✓ Setup complete.");
+	return ignoredSetupError;
+}
+
+/** Flatten an error to a single bounded line so it fits inside a prompt block. */
+function singleLine(err: unknown): string {
+	const line = String(err)
+		.split(/\r?\n/)
+		.map((part) => part.trim())
+		.filter((part) => part !== "")
+		.slice(0, 3)
+		.join(" | ");
+	return line.length > 500 ? `${line.slice(0, 497)}...` : line;
+}
+
+/**
+ * Rebase a clean, stale worktree onto its base before setup runs.
+ *
+ * A persistent worktree is reused across runs without ever moving its branch, so a branch cut days
+ * ago can carry work onto a base that has since moved — and setup commands against that stale base
+ * fail on bugs the newer base has already fixed (#498 ran its install against a flux layout main
+ * had replaced). Rebasing a clean tree before setup closes that gap; anything ambiguous (dirty
+ * tree, conflicts, opt-out) leaves the worktree untouched and only warns, because a phase must
+ * never fail on housekeeping.
+ */
+function rebaseStaleWorktree(worktreePath: string, baseRef: string): void {
+	if ((process.env.SANDCASTLE_AUTO_REBASE ?? "").trim() === "0") {
+		return;
+	}
+
+	/*
+	 * Only a registered linked worktree qualifies. A plain directory — a test temp dir, a caller's
+	 * scratch path — resolves git commands to whatever repository contains it, and rebasing that
+	 * checkout would be a destructive surprise.
+	 */
+	if (
+		registeredWorktrees().every(
+			(wt) => normalizedPath(wt.path) !== normalizedPath(worktreePath),
+		)
+	) {
+		return;
+	}
+
+	const staleCommits = countStaleCommits(worktreePath, baseRef);
+	if (staleCommits === 0) {
+		return;
+	}
+
+	if (gitTry(["status", "--porcelain"], worktreePath) !== "") {
+		console.warn(
+			`  ⚠ Worktree is ${String(staleCommits)} commits behind ${baseRef} but dirty — not rebasing; phases run against the stale base.`,
+		);
+		return;
+	}
+
+	try {
+		git(["rebase", baseRef], worktreePath);
+		console.log(`  ✓ Rebased onto ${baseRef} (was ${String(staleCommits)} commits behind).`);
+	} catch (err) {
+		gitTry(["rebase", "--abort"], worktreePath);
+		console.warn(
+			`  ⚠ Could not rebase onto ${baseRef} (rebase aborted, worktree untouched): ${String(err)}`,
+		);
+	}
 }
 
 export function prepareIssueWorktree(
 	worktreePath: string,
 	ignoreSetup = false,
 	skipSetup = false,
-): void {
-	setupWorktree(worktreePath, { ignoreSetup, skipSetup });
+	baseRef?: string,
+): string | undefined {
+	rebaseStaleWorktree(worktreePath, baseRef ?? config.baseBranch);
+	return setupWorktree(worktreePath, { ignoreSetup, skipSetup });
 }

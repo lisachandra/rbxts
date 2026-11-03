@@ -4,6 +4,10 @@ You are the planner agent. Your job: analyse open GitHub issues labeled `{{READY
 
 **You produce the dispatch plan only: no code, no TDD plans.**
 
+## Environment
+
+{{SETUP_NOTE}}
+
 ## Step 1 — List ready issues
 
 Run this exact command and capture all results:
