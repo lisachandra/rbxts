@@ -6,8 +6,10 @@ import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
 
 import {
+	assertZcodeAccountProviderServable,
 	assertZcodeModelSelectable,
 	buildZcodeModelCatalog,
+	resolveZcodeCredentialStorePath,
 	ZcodePreflightError,
 } from "./zcode-preflight.js";
 
@@ -31,6 +33,8 @@ function writeConfig(body: unknown): string {
 }
 
 const PROVIDER_ID = "71fe3b98-87e8-4798-ac98-8985c12de697";
+const START_PLAN_ID = "account:zai-start-plan";
+const INDIVIDUAL_PLAN_ID = "account:zai-individual-coding-plan";
 
 function configWithProviders(): unknown {
 	return {
@@ -52,6 +56,38 @@ function configWithProviders(): unknown {
 						enabled: false,
 						providerId: "dead-provider-0000",
 						providerName: "Disabled",
+					},
+					{
+						access: { type: "zhipu-account", accountType: "zai", mode: "start-plan" },
+						config: {
+							builtinModelIds: ["GLM-5.3-Flash", "GLM-5.2", "GLM-5-Turbo"],
+						},
+						enabled: true,
+						providerId: START_PLAN_ID,
+					},
+					{
+						access: {
+							type: "zhipu-account",
+							accountType: "zai",
+							mode: "individual-coding-plan",
+						},
+						config: {
+							builtinModelIds: ["GLM-5.3", "GLM-5.3-Flash"],
+						},
+						enabled: true,
+						providerId: INDIVIDUAL_PLAN_ID,
+					},
+					{
+						access: {
+							type: "zhipu-account",
+							accountType: "zai",
+							mode: "team-coding-plan",
+						},
+						config: {
+							builtinModelIds: ["GLM-5.3"],
+						},
+						enabled: true,
+						providerId: "account:zai-team-coding-plan",
 					},
 				],
 				templateRules: [
@@ -194,5 +230,189 @@ describe("zcode model/effort preflight", () => {
 		assert.ok(ids !== undefined);
 		assert.ok(ids.has("th/glm-5.3-flash"));
 		assert.ok(ids.has("th/waze-27b"));
+	});
+});
+
+describe("zcode account-provider servability preflight", () => {
+	function writeCredentials(body: unknown): string {
+		const path = join(tempDir(), "credentials.json");
+		writeFileSync(path, JSON.stringify(body), "utf-8");
+		return path;
+	}
+
+	test("accepts a start-plan provider when the zcode JWT credential exists", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.doesNotThrow(() => {
+			assertZcodeModelSelectable(
+				`${START_PLAN_ID}/GLM-5.3-Flash`,
+				"max",
+				paths,
+				writeCredentials({ zcodejwttoken: null }),
+			);
+		});
+	});
+
+	test("accepts a start-plan provider via the oauth access token fallback", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.doesNotThrow(() => {
+			assertZcodeModelSelectable(
+				`${START_PLAN_ID}/GLM-5.3-Flash`,
+				"max",
+				paths,
+				writeCredentials({ "oauth:zai:access_token": null }),
+			);
+		});
+	});
+
+	test("rejects a start-plan provider when neither plan credential key exists", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.throws(
+			() =>
+				assertZcodeModelSelectable(
+					`${START_PLAN_ID}/GLM-5.3-Flash`,
+					"max",
+					paths,
+					writeCredentials({ "oauth:zai:refresh_token": null }),
+				),
+			(error: unknown) => {
+				assert.ok(error instanceof ZcodePreflightError);
+				assert.match(error.message, /no plan credential/);
+				assert.match(error.message, /zcodejwttoken/);
+				assert.match(error.message, /oauth:zai:access_token/);
+				assert.match(error.message, /Start Plan in the ZCode desktop app/);
+				return true;
+			},
+		);
+	});
+
+	test("rejects a start-plan provider when the credential store is missing entirely", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.throws(
+			() =>
+				assertZcodeModelSelectable(
+					`${START_PLAN_ID}/GLM-5.3-Flash`,
+					"max",
+					paths,
+					join(tempDir(), "absent-credentials.json"),
+				),
+			(error: unknown) => {
+				assert.ok(error instanceof ZcodePreflightError);
+				assert.match(error.message, /credential store/);
+				assert.match(error.message, /does not exist/);
+				return true;
+			},
+		);
+	});
+
+	test("accepts an individual-coding-plan provider with a per-provider api-key credential", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.doesNotThrow(() => {
+			assertZcodeModelSelectable(
+				`${INDIVIDUAL_PLAN_ID}/GLM-5.3-Flash`,
+				"max",
+				paths,
+				writeCredentials({
+					[`account-provider:coding-plan:${INDIVIDUAL_PLAN_ID}:account:ae2f4a44:api-key`]:
+						null,
+				}),
+			);
+		});
+	});
+
+	test("rejects an individual-coding-plan provider without the per-provider api-key credential", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.throws(
+			() =>
+				assertZcodeModelSelectable(
+					`${INDIVIDUAL_PLAN_ID}/GLM-5.3-Flash`,
+					"max",
+					paths,
+					writeCredentials({ zcodejwttoken: null }),
+				),
+			(error: unknown) => {
+				assert.ok(error instanceof ZcodePreflightError);
+				assert.match(error.message, /no plan credential/);
+				assert.ok(
+					error.message.includes(
+						`account-provider:coding-plan:${INDIVIDUAL_PLAN_ID}:account:<identity>:api-key`,
+					),
+				);
+				return true;
+			},
+		);
+	});
+
+	test("rejects a team-coding-plan provider as unsupported headless", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.throws(
+			() =>
+				assertZcodeModelSelectable(
+					"account:zai-team-coding-plan/GLM-5.3",
+					"max",
+					paths,
+					writeCredentials({ zcodejwttoken: null }),
+				),
+			(error: unknown) => {
+				assert.ok(error instanceof ZcodePreflightError);
+				assert.match(error.message, /plan mode "team-coding-plan"/);
+				assert.match(error.message, /cannot serve/);
+				return true;
+			},
+		);
+	});
+
+	test("skips an account provider without a zhipu-account access block", () => {
+		const paths = [
+			writeConfig({
+				config: {
+					providerConfigRules: {
+						providerRules: [
+							{
+								config: { personalModelIds: ["glm-5.3-flash"] },
+								enabled: true,
+								providerId: "account:unknown-plan",
+							},
+						],
+					},
+				},
+			}),
+		];
+		assert.doesNotThrow(() => {
+			assertZcodeModelSelectable(
+				"account:unknown-plan/glm-5.3-flash",
+				"max",
+				paths,
+				join(tempDir(), "absent-credentials.json"),
+			);
+		});
+	});
+
+	test("skips non-account providers entirely", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.doesNotThrow(() => {
+			assertZcodeAccountProviderServable(
+				PROVIDER_ID,
+				buildZcodeModelCatalog(paths).access,
+				join(tempDir(), "absent-credentials.json"),
+			);
+		});
+	});
+
+	test("never reads credential values, only key names", () => {
+		const paths = [writeConfig(configWithProviders())];
+		assert.doesNotThrow(() => {
+			assertZcodeAccountProviderServable(
+				START_PLAN_ID,
+				buildZcodeModelCatalog(paths).access,
+				writeCredentials({ zcodejwttoken: null }),
+			);
+		});
+	});
+
+	test("resolveZcodeCredentialStorePath honors ZCODE_DATA_BASE_DIR", () => {
+		assert.equal(
+			resolveZcodeCredentialStorePath({ ZCODE_DATA_BASE_DIR: "D:\\data" }),
+			join("D:\\data", ".zcode", "v2", "credentials.json"),
+		);
 	});
 });

@@ -16,6 +16,15 @@
  * locate its built-in provider catalog, so the wrapper injects
  * ZCODE_BUILTIN_PROVIDER_CONFIG_FILE (plus ZCODE_PERSONAL_PROVIDER_CONFIG_FILE
  * when resolvable) before spawning; preset values pass through untouched.
+ *
+ * Plan-mode account providers (`account:zai-start-plan/*` et al) are gated by
+ * entitlement that is host-supplied protocol state, not config: the desktop
+ * app pushes an entitled account snapshot to the app-server and answers a
+ * runtime-header request before each model call. The wrapper plays that host
+ * role headless — it delivers `provider/updateAccountConfig` for the selected
+ * provider (keyed to the injected builtin catalog's revision) and answers
+ * `interaction/requestProviderRuntimeHeaders` from the shared zcode
+ * credential store, the way the desktop host does.
  * Events are emitted as one JSON object per line:
  * {type:"text"|"tool"|"note"|"result"|"usage"|"keepalive"}. In
  * desktop-continuous delivery the app-server streams model.streaming deltas
@@ -27,9 +36,10 @@
  * (non-JSON, stderr noise) are ignored by the provider's parser.
  */
 
+import { createDecipheriv, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir, platform as osPlatform, userInfo } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
@@ -42,6 +52,97 @@ const RUNTIME_PREFERENCES = {
 const DELIVERY_KIND = "desktop-continuous";
 const REQUEST_TIMEOUT_MS = 60_000;
 const HEARTBEAT_INTERVAL_MS = 120_000;
+
+/*
+ * Credential-store access for answering provider runtime-header requests.
+ *
+ * The store is the same file the desktop app and the CLI write
+ * (<data-dir>/.zcode/v2/credentials.json); values are AES-256-GCM encrypted
+ * with a key derived from the machine identity, so any process running as the
+ * same OS user can decrypt them — that is how the desktop host itself reads
+ * the plan token it hands back to the agent. The wrapper holds decrypted
+ * values only in memory, only for the single credential a model request
+ * needs, and never logs them: diagnostics name credential *keys*, never
+ * values. ZCODE_CREDENTIAL_SECRET overrides the derivation exactly as it
+ * does for the CLI.
+ */
+const CREDENTIAL_ENC_PREFIX = "enc:v1:";
+
+function resolveCredentialStorePath() {
+	const baseDir = (process.env.ZCODE_DATA_BASE_DIR ?? "").trim() || homedir();
+	return path.join(baseDir, ".zcode", "v2", "credentials.json");
+}
+
+function deriveCredentialKey() {
+	const secret =
+		(process.env.ZCODE_CREDENTIAL_SECRET ?? "").trim() ||
+		`zcode-credential-fallback:${osPlatform()}:${homedir()}:${safeUserName()}`;
+	return createHash("sha256").update(secret).digest();
+}
+
+function safeUserName() {
+	try {
+		return userInfo().username;
+	} catch {
+		return "unknown";
+	}
+}
+
+/**
+ * Decrypts one store value (`enc:v1:` + base64url(iv).base64url(tag).base64url(ct)); plaintext
+ * passes through.
+ */
+function decryptCredentialValue(value) {
+	if (!value.startsWith(CREDENTIAL_ENC_PREFIX)) {
+		return value;
+	}
+
+	const [ivPart, tagPart, dataPart] = value.slice(CREDENTIAL_ENC_PREFIX.length).split(".");
+	const decipher = createDecipheriv(
+		"aes-256-gcm",
+		deriveCredentialKey(),
+		Buffer.from(ivPart, "base64url"),
+	);
+	decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
+	return Buffer.concat([
+		decipher.update(Buffer.from(dataPart, "base64url")),
+		decipher.final(),
+	]).toString("utf-8");
+}
+
+let credentialStoreCache;
+function loadCredentialStore() {
+	if (credentialStoreCache !== undefined) {
+		return credentialStoreCache;
+	}
+
+	credentialStoreCache = new Map();
+	const storePath = resolveCredentialStorePath();
+	if (!existsSync(storePath)) {
+		return credentialStoreCache;
+	}
+
+	try {
+		const parsed = JSON.parse(readFileSync(storePath, "utf-8"));
+		if (parsed !== null && typeof parsed === "object") {
+			for (const [key, value] of Object.entries(parsed)) {
+				if (typeof value !== "string") {
+					continue;
+				}
+
+				try {
+					credentialStoreCache.set(key, decryptCredentialValue(value));
+				} catch {
+					// Undecryptable entry (foreign secret override): skip it.
+				}
+			}
+		}
+	} catch (error) {
+		emitNote(`credential store at ${storePath} unreadable: ${error.message}`);
+	}
+
+	return credentialStoreCache;
+}
 
 function parseArgs(argv) {
 	const args = { effort: "", mode: "yolo", model: "", resumeSession: "" };
@@ -151,6 +252,14 @@ function findPackagedBuiltinConfig() {
 	return undefined;
 }
 
+function resolveEffectiveBuiltinConfigPath() {
+	const envPath = (process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE ?? "").trim();
+	if (envPath !== "") {
+		return envPath;
+	}
+
+	return findPackagedBuiltinConfig();
+}
 function resolveProviderConfigEnv() {
 	const env = {};
 	const builtinKey = "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE";
@@ -214,6 +323,82 @@ function resolveRetryEnv() {
 	return { [key]: DEFAULT_RETRY_BUDGET };
 }
 
+/*
+ * Plan-mode account providers are executable only after the host delivers an
+ * entitled account snapshot over the protocol (the desktop app does this
+ * whenever it connects). Replicate that here: derive the snapshot for the
+ * selected provider from the same builtin catalog the CLI is about to load,
+ * keyed to its revision string 'zcode-builtin:<n>:<sha256(abs path)>' — the
+ * registry discards a snapshot whose basedOn revision does not match.
+ */
+function buildAccountDelivery(providerId) {
+	const builtinPath = resolveEffectiveBuiltinConfigPath();
+	if (builtinPath === undefined) {
+		emitNoteOnce(
+			"cannot deliver account provider config: no builtin catalog found; " +
+				"account providers will fail session/create as before",
+		);
+		return undefined;
+	}
+
+	let catalog;
+	try {
+		catalog = JSON.parse(readFileSync(builtinPath, "utf-8"));
+	} catch (error) {
+		emitNoteOnce(
+			`cannot deliver account provider config: builtin catalog unreadable: ${error.message}`,
+		);
+		return undefined;
+	}
+
+	const rules = catalog?.config?.providerConfigRules?.providerRules;
+	const rule = Array.isArray(rules)
+		? rules.find((entry) => entry?.providerId === providerId)
+		: undefined;
+	const access = rule?.config?.access;
+	if (access?.type !== "zhipu-account") {
+		emitNoteOnce(
+			`cannot deliver account provider config: "${providerId}" is not a zhipu-account builtin rule`,
+		);
+		return undefined;
+	}
+
+	const revision = `account:sandcastle-${process.pid}-${Date.now()}`;
+	return {
+		revision,
+		basedOnZCodeBuiltinRevision: `zcode-builtin:${catalog.revision}:${createHash("sha256")
+			.update(path.resolve(builtinPath))
+			.digest("hex")}`,
+		providers: {
+			[providerId]: {
+				builtinModelIds: rule.config.builtinModelIds,
+				access: { type: "zhipu-account", entitled: true },
+			},
+		},
+		states: {
+			[providerId]: { availability: "available", entitled: true, current: true },
+		},
+	};
+}
+
+/** Delivers the entitled snapshot so plan-mode models resolve; best-effort. */
+async function deliverAccountProviderConfig(providerId) {
+	const snapshot = buildAccountDelivery(providerId);
+	if (snapshot === undefined) {
+		return;
+	}
+
+	try {
+		const ack = await request("provider/updateAccountConfig", snapshot, 30_000);
+		emitNote(
+			`account provider config delivered for ${providerId} (status ${ack?.status ?? "unknown"})`,
+		);
+	} catch (error) {
+		emitNoteOnce(
+			`account provider config delivery failed (${error.message}); continuing — ${providerId} may fail session/create`,
+		);
+	}
+}
 function spawnServer(binary) {
 	const isWindows = process.platform === "win32";
 	const isScript = /\.(cjs|mjs|js)$/i.test(binary);
@@ -374,7 +559,75 @@ function handleServerRequest(frame) {
 		return;
 	}
 
+	if (method === "interaction/requestProviderRuntimeHeaders") {
+		respond(id, resolveProviderRuntimeHeaders(params));
+		return;
+	}
+
 	respond(id, {});
+}
+
+/*
+ * Answers the per-model-attempt auth request the way the desktop host does:
+ * the apiKey lands on the transport itself (anthropic-messages → x-api-key).
+ * A non-applied response surfaces as the turn error -32031 with our message,
+ * which is the actionable path for a missing plan credential.
+ */
+function resolveProviderRuntimeHeaders(params) {
+	const accountAccess = params?.accountAccess;
+	const providerId = String(params?.providerId ?? "unknown provider");
+	if (accountAccess?.type !== "zhipu-account") {
+		return {
+			headersApplied: false,
+			errorMessage:
+				`zcode-wrapper: no zhipu-account access on the runtime-header request for ${providerId}; ` +
+				"the wrapper only serves plan-mode account providers",
+		};
+	}
+
+	if (accountAccess.mode === "start-plan") {
+		// The desktop answers start-plan with the zcode JWT from the OAuth token set.
+		const store = loadCredentialStore();
+		const apiKey = store.get("zcodejwttoken") ?? store.get("oauth:zai:access_token");
+		return finalizeRuntimeHeaders(
+			apiKey,
+			providerId,
+			"zcodejwttoken (or oauth:zai:access_token)",
+		);
+	}
+
+	if (accountAccess.mode === "individual-coding-plan") {
+		// Standalone login persists a per-provider api-key keyed by account identity.
+		const prefix = `account-provider:coding-plan:${providerId}:account:`;
+		const entry = [...loadCredentialStore().entries()].find(
+			([key]) => key.startsWith(prefix) && key.endsWith(":api-key"),
+		);
+		return finalizeRuntimeHeaders(
+			entry?.[1],
+			providerId,
+			entry?.[0] ?? `${prefix}<identity>:api-key`,
+		);
+	}
+
+	return {
+		headersApplied: false,
+		errorMessage:
+			`zcode-wrapper: plan mode "${accountAccess.mode}" is not supported by sandcastle's ` +
+			"headless wrapper (start-plan and individual-coding-plan are)",
+	};
+}
+
+function finalizeRuntimeHeaders(apiKey, providerId, credentialKey) {
+	if (apiKey === undefined || apiKey.trim() === "") {
+		return {
+			headersApplied: false,
+			errorMessage:
+				`zcode-wrapper: no plan credential for ${providerId} (expected ${credentialKey} in ` +
+				"the zcode credential store) — connect the plan in the ZCode desktop app first",
+		};
+	}
+
+	return { headersApplied: true, requestAuth: { apiKey } };
 }
 
 let finished = false;
@@ -827,6 +1080,15 @@ const cwd = process.cwd();
 const [providerId, ...modelIdParts] = args.model.split("/");
 const hasExplicitModel =
 	args.model !== "" && providerId !== "" && modelIdParts.join("/").trim() !== "";
+
+/*
+ * Plan-mode account providers only resolve after the host delivers their
+ * entitlement (see buildAccountDelivery) — push it before session/create so
+ * the model selection validates against the refreshed registry.
+ */
+if (hasExplicitModel && providerId.startsWith("account:")) {
+	await deliverAccountProviderConfig(providerId);
+}
 
 /*
  * Resume the persisted session when asked (the app-server's session/resume

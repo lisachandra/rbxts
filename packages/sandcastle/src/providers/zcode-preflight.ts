@@ -10,6 +10,20 @@
  * with the desktop-install and `~/.zcode` defaults), so a bad selection
  * fails fast with the available ids in the message.
  *
+ * `account:*` providers need a second, credential-shaped check. Entitlement
+ * itself is no obstacle: the wrapper now delivers the entitled account
+ * snapshot over the protocol (`provider/updateAccountConfig`), replicating
+ * what the desktop host does, and answers the per-model-attempt
+ * `interaction/requestProviderRuntimeHeaders` request from the shared zcode
+ * credential store. What *can* be checked up front is whether the credential
+ * that answer needs exists: `start-plan` reads the `zcodejwttoken` entry
+ * (falling back to `oauth:<accountType>:access_token`), and
+ * `individual-coding-plan` reads a
+ * `account-provider:coding-plan:<id>:account:<identity>:api-key` entry. A
+ * missing credential surfaces only as a mid-turn -32031 error, so the
+ * preflight names the missing key before dispatch. Key names only — store
+ * values are encrypted and never inspected.
+ *
  * Validation is deliberately conservative: anything that cannot be checked
  * (empty model, unreadable configs, unknown provider id) is skipped with a
  * note rather than blocked — the preflight exists to catch real
@@ -32,14 +46,57 @@ export class ZcodePreflightError extends Error {
 	}
 }
 
+/** `access` block of an `account:*` provider rule from a zcode provider config. */
+export interface ZcodeAccountAccess {
+	type?: string;
+	accountType?: string;
+	mode?: string;
+}
+
 /** One provider entry from a zcode provider config. */
 interface ProviderRule {
+	access?: unknown;
 	config?: {
 		builtinModelIds?: unknown;
 		personalModelIds?: unknown;
 	};
 	enabled?: unknown;
 	providerId?: unknown;
+}
+
+/**
+ * - Resolve the shared credential store the standalone CLI reads
+ *   (`<data-dir>/.zcode/v2/credentials.json`, honoring `ZCODE_DATA_BASE_DIR`, mirroring the CLI's
+ *   own resolution).
+ * - @param env - Environment supplying `ZCODE_DATA_BASE_DIR` (defaults to `process.env`).
+ */
+export function resolveZcodeCredentialStorePath(env: NodeJS.ProcessEnv = process.env): string {
+	const baseDir = env.ZCODE_DATA_BASE_DIR?.trim() || homedir();
+	return join(baseDir, ".zcode", "v2", "credentials.json");
+}
+
+/**
+ * - Extract the `access` block of a provider rule when it is shape-valid.
+ * - @returns The parsed access block, or undefined when absent/malformed.
+ */
+function parseAccountAccess(rule: ProviderRule): undefined | ZcodeAccountAccess {
+	const access = [rule.access, (rule.config as undefined | { access?: unknown })?.access].find(
+		(candidate): candidate is Record<string, unknown> =>
+			typeof candidate === "object" && candidate !== null,
+	);
+	if (access === undefined) {
+		return undefined;
+	}
+
+	const result: ZcodeAccountAccess = {};
+	for (const key of ["accountType", "mode", "type"] as const) {
+		const value = access[key];
+		if (typeof value === "string") {
+			result[key] = value;
+		}
+	}
+
+	return result;
 }
 
 interface ProviderConfig {
@@ -113,16 +170,19 @@ function stringList(value: unknown): Array<string> {
  * - Build the model-id catalog from the resolved configs: a map of provider id → enabled model ids.
  *   Personal rules contribute `personalModelIds`, builtin template rules contribute
  *   `builtinModelIds`. Disabled providers are recorded so a disabled-provider selection can be
- *   rejected.
+ *   rejected. Account-provider rules additionally contribute their `access` block so
+ *   {@link assertZcodeAccountProviderServable} can judge headless servability.
  * - @param paths - Config files to read (existing paths only).
- * - @returns Catalog keyed by provider id, and each provider's enabled flag.
+ * - @returns Catalog keyed by provider id, each provider's enabled flag, and account access blocks.
  */
 export function buildZcodeModelCatalog(paths: Array<string>): {
+	access: Map<string, ZcodeAccountAccess>;
 	enabled: Map<string, boolean>;
 	models: Map<string, Set<string>>;
 } {
 	const models = new Map<string, Set<string>>();
 	const enabled = new Map<string, boolean>();
+	const access = new Map<string, ZcodeAccountAccess>();
 
 	const addModels = (key: string, ids: Array<string>, isEnabled: boolean): void => {
 		const known = models.get(key);
@@ -162,11 +222,16 @@ export function buildZcodeModelCatalog(paths: Array<string>): {
 			 * their models are keyed by model id itself and are reachable through
 			 * any enabled template instance.
 			 */
-			addModels(providerId ?? modelIdKey(ids), ids, isEnabled);
+			const key = providerId ?? modelIdKey(ids);
+			addModels(key, ids, isEnabled);
+			const accountAccess = parseAccountAccess(provider);
+			if (accountAccess !== undefined && !access.has(key)) {
+				access.set(key, accountAccess);
+			}
 		}
 	}
 
-	return { enabled, models };
+	return { access, enabled, models };
 }
 
 /**
@@ -179,19 +244,95 @@ function modelIdKey(ids: Array<string>): string {
 }
 
 /**
+ * - Judge whether the wrapper's runtime-header answer can source a credential for an `account:*`
+ *   provider. The wrapper delivers entitlement itself (mirroring the desktop host), so the only
+ *   headless blocker is a missing plan credential: `start-plan` reads `zcodejwttoken` (falling back
+ *   to `oauth:<accountType>:access_token`), `individual-coding-plan` reads a
+ *   `account-provider:coding-plan:<id>:account:<identity>:api-key` entry. Key names are read from
+ *   the store's plaintext index only — values are encrypted and never inspected.
+ * - @param providerId - Provider id half of the model selection (e.g. `account:zai-start-plan`).
+ * - @param accessMap - Account access blocks collected by {@link buildZcodeModelCatalog}.
+ * - @param credentialsPath - Credential store path; defaults to
+ *   {@link resolveZcodeCredentialStorePath}.
+ * - @throws {ZcodePreflightError} When the provider's plan credential is provably absent, or its plan
+ *   mode is one the wrapper cannot answer (`team-coding-plan`, `off-peak`, `highspeed`).
+ * - @remarks No-op for non-`account:` providers and for rules without a `zhipu-account` access block
+ *   (personal api-key providers need no bootstrap).
+ */
+export function assertZcodeAccountProviderServable(
+	providerId: string,
+	accessMap: Map<string, ZcodeAccountAccess>,
+	credentialsPath: string = resolveZcodeCredentialStorePath(),
+): void {
+	if (!providerId.startsWith("account:")) {
+		return;
+	}
+
+	const access = accessMap.get(providerId);
+	if (access === undefined || access.type !== "zhipu-account") {
+		return; // Unknown or non-account rule: cannot judge, do not block.
+	}
+
+	if (access.mode !== "start-plan" && access.mode !== "individual-coding-plan") {
+		throw new ZcodePreflightError(
+			`zcode provider "${providerId}" declares plan mode "${access.mode ?? "unknown"}", which sandcastle's headless wrapper cannot serve (start-plan and individual-coding-plan are). Select a personal api-key provider id instead — see the provider list in the ZCode app.`,
+		);
+	}
+
+	if (!existsSync(credentialsPath)) {
+		throw new ZcodePreflightError(
+			`zcode provider "${providerId}" has no plan credential: the zcode credential store (${credentialsPath}) does not exist. Connect the plan in the ZCode desktop app, then retry.`,
+		);
+	}
+
+	let keys: Array<string> = [];
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(credentialsPath, "utf-8"));
+		if (typeof parsed === "object" && parsed !== null) {
+			keys = Object.keys(parsed as Record<string, unknown>);
+		}
+	} catch {
+		return; // Unreadable store: cannot judge, do not block.
+	}
+
+	if (access.mode === "start-plan") {
+		const fallbackKey = `oauth:${access.accountType ?? "zai"}:access_token`;
+		if (!keys.includes("zcodejwttoken") && !keys.includes(fallbackKey)) {
+			throw new ZcodePreflightError(
+				`zcode provider "${providerId}" has no plan credential ("zcodejwttoken" (or "${fallbackKey}") missing from ${credentialsPath}). Connect the Start Plan in the ZCode desktop app, then retry.`,
+			);
+		}
+
+		return;
+	}
+
+	const codingPlanPrefix = `account-provider:coding-plan:${providerId}:account:`;
+	if (!keys.some((key) => key.startsWith(codingPlanPrefix) && key.endsWith(":api-key"))) {
+		throw new ZcodePreflightError(
+			`zcode provider "${providerId}" has no plan credential ("${codingPlanPrefix}<identity>:api-key" missing from ${credentialsPath}). Connect the coding plan in the ZCode desktop app, then retry.`,
+		);
+	}
+}
+
+/**
  * - Validate a zcode model id and reasoning effort against the provider catalog.
  * - @param model - Full model id as sandcastle passes it, `providerId/modelId`.
  * - @param effort - Sandcastle effort after `resolveBackendEffort` mapping.
  * - @param paths - Config files to read; defaults to {@link resolveZcodeProviderConfigPaths}.
+ * - @param credentialsPath - Credential store for the account-provider check; defaults to
+ *   {@link resolveZcodeCredentialStorePath}.
  * - @throws {ZcodePreflightError} When the selection is provably invalid.
  * - @remarks Skips silently when the model is empty (backend default), no config file exists, the
  *   model string is malformed (the wrapper would run the default anyway), the provider id is
- *   unknown, or the provider is known but its model list is empty (nothing to check against).
+ *   unknown, or the provider is known but its model list is empty (nothing to check against). For
+ *   `account:*` providers, also verifies the wrapper can source the plan credential its
+ *   runtime-header answer needs (see {@link assertZcodeAccountProviderServable}).
  */
 export function assertZcodeModelSelectable(
 	model: string,
 	effort: string,
 	paths: Array<string> = resolveZcodeProviderConfigPaths(),
+	credentialsPath: string = resolveZcodeCredentialStorePath(),
 ): void {
 	const trimmed = model.trim();
 	if (trimmed === "") {
@@ -209,7 +350,7 @@ export function assertZcodeModelSelectable(
 		return; // No configs on disk: cannot validate, do not block.
 	}
 
-	const { enabled, models } = buildZcodeModelCatalog(paths);
+	const { access, enabled, models } = buildZcodeModelCatalog(paths);
 	const providerId = trimmed.slice(0, slash);
 	const modelId = trimmed.slice(slash + 1);
 
@@ -226,6 +367,8 @@ export function assertZcodeModelSelectable(
 			`zcode provider "${providerId}" is disabled in the provider config — enable it in the ZCode app (or ~/.zcode/v2/provider_config.json).`,
 		);
 	}
+
+	assertZcodeAccountProviderServable(providerId, access, credentialsPath);
 
 	if (knownIds.size > 0 && !knownIds.has(modelId)) {
 		const available = [...knownIds].sort().join(", ");
