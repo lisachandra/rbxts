@@ -34,6 +34,11 @@ describe("config loading", () => {
 		assert.equal(config.integration.mergeSubject, "chore(integration): integrate {source}");
 		assert.equal(config.integration.verifyHooks, false);
 		assert.equal(config.skills.defaults.review.includes("sandcastle"), true);
+		/*
+		 * Unset, not defaulted: each command resolves its own default (agent runs log, standalone
+		 * `sandcastle setup` inherits), so a repository without a preference must stay undefined.
+		 */
+		assert.equal(config.setupOutput, undefined);
 	});
 
 	test("loadConfig merges repo config over defaults", () => {
@@ -60,5 +65,43 @@ describe("config loading", () => {
 		assert.deepEqual(config.agents.steps.design, { effort: "low", model: "design-m" });
 		assert.deepEqual(config.agents.steps.implement, { backend: "codex" });
 		assert.equal(config.baseBranch, "main");
+	});
+
+	test("loadConfig keeps an explicit setupOutput", () => {
+		const dir = join(tmpRoot, "config-setup-output");
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, "sandcastle.config.ts"),
+			[
+				"const config = {",
+				'	setupOutput: "inherited",',
+				"};",
+				"export default config;",
+			].join("
+"),
+			"utf-8",
+		);
+
+		assert.throws(() => loadConfig(dir), /setupOutput|inherit/);
+	});
+
+	test("loadConfig accepts setupOutput inherit and log", () => {
+		for (const mode of ["inherit", "log"] as const) {
+			const dir = join(tmpRoot, `config-setup-output-${mode}`);
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(
+				join(dir, "sandcastle.config.ts"),
+				[
+					"const config = {",
+					`	setupOutput: ${JSON.stringify(mode)},`,
+					"};",
+					"export default config;",
+				].join("
+"),
+				"utf-8",
+			);
+
+			assert.equal(loadConfig(dir).setupOutput, mode);
+		}
 	});
 });

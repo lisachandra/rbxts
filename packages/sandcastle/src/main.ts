@@ -37,7 +37,7 @@ import { printQueueDivergence } from "./queue/land.js";
 import { io, normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
 import { printStatus } from "./status.js";
-import { ensurePersistentWorktree, setupWorktree } from "./worktree.js";
+import { ensurePersistentWorktree, resolveSetupOutput, setupWorktree } from "./worktree.js";
 
 export * from "./agent.js";
 export * from "./cli.js";
@@ -141,6 +141,12 @@ async function runSetup(options: CliOptions): Promise<void> {
 	setupWorktree(worktreePath, {
 		dryRun: options.dryRun,
 		ignoreSetup: options.ignoreSetup,
+		/*
+		 * A human typing `sandcastle setup` is waiting on this exact output, so inheriting is the
+		 * standalone default; `log` is the agent default because those runs fan out into many
+		 * installs and the terminal belongs to the phase stream.
+		 */
+		output: resolveSetupOutput(options.setupOutput, "inherit"),
 		skipSetup: options.skipSetup,
 	});
 }
@@ -229,6 +235,7 @@ export async function main(): Promise<void> {
 				options.ignoreSetup,
 				options.skipSetup,
 				options.steps,
+				options.setupOutput,
 			);
 		} else {
 			await runSingleIssue(options.issueNumber, options.model, options.effort, {
@@ -238,6 +245,7 @@ export async function main(): Promise<void> {
 				ignoreSetup: options.ignoreSetup,
 				phase: options.phase,
 				resume: options.resume,
+				setupOutput: options.setupOutput,
 				skipSetup: options.skipSetup,
 				steps: options.steps,
 				worktree: options.worktree,
@@ -265,6 +273,7 @@ export async function main(): Promise<void> {
 			{
 				ignoreSetup: options.ignoreSetup,
 				pushAndDelete: options.pushAndDelete === true,
+				setupOutput: options.setupOutput,
 				skipSetup: options.skipSetup,
 				steps: options.steps,
 				worktree: options.worktree,
@@ -299,6 +308,8 @@ export async function main(): Promise<void> {
 				options.skipSetup,
 				options.steps,
 				options.quarantineDrift,
+				undefined,
+				options.setupOutput,
 			);
 
 			break;
@@ -323,6 +334,8 @@ export async function main(): Promise<void> {
 				options.skipSetup,
 				options.steps,
 				options.quarantineDrift,
+				undefined,
+				options.setupOutput,
 			);
 
 			break;
@@ -341,6 +354,8 @@ export async function main(): Promise<void> {
 				options.skipSetup,
 				options.steps,
 				options.quarantineDrift,
+				undefined,
+				options.setupOutput,
 			);
 
 			break;

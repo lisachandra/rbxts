@@ -17,6 +17,7 @@ import { resolve as pathResolve } from "node:path";
 import { z } from "zod";
 
 import { createAgent } from "./agent.js";
+import type { SetupOutput } from "./config.js";
 import {
 	createFreshPhaseEvaluation,
 	evaluatePhases,
@@ -62,6 +63,7 @@ import type {
 } from "./types.js";
 import {
 	createIssueSandbox,
+	type EmitLine,
 	prepareIssueWorktree,
 	sandboxProvider,
 	validateExistingWorktree,
@@ -607,10 +609,13 @@ export async function runSingleIssue(
 	options?: {
 		agentBackend?: AgentBackend;
 		baseRef?: string;
+		/** Emits setup progress lines; `--json` callers pass a stderr sink. */
+		emit?: EmitLine;
 		force?: true | PhaseName;
 		ignoreSetup?: boolean;
 		phase?: PhaseName;
 		resume?: boolean;
+		setupOutput?: SetupOutput;
 		skipSetup?: boolean;
 		steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 		worktree?: string;
@@ -741,6 +746,7 @@ export async function runSingleIssue(
 				options?.ignoreSetup,
 				options?.skipSetup,
 				baseRef,
+				{ emit: options?.emit, output: options?.setupOutput },
 			);
 
 			/*
@@ -801,6 +807,7 @@ export async function runAll(
 	ignoreSetup = false,
 	skipSetup = false,
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
+	setupOutput?: SetupOutput,
 ): Promise<void> {
 	console.log("Planning: analysing open issues for dependencies...\n");
 	const marker = markerPath("planner");
@@ -908,6 +915,7 @@ export async function runAll(
 					await runSingleIssue(issue.id, model, effort, {
 						agentBackend,
 						ignoreSetup,
+						setupOutput,
 						skipSetup,
 						...(steps ? { steps } : {}),
 					});

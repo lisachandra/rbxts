@@ -8,6 +8,8 @@
 
 import { resolve as pathResolve } from "node:path";
 
+import type { SetupOutput } from "./config.js";
+import { setupOutputs } from "./config.js";
 import { type HelpTopicKey, renderHelpTopic } from "./help.js";
 import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
 import type { QueueGraphFormat } from "./queue/graph.js";
@@ -103,6 +105,7 @@ export interface CliOptions {
 	readonly resume: boolean;
 	readonly roles?: Record<string, string>;
 	readonly sequentialIssues: Array<string>;
+	readonly setupOutput?: SetupOutput;
 	readonly skipSetup?: boolean;
 	readonly status: boolean;
 	readonly steps: Record<AgentPhaseName, ResolvedAgentStep>;
@@ -219,6 +222,7 @@ interface ParsedArgState {
 	resume: boolean;
 	roles: undefined | Record<string, string>;
 	sequentialIssues: Array<string>;
+	setupOutput: undefined | SetupOutput;
 	skipSetup: boolean;
 	status: boolean;
 	steps: AgentStepsConfig;
@@ -296,6 +300,7 @@ function createParsedArgState(): ParsedArgState {
 		resume: false,
 		roles: undefined,
 		sequentialIssues: [],
+		setupOutput: undefined,
 		skipSetup: false,
 		status: false,
 		steps: {},
@@ -652,6 +657,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 	},
 	"--sequential": (state, next, index) => {
 		state.sequentialIssues.push(...commaSeparated(next, "--sequential"));
+		return index + 1;
+	},
+	"--setup-output": (state, next, index) => {
+		if (!setupOutputs.includes(next as SetupOutput)) {
+			throw new Error(`--setup-output must be one of: ${setupOutputs.join(", ")}`);
+		}
+
+		state.setupOutput = next as SetupOutput;
 		return index + 1;
 	},
 	"--title": (state, next, index) => {
@@ -1282,6 +1295,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		resume: state.resume,
 		roles: state.roles,
 		sequentialIssues: state.sequentialIssues,
+		setupOutput: state.setupOutput,
 		skipSetup: state.skipSetup,
 		status: state.status,
 		steps,

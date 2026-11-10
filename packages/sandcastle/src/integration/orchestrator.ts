@@ -13,6 +13,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
+import type { SetupOutput } from "../config.js";
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
 import { backendSupportsDigest, fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
@@ -30,7 +31,7 @@ import type {
 	IntegrationSource,
 	ResolvedAgentStep,
 } from "../types.js";
-import { removeWorktree, sandboxProvider, setupWorktree } from "../worktree.js";
+import { removeWorktree, resolveSetupOutput, sandboxProvider, setupWorktree } from "../worktree.js";
 import type { SetupWorktreeOptions } from "../worktree.js";
 import {
 	assertIntegrationName,
@@ -70,13 +71,19 @@ export function prepareIntegrationWorktree(
 	worktree: string,
 	ignoreSetup: boolean,
 	skipSetup: boolean,
+	setupOutput?: SetupOutput,
 	worktreePreparer: (
 		path: string,
 		options: SetupWorktreeOptions,
 	) => string | undefined = setupWorktree,
 ): string | undefined {
 	const preparer = worktreePreparer ?? setupWorktree;
-	return preparer(worktree, { ignoreSetup, skipSetup });
+	return preparer(worktree, {
+		ignoreSetup,
+		logKind: "integration",
+		output: resolveSetupOutput(setupOutput, "log"),
+		skipSetup,
+	});
 }
 
 /** Resolve a merge conflict on the integration worktree via the resolving-merge-conflicts agent. */
@@ -215,6 +222,7 @@ export interface OrchestratorDeps {
 		worktree: string,
 		ignoreSetup: boolean,
 		skipSetup: boolean,
+		setupOutput?: SetupOutput,
 	) => string | undefined;
 	runConflictResolver: ConflictResolverRunner;
 	runIntegrationReview: IntegrationReviewRunner;
@@ -251,6 +259,7 @@ export async function continueIntegration(
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 	quarantineDrift = false,
 	deps?: Partial<OrchestratorDeps>,
+	setupOutput?: SetupOutput,
 ): Promise<void> {
 	const merged = { ...resolveOrchestratorDeps(deps) };
 	const worktree = integrationBasePath(manifest);
@@ -259,7 +268,7 @@ export async function continueIntegration(
 	}
 
 	try {
-		merged.prepareWorktree(worktree, ignoreSetup, skipSetup);
+		merged.prepareWorktree(worktree, ignoreSetup, skipSetup, setupOutput);
 		manifest.status = "merging";
 		manifest.lastError = undefined;
 		writeIntegrationManifest(manifest);
@@ -385,6 +394,7 @@ export async function runNewIntegration(
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 	quarantineDrift = false,
 	deps?: Partial<OrchestratorDeps>,
+	setupOutput?: SetupOutput,
 ): Promise<void> {
 	if (sourceNames.length === 0) {
 		throw new Error("At least one integration source is required.");
@@ -404,6 +414,7 @@ export async function runNewIntegration(
 		steps,
 		quarantineDrift,
 		deps,
+		setupOutput,
 	);
 }
 
@@ -422,6 +433,7 @@ export async function resumeIntegration(
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>,
 	quarantineDrift = false,
 	deps?: Partial<OrchestratorDeps>,
+	setupOutput?: SetupOutput,
 ): Promise<void> {
 	assertIntegrationName(name);
 	const manifest = readIntegrationManifest(name);
@@ -445,6 +457,7 @@ export async function resumeIntegration(
 		steps,
 		quarantineDrift,
 		deps,
+		setupOutput,
 	);
 }
 

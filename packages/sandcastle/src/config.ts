@@ -44,6 +44,16 @@ const agentBackendSchema = z.enum([
 	"zcode",
 ]);
 
+/**
+ * Where `setupCommands` output goes.
+ *
+ * `log` redirects stdout and stderr into a file under the logs directory; `inherit` streams them
+ * into the runner's own stdout/stderr, the pre-logging behavior.
+ */
+export const setupOutputs = ["inherit", "log"] as const;
+
+export type SetupOutput = (typeof setupOutputs)[number];
+
 export const phaseNames: ReadonlyArray<PhaseName> = ["design", "implement", "review"];
 export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
 	"plan",
@@ -111,6 +121,13 @@ export interface SandcastleConfig {
 	reviewMarker: string;
 	/** Shell commands run once in a fresh worktree before phase agents start. */
 	setupCommands: Array<string>;
+	/**
+	 * Where `setupCommands` output goes when the command does not pass `--setup-output`.
+	 *
+	 * Left `undefined` when the repository does not configure it so the command default survives:
+	 * agent runs log, a standalone `sandcastle setup` inherits.
+	 */
+	setupOutput?: SetupOutput;
 	/** Skills routed into phase prompts, per phase and per issue label. */
 	skills: {
 		defaults: Record<PhaseName, Array<string>>;
@@ -205,6 +222,7 @@ export const sandcastleConfigSchema = z
 			.optional(),
 		reviewMarker: z.string().optional(),
 		setupCommands: z.array(z.string()).optional(),
+		setupOutput: z.enum(setupOutputs).optional(),
 		skills: z
 			.object({
 				defaults: z
@@ -368,6 +386,11 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 		},
 		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
 		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,
+		/*
+		 * Deliberately not defaulted: `undefined` means "no repository preference", which each
+		 * command resolves against its own default (agent paths log, standalone setup inherits).
+		 */
+		...(parsed.setupOutput !== undefined ? { setupOutput: parsed.setupOutput } : {}),
 		skills: {
 			defaults: {
 				design: parsed.skills?.defaults?.design ?? defaultConfig.skills.defaults.design,

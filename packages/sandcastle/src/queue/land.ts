@@ -260,6 +260,8 @@ export async function composeLandTarget(options: CliOptions, target: LandTarget)
 			options.skipSetup,
 			options.steps,
 			quarantineDrift,
+			undefined,
+			options.setupOutput,
 		);
 		return;
 	}
@@ -274,6 +276,8 @@ export async function composeLandTarget(options: CliOptions, target: LandTarget)
 		options.skipSetup,
 		options.steps,
 		quarantineDrift,
+		undefined,
+		options.setupOutput,
 	);
 }
 

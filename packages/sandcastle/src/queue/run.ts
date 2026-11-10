@@ -50,8 +50,14 @@ const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
 		options.agentBackend,
 		resume,
 		{
+			/*
+			 * Under `--json` stdout is the machine channel, so setup chatter goes to stderr like
+			 * every other human line in this command group.
+			 */
+			emit: options.jsonOut ? console.error : undefined,
 			ignoreSetup: options.ignoreSetup,
 			pushAndDelete: options.pushAndDelete === true,
+			setupOutput: options.setupOutput,
 			skipSetup: options.skipSetup,
 			steps: options.steps,
 		},

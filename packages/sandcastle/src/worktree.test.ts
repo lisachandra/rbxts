@@ -5,6 +5,7 @@ import {
 	existsSync,
 	lstatSync,
 	mkdirSync,
+	openSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
@@ -23,6 +24,7 @@ import {
 	pruneWorktreeRegistrations,
 	removeWorktree,
 	setupDirectories,
+	setupLogPath,
 	setupWorktree,
 	unlinkWorktreeLinks,
 } from "./worktree.js";
@@ -32,6 +34,8 @@ registerTestHooks();
 const originalSetupCommands = config.setupCommands;
 const originalSymlinks = config.symlinks;
 const createdDirs: Array<string> = [];
+/** Setup logs land in the real state dir, so tests remove the ones they touch. */
+const createdLogs: Array<string> = [];
 
 function makeDir(name: string): string {
 	const dir = resolve(tmpRoot, "worktree", name);
@@ -40,9 +44,20 @@ function makeDir(name: string): string {
 	return dir;
 }
 
+/** Resolve a setup log path and register it (plus its rotated generation) for cleanup. */
+function trackLog(worktree: string, kind: "issue" | "plain" | "integration" = "plain"): string {
+	const logPath = setupLogPath(worktree, kind);
+	createdLogs.push(logPath, `${logPath}.1`);
+	return logPath;
+}
+
 afterEach(() => {
 	config.setupCommands = originalSetupCommands;
 	config.symlinks = originalSymlinks;
+	for (const logPath of createdLogs.splice(0)) {
+		rmSync(logPath, { force: true });
+	}
+
 	for (const dir of createdDirs.splice(0)) {
 		rmSync(dir, { force: true, recursive: true });
 	}
@@ -240,6 +255,198 @@ describe("prepareIssueWorktree", () => {
 		const path = worktreePathForBranch("sandcastle/issue-1");
 		assert.equal(path.endsWith("sandcastle-issue-1"), true);
 		assert.equal(basename(path), "sandcastle-issue-1");
+	});
+
+	describe("setup output to a log file", () => {
+		test("log mode redirects stdout/stderr to a file and reports the path", () => {
+			const worktree = makeDir("log-mode");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+
+			const captured: Array<{ command: string; stdio?: unknown }> = [];
+			io.execSync = ((command: string, options?: { stdio?: unknown }) => {
+				captured.push({ command: String(command), stdio: options?.stdio });
+				return "";
+			}) as unknown as typeof io.execSync;
+
+			const lines: Array<string> = [];
+			const note = setupWorktree(worktree, {
+				emit: (line) => {
+					lines.push(line);
+				},
+				output: "log",
+			});
+
+			assert.equal(note, undefined);
+			assert.equal(captured.length, 1);
+			const stdio = captured[0]?.stdio as Array<unknown>;
+			assert.equal(stdio[0], "ignore");
+			assert.equal(typeof stdio[1], "number");
+			assert.equal(stdio[2], stdio[1]);
+
+			const printed = lines.join("\n");
+			assert.match(printed, /Running setup commands/);
+			assert.match(printed, /setup-.*\.log/);
+
+			const logFile = trackLog(worktree);
+			assert.equal(existsSync(logFile), true);
+			const log = readFileSync(logFile, "utf-8");
+			assert.match(log, /--- Setup started: /);
+			assert.match(log, /\$ setup-cmd/);
+			assert.match(log, /cwd: /);
+		});
+
+		test("inherit mode leaves stdio untouched and logs nothing", () => {
+			const worktree = makeDir("inherit-mode");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+
+			const captured: Array<{ stdio?: unknown }> = [];
+			io.execSync = ((_command: string, options?: { stdio?: unknown }) => {
+				captured.push({ stdio: options?.stdio });
+				return "";
+			}) as unknown as typeof io.execSync;
+
+			setupWorktree(worktree, { emit: () => {}, output: "inherit" });
+
+			assert.equal(captured.length, 1);
+			assert.equal(captured[0]?.stdio, "inherit");
+			assert.equal(existsSync(trackLog(worktree)), false);
+		});
+
+		test("log names are namespaced per kind so issue and integration logs never collide", () => {
+			const issue = setupLogPath(makeDir("same-name"), "issue");
+			const integration = setupLogPath(makeDir("same-name"), "integration");
+
+			assert.notEqual(issue, integration);
+			assert.match(basename(issue), /^setup-issue-same-name\.log$/);
+			assert.match(basename(integration), /^setup-integration-same-name\.log$/);
+		});
+
+		test("iteration appends a fresh header instead of truncating history", () => {
+			const worktree = makeDir("log-append");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+			io.execSync = (() => "") as unknown as typeof io.execSync;
+
+			// Start clean: an earlier run of this suite may have left a log behind.
+			const logFile = trackLog(worktree);
+			rmSync(logFile, { force: true });
+
+			setupWorktree(worktree, { emit: () => {}, output: "log" });
+			setupWorktree(worktree, { emit: () => {}, output: "log" });
+
+			const log = readFileSync(logFile, "utf-8");
+			assert.equal(log.match(/--- Setup started: /g)?.length, 2);
+		});
+
+		test("a failed hidden setup rethrows with the log tail attached", () => {
+			const worktree = makeDir("log-failure");
+			config.setupCommands = ["failing-cmd"];
+			config.symlinks = [];
+
+			io.execSync = (() => {
+				// Real children write their diagnostics to the inherited fd, not to `err`.
+				const log = trackLog(worktree);
+				writeFileSync(log, `${readFileSync(log, "utf-8")}boom: install failed\n`, {
+					encoding: "utf-8",
+				});
+				throw new Error("Command failed: failing-cmd");
+			}) as unknown as typeof io.execSync;
+
+			assert.throws(
+				() => setupWorktree(worktree, { emit: () => {}, output: "log" }),
+				(err: Error) => {
+					assert.match(err.message, /Command failed: failing-cmd/);
+					assert.match(err.message, /boom: install failed/);
+					assert.match(err.message, /Full output: /);
+					return true;
+				},
+			);
+		});
+
+		test("ignoreSetup absorbs a hidden failure and cites the log in its note", () => {
+			const worktree = makeDir("log-ignore");
+			config.setupCommands = ["failing-cmd"];
+			config.symlinks = [];
+			io.execSync = (() => {
+				throw new Error("setup exploded");
+			}) as unknown as typeof io.execSync;
+
+			const note = setupWorktree(worktree, {
+				emit: () => {},
+				ignoreSetup: true,
+				output: "log",
+			});
+
+			assert.match(note ?? "", /setup exploded/);
+			assert.match(note ?? "", /log: .*setup-.*\.log/);
+		});
+
+		test("a log that cannot be opened degrades to inherit instead of failing setup", () => {
+			const worktree = makeDir("log-open-failure");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+
+			const captured: Array<{ stdio?: unknown }> = [];
+			io.execSync = ((_command: string, options?: { stdio?: unknown }) => {
+				captured.push({ stdio: options?.stdio });
+				return "";
+			}) as unknown as typeof io.execSync;
+			io.openSync = (() => {
+				throw new Error("EACCES");
+			}) as unknown as typeof io.openSync;
+
+			try {
+				assert.doesNotThrow(() =>
+					setupWorktree(worktree, { emit: () => {}, output: "log" }),
+				);
+				assert.equal(captured[0]?.stdio, "inherit");
+			} finally {
+				io.openSync = ((...args: Parameters<typeof openSync>) =>
+					openSync(...args)) as typeof io.openSync;
+			}
+		});
+
+		test("the setup log rotates at the size cap, keeping one previous generation", () => {
+			const worktree = makeDir("log-rotate");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+			io.execSync = (() => "") as unknown as typeof io.execSync;
+
+			const logFile = trackLog(worktree);
+			mkdirSync(dirname(logFile), { recursive: true });
+			writeFileSync(logFile, "x".repeat(6 * 1024 * 1024), "utf-8");
+
+			setupWorktree(worktree, { emit: () => {}, output: "log" });
+
+			assert.equal(existsSync(`${logFile}.1`), true);
+			// The new generation starts clean: only this invocation's header is in it.
+			assert.equal(readFileSync(logFile, "utf-8").match(/--- Setup started: /g)?.length, 1);
+		});
+
+		test("dry-run reports the resolved mode and would-be log path", () => {
+			const worktree = makeDir("log-dry-run");
+			config.setupCommands = ["setup-cmd"];
+			config.symlinks = [];
+
+			const output: Array<string> = [];
+			const originalLog = console.log;
+			console.log = (message?: unknown) => {
+				output.push(String(message));
+			};
+
+			try {
+				setupWorktree(worktree, { dryRun: true, output: "log" });
+			} finally {
+				console.log = originalLog;
+			}
+
+			const printed = output.join("\n");
+			assert.match(printed, /"setupOutput": "log"/);
+			assert.match(printed, /"logPath": "/);
+			assert.equal(existsSync(trackLog(worktree)), false);
+		});
 	});
 
 	describe("linkSymlinks with missing junction parent", () => {

@@ -20,7 +20,7 @@ import {
 } from "@ai-hero/sandcastle";
 
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -108,6 +108,7 @@ export const io = {
 	claudeCode: ((...args: Parameters<typeof claudeCode>) => claudeCode(...args)) as (
 		...args: Parameters<typeof claudeCode>
 	) => AgentProvider,
+	closeSync: (fd: number): void => closeSync(fd),
 	codex: ((...args: Parameters<typeof codex>) => codex(...args)) as (
 		...args: Parameters<typeof codex>
 	) => AgentProvider,
@@ -124,6 +125,7 @@ export const io = {
 	opencode: ((...args: Parameters<typeof opencode>) => opencode(...args)) as (
 		...args: Parameters<typeof opencode>
 	) => AgentProvider,
+	openSync: ((...args: Parameters<typeof openSync>) => openSync(...args)) as typeof openSync,
 	// Narrow pi's return type so the unexported AgentSessionStorage name does not leak.
 	pi: ((...args: Parameters<typeof pi>) => pi(...args)) as (
 		...args: Parameters<typeof pi>

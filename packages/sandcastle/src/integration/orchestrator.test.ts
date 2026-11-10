@@ -45,14 +45,24 @@ describe("orchestrator worktree setup seam", () => {
 			return undefined;
 		};
 
-		// Default options → ignoreSetup/skipSetup false.
-		prepareIntegrationWorktree(worktree, false, false, preparer);
+		// Default options → ignoreSetup/skipSetup false, agent default output "log".
+		prepareIntegrationWorktree(worktree, false, false, undefined, preparer);
 		assert.equal(capturedWorktree, worktree);
-		assert.deepEqual(capturedOptions, { ignoreSetup: false, skipSetup: false });
+		assert.deepEqual(capturedOptions, {
+			ignoreSetup: false,
+			logKind: "integration",
+			output: "log",
+			skipSetup: false,
+		});
 
 		// Options forwarded exactly.
-		prepareIntegrationWorktree(worktree, true, true, preparer);
-		assert.deepEqual(capturedOptions, { ignoreSetup: true, skipSetup: true });
+		prepareIntegrationWorktree(worktree, true, true, "inherit", preparer);
+		assert.deepEqual(capturedOptions, {
+			ignoreSetup: true,
+			logKind: "integration",
+			output: "inherit",
+			skipSetup: true,
+		});
 
 		// If no preparer is injected it defaults to the shared setupWorktree (compile-time only).
 		assert.equal(typeof prepareIntegrationWorktree, "function");

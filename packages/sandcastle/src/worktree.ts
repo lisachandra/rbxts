@@ -8,18 +8,22 @@ import type { SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 
 import {
+	appendFileSync,
 	copyFileSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
 	readdirSync,
+	readFileSync,
 	renameSync,
 	rmSync,
+	statSync,
 	symlinkSync,
 	unlinkSync,
 } from "node:fs";
-import { dirname, resolve as pathResolve } from "node:path";
+import { basename, dirname, resolve as pathResolve, relative } from "node:path";
 
+import type { SetupOutput } from "./config.js";
 import {
 	checkoutBranch,
 	countStaleCommits,
@@ -29,6 +33,7 @@ import {
 	registeredWorktrees,
 	resolveCommit,
 } from "./git.js";
+import { formatRunStarted } from "./logging.js";
 import {
 	config,
 	integrationsDir,
@@ -557,10 +562,127 @@ export function validateExistingWorktree(worktreePath: string): {
 	return { branch, commit, path };
 }
 
+/** Which log namespace a setup log belongs to, so issue and integration logs never collide. */
+export type SetupLogKind = "issue" | "plain" | "integration";
+
+/** Emits one human progress line; callers pass a `--json`-aware sink. */
+export type EmitLine = (line: string) => void;
+
 export interface SetupWorktreeOptions {
 	dryRun?: boolean;
+	/** Emits setup progress lines; defaults to `console.log`. */
+	emit?: EmitLine;
 	ignoreSetup?: boolean;
+	/** Log namespace for `output: "log"`; defaults to `"plain"`. */
+	logKind?: SetupLogKind;
+	output?: SetupOutput;
 	skipSetup?: boolean;
+}
+
+/** Rotate a setup log once it grows past this, keeping one previous generation. */
+const setupLogMaxBytes = 5 * 1024 * 1024;
+
+/** How many trailing log lines a failed setup prints back to the terminal. */
+const setupFailureTailLines = 30;
+
+/**
+ * Log file for a worktree's setup command output.
+ *
+ * The kind prefix keeps an issue worktree and an integration worktree with the same basename from
+ * sharing one append file — "which worktree was this?" is the first question asked of a setup log.
+ *
+ * - @param worktreePath - Worktree whose setup is being logged.
+ * - @param kind - Log namespace; `"plain"` is a caller's own directory.
+ * - @returns Absolute path under `logsDir`.
+ */
+export function setupLogPath(worktreePath: string, kind: SetupLogKind = "plain"): string {
+	const name = basename(pathResolve(worktreePath));
+	return pathResolve(
+		logsDir,
+		kind === "plain" ? `setup-${name}.log` : `setup-${kind}-${name}.log`,
+	);
+}
+
+/**
+ * Resolve where setup output goes: explicit option, then repository config, then the command
+ * default. The standalone `sandcastle setup` command passes `"inherit"` as its default because a
+ * human is waiting on that run; every agent path passes `"log"`.
+ */
+export function resolveSetupOutput(
+	explicit: undefined | SetupOutput,
+	commandDefault: SetupOutput,
+): SetupOutput {
+	return explicit ?? config.setupOutput ?? commandDefault;
+}
+
+/**
+ * Start an append-mode log for one setup invocation.
+ *
+ * - @param logPath - File to append to.
+ * - @returns An open file descriptor.
+ * - @remarks Rotation keeps one previous generation (`<path>.1`); the cap bounds a pathological retry
+ *   loop while preserving the previous run for comparison.
+ */
+function openSetupLog(logPath: string): number {
+	try {
+		mkdirSync(dirname(logPath), { recursive: true });
+		if (existsSync(logPath) && statSync(logPath).size > setupLogMaxBytes) {
+			renameSync(logPath, `${logPath}.1`);
+		}
+
+		return io.openSync(logPath, "a");
+	} catch {
+		return -1;
+	}
+}
+
+/** Header written at the top of each invocation so a shared log stays readable. */
+function setupLogHeader(command: string, worktreePath: string): string {
+	return [
+		`\n--- Setup started: ${formatRunStarted()} ---`,
+		`$ ${command}`,
+		`cwd: ${worktreePath}`,
+		"",
+	].join("\n");
+}
+
+/**
+ * Last few lines of a setup log, for the failure path.
+ *
+ * - @param logPath - Log to read.
+ * - @param lineCount - How many trailing non-empty lines to keep.
+ * - @returns The tail, or `undefined` when the file is unreadable or empty.
+ * - @remarks A hidden-output setup whose failure prints only `Command failed: <cmd>` leaves the
+ *   operator nothing to act on, which is why the tail is read back rather than just the path.
+ */
+function readSetupLogTail(logPath: string, lineCount: number): string | undefined {
+	let text: string;
+	try {
+		text = readFileSync(logPath, "utf-8");
+	} catch {
+		return undefined;
+	}
+
+	const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+	if (lines.length === 0) {
+		return undefined;
+	}
+
+	return lines.slice(-lineCount).join("\n");
+}
+
+/** `4m12s` / `38s` — enough precision to see a slow install, no false precision below a second. */
+function formatDuration(milliseconds: number): string {
+	const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	return minutes === 0 ? `${String(seconds)}s` : `${String(minutes)}m${String(seconds)}s`;
+}
+
+/** Path relative to the repo root for display, falling back to the absolute path. */
+function displayPath(target: string): string {
+	const shown = relative(repoRoot, target);
+	return shown === "" || shown.startsWith("..") ? target : shown;
 }
 
 /**
@@ -573,6 +695,11 @@ export interface SetupWorktreeOptions {
  * the setup commands but still copies `.env` and links symlinks; `ignoreSetup` continues (with a
  * warning) when the setup commands fail.
  *
+ * Setup output goes where `output` says: `"inherit"` streams it into the runner's own streams,
+ * `"log"` appends it to a per-worktree file under `logsDir` and prints one announcing line before
+ * the command plus one summary after it — an install that prints thousands of lines no longer
+ * drowns the run.
+ *
  * @returns The swallowed setup error when `ignoreSetup` absorbed one, else `undefined`. A setup
  *   failure the phase prompt never mentions sends the agent into free diagnostic work — the #498
  *   implement phase spent its whole budget diagnosing an environment main had already fixed — so
@@ -580,13 +707,20 @@ export interface SetupWorktreeOptions {
  */
 export function setupWorktree(
 	worktreePath: string,
-	options: SetupWorktreeOptions = {},
+	{
+		dryRun = false,
+		emit = console.log,
+		ignoreSetup = false,
+		logKind = "plain",
+		output = "inherit",
+		skipSetup = false,
+	}: SetupWorktreeOptions = {},
 ): string | undefined {
 	ensureSetupDirs();
-	const { dryRun = false, ignoreSetup = false, skipSetup = false } = options;
 
 	const envSource = pathResolve(repoRoot, ".env");
 	const setupCommand = config.setupCommands.join(" && ");
+	const logPath = setupLogPath(worktreePath, logKind);
 
 	if (dryRun) {
 		console.log(
@@ -594,8 +728,10 @@ export function setupWorktree(
 				{
 					dirs: setupDirectories,
 					env: existsSync(envSource) ? "copy" : "skip-missing",
+					logPath: output === "log" ? displayPath(logPath) : undefined,
 					runSetupCommands: !skipSetup && setupCommand !== "",
 					setupCommands: config.setupCommands,
+					setupOutput: output,
 					symlinks: config.symlinks.map((link) => ({
 						path: link.path,
 						status: existsSync(pathResolve(repoRoot, link.target))
@@ -612,26 +748,36 @@ export function setupWorktree(
 		return undefined;
 	}
 
-	console.log("\n── Setup ──");
+	emit("\n── Setup ──");
 
 	if (existsSync(envSource)) {
 		copyFileSync(envSource, pathResolve(worktreePath, ".env"));
-		console.log(`  ✓ Copied .env → ${pathResolve(worktreePath, ".env")}`);
+		emit(`  ✓ Copied .env → ${pathResolve(worktreePath, ".env")}`);
 	}
 
 	let ignoredSetupError: string | undefined;
 	if (skipSetup) {
-		console.log("  ⏭ Skipping setup commands.");
+		emit("  ⏭ Skipping setup commands.");
 	} else if (setupCommand !== "") {
-		try {
-			io.execSync(setupCommand, { cwd: worktreePath, stdio: "inherit" });
-		} catch (err) {
-			if (!ignoreSetup) {
-				throw err;
-			}
+		if (output === "log") {
+			ignoredSetupError = runSetupLogged({
+				emit,
+				ignoreSetup,
+				logPath,
+				setupCommand,
+				worktreePath,
+			});
+		} else {
+			try {
+				io.execSync(setupCommand, { cwd: worktreePath, stdio: "inherit" });
+			} catch (err) {
+				if (!ignoreSetup) {
+					throw err;
+				}
 
-			console.warn(`  ⚠ Setup failed (continuing): ${String(err)}`);
-			ignoredSetupError = singleLine(err);
+				console.warn(`  ⚠ Setup failed (continuing): ${String(err)}`);
+				ignoredSetupError = singleLine(err);
+			}
 		}
 	}
 
@@ -640,8 +786,112 @@ export function setupWorktree(
 	 * are available even when setup was skipped or failed and ignored.
 	 */
 	linkSymlinks(worktreePath);
-	console.log("  ✓ Setup complete.");
+	emit("  ✓ Setup complete.");
 	return ignoredSetupError;
+}
+
+/**
+ * Run the setup command with its output appended to `logPath` instead of the terminal.
+ *
+ * The announcing line prints before the command, so a silent multi-minute install explains itself
+ * rather than reading as a hang. A log that cannot be opened degrades to `inherit` rather than
+ * failing setup: a logging problem must never be the reason an environment goes unprepared.
+ *
+ * - @returns The swallowed setup error when `ignoreSetup` absorbed one, else `undefined`.
+ */
+function runSetupLogged({
+	emit,
+	ignoreSetup,
+	logPath,
+	setupCommand,
+	worktreePath,
+}: {
+	emit: EmitLine;
+	ignoreSetup: boolean;
+	logPath: string;
+	setupCommand: string;
+	worktreePath: string;
+}): string | undefined {
+	const startedAt = Date.now();
+	const fd = openSetupLog(logPath);
+
+	if (fd === -1) {
+		console.warn(`  ⚠ Could not open a setup log at ${logPath}; setup output is inherited.`);
+		try {
+			io.execSync(setupCommand, { cwd: worktreePath, stdio: "inherit" });
+			emit(`  ✓ Setup commands finished (${formatDuration(Date.now() - startedAt)}).`);
+			return undefined;
+		} catch (err) {
+			if (!ignoreSetup) {
+				throw err;
+			}
+
+			console.warn(`  ⚠ Setup failed (continuing): ${String(err)}`);
+			return singleLine(err);
+		}
+	}
+
+	try {
+		appendFileSync(fd, setupLogHeader(setupCommand, worktreePath));
+	} catch {
+		// Best-effort: a header that cannot be written must not stop the command.
+	}
+
+	emit(`  ▶ Running setup commands → ${displayPath(logPath)}`);
+
+	let failure: unknown;
+	try {
+		/*
+		 * `[fd, fd]` rather than `execSync`'s default pipes: a piped child buffers against Node's
+		 * 1 MiB `maxBuffer`, and an install that talks past that is killed mid-way. stdin is
+		 * ignored on purpose — a setup command waiting on a prompt would hang an unattended run.
+		 */
+		io.execSync(setupCommand, {
+			cwd: worktreePath,
+			stdio: ["ignore", fd, fd],
+		});
+	} catch (err) {
+		failure = err;
+	} finally {
+		try {
+			io.closeSync(fd);
+		} catch {
+			// Best-effort.
+		}
+	}
+
+	if (failure === undefined) {
+		emit(
+			`  ✓ Setup commands finished (${formatDuration(Date.now() - startedAt)}) → ${displayPath(logPath)}`,
+		);
+		return undefined;
+	}
+
+	/*
+	 * The log is the only place the real output exists now, but the error itself still carries
+	 * useful facts (exit status, signal). Both go into the message: the summary line first, then
+	 * the tail, so a failure reads the same whether or not the log captured anything.
+	 */
+	const tail = readSetupLogTail(logPath, setupFailureTailLines);
+	const reason = singleLine(failure);
+	const detail =
+		tail === undefined
+			? `  ⚠ Setup failed: ${reason}\n  ${displayPath(logPath)} is empty or unreadable.`
+			: [
+					`  ⚠ Setup failed: ${reason}`,
+					`  Last ${String(setupFailureTailLines)} log line(s) from ${displayPath(logPath)}:`,
+					tail
+						.split(/\r?\n/)
+						.map((line) => `    ${line}`)
+						.join("\n"),
+				].join("\n");
+
+	if (!ignoreSetup) {
+		throw new Error(`${detail}\n  Full output: ${logPath}`, { cause: failure });
+	}
+
+	console.warn(`${detail}\n  Continuing anyway (--ignore-setup).`);
+	return `${reason} | log: ${displayPath(logPath)}`;
 }
 
 /** Flatten an error to a single bounded line so it fits inside a prompt block. */
@@ -706,12 +956,31 @@ function rebaseStaleWorktree(worktreePath: string, baseRef: string): void {
 	}
 }
 
+export interface PrepareIssueWorktreeOptions {
+	/** Emits setup progress lines; callers pass a `--json`-aware sink. */
+	emit?: EmitLine;
+	/** `--setup-output` value; falls back to repository config, then `"log"`. */
+	output?: SetupOutput;
+}
+/**
+ * Rebase a stale worktree onto its base, then prepare it for the issue phases.
+ *
+ * Setup output defaults to `"log"` here: an issue run is the automated path whose install output
+ * used to drown the terminal.
+ */
 export function prepareIssueWorktree(
 	worktreePath: string,
 	ignoreSetup = false,
 	skipSetup = false,
 	baseRef?: string,
+	options: PrepareIssueWorktreeOptions = {},
 ): string | undefined {
 	rebaseStaleWorktree(worktreePath, baseRef ?? config.baseBranch);
-	return setupWorktree(worktreePath, { ignoreSetup, skipSetup });
+	return setupWorktree(worktreePath, {
+		emit: options.emit,
+		ignoreSetup,
+		logKind: "issue",
+		output: resolveSetupOutput(options.output, "log"),
+		skipSetup,
+	});
 }

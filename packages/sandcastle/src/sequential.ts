@@ -5,6 +5,7 @@
 
 import { existsSync } from "node:fs";
 
+import type { SetupOutput } from "./config.js";
 import {
 	branchTip,
 	checkoutBranch,
@@ -17,6 +18,7 @@ import { runSingleIssue } from "./issue.js";
 import { io, normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
 import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js";
+import type { EmitLine } from "./worktree.js";
 import { pushThenRemoveWorktree } from "./worktree.js";
 
 interface SequentialIssueResult {
@@ -27,6 +29,8 @@ interface SequentialIssueResult {
 
 /** Trailing options for a sequential run, kept off the positional list it outgrew. */
 export interface SequentialIssueOptions {
+	/** Emits setup progress lines; `--json` callers pass a stderr sink. */
+	emit?: EmitLine;
 	ignoreSetup?: boolean;
 	/**
 	 * Push each member's branch and remove its worktree as soon as the member finishes.
@@ -38,6 +42,7 @@ export interface SequentialIssueOptions {
 	 *   carries 31.
 	 */
 	pushAndDelete?: boolean;
+	setupOutput?: SetupOutput;
 	skipSetup?: boolean;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	worktree?: string;
@@ -134,6 +139,7 @@ async function processSequentialIssue({
 	agentBackend,
 	currentBase,
 	effort,
+	emit,
 	ignoreSetup,
 	index,
 	isLast,
@@ -141,6 +147,7 @@ async function processSequentialIssue({
 	model,
 	pushAndDelete,
 	resume,
+	setupOutput,
 	skipSetup,
 	steps,
 	total,
@@ -149,6 +156,7 @@ async function processSequentialIssue({
 	agentBackend: AgentBackend;
 	currentBase: string;
 	effort: string;
+	emit?: EmitLine;
 	ignoreSetup?: boolean;
 	index: number;
 	isLast: boolean;
@@ -156,6 +164,7 @@ async function processSequentialIssue({
 	model: string;
 	pushAndDelete: boolean;
 	resume: boolean;
+	setupOutput?: SetupOutput;
 	skipSetup?: boolean;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	total: number;
@@ -216,8 +225,10 @@ async function processSequentialIssue({
 		await runSingleIssue(issueNumber, model, effort, {
 			agentBackend,
 			baseRef: currentBase,
+			...(emit !== undefined ? { emit } : {}),
 			ignoreSetup,
 			resume,
+			setupOutput,
 			skipSetup,
 			...(steps ? { steps } : {}),
 			worktree,
@@ -280,7 +291,15 @@ export async function runSequentialIssues(
 		throw new Error("At least one issue number is required for sequential workflow");
 	}
 
-	const { ignoreSetup, pushAndDelete = false, skipSetup, steps, worktree } = options;
+	const {
+		emit,
+		ignoreSetup,
+		pushAndDelete = false,
+		setupOutput,
+		skipSetup,
+		steps,
+		worktree,
+	} = options;
 	console.log(`\n${"=".repeat(80)}`);
 	console.log("Sequential Issue Workflow");
 	console.log("=".repeat(80));
@@ -301,6 +320,7 @@ export async function runSequentialIssues(
 			agentBackend,
 			currentBase,
 			effort,
+			...(emit !== undefined ? { emit } : {}),
 			ignoreSetup,
 			index,
 			isLast: index === issueNumbers.length - 1,
@@ -308,6 +328,7 @@ export async function runSequentialIssues(
 			model,
 			pushAndDelete,
 			resume,
+			setupOutput,
 			skipSetup,
 			...(steps ? { steps } : {}),
 			total: issueNumbers.length,

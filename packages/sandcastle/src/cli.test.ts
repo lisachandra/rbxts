@@ -72,6 +72,38 @@ describe("commaSeparated / parseArgs", () => {
 		});
 	});
 
+	test("parseArgs leaves --setup-output unset so the command default applies", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			const options = parseArgs(["--issue", "1"]);
+			assert.equal(options.setupOutput, undefined);
+		});
+	});
+
+	test("parseArgs accepts --setup-output log and inherit", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.equal(parseArgs(["--issue", "1", "--setup-output", "log"]).setupOutput, "log");
+			assert.equal(
+				parseArgs(["--issue", "1", "--setup-output", "inherit"]).setupOutput,
+				"inherit",
+			);
+		});
+	});
+
+	test("parseArgs rejects an unknown --setup-output value", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--setup-output", "verbose"]),
+				/--setup-output must be one of: inherit, log/,
+			);
+		});
+	});
+
+	test("parseArgs rejects a missing --setup-output value", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.throws(() => parseArgs(["--issue", "1", "--setup-output"]), /--setup-output/);
+		});
+	});
+
 	test("parseArgs accepts bare --force and positional issue", () => {
 		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
 			const options = parseArgs(["151", "--force", "--agent", "dirac", "--effort", "low"]);
