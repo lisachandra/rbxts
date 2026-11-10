@@ -131,11 +131,11 @@ is a small internal helper — unexported, taking a user ID, an optional role, a
 ### Why the decision is not extracted as a new public export
 
 The question was raised whether to export a pure `authorize(...)` alongside the guard. It is decided
-against: the guard already *is* the seam, it is already exported from the package root, and it already
+against: the guard already _is_ the seam, it is already exported from the package root, and it already
 accepts an injectable `CommandContext` that the existing platform suite constructs as a plain mock
 object. A second public function would be a second surface to keep in sync and a second thing
 consumers could reach for, for no additional test coverage. The decision logic is extracted
-*internally* for readability; the tested contract is the guard.
+_internally_ for readability; the tested contract is the guard.
 
 This refines the phrasing in #46, which suggested exporting the decision. The behaviour it asked for
 — a testable decision over (user ID, role, config) — is satisfied without a new export.
