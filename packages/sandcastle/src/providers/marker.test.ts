@@ -1,8 +1,7 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import type { AgentProvider } from "@ai-hero/sandcastle";
 
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 
 import { registerTestHooks } from "../test-helpers.js";
 import { withMarkerCompletion } from "./marker.js";

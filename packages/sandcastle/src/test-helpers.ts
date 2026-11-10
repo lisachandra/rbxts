@@ -9,7 +9,7 @@
 /* oxlint-disable typescript/no-unnecessary-condition -- Tests intentionally inspect optional persisted state fields */
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { afterEach, beforeEach } from "node:test";
+import { afterEach, beforeEach } from "vitest";
 import { fileURLToPath } from "node:url";
 
 import { issueBranch } from "./git.js";

@@ -1,6 +1,5 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 
 import { fetchIssueLabels, issueMetadata, issueView } from "./issue-metadata.js";
 import { io } from "./runtime.js";

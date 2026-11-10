@@ -1,9 +1,8 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, describe, test } from "vitest";
 
 import { backendSupportsDigest, digestPath, fileLogging, formatRunStarted } from "./logging.js";
 import { createSessionCapture } from "./providers/session-capture.js";

@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
@@ -12,7 +11,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, describe, test } from "vitest";
 
 import { config, io, normalizedPath, sharedStateRoot, worktreePathForBranch } from "./runtime.js";
 import { gitStub, registerTestHooks, tmpRoot } from "./test-helpers.js";

@@ -1,8 +1,7 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 
 import { repositoryRoot } from "./test-helpers.js";
 
@@ -36,10 +35,13 @@ function scriptFor(scripts: unknown, name: string): string {
 
 describe("package test script", () => {
 	/**
-	 * The test script enumerates files, so a new suite is silently skipped until it is added. That
-	 * happened twice (`help.test.ts`, `queue/persist.test.ts`), which is why this guard exists.
+	 * The test script used to enumerate files, so a new suite was silently skipped until it was
+	 * added — that happened twice (`help.test.ts`, `queue/persist.test.ts`). Vitest discovers by
+	 * glob, so the guard now asserts the scripts run vitest and never enumerate a test file again:
+	 * a listed file would run twice alongside the glob discovery, and a list is how a suite gets
+	 * silently dropped.
 	 */
-	test("runs every test file in src/", () => {
+	test("runs vitest by glob and never enumerates a test file", () => {
 		const parsed: unknown = JSON.parse(
 			readFileSync(join(repositoryRoot, "package.json"), "utf-8"),
 		);
@@ -48,16 +50,18 @@ describe("package test script", () => {
 				? Reflect.get(parsed, "scripts")
 				: undefined;
 
-		const missing: Array<string> = [];
-		for (const file of testFiles()) {
-			const relativePath = relative(repositoryRoot, file).split("\\").join("/");
-			for (const name of ["test", "test:coverage"]) {
-				if (!scriptFor(scripts, name).includes(relativePath)) {
-					missing.push(`${relativePath} (${name})`);
+		const enumerated: Array<string> = [];
+		for (const name of ["test", "test:coverage"]) {
+			const script = scriptFor(scripts, name);
+			assert.match(script, /vitest run/u, `${name} runs vitest`);
+			for (const file of testFiles()) {
+				const relativePath = relative(repositoryRoot, file).split("\\").join("/");
+				if (script.includes(relativePath)) {
+					enumerated.push(`${relativePath} (${name})`);
 				}
 			}
 		}
 
-		assert.deepEqual(missing, []);
+		assert.deepEqual(enumerated, []);
 	});
 });

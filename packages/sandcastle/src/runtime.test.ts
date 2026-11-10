@@ -1,6 +1,5 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { normalizedPath } from "./runtime.js";
 import { registerTestHooks, tmpRoot } from "./test-helpers.js";

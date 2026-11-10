@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 /*
  * End-to-end proof for the 600s AgentIdleTimeoutError starvation behind the
  * design-phase failures (e.g. rocket-powered-blox-cars #174, design attempt 1).
@@ -23,7 +22,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, describe, test } from "vitest";
 
 import { packageRoot } from "../runtime.js";
 import { registerTestHooks } from "../test-helpers.js";

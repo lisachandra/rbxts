@@ -1,8 +1,7 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 
 import { createAgent, diracAgent, fetchIssueLabels, resolveBackendEffort } from "./agent.js";
 import { io, packageRoot } from "./runtime.js";

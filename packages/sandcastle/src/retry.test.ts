@@ -1,6 +1,5 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, describe, test } from "vitest";
 
 import { isFatalProviderError, runPhaseWithRetry } from "./retry.js";
 import { io } from "./runtime.js";

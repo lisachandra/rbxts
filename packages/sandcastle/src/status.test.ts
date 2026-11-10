@@ -1,7 +1,6 @@
-/* oxlint-disable typescript/no-floating-promises -- node:test describe/test return Promises by design */
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 
 import { worktreePathForBranch } from "./runtime.js";
 import { printStatus } from "./status.js";
