@@ -352,6 +352,19 @@ same protocol paseo's zcode provider speaks). Binary discovery order:
 3. the ZCode desktop app's bundled CLI (`%LOCALAPPDATA%\Programs\ZCode\resources\glm\zcode.cjs`
    on Windows, with darwin/linux app paths as fallbacks) run via `node`
 
+While the model streams, the wrapper emits `{type:"keep-alive"}` heartbeats that reset
+upstream's 600s idle watchdog (`AgentIdleTimeoutError`). The heartbeat is re-armed only by
+stdout-producing protocol events — reasoning deltas are dropped from stdout, so long
+pure-thinking stretches keep heartbeating instead of starving the watchdog. The interval is
+tunable via `ZCODE_SANDCASTLE_HEARTBEAT_MS` (default 120000, minimum 100).
+
+By default the app-server loads subagent definitions from `~/.zcode/agents` and the worktree's
+`.zcode/agents`, so a headless run could spawn subagents. Set
+`ZCODE_SANDCASTLE_DISABLE_SUBAGENTS=1` to opt out per run: the wrapper then advertises
+`subagentRuntimeConfigEnabled` and answers `subagents/readRuntimeConfig` with the
+built-in-fallback snapshot, leaving the session with zero subagent types (no runtime profiles,
+and plugin agent definitions are skipped too).
+
 Authentication is zcode's own (`zcode login` / the desktop app's OAuth) — no API keys in
 `.sandcastle/.env` are needed. Model ids are `"<zcode-provider-id>/<modelId>"` pairs, e.g.
 `71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash`; the provider UUID prefix comes from

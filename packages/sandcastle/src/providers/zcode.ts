@@ -124,7 +124,10 @@ export function zcodeProvider(
 			 * resume it. {type:"note"}, {type:"keepalive"} and unknown shapes
 			 * carry nothing the runner consumes (note text reaches the raw .log
 			 * through upstream's stdout tee); they still count as output upstream
-			 * (idle timeout), which is why the wrapper emits keep-alive events.
+			 * (idle timeout), which is why the wrapper emits keep-alive events —
+			 * re-armed by stdout-producing protocol activity only, so long
+			 * pure-thinking stretches keep the heartbeat alive instead of
+			 * starving upstream's 600s idle watchdog (AgentIdleTimeoutError).
 			 */
 			if (parsed.type === "session_id" && typeof parsed.sessionId === "string") {
 				return [{ type: "session_id", sessionId: parsed.sessionId }];

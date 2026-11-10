@@ -485,21 +485,32 @@ describe("junction-safe worktree removal", () => {
 		assert.equal(existsSync(join(plansTarget, "342.md")), true, "plan 342 survived");
 	});
 
-	test("git's own removal would have emptied the link target", () => {
+	test("removeWorktree fully removes a junction worktree on any git baseline", () => {
 		/*
-		 * Pins the behaviour the fix exists for. When git stops recursing through junctions this
-		 * fails, and the unlink sweep can be reconsidered rather than kept on faith.
+		 * The danger the unlink sweep exists for: a naive `git worktree remove`
+		 * on a worktree containing a junction historically either refused the
+		 * removal or recursed through the junction and emptied the linked
+		 * target (the shared plans dir). git >= 2.56 exits 0 and leaves the
+		 * target intact but keeps the junction and its empty parent dirs
+		 * behind. The first probe records which baseline this git has; the
+		 * second proves the production path is safe against all of them —
+		 * links swept before git (or rmdir) runs, target intact, tree fully
+		 * removed. A behavior change therefore flips the recorded baseline
+		 * instead of failing the suite for everyone, while a production
+		 * regression still fails here.
 		 */
 		const root = makeRepo("baseline");
-		const worktree = addWorktree(root, "sandcastle/issue-2");
-		const target = resolve(root, "baseline-target");
-		mkdirSync(target, { recursive: true });
-		writeFileSync(join(target, "keep.md"), "# keep", "utf-8");
-		linkInto(worktree, ".sandcastle/plans", target);
+
+		// Probe 1: what does raw git do with a junction in the tree?
+		const naiveWorktree = addWorktree(root, "sandcastle/issue-2");
+		const naiveTarget = resolve(root, "naive-target");
+		mkdirSync(naiveTarget, { recursive: true });
+		writeFileSync(join(naiveTarget, "keep.md"), "# keep", "utf-8");
+		linkInto(naiveWorktree, ".sandcastle/plans", naiveTarget);
 
 		let threw = false;
 		try {
-			execFileSync("git", ["worktree", "remove", "--force", worktree], {
+			execFileSync("git", ["worktree", "remove", "--force", naiveWorktree], {
 				cwd: root,
 				stdio: "pipe",
 			});
@@ -507,11 +518,34 @@ describe("junction-safe worktree removal", () => {
 			threw = true;
 		}
 
-		const emptied = !existsSync(join(target, "keep.md"));
+		const emptied = !existsSync(join(naiveTarget, "keep.md"));
+		const removed = !existsSync(naiveWorktree);
+		const baseline = threw
+			? "git refused the junction"
+			: emptied
+				? "git emptied the target"
+				: removed
+					? "git removed the worktree cleanly"
+					: "git left the junction behind (target intact)";
+
+		// Probe 2: the production path must preserve the target and remove the tree.
+		const worktree = addWorktree(root, "sandcastle/issue-3");
+		const protectedTarget = resolve(root, "protected-target");
+		mkdirSync(protectedTarget, { recursive: true });
+		writeFileSync(join(protectedTarget, "keep.md"), "# keep", "utf-8");
+		linkInto(worktree, ".sandcastle/plans", protectedTarget);
+
+		removeWorktree(worktree, { cwd: root, force: true });
+
 		assert.equal(
-			threw || emptied,
+			existsSync(join(protectedTarget, "keep.md")),
 			true,
-			"baseline: git either failed on the junction or emptied the target",
+			`target survived under git baseline: ${baseline}`,
+		);
+		assert.equal(
+			existsSync(worktree),
+			false,
+			`worktree fully removed under git baseline: ${baseline}`,
 		);
 	});
 

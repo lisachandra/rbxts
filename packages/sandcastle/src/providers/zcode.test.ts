@@ -134,6 +134,7 @@ describe("zcodeAgent", () => {
 
 describe("zcode wrapper (stub app-server)", () => {
 	interface StubOptions {
+		env?: Record<string, string>;
 		extraArgs?: string;
 		failTurn?: boolean;
 		requestPermission?: boolean;
@@ -143,6 +144,7 @@ describe("zcode wrapper (stub app-server)", () => {
 		prompt: string,
 		stubOptions: StubOptions = {},
 	): {
+		prefs: Record<string, unknown>;
 		seen: Array<{ method: string; params?: Record<string, unknown> }>;
 		status: null | number;
 		stderr: string;
@@ -150,11 +152,14 @@ describe("zcode wrapper (stub app-server)", () => {
 	} {
 		const dir = tempDir();
 		const seenFile = join(dir, "seen.json");
+		const prefsFile = join(dir, "prefs.json");
 		const env: Record<string, string> = {
 			...((process.env as Record<string, string | undefined>) ?? {}),
 			// Point binary resolution at the stub so tests never touch a real zcode.
+			STUB_RUNTIME_PREFS_FILE: prefsFile,
 			STUB_SEEN_FILE: seenFile,
 			ZCODE_SANDCASTLE_BIN: stubPath,
+			...stubOptions.env,
 		};
 		if (stubOptions.failTurn === true) {
 			env.STUB_FAIL_TURN = "1";
@@ -186,7 +191,20 @@ describe("zcode wrapper (stub app-server)", () => {
 			// Stub may not have written the file on crash; tests below assert on it.
 		}
 
-		return { seen, status: result.status, stderr: result.stderr, stdout: result.stdout };
+		let prefs: Record<string, unknown> = {};
+		try {
+			prefs = JSON.parse(readFileSync(prefsFile, "utf-8")) as Record<string, unknown>;
+		} catch {
+			// Stub may not have answered before the wrapper was killed; tests assert on it.
+		}
+
+		return {
+			prefs,
+			seen,
+			status: result.status,
+			stderr: result.stderr,
+			stdout: result.stdout,
+		};
 	}
 
 	test("runs a full session: create, subscribe, send, events, close", () => {
@@ -224,6 +242,40 @@ describe("zcode wrapper (stub app-server)", () => {
 		assert.match(stdout, /"inputTokens":10/);
 		// Session id surfaces for the provider to ignore but logs to keep.
 		assert.match(stdout, /"type":"session_id"/);
+	});
+
+	test("without the gate, preferences keep local subagent loading", () => {
+		/*
+		 * Default (no ZCODE_SANDCASTLE_DISABLE_SUBAGENTS): the wrapper must not
+		 * advertise subagentRuntimeConfigEnabled, so the app-server keeps loading
+		 * agent definitions from ~/.zcode/agents and the worktree as usual.
+		 */
+		const { prefs, status, stderr } = runWrapper("Do the thing");
+		assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+		const runtimePrefs = prefs["session/requestRuntimePreferences"] as {
+			subagentRuntimeConfigEnabled?: boolean;
+		};
+		assert.equal(runtimePrefs?.subagentRuntimeConfigEnabled, undefined);
+		// Without the flag the request can't fire; the wrapper's answer is the null default.
+		assert.deepEqual(prefs["subagents/readRuntimeConfig"], {});
+	});
+
+	test("ZCODE_SANDCASTLE_DISABLE_SUBAGENTS=1 leaves the session with zero subagent types", () => {
+		const { prefs, status, stderr } = runWrapper("Do the thing", {
+			env: { ZCODE_SANDCASTLE_DISABLE_SUBAGENTS: "1" },
+		});
+		assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+		const runtimePrefs = prefs["session/requestRuntimePreferences"] as {
+			subagentRuntimeConfigEnabled?: boolean;
+		};
+		assert.equal(runtimePrefs?.subagentRuntimeConfigEnabled, true);
+		/*
+		 * built-in-fallback: no runtime profiles, and the agent runtime skips
+		 * plugin agent definitions — the session has no subagent types at all.
+		 */
+		assert.deepEqual(prefs["subagents/readRuntimeConfig"], { kind: "built-in-fallback" });
 	});
 
 	test("emits tool detail from desktop-continuous tool.updated results", () => {

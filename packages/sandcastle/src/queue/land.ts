@@ -491,6 +491,7 @@ export function finishLand(options: CliOptions, target: LandTarget, run: LandDep
 		if (next.sequences.some((sequence) => sequence.name === target.name)) {
 			next = deleteSequence(next, target.name);
 		}
+
 		return {
 			message: `  ✓ Landed "${target.name}": removed ${landed.length} member(s), cleared ${cleared} after gate(s)`,
 			next,

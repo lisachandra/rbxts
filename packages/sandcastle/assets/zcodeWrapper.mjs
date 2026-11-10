@@ -39,6 +39,22 @@
  * event's `detail` for digest parity with dirac's cards. The final
  * turn.completed response becomes the single `result` event. Unknown lines
  * (non-JSON, stderr noise) are ignored by the provider's parser.
+ *
+ * Keep-alive heartbeats: upstream's idle watchdog (600s default) is reset by
+ * any stdout line, so the wrapper emits {type:"keep-alive"} while the model
+ * streams. The heartbeat is re-armed ONLY by stdout-producing events —
+ * reasoning deltas are dropped from stdout, and letting them re-arm the timer
+ * silenced the heartbeat for entire thinking stretches (glm at high effort
+ * thinks > 10 min), starving upstream into AgentIdleTimeoutError mid-thought.
+ * Cadence: ZCODE_SANDCASTLE_HEARTBEAT_MS (default 120000, min 100).
+ *
+ * Subagents: by default the app-server loads agent definitions from the local
+ * user/worktree `.zcode/agents` dirs, so sandcastle agents could spawn
+ * subagents. Set ZCODE_SANDCASTLE_DISABLE_SUBAGENTS=1 to opt out: the wrapper
+ * advertises `subagentRuntimeConfigEnabled` and answers
+ * `subagents/readRuntimeConfig` with `built-in-fallback`, leaving the session
+ * with zero subagent types (no runtime profiles, and plugin agent definitions
+ * are skipped too).
  */
 
 import { createDecipheriv, createHash } from "node:crypto";
@@ -54,15 +70,43 @@ import {
 import path from "node:path";
 import { createInterface } from "node:readline";
 
+const DELIVERY_KIND = "desktop-continuous";
+/*
+ * Opt out of subagent spawning. Without this the app-server loads agent
+ * definitions from ~/.zcode/agents and the worktree's .zcode/agents, so the
+ * agent has subagent types to spawn. With it, the wrapper advertises
+ * subagentRuntimeConfigEnabled (definitions come from the wrapper instead of
+ * local disks) and answers subagents/readRuntimeConfig with built-in-fallback
+ * — zero profiles, and the caller skips plugin agent definitions too.
+ */
+const SUBAGENTS_DISABLED = process.env.ZCODE_SANDCASTLE_DISABLE_SUBAGENTS === "1";
+
 const RUNTIME_PREFERENCES = {
 	askUserQuestionAutoResolutionEnabled: true,
 	memoryEnabled: false,
 	modelContextBudgetStrategy: "preflight-v1",
 	nativeSearchEnhancementsEnabled: false,
+	// Host-delivered definitions (or none) instead of scanning local disks.
+	...(SUBAGENTS_DISABLED ? { subagentRuntimeConfigEnabled: true } : {}),
 };
-const DELIVERY_KIND = "desktop-continuous";
 const REQUEST_TIMEOUT_MS = 60_000;
-const HEARTBEAT_INTERVAL_MS = 120_000;
+/*
+ * Heartbeat cadence while the model streams. Only stdout-producing events may
+ * re-arm this timer (see markActivity): reasoning deltas are deliberately
+ * dropped from stdout, and a long pure-thinking stretch (glm at high effort
+ * thinks > 10 minutes) must still emit keep-alives or upstream's 600 s idle
+ * watchdog kills the phase with AgentIdleTimeoutError — the exact failure on
+ * rocket-powered-blox-cars #174 (32 min of thinking, zero stdout lines).
+ */
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 120_000;
+const HEARTBEAT_INTERVAL_MS = (() => {
+	const preset = Number.parseInt(process.env.ZCODE_SANDCASTLE_HEARTBEAT_MS ?? "", 10);
+	if (Number.isFinite(preset) && preset >= 100) {
+		return preset;
+	}
+
+	return DEFAULT_HEARTBEAT_INTERVAL_MS;
+})();
 
 /*
  * Credential-store access for answering provider runtime-header requests.
@@ -575,6 +619,17 @@ function handleServerRequest(frame) {
 		return;
 	}
 
+	if (method === "subagents/readRuntimeConfig") {
+		/*
+		 * The SUBAGENTS_DISABLED preference above makes the app-server request
+		 * agent definitions from the wrapper; built-in-fallback hands back none
+		 * (empty profiles, and the caller skips plugin agent definitions), so
+		 * the session has no subagent types at all.
+		 */
+		respond(id, SUBAGENTS_DISABLED ? { kind: "built-in-fallback" } : {});
+		return;
+	}
+
 	respond(id, {});
 }
 
@@ -923,22 +978,28 @@ const toolNames = new Map();
 /** Signature of the last emitted tool event, for consecutive-duplicate suppression. */
 let lastToolEmitKey = "";
 
+/*
+ * Emits one deduplicated tool event; returns true only when a line actually
+ * went to stdout (deduped snapshots must not count as activity — see
+ * markActivity).
+ */
 function emitToolEvent(name, state, detail) {
 	const key = `${name}:${state}:${detail}`;
 	if (key === lastToolEmitKey) {
-		return; // Real streams repeat started/running snapshots; keep the digest clean.
+		return false; // Real streams repeat started/running snapshots; keep the digest clean.
 	}
 
 	lastToolEmitKey = key;
 	emit({ type: "tool", name, state, ...(detail !== "" ? { detail } : {}) });
+	return true;
 }
 
 function handleModelStreaming(payload) {
-	markActivity();
 	const kind = String(payload?.kind ?? "");
 	if (kind === "text_delta") {
 		const delta = String(payload?.delta ?? "");
 		if (delta !== "") {
+			markActivity();
 			emit({ type: "text", text: delta });
 		}
 		return;
@@ -960,17 +1021,26 @@ function handleModelStreaming(payload) {
 		if (typeof payload?.toolName === "string" && payload.toolName !== "") {
 			toolNames.set(payload?.toolCallId, payload.toolName);
 		}
-		emitToolEvent(
-			String(payload?.toolName ?? toolNames.get(payload?.toolCallId) ?? "unknown"),
-			"started",
-			"",
-		);
+		if (
+			emitToolEvent(
+				String(payload?.toolName ?? toolNames.get(payload?.toolCallId) ?? "unknown"),
+				"started",
+				"",
+			)
+		) {
+			markActivity();
+		}
 	}
-	// reasoning_delta / tool_input_end carry nothing readable.
+	/*
+	 * reasoning_delta and tool_input_end emit nothing to stdout, so they must
+	 * NOT mark activity: they arrive continuously while the model thinks, and
+	 * re-arming the heartbeat here silenced it for entire thinking stretches —
+	 * upstream's 600s idle watchdog then killed phases that were making
+	 * progress (issue #174, design attempt 1).
+	 */
 }
 
 function handleToolUpdated(payload) {
-	markActivity();
 	const kind = String(payload?.kind ?? "");
 	const toolCallId = payload?.toolCallId;
 	if (typeof payload?.toolName === "string" && payload.toolName !== "") {
@@ -984,23 +1054,31 @@ function handleToolUpdated(payload) {
 	}
 
 	if (kind === "started") {
-		emitToolEvent(name, "started", "");
+		if (emitToolEvent(name, "started", "")) {
+			markActivity();
+		}
 		return;
 	}
 
 	if (kind === "progress") {
-		emitToolEvent(name, "running", toolProgressDetail(payload, toolInputs));
+		if (emitToolEvent(name, "running", toolProgressDetail(payload, toolInputs))) {
+			markActivity();
+		}
 		return;
 	}
 
 	if (kind === "result") {
-		emitToolEvent(
-			name,
-			"completed",
-			[excerptValue(toolInputs.get(toolCallId)), toolResultDetail(payload?.result)]
-				.filter((piece) => piece !== "")
-				.join("\n"),
-		);
+		if (
+			emitToolEvent(
+				name,
+				"completed",
+				[excerptValue(toolInputs.get(toolCallId)), toolResultDetail(payload?.result)]
+					.filter((piece) => piece !== "")
+					.join("\n"),
+			)
+		) {
+			markActivity();
+		}
 		return;
 	}
 

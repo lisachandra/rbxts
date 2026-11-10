@@ -91,7 +91,10 @@ words:
     - wsarecv
     - sessioned
     - precheck
+    - prefs
     - CPAMC
     - unparseable
     - zpreflight
     - keepalives
+    - keep-alives
+    - blox

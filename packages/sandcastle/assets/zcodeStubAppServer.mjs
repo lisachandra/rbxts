@@ -2,8 +2,10 @@
  * Stub zcode app-server for wrapper tests.
  *
  * Speaks the subset of the ZCode Protocol the sandcastle wrapper uses: the
- * runtime-preferences client-bound request, session/create, session/resume,
- * session/subscribe, session/send, session/close, and session/event streaming.
+ * runtime-preferences and subagents/readRuntimeConfig client-bound requests
+ * (issued up front when STUB_RUNTIME_PREFS_FILE is set, capturing the
+ * wrapper's answers), session/create, session/resume, session/subscribe,
+ * session/send, session/close, and session/event streaming.
  * Mirrors the shape of paseo's zcode-provider stub.
  */
 
@@ -13,6 +15,7 @@ import { createInterface } from "node:readline";
 let nextId = 0;
 const write = (frame) => process.stdout.write(`${JSON.stringify(frame)}\n`);
 const reply = (id, result) => write({ id, result });
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function emit(type, payload, sessionId) {
 	return write({
 		method: "session/event",
@@ -24,6 +27,27 @@ const seen = [];
 const mode = process.env.STUB_MODE ?? "yolo";
 const failTurn = process.env.STUB_FAIL_TURN === "1";
 const requestPermission = process.env.STUB_REQUEST_PERMISSION === "1";
+const reasoningOnly = process.env.STUB_REASONING_ONLY === "1";
+const reasoningIntervalMs = Number.parseInt(process.env.STUB_REASONING_INTERVAL_MS ?? "250", 10);
+const reasoningDurationMs = Number.parseInt(process.env.STUB_REASONING_DURATION_MS ?? "8000", 10);
+
+/*
+ * Client-bound requests issued at startup to capture the wrapper's answers:
+ * the runtime preferences it would deliver to a real app-server, and the
+ * subagent definitions the session's agent runtime requests when
+ * subagentRuntimeConfigEnabled is set. Responses land (keyed by method) in
+ * STUB_RUNTIME_PREFS_FILE.
+ */
+const runtimePrefsFile = process.env.STUB_RUNTIME_PREFS_FILE;
+const capturedResponses = {};
+const issuedRequests = new Map(); // id → method of a client-bound request we sent
+if (runtimePrefsFile !== undefined && runtimePrefsFile !== "") {
+	for (const method of ["session/requestRuntimePreferences", "subagents/readRuntimeConfig"]) {
+		const requestId = ++nextId;
+		issuedRequests.set(requestId, method);
+		write({ id: requestId, method });
+	}
+}
 
 // Snapshot the spawn env early: tests assert on the wrapper's env injection.
 if (process.env.STUB_ENV_FILE !== undefined && process.env.STUB_ENV_FILE !== "") {
@@ -38,7 +62,7 @@ if (process.env.STUB_ENV_FILE !== undefined && process.env.STUB_ENV_FILE !== "")
 }
 
 const rl = createInterface({ input: process.stdin });
-rl.on("line", (line) => {
+rl.on("line", async (line) => {
 	const trimmed = line.trim();
 	if (trimmed === "") {
 		return;
@@ -52,7 +76,16 @@ rl.on("line", (line) => {
 	}
 
 	if (frame.method === undefined) {
-		return; // responses to our client-bound requests
+		// Response to one of our client-bound requests.
+		const issuedMethod = issuedRequests.get(frame.id);
+		if (issuedMethod !== undefined) {
+			issuedRequests.delete(frame.id);
+			if (runtimePrefsFile !== undefined) {
+				capturedResponses[issuedMethod] = frame.result ?? { error: frame.error };
+				writeFileSync(runtimePrefsFile, JSON.stringify(capturedResponses));
+			}
+		}
+		return;
 	}
 
 	recordFrame(frame);
@@ -113,6 +146,47 @@ rl.on("line", (line) => {
 	if (method === "session/send") {
 		reply(id, {});
 		const sessionId = params?.sessionId;
+
+		if (reasoningOnly) {
+			/*
+			 * Simulates a long pure-thinking turn: a continuous reasoning_delta
+			 * stream with no text/tool output at all. This is the production
+			 * signature of the idle-timeout failures (e.g. issue #174 design
+			 * attempt 1) — the model is alive and streaming, but nothing reaches
+			 * the runner's stdout.
+			 */
+			const deadline = Date.now() + reasoningDurationMs;
+			while (Date.now() < deadline) {
+				emit(
+					"model.streaming",
+					{
+						assistantMessageId: "msg-1",
+						delta: "thinking",
+						kind: "reasoning_delta",
+					},
+					sessionId,
+				);
+				await delay(reasoningIntervalMs);
+			}
+
+			emit(
+				"turn.completed",
+				{
+					response: "thinking-done",
+					tokenCount: 10,
+					toolCallCount: 0,
+					usage: {
+						cacheReadTokens: 5,
+						cacheWriteTokens: 2,
+						inputTokens: 10,
+						outputTokens: 4,
+					},
+				},
+				sessionId,
+			);
+			return;
+		}
+
 		if (requestPermission) {
 			// Client-bound permission request answered by the wrapper.
 			nextId += 1;
