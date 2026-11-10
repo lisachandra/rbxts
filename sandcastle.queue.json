@@ -4,6 +4,14 @@
 	"sequences": [
 		{
 			"issues": [
+				"48"
+			],
+			"name": "repo-hoist-containment",
+			"notes": "Ready now, and placed first because #48 changes scripts/hoist.mjs, which every batch's setupCommands (pnpm setup -> postinstall -> pnpm hoist) runs in a fresh worktree. Landing it first means a broken containment change fails its own batch rather than poisoning every later batch's setup. No file overlap with #31/#33 (sandcastle src) or #46 (platform).",
+			"title": "repo: hoist containment"
+		},
+		{
+			"issues": [
 				"31",
 				"33"
 			],
@@ -29,6 +37,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-10T13:11:56.359Z",
+	"updatedAt": "2026-11-10T13:13:53.408Z",
 	"version": 2
 }
