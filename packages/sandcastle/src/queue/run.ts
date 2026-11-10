@@ -23,6 +23,7 @@ import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
 import { applyBootstrap, promotableGates, proposeBootstrap } from "./bootstrap.js";
+import { inspectChainSequences } from "./chain.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { runQueueLand } from "./land.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
@@ -34,15 +35,25 @@ import { transactQueueManifest } from "./persist.js";
 import { computeQueueView } from "./render.js";
 import { pendingMembers, selectNextBatch, sequenceTail } from "./schedule.js";
 
-/** Dispatch seam: production runs the sequential workflow, tests inject a stub. */
+/**
+ * Dispatch seam: production runs the sequential workflow, tests inject a stub.
+ *
+ * @param name - The batch being fired, so the live dispatch can re-read its member order.
+ * @param issues - The fire-time member order.
+ * @param remaining - Members still allowed under `--max-issues` after prior batches.
+ * @returns Every member actually processed — dispatched or reuse-skipped, including members the
+ *   batch grew mid-run — so the caller's `seen` set and budget stay truthful.
+ */
 export type QueueDispatch = (
+	name: string,
 	issues: Array<string>,
 	options: CliOptions,
 	resume: boolean,
-) => Promise<void>;
+	remaining?: number,
+) => Promise<ReadonlyArray<string>>;
 
-const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
-	await runSequentialIssues(
+const defaultDispatch: QueueDispatch = async (name, issues, options, resume, remaining) => {
+	const results = await runSequentialIssues(
 		issues,
 		options.base,
 		options.model,
@@ -50,26 +61,41 @@ const defaultDispatch: QueueDispatch = async (issues, options, resume) => {
 		options.agentBackend,
 		resume,
 		{
+			...(remaining !== undefined ? { budget: remaining } : {}),
 			/*
 			 * Under `--json` stdout is the machine channel, so setup chatter goes to stderr like
 			 * every other human line in this command group.
 			 */
 			emit: options.jsonOut ? console.error : undefined,
 			ignoreSetup: options.ignoreSetup,
+			/*
+			 * Live dispatch: the runner re-reads this batch's member order before each member, so a
+			 * follow-up a review registers mid-run dispatches next, chained from the member whose
+			 * review filed it — not on a re-fire replay that chains past the insertion.
+			 */
+			nextOrder: () =>
+				readQueueManifest().sequences.find((entry) => entry.name === name)?.issues,
 			pushAndDelete: options.pushAndDelete === true,
 			setupOutput: options.setupOutput,
 			skipSetup: options.skipSetup,
 			steps: options.steps,
+			strictChain: options.strictChain === true || config.queue.strictChain === true,
 		},
 	);
+	return results.map((result) => result.issue);
 };
 
 export interface QueueRunDeps {
+	/** Replaces chain-drift computation for one invocation. */
+	chain?: QueueChain;
 	/** Replaces the sequential workflow for one invocation. */
 	dispatch?: QueueDispatch;
 	/** Replaces the hand-off attempt for one invocation. */
 	land?: QueueLand;
 }
+
+/** Chain-drift seam: production walks member branches with git ancestry, tests inject lines. */
+export type QueueChain = (manifest: QueueManifest) => Array<string>;
 
 /** Fetches the ready backlog, then the blocked-by edges for exactly those issues. */
 function loadBacklogLive(): LiveQueueState {
@@ -250,6 +276,7 @@ export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}):
 	try {
 		summary = await runQueueLoop(
 			options,
+			deps.chain,
 			deps.dispatch ?? defaultDispatch,
 			deps.land ?? landBatch,
 		);
@@ -296,6 +323,7 @@ function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
 /** The dispatch loop itself, with the lock already held, reporting what it did. */
 async function runQueueLoop(
 	options: CliOptions,
+	chain: undefined | QueueChain,
 	dispatch: QueueDispatch,
 	land: QueueLand,
 ): Promise<QueueRunSummary> {
@@ -336,6 +364,18 @@ async function runQueueLoop(
 			gates: unmetIntegrationGates({ names: sequenceGateNames(manifest) }),
 			strictGates: true,
 		});
+
+		/*
+		 * Chain containment is git state, which `computeQueueView` (pure over the manifest and GitHub)
+		 * cannot see. A member branch that does not contain its predecessor's tip means the run order
+		 * moved underneath members that already ran — the breaks are appended to the same drift list,
+		 * so `--require-clean` refuses on them and the warn-once path reports them like any other
+		 * drift.
+		 */
+		const chainLines = (chain ?? inspectChainSequences)(manifest);
+		if (chainLines.length > 0) {
+			view.drift.push(...chainLines);
+		}
 
 		/*
 		 * Opt-in, and once per invocation: promoting gates changes what the queue will run unattended,
@@ -459,14 +499,25 @@ async function runQueueLoop(
 			return { failures, nothingToRun: false };
 		}
 
-		await dispatch(decision.issues, options, resume);
+		/*
+		 * The dispatch processes the fire-time order live: members the batch grew mid-run (a review
+		 * registering a follow-up) are dispatched by the same call, so the processed list — not the
+		 * fire-time order — is what the `seen` set and the budget count.
+		 */
+		const processed = await dispatch(
+			decision.name,
+			decision.issues,
+			options,
+			resume,
+			maxIssues - dispatched,
+		);
 		lastBatch = decision.name;
 
-		for (const issue of decision.issues) {
+		for (const issue of processed) {
 			seen.add(issue);
 		}
 
-		dispatched += decision.issues.length;
+		dispatched += processed.length;
 		const landRequested = options.land === true;
 		const outcome: LandOutcome = landRequested
 			? await land(options, decision.name)

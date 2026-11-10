@@ -367,7 +367,7 @@ describe("queue mutations", () => {
 		assert.deepEqual(matchingRules(start, { name: "R9" }), []);
 	});
 
-	test("midChainInsertionConflict names the first dispatched member after the insertion", () => {
+	test("midChainInsertionConflict names the first completed member after the insertion", () => {
 		const start: QueueManifest = {
 			...base(),
 			sequences: [{ issues: ["10", "11", "12"], name: "progression-work" }],
@@ -380,20 +380,17 @@ describe("queue mutations", () => {
 		assert.deepEqual(inserted.sequences[0]?.issues, ["10", "99", "11", "12"]);
 
 		const conflict = midChainInsertionConflict({
-			isDispatched: (member) => member === "12",
+			isReused: (member) => member === "12",
 			issue: "99",
 			manifest: inserted,
 		});
-		assert.match(
-			conflict ?? "",
-			/#12 of batch "progression-work" has already been dispatched/u,
-		);
+		assert.match(conflict ?? "", /#12 of batch "progression-work" already completed/u);
 		assert.match(conflict ?? "", /omit --after/u);
 
-		// A dispatched member before the insertion point does not block; one after it does.
+		// A completed member before the insertion point does not block; one after it does.
 		assert.equal(
 			midChainInsertionConflict({
-				isDispatched: (member) => member === "10",
+				isReused: (member) => member === "10",
 				issue: "99",
 				manifest: inserted,
 			}),
@@ -401,16 +398,40 @@ describe("queue mutations", () => {
 		);
 		assert.match(
 			midChainInsertionConflict({
-				isDispatched: (member) => member === "11",
+				isReused: (member) => member === "11",
 				issue: "99",
 				manifest: inserted,
 			}) ?? "",
 			/#11 of batch/u,
 		);
 
-		// An issue placed outside any sequence (gated/human) never chains behind a dispatched member.
+		// An issue placed outside any sequence (gated/human) never chains behind a completed member.
 		assert.equal(
-			midChainInsertionConflict({ isDispatched: () => true, issue: "99", manifest: base() }),
+			midChainInsertionConflict({ isReused: () => true, issue: "99", manifest: base() }),
+			undefined,
+		);
+	});
+
+	test("midChainInsertionConflict allows inserting ahead of members that have not finished", () => {
+		/*
+		 * Live dispatch re-reads the order before each member, so an insertion ahead of pending or
+		 * interrupted members dispatches in the same run with the right base — exactly what a review
+		 * registering a follow-up after its own in-flight issue relies on. Only a completed member
+		 * (reuse-chained on its pre-insertion branch) blocks.
+		 */
+		const start: QueueManifest = {
+			...base(),
+			sequences: [{ issues: ["10", "11", "12"], name: "progression-work" }],
+		};
+		const inserted = addToSequence(start, {
+			after: "10",
+			issue: "99",
+			sequence: "progression-work",
+		});
+
+		// Dispatched-but-incomplete members (a state file exists, phases unfinished) do not block.
+		assert.equal(
+			midChainInsertionConflict({ isReused: () => false, issue: "99", manifest: inserted }),
 			undefined,
 		);
 	});

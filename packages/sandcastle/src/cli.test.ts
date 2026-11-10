@@ -600,17 +600,23 @@ describe("commaSeparated / parseArgs", () => {
 				"3",
 				"--keep-entries",
 				"--strict-gates",
+				"--strict-chain",
 			]);
 			assert.equal(run.queueSubcommand, "run");
 			assert.equal(run.integrationName, "U2");
 			assert.equal(run.maxIssues, 3);
 			assert.equal(run.queueKeepEntries, true);
 			assert.equal(run.queueStrictGates, true);
+			assert.equal(run.strictChain, true);
 
 			assert.equal(parseArgs(["queue", "list", "--no-queue"]).queueEnabled, false);
 			assert.equal(parseArgs(["queue", "list", "--queue"]).queueEnabled, true);
 			assert.equal(parseArgs(["queue", "list", "--queue-commit"]).queueCommit, true);
 			assert.equal(parseArgs(["queue", "bootstrap", "--apply"]).queueApply, true);
+			assert.throws(
+				() => parseArgs(["queue", "check", "--strict-chain"]),
+				/--strict-chain only applies to dispatch/u,
+			);
 
 			assert.throws(
 				() => parseArgs(["queue", "run", "--gated"]),

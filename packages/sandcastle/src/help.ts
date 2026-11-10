@@ -22,8 +22,9 @@ const topics = {
 		flags: [
 			"--issue <n>        Issue number (required)",
 			"--sequence <name>  Batch to place it in",
-			"--after <m>        Insert after member <m> instead of appending; refused when a later",
-			"                   member of the batch has already been dispatched",
+			"--after <m>        Insert after member <m> instead of appending. From a member worktree,",
+			"                   <m> must be your own issue; refused when a later member of the batch",
+			"                   already completed (the dispatcher would chain past the insertion)",
 			"--gated            Cannot start until --reason is resolved",
 			"--human            Never queued; needs a human decision session",
 			"--reason <text>    Why the issue is gated or human",
@@ -32,6 +33,8 @@ const topics = {
 		notes: [
 			"Requires exactly one of --sequence, --gated, or --human.",
 			"--joins records the batch a gated issue moves into; promote prefers it over the title scope.",
+			"queue run re-reads the batch order before each member, so --after your own issue dispatches",
+			"the follow-up next, chained from your branch — no re-fire needed.",
 		],
 		usage: [
 			"pnpm sandcastle queue add --issue <n> --sequence <batch> [--after <m>]",
@@ -150,6 +153,7 @@ const topics = {
 			"--force [phase]      Force a re-run of a phase",
 			"--status             Print phase evaluation without running",
 			"--worktree <path>    Use an existing registered worktree",
+			"--setup-output <mode>  Setup output: log (default) or inherit",
 		],
 		notes: ["--issue all plans the ready-for-agent backlog and dispatches what is unblocked."],
 		usage: [
@@ -162,6 +166,7 @@ const topics = {
 			"--sequential <ids>  Comma-separated issue numbers, in order (required)",
 			"--base <ref>        Starting ref (default: main)",
 			"--worktree <path>   Append in an existing worktree",
+			"--setup-output <mode>  Setup output: log (default) or inherit",
 		],
 		notes: [
 			"Runs issues in order; earlier commits are the base of the next issue.",
@@ -226,6 +231,7 @@ const topics = {
 			"--base <ref>        Merge base (default: main)",
 			"--allow-unreviewed  Allow sources whose review is incomplete",
 			"--quarantine-drift  Stash uncommitted worktree drift instead of failing",
+			"--setup-output <mode>  Setup output: log (default) or inherit",
 		],
 		notes: ["`queue run` prints the tail issue to use here when a batch lands."],
 		usage: ["pnpm sandcastle merge --name <name> --issues <tail,tail> [--base main]"],
@@ -274,6 +280,7 @@ const topics = {
 			"--no-queue  Bypass the queue workflow for this invocation",
 			"--queue-commit  Commit the manifest after a mutation (never pushes)",
 			"--strict-gates  Count a promotable gate as drift (list, check)",
+			"--strict-chain  Abort on a rewound chain instead of warning (run)",
 		],
 		notes: [
 			"GitHub issues stay canonical for issue state; the manifest (sandcastle.queue.json, git",
@@ -337,10 +344,13 @@ const topics = {
 			"--recompose        With --land, rebuild a composition that drifted or is unfinished",
 			"--continue-anyway  Fire another batch when the one just run cannot continue",
 			"--push-and-delete  Push each member's branch and remove its worktree as it finishes",
+			"--strict-chain     Abort when a reused member's branch does not contain the accumulated",
+			"                   base (default: warn; `queue check` names the break as drift)",
 		],
 		notes: [
-			"Re-reads the manifest and live GitHub state after every batch: a review that registered a",
-			"follow-up changes what runs next inside the same invocation.",
+			"Re-reads the manifest and live GitHub state after every batch, and re-reads the batch's",
+			"member order before each member: a follow-up a review registers after its own issue",
+			"dispatches next, chained from that member's branch — inside the same invocation.",
 			"Exit 1 when nothing can fire — an unknown --name, or no READY batch; exit 2 when a",
 			"hand-off failed, so the batch needs a human before the queue moves on.",
 			"A hand-off attempt also emits { handOff: { batch, ok, error } } under --json.",
@@ -405,10 +415,14 @@ const topics = {
 			"--worktree <path>  Prepare this worktree",
 			"--branch <name>    Create or reuse the worktree for this branch",
 			"--base <ref>       Base for a new branch",
+			"--setup-output <mode>  Setup output: inherit (default) or log",
 		],
 		notes: [
 			"No flags prepares the current directory (e.g. a clean paseo worktree).",
 			"Idempotent: creates state dirs, copies .env, runs setupCommands, links symlinks.",
+			"Setup output is inherited here because you are waiting on it; agent runs log to",
+			"`.sandcastle/logs/setup-*.log` instead. `setupOutput` in sandcastle.config.ts",
+			"overrides both defaults.",
 		],
 		usage: [
 			"pnpm sandcastle setup [--worktree <path>]",

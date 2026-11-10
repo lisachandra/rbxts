@@ -12,6 +12,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import type { CliOptions } from "../cli.js";
 import { config, io, repoRoot } from "../runtime.js";
+import { inspectChainSequences } from "./chain.js";
 import { runQueueClean } from "./clean.js";
 import { upsertGraphComment } from "./comment.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
@@ -195,7 +196,14 @@ function liveView(strictGates: boolean): QueueView {
 		readyLabel: config.labels.readyForAgent,
 	});
 	const gates = unmetIntegrationGates({ names: sequenceGateNames(manifest) });
-	return computeQueueView(manifest, live, { gates, strictGates });
+	const view = computeQueueView(manifest, live, { gates, strictGates });
+	/*
+	 * Chain containment is git state, which `computeQueueView` (pure over the manifest and GitHub)
+	 * cannot see. A break here names members whose branches fell out of run order — usually a
+	 * follow-up inserted ahead of members that had already run.
+	 */
+	view.drift.push(...inspectChainSequences(manifest));
+	return view;
 }
 
 function runQueueList(options: CliOptions): void {

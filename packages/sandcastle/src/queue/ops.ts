@@ -9,8 +9,9 @@
  */
 
 import type { CliOptions } from "../cli.js";
+import { currentSandcastleIssue } from "../git.js";
 import { config } from "../runtime.js";
-import { readState } from "../state.js";
+import { isIssueComplete, readState } from "../state.js";
 import { batchNameForScope, promotableGates, scopeOf } from "./bootstrap.js";
 import { fetchLiveQueueState, type LiveIssue, type LiveQueueState } from "./live.js";
 import { acquireQueueLock, manifestLockName } from "./lock.js";
@@ -63,6 +64,27 @@ function requireIssueNumber(options: CliOptions, subcommand: string): string {
 /** Places an issue into a batch, a gate, or the human bucket, reporting the move. */
 export function runQueueAdd(options: CliOptions): void {
 	const issue = requireIssueNumber(options, "add");
+	/*
+	 * An agent registering a follow-up from inside a member worktree may anchor it only after its
+	 * own issue: that is the one position the live dispatcher honors immediately (the member's
+	 * review is still in flight, so the follow-up dispatches next with the member's branch as
+	 * base), and the one the agent has the context to choose. Any other checkout — the primary one
+	 * or an integration worktree — has no member branch and keeps full freedom.
+	 */
+	const ownIssue = currentSandcastleIssue();
+	if (
+		options.queueSequence !== undefined &&
+		options.after !== undefined &&
+		ownIssue !== undefined &&
+		options.after !== ownIssue
+	) {
+		throw new Error(
+			`--after ${options.after} is not your own issue (#${ownIssue}); an agent registering a ` +
+				"follow-up may anchor it only after the issue whose review is running. Omit --after to " +
+				"append to the batch tail, which chains from the last dispatched branch.",
+		);
+	}
+
 	transactQueueManifest(options, (manifest) => {
 		const previous = locateIssue(manifest, issue);
 		const next =
@@ -79,13 +101,14 @@ export function runQueueAdd(options: CliOptions): void {
 						sequence: options.queueSequence,
 					});
 		/*
-		 * `--after` is a dependency statement, not a preference: an insertion ahead of a member the
-		 * current run has already dispatched leaves that member's branch behind the insertion, and
-		 * `queue land` refuses the moved tail. Refuse here, inside the transaction, naming the fix.
+		 * `--after` is a dependency statement, not a preference. The dispatcher re-reads the order
+		 * live, so an insertion ahead of members that have not finished is picked up in the same
+		 * run — but a completed member is reuse-chained on its pre-insertion branch, bypassing the
+		 * newcomer. Refuse here, inside the transaction, naming the fix.
 		 */
 		if (options.queueSequence !== undefined && options.after !== undefined) {
 			const conflict = midChainInsertionConflict({
-				isDispatched: (member) => readState(member) !== undefined,
+				isReused: (member) => isIssueComplete(member),
 				issue,
 				manifest: next,
 			});

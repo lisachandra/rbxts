@@ -75,11 +75,13 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 | `dir`                      | `.sandcastle`                            | State, plans, logs, worktrees, and integrations directory                                                                                                                                                              |
 | `baseBranch`               | `main`                                   | Diff base for implementation and review                                                                                                                                                                                |
 | `setupCommands`            | `[]`                                     | Shell commands run in a fresh worktree before phase agents                                                                                                                                                             |
+| `setupOutput`              | `log` for runs, `inherit` for `setup`    | Where `setupCommands` output goes: `log` appends to `.sandcastle/logs/setup-*.log`; `inherit` streams into the runner. `--setup-output` overrides per invocation                                                       |
 | `symlinks`                 | `[]`                                     | Repository directories linked into fresh worktrees                                                                                                                                                                     |
 | `prompts`                  | package defaults                         | Per-phase prompt file paths (repo-relative)                                                                                                                                                                            |
 | `queue.file`               | `sandcastle.queue.json`                  | Queue manifest path (repo-relative) used by the `sandcastle queue` command group                                                                                                                                       |
 | `queue.enabled`            | `true`                                   | Set `false` to bypass the queue workflow entirely (no gates, reviews report follow-ups in the comment only); `--no-queue` / `--queue` override per invocation                                                          |
 | `queue.commit`             | `false`                                  | Commit the manifest after each mutating queue command (never pushes)                                                                                                                                                   |
+| `queue.strictChain`        | `false`                                  | Abort dispatch instead of warning when a reused member's branch does not contain the accumulated base; `--strict-chain` overrides per invocation                                                                       |
 | `integration.mergeSubject` | `chore(integration): integrate {source}` | Subject of the merge commit that composes an integration; `{source}` is the source name. Conventional by default, because a repository with commitlint rejects a non-conventional one and leaves the merge uncommitted |
 | `integration.verifyHooks`  | `false`                                  | Run the repository's git hooks for that merge commit. Leave off: the hooks target human commits, and a hook refusing the merge leaves the composition uncommitted                                                      |
 | `skills.defaults`          | phase defaults                           | Skills injected into each phase prompt                                                                                                                                                                                 |
@@ -142,6 +144,26 @@ before agents start — including integration merges (`merge`, `merge-integratio
 `integration-resume`). `--ignore-setup` continues even if the setup command fails (symlinks are
 still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
 
+Setup output is logged rather than inherited on agent runs, because an install that prints
+thousands of lines otherwise buries the phase stream:
+
+```text
+  ▶ Running setup commands → .sandcastle/logs/setup-issue-sandcastle-issue-498.log
+  ✓ Setup commands finished (4m12s) → .sandcastle/logs/setup-issue-sandcastle-issue-498.log
+```
+
+`setup-issue-*.log` and `setup-integration-*.log` keep each worktree's history, appended per
+invocation with a `--- Setup started ---` header and rotated to `.1` past 5 MiB. A failed setup
+prints its last 30 lines to the terminal before rethrowing, so the real error is visible without
+opening the file. `stdin` is ignored in `log` mode, so a setup command that waits for input fails
+instead of hanging an unattended run.
+
+`--setup-output inherit` restores streaming into the terminal (and stdin) for a run;
+`setupOutput: "inherit" | "log"` in `sandcastle.config.ts` sets it for the repository, and an
+explicit flag still wins. A standalone `sandcastle setup` inherits by default — you are waiting
+on that output — while `log` remains an explicit choice there. If the log cannot be opened, the
+runner warns and falls back to `inherit` rather than failing the environment.
+
 Because integration worktrees are long-lived, they accumulate uncommitted changes: setup
 artifacts (fetched places, submodule checkouts), formatter churn from `lint:fix`, and agent
 edits that no source branch owns. When a source also touched one of those files, git aborts the
@@ -172,13 +194,16 @@ sandcastle setup                        # prepare the current directory
 sandcastle setup --worktree <path>      # prepare an existing worktree path
 sandcastle setup --branch <name> [--base <ref>]  # create/reuse a worktree and prepare it
 sandcastle setup --dry-run              # print what would happen, execute nothing
+sandcastle setup --setup-output log     # append setup output to a log instead of the terminal
 ```
 
 Preparation is identical to what an issue run performs before its phases: create the
 `.sandcastle/{worktrees,logs,plans,state,integrations}` directories, copy the repo `.env`
 when present, run `setupCommands`, and link `symlinks`. `--ignore-setup` and `--skip-setup`
-behave as in the issue workflow. A bare `sandcastle setup` (no flags) targets the current
-directory — the shape paseo hands you for a clean worktree.
+behave as in the issue workflow. Setup output is inherited here (you are waiting on it);
+pass `--setup-output log` or set `setupOutput: "log"` to write it to a log instead. A bare
+`sandcastle setup` (no flags) targets the current directory — the shape paseo hands you for a
+clean worktree.
 
 Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
 `.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
@@ -296,7 +321,16 @@ read-only local view bound to `127.0.0.1` with a 30-second cache in front of the
 
 `queue run` dispatches the first READY sequence in manifest order — priority, not a base chain:
 every batch starts from `--base` and only members inside one batch chain — re-reads the manifest
-after every batch, and prunes landed entries (`--keep-entries` to keep them). Gated batches are
+after every batch, and prunes landed entries (`--keep-entries` to keep them). It also re-reads the
+batch's member order **before each member**, so a follow-up a review registers after its own issue
+dispatches next, chained from that member's branch — inside the same invocation, not on a re-fire.
+From a member worktree, `queue add --after <m>` anchors only at the review's own issue (any other
+anchor is refused; omit `--after` to append to the tail); from the primary checkout the anchor is
+unrestricted, but an insertion ahead of a member that already completed is refused — that member is
+reuse-chained on its pre-insertion branch and would silently bypass the newcomer. Chain containment
+is drift: `queue check`/`queue list` report a member branch that does not contain its predecessor's
+tip, and `queue run` warns on the same condition at reuse time (`queue.strictChain: true` or
+`--strict-chain` aborts instead). Gated batches are
 skipped until READY, so a review that registers a follow-up changes what runs next inside the
 same invocation; `--max-issues <n>` caps one invocation. A batch that grew members while it ran is
 finished before any other batch: when it cannot continue, the run stops and names it rather than

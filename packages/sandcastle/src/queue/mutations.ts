@@ -137,8 +137,12 @@ export function addToSequence(manifest: QueueManifest, params: AddToSequencePara
 }
 
 export interface MidChainInsertionParams {
-	/** Returns true when the member has already been dispatched (its state file exists). */
-	isDispatched: (issue: string) => boolean;
+	/**
+	 * Returns true when the member already finished: the dispatcher reuse-chains such a member's
+	 * pre-insertion branch as the next base, bypassing the newcomer. Incomplete members — pending
+	 * or interrupted — do not qualify: live dispatch picks the insertion up before reaching them.
+	 */
+	isReused: (issue: string) => boolean;
 	/** The issue that was just inserted. */
 	issue: string;
 	/** The manifest _after_ the insertion, so the new position is visible. */
@@ -146,12 +150,14 @@ export interface MidChainInsertionParams {
 }
 
 /**
- * - Names the first already-dispatched member that now sits after the inserted issue.
+ * - Names the first completed member that now sits after the inserted issue.
  * - @returns The refusal message, or undefined when the insertion chains nothing that ran.
- * - @remarks Position is a dependency statement: each member's branch becomes the next member's base,
- *   so inserting ahead of a dispatched member leaves that branch behind the insertion and `queue
- *   land` refuses the moved tail. Pure — the caller decides what "dispatched" means, which keeps
- *   mutations filesystem-free while the enforcement still happens on every registration.
+ * - @remarks Position is a dependency statement: each member's branch becomes the next member's base.
+ *   The dispatcher re-reads the order live, so an insertion ahead of members that have not finished
+ *   is picked up in the same run — the one placement that still cannot work is ahead of a completed
+ *   member, whose existing branch predates the insertion and is reused as-is. Pure — the caller
+ *   decides what "completed" means, which keeps mutations filesystem-free while the enforcement
+ *   still happens on every registration.
  */
 export function midChainInsertionConflict(params: MidChainInsertionParams): string | undefined {
 	const sequence = params.manifest.sequences.find((entry) => entry.issues.includes(params.issue));
@@ -161,14 +167,15 @@ export function midChainInsertionConflict(params: MidChainInsertionParams): stri
 
 	const at = sequence.issues.indexOf(params.issue);
 	for (const member of sequence.issues.slice(at + 1)) {
-		if (!params.isDispatched(member)) {
+		if (!params.isReused(member)) {
 			continue;
 		}
 
 		return (
-			`#${member} of batch "${sequence.name}" has already been dispatched; inserting #${params.issue} ` +
-			"ahead of it leaves that member's branch behind the insertion and `queue land` will refuse " +
-			"the moved tail. Append to the batch tail instead (omit --after) or register it gated: " +
+			`#${member} of batch "${sequence.name}" already completed; inserting #${params.issue} ` +
+			"ahead of it chains that member's pre-insertion branch as the next base, so later " +
+			"members build without this one. Append to the batch tail instead (omit --after) or " +
+			"register it gated: " +
 			`\`sandcastle queue add --issue ${params.issue} --gated --reason "..."\`.`
 		);
 	}

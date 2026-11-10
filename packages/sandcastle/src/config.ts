@@ -116,6 +116,12 @@ export interface SandcastleConfig {
 		/** When false, the queue workflow is bypassed: no gating, no prompt contract. */
 		enabled: boolean;
 		file: string;
+		/**
+		 * When true, dispatch aborts instead of warning when a reused member's branch does not
+		 * contain the accumulated base — the signature of a member inserted ahead of already-run
+		 * members and never picked up.
+		 */
+		strictChain: boolean;
 	};
 	/** Machine-readable review marker prefix written as `<marker>: APPROVED|BLOCKED`. */
 	reviewMarker: string;
@@ -218,6 +224,7 @@ export const sandcastleConfigSchema = z
 				commitBranch: z.string().min(1).optional(),
 				enabled: z.boolean().optional(),
 				file: z.string().min(1).optional(),
+				strictChain: z.boolean().optional(),
 			})
 			.optional(),
 		reviewMarker: z.string().optional(),
@@ -282,7 +289,13 @@ const defaultConfig: SandcastleConfig = {
 		readyForAgent: "ready-for-agent",
 	},
 	prompts: {},
-	queue: { commit: false, commitBranch: "main", enabled: true, file: "sandcastle.queue.json" },
+	queue: {
+		commit: false,
+		commitBranch: "main",
+		enabled: true,
+		file: "sandcastle.queue.json",
+		strictChain: false,
+	},
 	reviewMarker: "Sandcastle-Review",
 	setupCommands: [],
 	skills: {
@@ -383,6 +396,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 				parsed.queue?.commitBranch ?? parsed.baseBranch ?? defaultConfig.queue.commitBranch,
 			enabled: parsed.queue?.enabled ?? defaultConfig.queue.enabled,
 			file: parsed.queue?.file ?? defaultConfig.queue.file,
+			strictChain: parsed.queue?.strictChain ?? defaultConfig.queue.strictChain,
 		},
 		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
 		setupCommands: parsed.setupCommands ?? defaultConfig.setupCommands,

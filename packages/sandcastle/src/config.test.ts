@@ -34,6 +34,8 @@ describe("config loading", () => {
 		assert.equal(config.integration.mergeSubject, "chore(integration): integrate {source}");
 		assert.equal(config.integration.verifyHooks, false);
 		assert.equal(config.skills.defaults.review.includes("sandcastle"), true);
+		// A rewind warns by default; `queue.strictChain` is the opt-in abort.
+		assert.equal(config.queue.strictChain, false);
 		/*
 		 * Unset, not defaulted: each command resolves its own default (agent runs log, standalone
 		 * `sandcastle setup` inherits), so a repository without a preference must stay undefined.
@@ -50,6 +52,7 @@ describe("config loading", () => {
 				"const config = {",
 				'	effort: "max",',
 				'	agents: { default: "codex", models: { "claude-code": "model-c", codex: "model-d", dirac: "model-a", pi: "model-b" }, steps: { design: { model: "design-m", effort: "low" }, implement: { backend: "codex" } } },',
+				"	queue: { strictChain: true },",
 				"};",
 				"export default config;",
 			].join("\n"),
@@ -65,6 +68,7 @@ describe("config loading", () => {
 		assert.deepEqual(config.agents.steps.design, { effort: "low", model: "design-m" });
 		assert.deepEqual(config.agents.steps.implement, { backend: "codex" });
 		assert.equal(config.baseBranch, "main");
+		assert.equal(config.queue.strictChain, true);
 	});
 
 	test("loadConfig keeps an explicit setupOutput", () => {
@@ -77,8 +81,7 @@ describe("config loading", () => {
 				'	setupOutput: "inherited",',
 				"};",
 				"export default config;",
-			].join("
-"),
+			].join("\n"),
 			"utf-8",
 		);
 
@@ -96,8 +99,7 @@ describe("config loading", () => {
 					`	setupOutput: ${JSON.stringify(mode)},`,
 					"};",
 					"export default config;",
-				].join("
-"),
+				].join("\n"),
 				"utf-8",
 			);
 

@@ -138,20 +138,33 @@ interface RunResult {
 /**
  * - Runs the dispatcher with a dispatch stub, capturing calls and stdout.
  * - @param argv - CLI arguments, before the injected `--model`.
- * - @param options - `reject: true` swallows the dispatcher's exit.
+ * - @param options - `reject: true` swallows the dispatcher's exit; `chain` replaces the chain-drift
+ *   walk (the default one consults git, which these stubs do not answer).
  * - @returns The dispatch calls and everything written to stdout.
  *
  * @rejects {Error} When the dispatcher exits and the test asked to observe the exit.
  */
 async function run(
 	argv: ReadonlyArray<string>,
-	options: { dispatch?: QueueDispatch; land?: QueueLand; reject?: boolean } = {},
+	options: {
+		chain?: (manifest: QueueManifest) => Array<string>;
+		dispatch?: QueueDispatch;
+		land?: QueueLand;
+		reject?: boolean;
+	} = {},
 ): Promise<RunResult> {
 	const calls: RunResult["calls"] = [];
 	// Records every call; an injected stub runs first so it can mutate the manifest mid-run.
-	const dispatch: QueueDispatch = async (issues, runOptions: CliOptions, resume) => {
-		await options.dispatch?.(issues, runOptions, resume);
+	const dispatch: QueueDispatch = async (
+		name,
+		issues,
+		runOptions: CliOptions,
+		resume,
+		remaining,
+	) => {
+		const processed = await options.dispatch?.(name, issues, runOptions, resume, remaining);
 		calls.push({ issues: [...issues], resume });
+		return processed ?? [...issues];
 	};
 
 	const lines: Array<string> = [];
@@ -163,6 +176,7 @@ async function run(
 	console.error = () => undefined;
 	try {
 		await runQueueRun(parseArgs([...argv, "--model", "test-model"]), {
+			...(options.chain !== undefined ? { chain: options.chain } : {}),
 			dispatch,
 			land: options.land,
 		});
@@ -187,7 +201,7 @@ async function run(
  */
 function registeringFollowUp(): QueueDispatch {
 	let registered = false;
-	return () => {
+	return (_name, issues, _runOptions, _resume) => {
 		if (!registered) {
 			registered = true;
 			writeQueueManifest(
@@ -202,7 +216,8 @@ function registeringFollowUp(): QueueDispatch {
 			);
 		}
 
-		return Promise.resolve();
+		// The stub processes the fire-time order; the manifest write stands in for the review's edit.
+		return Promise.resolve(issues);
 	};
 }
 
@@ -290,6 +305,37 @@ describe("queue run dispatch", () => {
 				JSON.parse(line) as unknown;
 			});
 		}
+	});
+
+	test("chain drift warns once like any other drift", async () => {
+		stage([{ issues: ["5", "6"], name: "U2" }], [makeIssue(5), makeIssue(6)]);
+
+		const result = await run(["queue", "run"], {
+			chain: () => ['Chain break in batch "U2": artificial break for the test'],
+			reject: true,
+		});
+
+		assert.deepEqual(result.calls, [{ issues: ["5", "6"], resume: true }]);
+		assert.match(result.output, /2 drift item/u);
+		assert.match(result.output, /Chain break in batch "U2"/u);
+		assert.doesNotMatch(
+			result.output,
+			/2 drift item.*2 drift item/u,
+			"warned once, not per batch",
+		);
+	});
+
+	test("--require-clean refuses on chain drift", async () => {
+		const { codes } = stage([{ issues: ["5", "6"], name: "U2" }], [makeIssue(5), makeIssue(6)]);
+
+		const result = await run(["queue", "run", "--require-clean"], {
+			chain: () => ['Chain break in batch "U2": artificial break for the test'],
+			reject: true,
+		});
+
+		assert.deepEqual(codes, [1]);
+		assert.deepEqual(result.calls, []);
+		assert.match(result.output, /Chain break in batch "U2"/u);
 	});
 
 	test("keeps a batch whose members are approved but still open", async () => {

@@ -4,9 +4,10 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
+import { issueBranch } from "./git.js";
 import { markerPath } from "./markers.js";
 import { worktreePathForBranch } from "./runtime.js";
-import { reclaimMemberWorktree, runSequentialIssues } from "./sequential.js";
+import { type DispatchIssue, reclaimMemberWorktree, runSequentialIssues } from "./sequential.js";
 import { writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
@@ -257,6 +258,298 @@ describe("sequential issue workflow", () => {
 		);
 
 		cleanupIssueArtifacts(issue);
+	});
+});
+
+describe("live dispatch", () => {
+	/**
+	 * A member stub: records the dispatch and chains the member's own branch, reporting reuse for
+	 * the members it is told to. Replaces the phase pipeline, so no git or agent runs here.
+	 */
+	function memberStub(
+		dispatched: Array<string>,
+		reused: ReadonlySet<string> = new Set(),
+	): DispatchIssue {
+		return async ({ issueNumber }) => {
+			dispatched.push(issueNumber);
+			return reused.has(issueNumber)
+				? {
+						nextBase: issueBranch(issueNumber),
+						result: { issue: issueNumber, reused: true, status: "ok" },
+						stop: false,
+					}
+				: {
+						nextBase: issueBranch(issueNumber),
+						result: { issue: issueNumber, status: "ok" },
+						stop: false,
+					};
+		};
+	}
+
+	test("a follow-up registered mid-run dispatches next with the reviewed branch as base", async () => {
+		/*
+		 * The order starts [first, second]; first's review registers a follow-up after it, so the
+		 * re-read hands the walk [first, newcomer, second]: the follow-up dispatches with first's
+		 * branch as base, and second after it — the insertion is never bypassed.
+		 */
+		const first = uniqueIssue();
+		const second = uniqueIssue();
+		const newcomer = uniqueIssue();
+		let order = [first, second];
+		let registered = false;
+		const dispatched: Array<string> = [];
+		const bases = new Map<string, string>();
+
+		const results = await runSequentialIssues(
+			[first, second],
+			"main",
+			"test-model",
+			"low",
+			"dirac",
+			true,
+			{
+				dispatchIssue: async ({ currentBase, issueNumber }) => {
+					dispatched.push(issueNumber);
+					bases.set(issueNumber, currentBase);
+					if (issueNumber === first && !registered) {
+						registered = true;
+						order = [first, newcomer, second];
+					}
+
+					return {
+						nextBase: issueBranch(issueNumber),
+						result: { issue: issueNumber, status: "ok" },
+						stop: false,
+					};
+				},
+				nextOrder: () => [...order],
+			},
+		);
+
+		assert.deepEqual(dispatched, [first, newcomer, second]);
+		assert.deepEqual(
+			bases.get(newcomer),
+			issueBranch(first),
+			"the follow-up chains the member whose review registered it",
+		);
+		assert.deepEqual(
+			results.map((result) => result.issue),
+			[first, newcomer, second],
+		);
+	});
+
+	test("completed members are reuse-chained inline without forcing a re-read", async () => {
+		/*
+		 * Reused members run no agent, so they cannot change the manifest: the walk continues
+		 * through them in one pass, and the order is consulted exactly once for a reuse-only batch.
+		 */
+		const first = uniqueIssue();
+		let consultations = 0;
+		const dispatched: Array<string> = [];
+
+		const results = await runSequentialIssues(
+			[first],
+			"main",
+			"test-model",
+			"low",
+			"dirac",
+			true,
+			{
+				dispatchIssue: memberStub(dispatched, new Set([first])),
+				nextOrder: () => {
+					consultations += 1;
+					return [first];
+				},
+			},
+		);
+
+		assert.deepEqual(dispatched, [first]);
+		assert.deepEqual(
+			results.map((result) => result.reused),
+			[true],
+		);
+		assert.equal(consultations, 1);
+	});
+
+	test("stops when the batch order no longer contains the member it chained from", async () => {
+		const first = uniqueIssue();
+		const second = uniqueIssue();
+		let order = [first, second];
+		const dispatched: Array<string> = [];
+
+		const results = await runSequentialIssues(
+			[first, second],
+			"main",
+			"test-model",
+			"low",
+			"dirac",
+			true,
+			{
+				dispatchIssue: memberStub(dispatched),
+				nextOrder: () => {
+					// Simulates `queue remove` pulling the dispatched member out mid-run.
+					if (dispatched.length > 0) {
+						order = order.filter((issue) => issue !== first);
+					}
+
+					return [...order];
+				},
+			},
+		);
+
+		assert.deepEqual(dispatched, [first], "the walk stops instead of guessing the chain");
+		assert.deepEqual(
+			results.map((result) => result.issue),
+			[first],
+		);
+	});
+
+	test("--max-issues budget stops the live walk before it overshoots", async () => {
+		const first = uniqueIssue();
+		const second = uniqueIssue();
+		const third = uniqueIssue();
+		const dispatched: Array<string> = [];
+
+		const results = await runSequentialIssues(
+			[first, second, third],
+			"main",
+			"test-model",
+			"low",
+			"dirac",
+			true,
+			{
+				budget: 1,
+				dispatchIssue: memberStub(dispatched),
+				nextOrder: () => [first, second, third],
+			},
+		);
+
+		assert.deepEqual(dispatched, [first], "the batch stops instead of running unbudgeted work");
+		assert.deepEqual(
+			results.map((result) => result.issue),
+			[first],
+		);
+	});
+});
+
+describe("chain rewind guard", () => {
+	/** Stubs a reuse-eligible member whose branch tip is `bbb`, with the accumulated base at `aaa`. */
+	function stubRewindingGit(member: string, baseBranch: string): void {
+		const baseRef = `refs/heads/${baseBranch}^{commit}`;
+		const memberFull = `refs/heads/sandcastle/issue-${member}^{commit}`;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					// The base commit is not an ancestor of the reused tip: the chain rewinds.
+					throw new Error("not an ancestor");
+				}
+
+				if (args[0] === "show-ref") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[2] === baseRef) {
+					return "aaa111122223333444455556666777788889999";
+				}
+
+				if (args[0] === "rev-parse" && args[2] === memberFull) {
+					return "bbb111122223333444455556666777788889999";
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("comments")) {
+					return JSON.stringify({
+						comments: [{ body: "Sandcastle-Review: APPROVED" }],
+					});
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				return "";
+			},
+		});
+	}
+
+	function captureWarn(): { lines: Array<string>; restore: () => void } {
+		const lines: Array<string> = [];
+		const original = console.warn;
+		console.warn = (...args: ReadonlyArray<unknown>) => {
+			lines.push(args.map(String).join(" "));
+		};
+
+		return {
+			lines,
+			restore: (): void => {
+				console.warn = original;
+			},
+		};
+	}
+
+	test("warns and continues when a reused member's branch rewinds the chain", async () => {
+		const member = uniqueIssue();
+		writeState(
+			makeState(member, {
+				commits: ["c1"],
+				design: "done",
+				implement: "done",
+				review: "done",
+			}),
+		);
+		stubRewindingGit(member, "sandcastle/issue-other");
+		const { lines, restore } = captureWarn();
+		const codes = stubExit();
+
+		try {
+			await runSequentialIssues(
+				[member],
+				"sandcastle/issue-other",
+				"m",
+				"low",
+				"dirac",
+				true,
+			);
+
+			assert.deepEqual(codes, [], "a rewind warns by default; it does not fail the run");
+			assert.ok(
+				lines.some((line) => line.includes("rewinds the chain")),
+				"the warning names the rewound base",
+			);
+		} finally {
+			restore();
+			cleanupIssueArtifacts(member);
+		}
+	});
+
+	test("aborts under --strict-chain when a reused member's branch rewinds the chain", async () => {
+		const member = uniqueIssue();
+		writeState(
+			makeState(member, {
+				commits: ["c1"],
+				design: "done",
+				implement: "done",
+				review: "done",
+			}),
+		);
+		stubRewindingGit(member, "sandcastle/issue-other");
+		const codes = stubExit();
+
+		await assert.rejects(
+			async () =>
+				runSequentialIssues([member], "sandcastle/issue-other", "m", "low", "dirac", true, {
+					strictChain: true,
+				}),
+			(err: unknown) => err instanceof ExitError && err.code === 1,
+		);
+
+		cleanupIssueArtifacts(member);
 	});
 });
 

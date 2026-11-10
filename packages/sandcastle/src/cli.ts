@@ -109,6 +109,7 @@ export interface CliOptions {
 	readonly skipSetup?: boolean;
 	readonly status: boolean;
 	readonly steps: Record<AgentPhaseName, ResolvedAgentStep>;
+	readonly strictChain?: boolean;
 	readonly title?: string;
 	readonly worktree?: string;
 }
@@ -226,6 +227,7 @@ interface ParsedArgState {
 	skipSetup: boolean;
 	status: boolean;
 	steps: AgentStepsConfig;
+	strictChain: boolean;
 	title: string | undefined;
 	worktree: string | undefined;
 }
@@ -304,6 +306,7 @@ function createParsedArgState(): ParsedArgState {
 		skipSetup: false,
 		status: false,
 		steps: {},
+		strictChain: false,
 		title: undefined,
 		worktree: undefined,
 	};
@@ -832,6 +835,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--status": (state) => {
 		state.status = true;
 	},
+	"--strict-chain": (state) => {
+		state.strictChain = true;
+	},
 	"--strict-gates": (state) => {
 		state.queueStrictGates = true;
 	},
@@ -1142,6 +1148,10 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error("--continue-anyway only applies to dispatch; use it with `queue run`.");
 		}
 
+		if (state.strictChain === true && state.queueSubcommand !== "run") {
+			throw new Error("--strict-chain only applies to dispatch; use it with `queue run`.");
+		}
+
 		if (state.land === true && state.queueSubcommand !== "run") {
 			throw new Error(
 				"--land composes each dispatched batch; use it with `queue run`, or run `queue land` yourself.",
@@ -1299,6 +1309,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		skipSetup: state.skipSetup,
 		status: state.status,
 		steps,
+		strictChain: state.strictChain,
 		title: state.title,
 		worktree: state.worktree,
 	};

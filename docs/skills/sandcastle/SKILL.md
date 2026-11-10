@@ -140,14 +140,20 @@ never learns about them. When you run any review — a sandcastle phase or a man
    it contradicts, and say whether that ticket is being amended (name the ADR) or the code is
    wrong. Search open issues for the same title shape first; if it already exists, register that
    number instead of filing a second one.
-4. Register it in the same change — `queue add --issue <n> --sequence <batch>` (add `--after <this-issue>` only when this issue is the batch's **last** member, so the follow-up chains this branch next; inserting before a member that already ran leaves that member's branch behind the insertion, and `queue land` refuses a tail that moved), or `--gated
+4. Register it in the same change — `queue add --issue <n> --sequence <batch> --after <this-issue>`
+   (from inside this member's worktree, `--after` anchors only at your own issue, so the follow-up
+   chains this branch next; `queue run` re-reads the batch order before each member, so the
+   follow-up dispatches the moment this member's review finishes — inside the same invocation.
+   Anchoring at any other member from a worktree is refused, and an insertion ahead of a member
+   that already completed is refused everywhere: that member is reuse-chained on its
+   pre-insertion branch and would silently bypass the newcomer. Omitting `--after` appends to the
+   tail, which is always safe), or `--gated
 --reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
    Prefer continuing a running batch over parking the work: `--sequence <that batch>` appends the
-   follow-up to its tail, and `queue run` re-fires the batch, skips the members that already passed
-   review, and chains their branch as the new member's base, so the follow-up continues inside the
-   same invocation. `--after <this-issue>` places it mid-batch instead of at the tail, which is what
-   you want only when this issue is the batch's last member; otherwise the append goes to the
-   tail. A tail growing faster than the head is work being discovered rather than sliced: when a
+   follow-up to its tail, and `queue run` picks the member up live — skipping the members that
+   already passed review and chaining their branch as the new member's base — so the follow-up
+   continues inside the same invocation. A tail growing faster than the head is work being
+   discovered rather than sliced: when a
    finding is more than a review-sized change and touches a module the issue never named, prefer
    `--gated` over appending it. The new issue must already carry
    `ready-for-agent`: a member without it reads GATED, and the run stops and names the batch rather

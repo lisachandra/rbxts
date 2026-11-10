@@ -332,3 +332,30 @@ export function issueBranch(issueNumber: string | number): string {
 
 	return `sandcastle/issue-${issueStr}`;
 }
+
+/**
+ * - Whether `commit` is an ancestor of `ref` — i.e. `ref` contains the commit.
+ * - @param commit - Commit expected to be reachable from `ref`.
+ * - @param ref - Ref or commit to walk from.
+ * - @param cwd - Directory to inspect; defaults to the repository root.
+ * - @returns True when `merge-base --is-ancestor` succeeds; false when it fails or git errors.
+ * - @remarks The git exit status is the answer, mirroring the gate check in `queue/gates.ts`.
+ */
+export function isAncestor(commit: string, ref: string, cwd = repoRoot): boolean {
+	return gitTry(["merge-base", "--is-ancestor", commit, ref], cwd) !== undefined;
+}
+
+/**
+ * - The member issue whose worktree the process runs in, when any.
+ * - @param cwd - Directory whose checked-out branch is inspected; defaults to the process working
+ *   directory.
+ * - @returns The issue number when the checked-out branch is `sandcastle/issue-<n>`, else
+ *   `undefined`.
+ * - @remarks The queue reads this to scope agent registrations: a review running inside a member
+ *   worktree may anchor `--after` only at its own issue. Any other checkout — the primary one or an
+ *   integration worktree — returns `undefined`, which leaves the placement unrestricted.
+ */
+export function currentSandcastleIssue(cwd = repoRoot): string | undefined {
+	const branch = gitTry(["branch", "--show-current"], cwd);
+	return /^sandcastle\/issue-(\d+)$/u.exec(branch ?? "")?.[1];
+}

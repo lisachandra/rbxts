@@ -59,15 +59,39 @@ function written(): QueueManifest {
 }
 
 describe("queue ops", () => {
-	test("runQueueAdd refuses an insertion ahead of an already-dispatched member", () => {
+	/** Stubs the checkout so `currentSandcastleIssue` resolves to the given member, if any. */
+	function stubMemberWorktree(issue: string | undefined): void {
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			const argv = Array.isArray(args) ? args.map(String) : [];
+			if (command === "git" && argv[0] === "branch" && argv[1] === "--show-current") {
+				return issue === undefined ? "main" : `sandcastle/issue-${issue}`;
+			}
+
+			if (command === "git" && argv[0] === "rev-parse") {
+				return join(primary, ".git");
+			}
+
+			throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
+		}) as typeof io.execFileSync;
+	}
+
+	test("runQueueAdd refuses an insertion ahead of a completed member", () => {
 		const anchor = uniqueIssue();
-		const dispatched = uniqueIssue();
+		const completed = uniqueIssue();
 		const newcomer = uniqueIssue();
 		const output = stage({
 			...emptyQueueManifest(),
-			sequences: [{ issues: [anchor, dispatched], name: "progression-work" }],
+			sequences: [{ issues: [anchor, completed], name: "progression-work" }],
 		});
-		writeState(makeState(dispatched));
+		// Complete: the dispatcher reuse-chains this member's pre-insertion branch, bypassing the newcomer.
+		writeState(
+			makeState(completed, {
+				commits: ["abc"],
+				design: "done",
+				implement: "done",
+				review: "done",
+			}),
+		);
 
 		try {
 			assert.throws(() => {
@@ -83,13 +107,115 @@ describe("queue ops", () => {
 						anchor,
 					]),
 				);
-			}, /already been dispatched/u);
+			}, /already completed/u);
 
 			// The refusal aborts the transaction: the manifest on disk is unchanged.
-			assert.deepEqual(written().sequences[0]?.issues, [anchor, dispatched]);
+			assert.deepEqual(written().sequences[0]?.issues, [anchor, completed]);
 		} finally {
 			output.done();
-			cleanupIssueArtifacts(dispatched);
+			cleanupIssueArtifacts(completed);
+		}
+	});
+
+	test("runQueueAdd allows inserting ahead of a dispatched-but-incomplete member", () => {
+		/*
+		 * Live dispatch re-reads the batch order before each member, so the insertion dispatches in
+		 * the same run — what a review registering a follow-up after its own in-flight issue needs.
+		 */
+		const anchor = uniqueIssue();
+		const inFlight = uniqueIssue();
+		const newcomer = uniqueIssue();
+		const output = stage({
+			...emptyQueueManifest(),
+			sequences: [{ issues: [anchor, inFlight], name: "progression-work" }],
+		});
+		// A state file exists (dispatched), but the phases are unfinished — not reuse-eligible.
+		writeState(makeState(inFlight));
+
+		try {
+			runQueueAdd(
+				parseArgs([
+					"queue",
+					"add",
+					"--issue",
+					newcomer,
+					"--sequence",
+					"progression-work",
+					"--after",
+					anchor,
+				]),
+			);
+
+			assert.deepEqual(written().sequences[0]?.issues, [anchor, newcomer, inFlight]);
+		} finally {
+			output.done();
+			cleanupIssueArtifacts(inFlight);
+		}
+	});
+
+	test("runQueueAdd refuses an agent anchoring --after at a member that is not its own", () => {
+		const anchor = uniqueIssue();
+		const own = uniqueIssue();
+		const newcomer = uniqueIssue();
+		const output = stage({
+			...emptyQueueManifest(),
+			sequences: [{ issues: [anchor, own], name: "progression-work" }],
+		});
+		stubMemberWorktree(own);
+
+		try {
+			assert.throws(
+				() => {
+					runQueueAdd(
+						parseArgs([
+							"queue",
+							"add",
+							"--issue",
+							newcomer,
+							"--sequence",
+							"progression-work",
+							"--after",
+							anchor,
+						]),
+					);
+				},
+				new RegExp(`not your own issue \\(#${own}\\)`, "u"),
+			);
+
+			// The refusal happens before the transaction: the manifest on disk is unchanged.
+			assert.deepEqual(written().sequences[0]?.issues, [anchor, own]);
+		} finally {
+			output.done();
+		}
+	});
+
+	test("runQueueAdd allows an agent anchoring --after at its own issue", () => {
+		const own = uniqueIssue();
+		const newcomer = uniqueIssue();
+		const output = stage({
+			...emptyQueueManifest(),
+			sequences: [{ issues: [own], name: "progression-work" }],
+		});
+		stubMemberWorktree(own);
+
+		try {
+			runQueueAdd(
+				parseArgs([
+					"queue",
+					"add",
+					"--issue",
+					newcomer,
+					"--sequence",
+					"progression-work",
+					"--after",
+					own,
+				]),
+			);
+
+			assert.deepEqual(written().sequences[0]?.issues, [own, newcomer]);
+			assert.ok(output.lines.some((line) => line.includes(`#${newcomer}`)));
+		} finally {
+			output.done();
 		}
 	});
 

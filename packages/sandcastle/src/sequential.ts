@@ -12,6 +12,7 @@ import {
 	dirtyPaths,
 	ensureLocalBranch,
 	git,
+	isAncestor,
 	issueBranch,
 } from "./git.js";
 import { runSingleIssue } from "./issue.js";
@@ -21,17 +22,66 @@ import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js
 import type { EmitLine } from "./worktree.js";
 import { pushThenRemoveWorktree } from "./worktree.js";
 
-interface SequentialIssueResult {
+export interface SequentialIssueResult {
 	error?: string;
 	issue: string;
+	/** True when the member was reuse-skipped (complete + APPROVED) rather than dispatched. */
+	reused?: boolean;
 	status: "ok" | "failed" | "blocked";
 }
 
+/** What one member's dispatch produced, shared by the runner and its test seam. */
+export interface DispatchIssueResult {
+	nextBase: string;
+	result: SequentialIssueResult;
+	stop: boolean;
+}
+
+/** One member's dispatch parameters, shared by the runner and its test seam. */
+export interface SequentialIssueParams {
+	agentBackend: AgentBackend;
+	currentBase: string;
+	effort: string;
+	emit?: EmitLine;
+	ignoreSetup?: boolean;
+	index: number;
+	isLast: boolean;
+	issueNumber: string;
+	model: string;
+	pushAndDelete: boolean;
+	resume: boolean;
+	setupOutput?: SetupOutput;
+	skipSetup?: boolean;
+	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
+	strictChain?: boolean;
+	total: number;
+	worktree?: string;
+}
+
+/** Per-member processing seam: production runs the phase pipeline, tests stub it. */
+export type DispatchIssue = (params: SequentialIssueParams) => Promise<DispatchIssueResult>;
+
 /** Trailing options for a sequential run, kept off the positional list it outgrew. */
 export interface SequentialIssueOptions {
+	/**
+	 * Remaining `--max-issues` budget for this batch. The live walk stops before it dispatches a
+	 * member that would overshoot: the chain stays atomic, and a batch that grew members mid-run
+	 * stops instead of running work nobody budgeted.
+	 */
+	budget?: number;
+	/** Per-member processing; production runs the phase pipeline, tests inject a stub. */
+	dispatchIssue?: DispatchIssue;
 	/** Emits setup progress lines; `--json` callers pass a stderr sink. */
 	emit?: EmitLine;
 	ignoreSetup?: boolean;
+	/**
+	 * Live dispatch: the member order is re-read through this after every dispatched member, and
+	 * the walk resumes from the last processed member. A follow-up a review registers into the
+	 * batch mid-run is then picked up immediately, chained from the member whose review filed it —
+	 * not on a re-fire replay, where the reuse path would chain past the insertion. Omitted by the
+	 * direct `issue-sequence` command, whose explicit list is the intent.
+	 */
+	nextOrder?: () => undefined | Array<string>;
 	/**
 	 * Push each member's branch and remove its worktree as soon as the member finishes.
 	 *
@@ -45,6 +95,8 @@ export interface SequentialIssueOptions {
 	setupOutput?: SetupOutput;
 	skipSetup?: boolean;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
+	/** Abort instead of warn when a reused member's branch does not contain the accumulated base. */
+	strictChain?: boolean;
 	worktree?: string;
 }
 
@@ -150,26 +202,10 @@ async function processSequentialIssue({
 	setupOutput,
 	skipSetup,
 	steps,
+	strictChain,
 	total,
 	worktree,
-}: {
-	agentBackend: AgentBackend;
-	currentBase: string;
-	effort: string;
-	emit?: EmitLine;
-	ignoreSetup?: boolean;
-	index: number;
-	isLast: boolean;
-	issueNumber: string;
-	model: string;
-	pushAndDelete: boolean;
-	resume: boolean;
-	setupOutput?: SetupOutput;
-	skipSetup?: boolean;
-	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
-	total: number;
-	worktree?: string;
-}): Promise<{ nextBase: string; result: SequentialIssueResult; stop: boolean }> {
+}: SequentialIssueParams): Promise<DispatchIssueResult> {
 	console.log(`\n[${index + 1}/${total}] Processing issue #${issueNumber}...`);
 
 	const fallbackBranch = issueBranch(issueNumber);
@@ -202,6 +238,39 @@ async function processSequentialIssue({
 					restored ? " Restored it from origin." : ""
 				}`,
 			);
+
+			/*
+			 * Chain rewind guard: reusing a member whose branch does not contain the accumulated base
+			 * means a member was inserted ahead of already-run ones and the run never picked it up —
+			 * chaining this branch as the next base silently rewinds past that insertion, and every
+			 * later member builds without it. Live dispatch picks follow-ups up before this point, so
+			 * reaching it means the order already shipped that way: warn by default (the composition
+			 * still merges every branch in run order, and `queue check` names the break as drift),
+			 * abort under --strict-chain.
+			 */
+			const baseTip = currentBase.startsWith("sandcastle/")
+				? branchTip(currentBase)?.commit
+				: undefined;
+			if (
+				baseTip !== undefined &&
+				baseTip !== tip.commit &&
+				!isAncestor(baseTip, tip.commit)
+			) {
+				const message =
+					`Reusing ${branchName} for #${issueNumber} rewinds the chain: it does not contain ` +
+					`${currentBase}, so later members build without the member inserted ahead of this one.`;
+				if (strictChain === true) {
+					console.error(`   ✗ ${message}`);
+					return {
+						nextBase: currentBase,
+						result: { error: message, issue: issueNumber, status: "failed" },
+						stop: true,
+					};
+				}
+
+				console.warn(`   ⚠ ${message}`);
+			}
+
 			const nextBase = !isLast ? branchName : currentBase;
 			if (!isLast) {
 				console.log(`   Next base will be: ${nextBase}`);
@@ -209,7 +278,7 @@ async function processSequentialIssue({
 
 			return {
 				nextBase,
-				result: { issue: issueNumber, status: "ok" },
+				result: { issue: issueNumber, reused: true, status: "ok" },
 				stop: false,
 			};
 		}
@@ -274,9 +343,15 @@ async function processSequentialIssue({
 }
 
 /**
- * Runs multiple issues sequentially, chaining each completed branch as the next base.
- *
- * @rejects {Error} When sequential issue processing fails or is blocked.
+ * - Runs issues serially, chaining each completed branch as the next base.
+ * - @returns Every member processed, in order — reused members included, each marked `reused`.
+ * - @param issueNumbers - Members to run, in order; with {@link SequentialIssueOptions.nextOrder}
+ *   this is the fire-time order, and the live walk may run members that joined the batch since.
+ * - @rejects {Error} When sequential issue processing fails or is blocked.
+ * - @remarks With `nextOrder` the batch runs **live**: the order is re-read after every dispatched
+ *   member and the walk resumes from the last processed one, so a follow-up a review registers
+ *   mid-run dispatches next with the reviewed member's branch as its base. Without it the explicit
+ *   list is the intent, and the frozen order runs as-is.
  */
 export async function runSequentialIssues(
 	issueNumbers: Array<string>,
@@ -286,58 +361,151 @@ export async function runSequentialIssues(
 	agentBackend: AgentBackend,
 	resume: boolean,
 	options: SequentialIssueOptions = {},
-): Promise<void> {
+): Promise<Array<SequentialIssueResult>> {
 	if (issueNumbers.length === 0) {
 		throw new Error("At least one issue number is required for sequential workflow");
 	}
 
 	const {
+		budget,
+		dispatchIssue = processSequentialIssue,
 		emit,
 		ignoreSetup,
+		nextOrder,
 		pushAndDelete = false,
 		setupOutput,
 		skipSetup,
 		steps,
+		strictChain,
 		worktree,
 	} = options;
 	console.log(`\n${"=".repeat(80)}`);
 	console.log("Sequential Issue Workflow");
 	console.log("=".repeat(80));
-	console.log(`Issues: ${issueNumbers.join(" → ")}`);
+	console.log(
+		`Issues: ${issueNumbers.join(" → ")}${
+			nextOrder === undefined ? "" : " (live: the order is re-read before each member)"
+		}`,
+	);
 	console.log(`Base: ${baseRef}`);
 	console.log(`${"=".repeat(80)}\n`);
 
 	const results: Array<SequentialIssueResult> = [];
 	let currentBase = baseRef;
 
-	for (let index = 0; index < issueNumbers.length; index++) {
-		const issueNumber = issueNumbers[index];
-		if (issueNumber === undefined) {
-			continue;
-		}
+	if (nextOrder === undefined) {
+		for (let index = 0; index < issueNumbers.length; index++) {
+			const issueNumber = issueNumbers[index];
+			if (issueNumber === undefined) {
+				continue;
+			}
 
-		const processed = await processSequentialIssue({
-			agentBackend,
-			currentBase,
-			effort,
-			...(emit !== undefined ? { emit } : {}),
-			ignoreSetup,
-			index,
-			isLast: index === issueNumbers.length - 1,
-			issueNumber,
-			model,
-			pushAndDelete,
-			resume,
-			setupOutput,
-			skipSetup,
-			...(steps ? { steps } : {}),
-			total: issueNumbers.length,
-			worktree,
-		});
-		results.push(processed.result);
-		currentBase = processed.nextBase;
-		if (processed.stop) {
-			break;
+			const processed = await dispatchIssue({
+				agentBackend,
+				currentBase,
+				effort,
+				...(emit !== undefined ? { emit } : {}),
+				ignoreSetup,
+				index,
+				isLast: index === issueNumbers.length - 1,
+				issueNumber,
+				model,
+				pushAndDelete,
+				resume,
+				setupOutput,
+				skipSetup,
+				...(steps ? { steps } : {}),
+				...(strictChain !== undefined ? { strictChain } : {}),
+				total: issueNumbers.length,
+				worktree,
+			});
+			results.push(processed.result);
+			currentBase = processed.nextBase;
+			if (processed.stop) {
+				break;
+			}
+		}
+	} else {
+		/*
+		 * Live dispatch. The cursor is the last processed member; each pass re-reads the order,
+		 * reuse-chains every completed member it meets, and dispatches the first pending one — then
+		 * re-reads again, because that member's review may have registered a follow-up into this
+		 * batch. Reused members run no agent, so they cannot change the manifest and the walk
+		 * continues through them in one pass.
+		 */
+		let cursor: string | undefined;
+		let done = false;
+		let newDispatches = 0;
+		while (!done) {
+			const order = nextOrder();
+			if (order === undefined || (cursor !== undefined && !order.includes(cursor))) {
+				console.warn(
+					`   ⚠ Batch order no longer contains #${cursor ?? "any member"}; stopping the workflow.`,
+				);
+				break;
+			}
+
+			const start = cursor === undefined ? 0 : order.indexOf(cursor) + 1;
+			let dispatchedNew = false;
+			for (let index = start; index < order.length; index++) {
+				const issueNumber = order[index];
+				if (issueNumber === undefined) {
+					continue;
+				}
+
+				const processed = await dispatchIssue({
+					agentBackend,
+					currentBase,
+					effort,
+					...(emit !== undefined ? { emit } : {}),
+					ignoreSetup,
+					index,
+					isLast: false,
+					issueNumber,
+					model,
+					pushAndDelete,
+					resume,
+					setupOutput,
+					skipSetup,
+					...(steps ? { steps } : {}),
+					...(strictChain !== undefined ? { strictChain } : {}),
+					total: order.length,
+					worktree,
+				});
+				results.push(processed.result);
+				currentBase = processed.nextBase;
+				cursor = issueNumber;
+				if (processed.stop) {
+					done = true;
+					break;
+				}
+
+				if (processed.result.reused === true) {
+					continue;
+				}
+
+				newDispatches += 1;
+				if (budget !== undefined && newDispatches >= budget) {
+					console.log(
+						`   ⏹ --max-issues budget (${String(budget)}) spent; the batch may have grown ` +
+							"mid-run. Re-run to continue it.",
+					);
+					done = true;
+					break;
+				}
+
+				/*
+				 * A dispatched member's review may have registered a follow-up into this batch:
+				 * re-read the order before choosing the next member, so the follow-up dispatches
+				 * next, chained from this member's branch.
+				 */
+				dispatchedNew = true;
+				break;
+			}
+
+			if (!dispatchedNew) {
+				done = true;
+			}
 		}
 	}
 
@@ -345,4 +513,6 @@ export async function runSequentialIssues(
 	if (summary.blocked > 0 || summary.failed > 0) {
 		io.exit(1);
 	}
+
+	return results;
 }
