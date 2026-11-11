@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	test: {
 		environment: "node",
+		hookTimeout: 30_000,
 		/*
 		 * Explicit, so vitest never picks up compiled copies under `dist/` or fixtures elsewhere in
 		 * the repository: the suite lives beside the source it tests.
@@ -14,6 +15,5 @@ export default defineConfig({
 		 * instead of tripping vitest's 5s default.
 		 */
 		testTimeout: 120_000,
-		hookTimeout: 30_000,
 	},
 });

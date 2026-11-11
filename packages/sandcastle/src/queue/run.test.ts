@@ -315,9 +315,11 @@ describe("queue run dispatch", () => {
 		});
 
 		assert.deepEqual(result.calls, [{ issues: ["5", "6"], resume: true }]);
-		// The members are placed and ready, so GitHub contributes no drift: the one item is the chain
-		// break. The warn path prints the summary only — the individual line is named by queue check,
-		// and the --require-clean test below asserts it is in the drift list.
+		/*
+		 * The members are placed and ready, so GitHub contributes no drift: the one item is the chain
+		 * break. The warn path prints the summary only — the individual line is named by queue check,
+		 * and the --require-clean test below asserts it is in the drift list.
+		 */
 		assert.match(result.output, /1 drift item/u);
 	});
 

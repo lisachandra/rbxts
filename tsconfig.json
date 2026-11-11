@@ -38,6 +38,9 @@
 			"path": "test/matter"
 		},
 		{
+			"path": "test/platform"
+		},
+		{
 			"path": "test/react-router"
 		},
 		{

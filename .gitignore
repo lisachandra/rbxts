@@ -20,6 +20,9 @@ node_modules
 out/
 /dist
 /build
+# Generated `<Service>.rbxm` scaffolds live in `<project>/build/ui-templates`
+# (see scripts/emulator/scaffold.mjs); the rule above is root-anchored.
+build/
 coverage/
 .jest-roblox/
 game-output.log
@@ -29,6 +32,9 @@ jest-output.log
 jest.shared.d.ts
 sourcemap.json
 flamework.build
+# sloptor's per-project incremental cache
+.rotor/
+.cache/
 
 # Roblox place files
 *.rbxl

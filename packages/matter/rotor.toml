@@ -1,0 +1,12 @@
+#:schema https://raw.githubusercontent.com/howmanyslop/sloptor/main/rotor.schema.json
+
+[flamework]
+# Native Flamework replaces the rbxts-transformer-flamework plugin, which was
+# removed from tsconfig.json. Both at once would be wrong: sloptor rejects the
+# pair outright ("[flamework] cannot be combined with the legacy
+# rbxts-transformer-flamework plugin").
+#
+# The section is also what keeps the plugin pipeline alive at all. This file is
+# not redundant with tsconfig.json: with no `[flamework]` section sloptor runs
+# NO plugins and still exits 0, so the failure is silent and only the test lane
+# catches it.

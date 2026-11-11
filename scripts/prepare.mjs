@@ -7,25 +7,25 @@ const CANONICAL_REPO_FRAGMENT = "lisachandra/rbxts";
 const PREPARE_LOCKFILE = ".prepare-build.lock";
 
 const scriptPath = fileURLToPath(import.meta.url);
-const scriptDir = path.dirname(scriptPath);
-const repoRoot = path.dirname(scriptDir);
+const scriptDirectory = path.dirname(scriptPath);
+const repoRoot = path.dirname(scriptDirectory);
 const prepareLockPath = path.join(repoRoot, PREPARE_LOCKFILE);
 
-function findGitConfig(startDir) {
-	let currentDir = startDir;
+function findGitConfig(startDirectory) {
+	let currentDirectory = startDirectory;
 
 	while (true) {
-		const gitConfigPath = path.join(currentDir, ".git", "config");
+		const gitConfigPath = path.join(currentDirectory, ".git", "config");
 		if (existsSync(gitConfigPath)) {
 			return gitConfigPath;
 		}
 
-		const parentDir = path.dirname(currentDir);
-		if (parentDir === currentDir) {
+		const parentDirectory = path.dirname(currentDirectory);
+		if (parentDirectory === currentDirectory) {
 			return undefined;
 		}
 
-		currentDir = parentDir;
+		currentDirectory = parentDirectory;
 	}
 }
 

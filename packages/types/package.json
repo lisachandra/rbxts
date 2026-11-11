@@ -41,13 +41,12 @@
 		"registry": "https://registry.npmjs.org/"
 	},
 	"scripts": {
-		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
-		"dev": "rbxtsc --watch --allowCommentDirectives",
-		"clean": "shx rm -rf out flamework.build .jest-roblox",
+		"build": "shx rm -rf out && sloptor build --type package --no-include --verbose --allowCommentDirectives",
+		"dev": "sloptor build --type package --no-include --watch --allowCommentDirectives",
+		"clean": "shx rm -rf out flamework.build .jest-roblox .rotor",
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
-		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@rbxts/compiler-types": "catalog:",
 		"@rbxts/matter": "catalog:",

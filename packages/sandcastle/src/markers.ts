@@ -78,7 +78,7 @@ export function resolvePhaseBudgetMs(): number {
  * the retry then resumes the captured agent session.
  */
 export class PhaseBudgetError extends Error {
-	override name = "PhaseBudgetError";
+	public override name = "PhaseBudgetError";
 
 	constructor(minutes: number) {
 		super(

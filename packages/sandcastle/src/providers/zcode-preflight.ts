@@ -39,11 +39,7 @@ const ZCODE_EFFORT_LEVELS: ReadonlySet<string> = new Set(["high", "low", "max"])
 
 /** Raised when the configured model/effort cannot be valid for this zcode install. */
 export class ZcodePreflightError extends Error {
-	override name = "ZcodePreflightError";
-
-	constructor(message: string) {
-		super(message);
-	}
+	public override name = "ZcodePreflightError";
 }
 
 /** `access` block of an `account:*` provider rule from a zcode provider config. */

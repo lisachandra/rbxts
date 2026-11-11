@@ -5,24 +5,27 @@
 		"$className": "DataModel",
 		"ReplicatedStorage": {
 			"$className": "ReplicatedStorage",
-			"react-template:tests": {
-				"$path": "out"
-			},
-			"rbxts_include": {
+			"TS": {
 				"$className": "Folder",
-				"node_modules": {
+				"tests": {
+					"$path": "out"
+				},
+				"rbxts_include": {
 					"$className": "Folder",
-					"@lisachandra": {
-						"$path": "node_modules/@lisachandra",
-						"react-template": {
-							"$path": "../../packages/react-template/out"
+					"node_modules": {
+						"$className": "Folder",
+						"@lisachandra": {
+							"$path": "node_modules/@lisachandra",
+							"react-template": {
+								"$path": "../../packages/react-template/out"
+							}
+						},
+						"@rbxts-js": {
+							"$path": "node_modules/@rbxts-js"
+						},
+						"@rbxts": {
+							"$path": "node_modules/@rbxts"
 						}
-					},
-					"@rbxts-js": {
-						"$path": "node_modules/@rbxts-js"
-					},
-					"@rbxts": {
-						"$path": "node_modules/@rbxts"
 					}
 				}
 			}

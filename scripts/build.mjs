@@ -4,9 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
+const rootDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function parseArgs(argv) {
 	const options = {
@@ -19,12 +17,14 @@ function parseArgs(argv) {
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index];
 		if (argument === "--scope") {
-			options.scope = argv[++index] ?? options.scope;
+			index += 1;
+			options.scope = argv[index] ?? options.scope;
 			continue;
 		}
 
 		if (argument === "--target") {
-			options.target = argv[++index];
+			index += 1;
+			options.target = argv[index];
 			continue;
 		}
 
@@ -35,7 +35,6 @@ function parseArgs(argv) {
 
 		if (argument === "--verbose") {
 			options.verbose = true;
-			continue;
 		}
 	}
 
@@ -54,7 +53,7 @@ function runCommand(command, args, options = {}) {
 	if (options.dryRun) {return;}
 
 	execFileSync(command, args, {
-		cwd: rootDir,
+		cwd: rootDirectory,
 		env: process.env,
 		stdio: "inherit",
 	});
@@ -62,7 +61,7 @@ function runCommand(command, args, options = {}) {
 
 function runCommandForOutput(command, args) {
 	return execFileSync(command, args, {
-		cwd: rootDir,
+		cwd: rootDirectory,
 		encoding: "utf8",
 		env: process.env,
 		stdio: ["ignore", "pipe", "pipe"],
@@ -70,7 +69,7 @@ function runCommandForOutput(command, args) {
 }
 
 function normalizePath(targetPath) {
-	return path.relative(rootDir, targetPath).replace(/\\/gu, "/");
+	return path.relative(rootDirectory, targetPath).replace(/\\/gu, "/");
 }
 
 function collectDependencyNames(packageJson) {
@@ -178,9 +177,9 @@ function buildDependentsMap(selectedNames, workspaceMap) {
 		if (!workspace) {continue;}
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
-			if (!selectedNames.has(dependencyName)) {continue;}
-
-			dependentsMap.get(dependencyName)?.add(packageName);
+			if (selectedNames.has(dependencyName)) {
+				dependentsMap.get(dependencyName)?.add(packageName);
+			}
 		}
 	}
 
@@ -200,9 +199,9 @@ function buildLayers(selectedNames, workspaceMap) {
 		if (!workspace) {continue;}
 
 		for (const dependencyName of collectDependencyNames(workspace.packageJson)) {
-			if (!selectedNames.has(dependencyName)) {continue;}
-
-			indegree.set(packageName, (indegree.get(packageName) ?? 0) + 1);
+			if (selectedNames.has(dependencyName)) {
+				indegree.set(packageName, (indegree.get(packageName) ?? 0) + 1);
+			}
 		}
 	}
 
@@ -219,7 +218,8 @@ function buildLayers(selectedNames, workspaceMap) {
 
 		for (const packageName of currentLayer) {
 			processedCount++;
-			for (const dependentName of dependents.get(packageName) ?? []) {
+			const dependentNames = dependents.get(packageName) ?? [];
+			for (const dependentName of dependentNames) {
 				const nextDegree = (indegree.get(dependentName) ?? 0) - 1;
 				indegree.set(dependentName, nextDegree);
 				if (nextDegree === 0) {
@@ -243,7 +243,8 @@ function formatPackageList(packageNames) {
 function collectRelinkTargets(changedPackages, dependentsMap, selectedNames) {
 	const targets = new Set();
 	for (const packageName of changedPackages) {
-		for (const dependentName of dependentsMap.get(packageName) ?? []) {
+		const dependentNames = dependentsMap.get(packageName) ?? [];
+		for (const dependentName of dependentNames) {
 			if (selectedNames.has(dependentName)) {
 				targets.add(dependentName);
 			}

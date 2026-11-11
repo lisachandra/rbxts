@@ -850,16 +850,18 @@ export async function runAll(
 									logging: {
 										type: "file",
 										onAgentStreamEvent: (event: AgentStreamEvent): void => {
-											if (event.type === "raw") {
-												capture.onStreamLine(event.line);
-												const sessionId = capture.sessionId();
-												if (sessionId !== undefined) {
-													// Write-through: durable before the first turn completes.
-													saveSession("planner", {
-														backend: plannerStep.agentBackend,
-														sessionId,
-													});
-												}
+											if (event.type !== "raw") {
+												return;
+											}
+
+											capture.onStreamLine(event.line);
+											const sessionId = capture.sessionId();
+											if (sessionId !== undefined) {
+												// Write-through: durable before the first turn completes.
+												saveSession("planner", {
+													backend: plannerStep.agentBackend,
+													sessionId,
+												});
 											}
 										},
 										path: pathResolve(logsDir, "planner.log"),

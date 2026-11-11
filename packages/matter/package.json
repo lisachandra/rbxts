@@ -123,14 +123,13 @@
 		"registry": "https://registry.npmjs.org/"
 	},
 	"scripts": {
-		"build": "shx rm -rf out && rbxtsc --verbose --allowCommentDirectives",
-		"dev": "rbxtsc --watch --allowCommentDirectives",
-		"clean": "shx rm -rf out flamework.build",
+		"build": "shx rm -rf out && sloptor build --type package --no-include --verbose --allowCommentDirectives",
+		"dev": "sloptor build --type package --no-include --watch --allowCommentDirectives",
+		"clean": "shx rm -rf out flamework.build .rotor",
 		"prepare": "node ../../scripts/prepare.mjs"
 	},
 	"devDependencies": {
 		"@flamework/core": "catalog:",
-		"@isentinel/roblox-ts": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@lisachandra/constant": "catalog:",
 		"@lisachandra/core": "workspace:*",

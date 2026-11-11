@@ -343,15 +343,17 @@ async function processSequentialIssue({
 }
 
 /**
- * - Runs issues serially, chaining each completed branch as the next base.
- * - @returns Every member processed, in order — reused members included, each marked `reused`.
- * - @param issueNumbers - Members to run, in order; with {@link SequentialIssueOptions.nextOrder}
+ * Runs issues serially, chaining each completed branch as the next base.
+ *
+ * @remarks
+ *   With `nextOrder` the batch runs **live**: the order is re-read after every dispatched member
+ *   and the walk resumes from the last processed one, so a follow-up a review registers mid-run
+ *   dispatches next with the reviewed member's branch as its base. Without it the explicit list is
+ *   the intent, and the frozen order runs as-is.
+ * @param issueNumbers - Members to run, in order; with {@link SequentialIssueOptions.nextOrder}
  *   this is the fire-time order, and the live walk may run members that joined the batch since.
- * - @rejects {Error} When sequential issue processing fails or is blocked.
- * - @remarks With `nextOrder` the batch runs **live**: the order is re-read after every dispatched
- *   member and the walk resumes from the last processed one, so a follow-up a review registers
- *   mid-run dispatches next with the reviewed member's branch as its base. Without it the explicit
- *   list is the intent, and the frozen order runs as-is.
+ * @returns Every member processed, in order — reused members included, each marked `reused`.
+ * @rejects {Error} When sequential issue processing fails or is blocked.
  */
 export async function runSequentialIssues(
 	issueNumbers: Array<string>,

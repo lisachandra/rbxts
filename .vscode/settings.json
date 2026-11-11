@@ -1,6 +1,6 @@
 {
-	"js/ts.experimental.useTsgo": true,
-	"js/ts.tsdk.path": "./node_modules/@typescript/native-preview",
+	"js/ts.experimental.useTsgo": false,
+	"js/ts.tsdk.path": "node_modules/typescript/lib",
 	"js/ts.tsdk.promptToUseWorkspaceVersion": true,
 	"files.eol": "\n",
 	"roblox-ts.command.npm.useNpmScripts": true,

@@ -434,8 +434,8 @@ describe("live dispatch", () => {
 describe("chain rewind guard", () => {
 	/** Stubs a reuse-eligible member whose branch tip is `bbb`, with the accumulated base at `aaa`. */
 	function stubRewindingGit(member: string, baseBranch: string): void {
-		const baseRef = `refs/heads/${baseBranch}^{commit}`;
-		const memberFull = `refs/heads/sandcastle/issue-${member}^{commit}`;
+		const baseRef = `refs/heads/${baseBranch}^\{commit\}`;
+		const memberFull = `refs/heads/sandcastle/issue-${member}^\{commit\}`;
 		gitStub({
 			file: (args) => {
 				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
@@ -538,7 +538,7 @@ describe("chain rewind guard", () => {
 			}),
 		);
 		stubRewindingGit(member, "sandcastle/issue-other");
-		const codes = stubExit();
+		stubExit();
 
 		await assert.rejects(
 			async () =>
