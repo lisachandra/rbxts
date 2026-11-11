@@ -22,12 +22,19 @@ env:
 jobs:
   badge:
     needs: [test]
-    if: ${{ needs.test.outputs.test_results != '' && needs.test.outputs.test_results != 'unavailable' }}
+    # Write badges even when the test job failed: a red "tests: failed" badge is
+    # the signal. Gating on success left every badge stuck at "pending" and hid
+    # real breakage.
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     environment:
       name: ci
     env:
-      HAS_GIST: ${{ secrets.GIST_SECRET != '' && vars.BADGE_GIST_ID != '' }}
+      # `secrets` is not available in `if:` expressions, so fold the check into
+      # env and test that instead. Accept either variable name: the workflows
+      # used `BADGE_GIST_ID` while three repos define `CI_BADGE_GIST_ID`.
+      HAS_GIST: ${{ secrets.GIST_SECRET != '' && (vars.BADGE_GIST_ID != '' || vars.CI_BADGE_GIST_ID != '') }}
+      GIST_ID: ${{ vars.BADGE_GIST_ID || vars.CI_BADGE_GIST_ID }}
     steps:
       - name: Bootstrap local actions
         uses: actions/checkout@v7
@@ -41,38 +48,52 @@ jobs:
         name: Checkout
         uses: ./.github/actions/checkout
 
-      - name: Setup
-        uses: ./.github/actions/setup
-        with:
-          ref: ${{ steps.checkout.outputs.ref }}
-
+      # No Setup step: badges read `package.json` and the job result only. A
+      # badge must not depend on the toolchain install that it reports on.
       - id: badge_info
         name: Get Badge Information
         run: |
-          echo "coverage=${{ needs.test.outputs.coverage }}" >> $GITHUB_OUTPUT
-          echo "test_results=${{ needs.test.outputs.test_results }}" >> $GITHUB_OUTPUT
-          # Fetch version
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          # Set test results color
-          if echo "${{ needs.test.outputs.test_results }}" | grep -q "failed"; then
-            echo "test_color=hsl(0, 100%, 40%)" >> $GITHUB_OUTPUT
+          echo "test_results=${{ needs.test.result }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ needs.test.result }}" = "success" ]; then
+            echo "test_color=hsl(120, 100%, 40%)" >> "$GITHUB_OUTPUT"
           else
-            echo "test_color=hsl(120, 100%, 40%)" >> $GITHUB_OUTPUT
+            echo "test_color=hsl(0, 100%, 40%)" >> "$GITHUB_OUTPUT"
+          fi
+
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          COVERAGE="${{ needs.test.outputs.coverage }}"
+          if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "null" ]; then
+            echo "coverage=n/a" >> "$GITHUB_OUTPUT"
+          else
+            echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create Test Coverage Badge
-        if: ${{ env.HAS_GIST == 'true' }}
+        if: ${{ env.HAS_GIST == 'true' && steps.badge_info.outputs.coverage != 'n/a' }}
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           filename: test-coverage-badge.svg
-          gistID: ${{ vars.BADGE_GIST_ID }}
+          gistID: ${{ env.GIST_ID }}
           label: test coverage
           maxColorRange: 100
           message: ${{ steps.badge_info.outputs.coverage }}%
           minColorRange: 0
           valColorRange: ${{ steps.badge_info.outputs.coverage }}
+
+      # Report the gap honestly rather than painting a fake 0%.
+      - name: Create Coverage Unavailable Badge
+        if: ${{ env.HAS_GIST == 'true' && steps.badge_info.outputs.coverage == 'n/a' }}
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          color: lightgrey
+          filename: test-coverage-badge.svg
+          gistID: ${{ env.GIST_ID }}
+          label: test coverage
+          message: n/a
 
       - name: Create Test Results Badge
         if: ${{ env.HAS_GIST == 'true' }}
@@ -81,7 +102,7 @@ jobs:
           auth: ${{ secrets.GIST_SECRET }}
           color: ${{ steps.badge_info.outputs.test_color }}
           filename: test-results-badge.svg
-          gistID: ${{ vars.BADGE_GIST_ID }}
+          gistID: ${{ env.GIST_ID }}
           label: tests
           message: ${{ steps.badge_info.outputs.test_results }}
 
@@ -92,7 +113,7 @@ jobs:
           auth: ${{ secrets.GIST_SECRET }}
           color: blue
           filename: version-badge.svg
-          gistID: ${{ vars.BADGE_GIST_ID }}
+          gistID: ${{ env.GIST_ID }}
           label: version
           message: ${{ steps.badge_info.outputs.version }}
 
@@ -134,7 +155,6 @@ jobs:
       cancel-in-progress: false
     outputs:
       coverage: ${{ steps.extract_coverage.outputs.coverage }}
-      test_results: ${{ steps.extract_test_results.outputs.test_results }}
     steps:
       - name: Bootstrap local actions
         uses: actions/checkout@v7
@@ -161,7 +181,16 @@ jobs:
         run: |
           set -o pipefail
           pnpm install
-          pnpm -r --include-workspace-root --stream --workspace-concurrency=1 test --coverageReporters json-summary --coverageReporters json | tee test_results.txt
+          # No `--include-workspace-root`: the root `test` script is itself a
+          # recursive `pnpm -r test`, so including it would re-enter every
+          # package — including the one excluded below.
+          #
+          # Coverage reporters are a jest-roblox flag. `@lisachandra/sandcastle`
+          # runs vitest, which rejects them outright ("Unknown option
+          # --coverageReporters"), so it runs separately without the flags.
+          pnpm -r --filter '!@lisachandra/sandcastle' --stream --workspace-concurrency=1 \
+            test --coverageReporters json-summary --coverageReporters json | tee test_results.txt
+          pnpm --filter @lisachandra/sandcastle test | tee -a test_results.txt
         env:
           ROBLOX_OPEN_CLOUD_API_KEY: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY }}
           ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
@@ -171,31 +200,11 @@ jobs:
         name: Extract coverage
         run: |
           if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE_SUMMARY=$(cat coverage/coverage-summary.json)
             COVERAGE=$(node -e "const fs=require('fs'); const summary=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')); process.stdout.write(String(summary.total.lines.pct));")
           else
-            COVERAGE_SUMMARY='{}'
-            COVERAGE=0
+            # No summary is not 0% coverage — it means coverage did not run.
+            # Leave it empty so the badge reports n/a instead of a false zero.
+            COVERAGE=""
           fi
-          {
-            echo "coverage=$COVERAGE"
-            echo "coverage_summary<<EOF"
-            echo "$COVERAGE_SUMMARY"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
         shell: bash
-
-      - id: extract_test_results
-        name: Extract Test Results
-        run: |
-          # Extract test results from the report; fall back when the runner output
-          # format changes so the badge still reports the job outcome.
-          if [ -f test_results.txt ]; then
-            TEST_RESULTS=$(grep -oP 'Tests:\s+\K.*' test_results.txt | tail -n 1 || true)
-            if [ -z "$TEST_RESULTS" ]; then
-              TEST_RESULTS="passed"
-            fi
-          else
-            TEST_RESULTS="unavailable"
-          fi
-          echo "test_results=$TEST_RESULTS" >> "$GITHUB_OUTPUT"

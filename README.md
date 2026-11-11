@@ -12,6 +12,14 @@
     <a href="https://www.npmjs.com/org/lisachandra"><img src="https://img.shields.io/badge/npm-@lisachandra-red" alt="npm @lisachandra" /></a>
 </p>
 
+![CI Status][ci-badge] ![Test Results][test-results-badge]
+![Test Coverage][test-coverage-badge] ![Version][version-badge]
+
+[ci-badge]: https://gist.githubusercontent.com/lisachandra/66d8e9d80b221572af8dc4259f96649a/raw/ci-status-badge.svg
+[test-results-badge]: https://gist.githubusercontent.com/lisachandra/66d8e9d80b221572af8dc4259f96649a/raw/test-results-badge.svg
+[test-coverage-badge]: https://gist.githubusercontent.com/lisachandra/66d8e9d80b221572af8dc4259f96649a/raw/test-coverage-badge.svg
+[version-badge]: https://gist.githubusercontent.com/lisachandra/66d8e9d80b221572af8dc4259f96649a/raw/version-badge.svg
+
 ---
 
 `@lisachandra/rbxts` is a **pnpm monorepo** of reusable [roblox-ts](https://roblox-ts.com/) packages. Build once, template everywhere. Each package exposes a stable API surface so games can pull in only what they need.
