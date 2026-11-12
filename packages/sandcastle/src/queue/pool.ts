@@ -53,6 +53,24 @@ export interface LaneRun {
 	profile: string;
 }
 
+/**
+ * One lane's own account of its work, for the completion summary.
+ *
+ * A batch's elapsed time says how long a unit of work took; a lane's says whether a _slot_ was
+ * worth having. Since a lane runs several batches over a pool, the interesting number is the sum of
+ * its batches against the pool's duration — the gap is the time that slot sat empty.
+ */
+export interface LaneSummary {
+	/** Batches this lane ran, in fire order, with the profile each used. */
+	batches: Array<{ batch: string; elapsedMs: number; profile: string }>;
+	/** Milliseconds this lane spent running batches. */
+	busyMs: number;
+	/** Milliseconds this lane was idle: the pool's duration minus its busy time. */
+	idleMs: number;
+	/** Lane index, i.e. the slot. */
+	lane: number;
+}
+
 /** Everything the pool reports back to `runQueueRun`. */
 export interface PoolResult {
 	/** Batches fired, in fire order. */
@@ -75,6 +93,8 @@ export interface PoolResult {
 	idleReasons?: Array<string>;
 	/** Issues committed to a lane, for the caller's budget and `seen` set. */
 	issues: Array<string>;
+	/** Per-slot account of what each lane ran and how much of the pool it was busy for. */
+	lanes?: Array<LaneSummary>;
 	/**
 	 * Milliseconds during which every lane was busy.
 	 *
@@ -282,7 +302,30 @@ export async function runParallelPool(
 		}
 	};
 
+	/** Lanes ever used, so a dry run's lane numbers still count up. */
 	let nextLane = 0;
+	/** Slots currently free; a freed slot is reused before a new one is numbered. */
+	const freeSlots: Array<number> = [];
+
+	/**
+	 * - Reserves a lane slot for a batch.
+	 * - @returns The slot index, reusing the lowest freed one.
+	 * - @remarks A lane is a dispatch _slot_, not an identity: with `--parallel 2` the third batch
+	 *   must run in slot 0 or 1, not in a "slot 3". Numbering every batch afresh would make the
+	 *   lane a batch counter, and a per-lane busy/idle report built on it would describe nothing —
+	 *   which is why #62's utilization summary needs real slots underneath it.
+	 */
+	const takeSlot = (): number => {
+		const reused = freeSlots.shift();
+		if (reused !== undefined) {
+			return reused;
+		}
+
+		const fresh = nextLane;
+		nextLane += 1;
+		return fresh;
+	};
+
 	let stopped = false;
 	let startedAt: number | undefined;
 	let saturatedMs = 0;
@@ -453,8 +496,7 @@ export async function runParallelPool(
 				continue;
 			}
 
-			start(decision.name, nextLane, decision.issues);
-			nextLane += 1;
+			start(decision.name, takeSlot(), decision.issues);
 		}
 
 		/* Nothing in flight: the invocation is over. */
@@ -469,6 +511,8 @@ export async function runParallelPool(
 		 */
 		const finished = await Promise.race([...running.values()].map((lane) => lane.settled));
 		running.delete(finished.lane);
+		freeSlots.push(finished.lane);
+		freeSlots.sort((left, right) => left - right);
 		closeFullStretch();
 
 		if (finished.error === undefined) {
@@ -497,6 +541,7 @@ export async function runParallelPool(
 
 	closeFullStretch();
 	const elapsedMs = startedAt === undefined ? 0 : Date.now() - startedAt;
+	const lanes = summarizeLanes([...completed, ...failures], elapsedMs);
 
 	/* A dry run has no work to summarize: it predicted, it did not run. */
 	if (batches.length > 0 && options.dryRun !== true) {
@@ -507,6 +552,7 @@ export async function runParallelPool(
 			failures,
 			idleReasons,
 			issues: [],
+			lanes,
 			saturatedMs,
 		});
 	}
@@ -518,6 +564,7 @@ export async function runParallelPool(
 		failures,
 		idleReasons,
 		issues: [...reserved],
+		lanes,
 		saturatedMs,
 	};
 }
@@ -532,12 +579,40 @@ function reportExhausted(options: CliOptions, reason: string): void {
 	emitText(options, `  ⏹ Nothing to run: ${reason}`);
 }
 
+/**
+ * - Groups finished lanes into one summary per slot.
+ * - @param runs - Every lane that finished, successful or not.
+ * - @param elapsedMs - The pool's own duration, which is what a lane's idle time is measured against.
+ * - @returns One entry per lane index, ordered by lane.
+ * - @remarks Per batch and per lane answer different questions. A batch's duration says how long the
+ *   work took; a lane's says whether the slot earned its place. A pool can read as 100% busy and
+ *   still have one slot that ran a single long batch while another ran six short ones — that is the
+ *   shape issue #62 asks about.
+ */
+function summarizeLanes(runs: ReadonlyArray<LaneRun>, elapsedMs: number): Array<LaneSummary> {
+	const byLane = new Map<number, LaneSummary>();
+
+	for (const run of runs) {
+		const entry = byLane.get(run.lane) ?? { batches: [], busyMs: 0, idleMs: 0, lane: run.lane };
+		entry.batches.push({ batch: run.batch, elapsedMs: run.elapsedMs, profile: run.profile });
+		entry.busyMs += run.elapsedMs;
+		byLane.set(run.lane, entry);
+	}
+
+	for (const entry of byLane.values()) {
+		entry.idleMs = Math.max(0, elapsedMs - entry.busyMs);
+	}
+
+	return [...byLane.values()].sort((left, right) => left.lane - right.lane);
+}
+
 /** Emits the pool's own summary: what ran, how long, and how much of it was actually parallel. */
 function reportPool(options: CliOptions, pool: PoolResult): void {
 	const ran = pool.batches.length;
 	const elapsedMs = pool.elapsedMs ?? 0;
 	const saturatedMs = pool.saturatedMs ?? 0;
 	const idleReasons = pool.idleReasons ?? [];
+	const lanes = pool.lanes ?? [];
 	const utilization =
 		elapsedMs === 0 ? 0 : Math.min(100, Math.round((saturatedMs / elapsedMs) * 100));
 
@@ -548,6 +623,7 @@ function reportPool(options: CliOptions, pool: PoolResult): void {
 			failures: pool.failures.map((failure) => failure.batch),
 			idleReasons,
 			kind: "pool",
+			lanes,
 			saturatedMs,
 			utilization,
 		});
@@ -565,6 +641,21 @@ function reportPool(options: CliOptions, pool: PoolResult): void {
 			options,
 			`    ${mark} ${run.batch} [${run.profile}] ${formatElapsed(run.elapsedMs)}${suffix}`,
 		);
+	}
+
+	/*
+	 * Only worth a line when the lanes actually differ: one batch per lane is the list above again,
+	 * and a single-lane pool has nothing to compare against.
+	 */
+	const spread = lanes.length > 1 && lanes.some((lane) => lane.batches.length > 1);
+	if (spread) {
+		for (const lane of lanes) {
+			const names = lane.batches.map((batch) => batch.batch).join(", ");
+			emitText(
+				options,
+				`    lane ${String(lane.lane)}: ${formatElapsed(lane.busyMs)} busy · ${formatElapsed(lane.idleMs)} idle · ${String(lane.batches.length)} batch(es): ${names}`,
+			);
+		}
 	}
 
 	if (idleReasons.length > 0) {

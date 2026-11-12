@@ -407,9 +407,13 @@ A lane that stays free is explained rather than left to inference: the pool prin
 `⏸ 1 lane(s) idle: sequence "X" is GATED (…)` with the scheduler's own reason, and it distinguishes
 "the remaining batches are already in flight" (nothing to report) from "nothing else can fire". The
 run closes with a summary — duration, the share of it with every lane busy, and each batch's own
-time — and under `--json` with one `{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons }`
-object. A pool that fires nothing reports the exhaustion reason exactly as the serial loop does,
-instead of exiting `1` silently.
+time — and under `--json` with one
+`{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons, lanes }` object. `lanes` is the
+per-slot account: busy time, idle time, and the batches each slot ran. A lane is a slot, not a
+batch number — the second batch across two lanes runs in slot 0 or 1 — so a pool that keeps refilling
+one slot while the other holds a long batch is visible instead of hidden behind an aggregate. A pool
+that fires nothing reports the exhaustion reason exactly as the serial loop does, instead of exiting
+`1` silently.
 
 ### Cross-machine dispatch
 

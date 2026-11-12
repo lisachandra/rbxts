@@ -45,9 +45,14 @@ steps? }` profiles. Lane `k` runs `catalog[k % length]`, so assignment is determ
   strings are unchanged.
 - A parallel run closes with a summary: total duration, the share of it with every lane busy, and
   each batch's own elapsed time. Under `--json` that is one
-  `{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons }` object. A pool that fires
-  nothing now reports the exhaustion reason exactly as the serial loop does, instead of exiting `1`
-  silently.
+  `{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons, lanes }` object. A pool that
+  fires nothing now reports the exhaustion reason exactly as the serial loop does, instead of exiting
+  1 silently.
+- `lanes` is a per-slot account: each lane's busy time, idle time, and the batches it ran with their
+  profiles. Lanes are now genuine slots — a freed slot is reused, so a third batch across two lanes
+  runs in slot 0 or 1 instead of being numbered "lane 3". Batch numbering had made the lane a batch
+  counter, which is why a per-lane report needed this fixed first; the human summary prints the
+  per-lane lines only when one slot ran more than one batch.
 - Batches are never split or moved between lanes to rebalance: members are strictly serial, and a
   lane is a dispatch slot rather than an identity, so the summary reports under-utilization instead of
   silently rewriting the manifest order.

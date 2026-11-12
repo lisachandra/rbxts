@@ -526,6 +526,60 @@ describe("parallel pool", () => {
 		assert.deepEqual(pool.idleReasons, []);
 	});
 
+	test("a freed lane slot is reused rather than numbered as a new lane", async () => {
+		/*
+		 * Three batches across two lanes: the third must run in a *reused* slot, not in a fictional
+		 * "lane 3". Numbering each batch afresh would make a lane a batch counter, and the per-lane
+		 * utilization report built on it would describe nothing.
+		 */
+		stage(
+			[
+				{ issues: ["5"], name: "U1" },
+				{ issues: ["6"], name: "U2" },
+				{ issues: ["7"], name: "U3" },
+			],
+			[makeIssue(5), makeIssue(6), makeIssue(7)],
+		);
+		const parsed = options([flash, deep], ["queue", "run", "--parallel", "2"]);
+
+		const { output, value } = await capture(async () =>
+			runParallelPool(parsed, async ({ batch }) => {
+				await new Promise((resolve) => setTimeout(resolve, batch === "U3" ? 40 : 5));
+				return { ok: true };
+			}),
+		);
+
+		const lanes = value.lanes ?? [];
+		assert.equal(
+			lanes.length,
+			2,
+			`two slots must be reused, not three lane numbers; output:\n${output}`,
+		);
+		assert.deepEqual(
+			lanes.map((lane) => lane.lane),
+			[0, 1],
+			"lane indices must be slot numbers",
+		);
+
+		const busy = lanes.reduce((sum, lane) => sum + lane.busyMs, 0);
+		assert.ok(busy > 0, "busy time must be measured");
+		for (const lane of lanes) {
+			assert.ok(lane.idleMs >= 0, "idle time can never be negative");
+		}
+
+		/* The slot that ran two batches must name both; the long batch's slot names one. */
+		const twoBatches = lanes.find((lane) => lane.batches.length === 2);
+		assert.ok(
+			twoBatches !== undefined,
+			`one slot must have run two batches; output:\n${output}`,
+		);
+		assert.deepEqual(
+			twoBatches.batches.map((entry) => entry.batch),
+			["U1", "U3"],
+		);
+		assert.match(output, /lane 0: .*2 batch\(es\): U1, U3/u);
+	});
+
 	test("a pool that fires nothing reports the exhaustion reason", async () => {
 		stage([{ issues: ["5"], name: "U1" }], [{ ...makeIssue(5), labels: [] }]);
 		const parsed = options([flash], ["queue", "run", "--parallel", "2"]);
