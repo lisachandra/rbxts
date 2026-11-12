@@ -46,10 +46,18 @@
 				"27",
 				"43"
 			],
-			"reason": "Both edit packages/sandcastle/src/providers/ (27 TSDoc on every adapter, 43 rewrites pi/codex/claude-code captureSessions). A doc-only diff and a behaviour diff over the same functions conflict textually on every hunk.",
-			"name": "R1"
+			"name": "R1",
+			"reason": "Both edit packages/sandcastle/src/providers/ (27 TSDoc on every adapter, 43 rewrites pi/codex/claude-code captureSessions). A doc-only diff and a behaviour diff over the same functions conflict textually on every hunk."
+		},
+		{
+			"issues": [
+				"27",
+				"45"
+			],
+			"reason": "45 slice C routes providers/dirac.ts and providers/zcode.ts through a child-process seam; 27 rewrites TSDoc on all nine provider exports. Same files, same functions.",
+			"name": "R2"
 		}
 	],
-	"updatedAt": "2026-11-12T08:33:56.284Z",
+	"updatedAt": "2026-11-12T08:34:31.010Z",
 	"version": 2
 }
