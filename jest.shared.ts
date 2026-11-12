@@ -59,6 +59,13 @@ export default defineConfig({
 		collectCoverage: true,
 		coveragePathIgnorePatterns: ["**/*.spec.ts", "**/*.spec.tsx"],
 		mockDataModel: false,
+		/*
+		 * `test/react-router`, `test/react-template`, and `test/types` carry a project but no specs
+		 * yet, and jest exits 1 on "No test files found". Without this, `pnpm test` — the command the
+		 * repo documents as its aggregate check — is red on a clean `main`, which makes it useless
+		 * as a signal. A lane that gains a spec still runs it; the flag only tolerates zero.
+		 */
+		passWithNoTests: true,
 		runInBand: true,
 		setupFiles: ["./node_modules/@lisachandra/test/out/setup"],
 		testTimeout: 300_000,
