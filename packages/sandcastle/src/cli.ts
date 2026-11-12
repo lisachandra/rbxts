@@ -9,7 +9,7 @@
 import { resolve as pathResolve } from "node:path";
 
 import type { SetupOutput } from "./config.js";
-import { setupOutputs } from "./config.js";
+import { phaseNames, setupOutputs } from "./config.js";
 import { type HelpTopicKey, renderHelpTopic } from "./help.js";
 import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
 import type { QueueGraphFormat } from "./queue/graph.js";
@@ -23,6 +23,7 @@ import type {
 	ResolvedAgentStep,
 	SandcastleEffort,
 } from "./types.js";
+import { backendSupportsResume, resumableBackends } from "./types.js";
 
 export type CliCommand =
 	| "issue"
@@ -89,6 +90,11 @@ export interface CliOptions {
 	readonly queueExpandIssues?: boolean;
 	readonly queueFormat?: QueueGraphFormat;
 	readonly queueHost?: string;
+	/**
+	 * Run the three phases as one agent conversation: `true` chains, `false` splits, `undefined`
+	 * leaves it to `agents.singleSession`.
+	 */
+	readonly singleSession?: boolean;
 
 	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
@@ -241,6 +247,7 @@ interface ParsedArgState {
 	roles: undefined | Record<string, string>;
 	sequentialIssues: Array<string>;
 	setupOutput: undefined | SetupOutput;
+	singleSession: boolean | undefined;
 	skipSetup: boolean;
 	status: boolean;
 	steps: AgentStepsConfig;
@@ -323,6 +330,7 @@ function createParsedArgState(): ParsedArgState {
 		roles: undefined,
 		sequentialIssues: [],
 		setupOutput: undefined,
+		singleSession: undefined,
 		skipSetup: false,
 		status: false,
 		steps: {},
@@ -857,6 +865,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 		state.landRecompose = true;
 	},
 
+	"--no-single-session": (state) => {
+		state.singleSession = false;
+	},
 	"--prune-git": (state) => {
 		state.cleanPruneGit = true;
 	},
@@ -871,6 +882,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--resume": (state) => {
 		state.resume = true;
+	},
+	"--single-session": (state) => {
+		state.singleSession = true;
 	},
 	"--skip-setup": (state) => {
 		state.skipSetup = true;
@@ -983,6 +997,18 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		state.issueNumber === "all"
 	) {
 		throw new Error("--worktree cannot be used with --issue all.");
+	}
+
+	/*
+	 * `--phase` isolates exactly one phase; single-session mode exists to chain all three. Asking
+	 * for both is a contradiction, so it is refused rather than resolved in one direction. Checked
+	 * here rather than alongside the queue rules, because `--issue` is not a queue command, and
+	 * skipped for `--help` like every other requirement check.
+	 */
+	if (state.singleSession === true && state.phase !== undefined && !state.help) {
+		throw new Error(
+			`--phase ${state.phase} runs one phase in isolation; drop it to chain all three with --single-session.`,
+		);
 	}
 
 	/*
@@ -1339,6 +1365,26 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		}
 	}
 
+	/*
+	 * An explicit request for one session is refused when a phase's backend cannot resume, because
+	 * the alternative is a mode that claims to chain and does not. A `agents.singleSession` default
+	 * only warns at run time instead: it is a repository preference that a profile may override, and
+	 * failing every lane over one profile's backend is harsher than the mode is worth.
+	 */
+	if (state.singleSession === true) {
+		const unable = phaseNames.filter(
+			(phase) => !backendSupportsResume(steps[phase].agentBackend),
+		);
+		if (unable.length > 0) {
+			const names = unable
+				.map((phase) => `${phase} (${steps[phase].agentBackend})`)
+				.join(", ");
+			throw new Error(
+				`--single-session cannot chain ${names}: resume is only implemented by ${resumableBackends.join(" and ")}. Run those phases split, or pick another backend.`,
+			);
+		}
+	}
+
 	if (!state.help && state.command !== "setup" && state.command !== "queue") {
 		for (const step of agentStepNames) {
 			if (steps[step].model === "") {
@@ -1429,6 +1475,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		roles: state.roles,
 		sequentialIssues: state.sequentialIssues,
 		setupOutput: state.setupOutput,
+		singleSession: state.singleSession,
 		skipSetup: state.skipSetup,
 		status: state.status,
 		steps,
@@ -1555,6 +1602,8 @@ Issue options:
   -i, --issue <number>       GitHub issue number (or "all")
   -c, --concurrency <n>     Max parallel issues for "all" mode (default: 1)
       --resume               Resume from last incomplete phase
+      --single-session       Run design, implement, and review as one agent conversation
+                             (dirac and zcode only; refused with --phase)
       --phase <phase>        Run only one phase (design | implement | review)
       --force [phase]        Force re-run (optionally specify which phase)
       --status               Print phase evaluation without running

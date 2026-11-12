@@ -158,6 +158,17 @@ export function laneArgs({ batch, options, profile }: LaneSpawnParams): Array<st
 		args.push("--setup-output", options.setupOutput);
 	}
 
+	/*
+	 * Single-session is per-member behavior, not a scheduling input, so it must reach the child or a
+	 * lane would run the three phases differently from a serial run. Both directions are forwarded:
+	 * `--no-single-session` overrides a repository default the child would otherwise reload.
+	 */
+	if (options.singleSession === true) {
+		args.push("--single-session");
+	} else if (options.singleSession === false) {
+		args.push("--no-single-session");
+	}
+
 	return args;
 }
 

@@ -162,6 +162,38 @@ describe("commaSeparated / parseArgs", () => {
 		});
 	});
 
+	test("parseArgs treats --single-session as a chain request, not a phase", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.equal(parseArgs(["--issue", "1", "--single-session"]).singleSession, true);
+			assert.equal(parseArgs(["--issue", "1", "--no-single-session"]).singleSession, false);
+			// Omitted stays undefined so config, not the CLI, decides.
+			assert.equal(parseArgs(["--issue", "1"]).singleSession, undefined);
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--single-session", "--phase", "implement"]),
+				/--phase implement runs one phase in isolation/,
+			);
+		});
+	});
+
+	test("parseArgs refuses --single-session on a backend that cannot resume", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--single-session", "--agent", "pi"]),
+				/--single-session cannot chain design .* \(pi\)/,
+			);
+			// One non-resumable phase is enough to refuse the flag for the whole chain.
+			assert.throws(
+				() => parseArgs(["--issue", "1", "--single-session", "--review-agent", "codex"]),
+				/review \(codex\)/,
+			);
+			// The same backend is fine when the chain was not requested: split mode is the default.
+			assert.equal(
+				parseArgs(["--issue", "1", "--agent", "pi", "--model", "pi-model"]).singleSession,
+				undefined,
+			);
+		});
+	});
+
 	test("parseArgs requires model unless help", () => {
 		withEnv(
 			{

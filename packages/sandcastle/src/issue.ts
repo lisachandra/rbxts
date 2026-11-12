@@ -18,6 +18,7 @@ import { z } from "zod";
 
 import { createAgent } from "./agent.js";
 import type { SetupOutput } from "./config.js";
+import { phaseNames } from "./config.js";
 import {
 	createFreshPhaseEvaluation,
 	evaluatePhases,
@@ -61,6 +62,7 @@ import type {
 	ResolvedAgentStep,
 	SharedPromptArgs,
 } from "./types.js";
+import { backendSupportsResume, resumableBackends } from "./types.js";
 import {
 	createIssueSandbox,
 	type EmitLine,
@@ -130,13 +132,15 @@ async function runDesignPhase(params: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 		worktreePath: string;
 	};
+	/** Shared session scope and prompt note; split mode leaves both defaulted. */
+	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
 	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 1: Design (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.design`);
-	const scope = `${params.issueNumber}.design`;
+	const scope = params.session.scope ?? `${params.issueNumber}.design`;
 
 	await runPhaseWithRetry(
 		() =>
@@ -149,6 +153,7 @@ async function runDesignPhase(params: {
 					name: `designer #${params.issueNumber}`,
 					promptArgs: {
 						...params.sharedArgs,
+						SESSION_NOTE: params.session.notes.design,
 						SKILLS: skillsForPrompt("design", params.issueLabels),
 					},
 					promptFile: config.prompts.plan,
@@ -165,6 +170,9 @@ async function runDesignPhase(params: {
 							sessionCapture: capture,
 						}),
 					},
+					...(params.session.scope !== undefined
+						? { sessionScope: params.session.scope }
+						: {}),
 				}),
 			),
 		"design",
@@ -238,13 +246,15 @@ async function runImplementPhase(params: {
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
+	/** Shared session scope and prompt note; split mode leaves both defaulted. */
+	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
 	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 2: Implement (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.implement`);
-	const scope = `${params.issueNumber}.implement`;
+	const scope = params.session.scope ?? `${params.issueNumber}.implement`;
 
 	const implResult = await runPhaseWithRetry(
 		() =>
@@ -257,6 +267,7 @@ async function runImplementPhase(params: {
 					name: `implementer #${params.issueNumber}`,
 					promptArgs: {
 						...params.sharedArgs,
+						SESSION_NOTE: params.session.notes.implement,
 						SKILLS: skillsForPrompt("implement", params.issueLabels),
 					},
 					promptFile: config.prompts.implement,
@@ -273,6 +284,9 @@ async function runImplementPhase(params: {
 							sessionCapture: capture,
 						}),
 					},
+					...(params.session.scope !== undefined
+						? { sessionScope: params.session.scope }
+						: {}),
 				}),
 			),
 		"implement",
@@ -307,6 +321,8 @@ async function runReviewPhase(params: {
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
+	/** Shared session scope and prompt note; split mode leaves both defaulted. */
+	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
 	step: ResolvedAgentStep;
@@ -314,7 +330,7 @@ async function runReviewPhase(params: {
 	if (params.hasCommits || params.evalReview === "force") {
 		console.log(`\n── Phase 3: Review (issue #${params.issueNumber}) ──`);
 		const marker = markerPath(`${params.issueNumber}.review`);
-		const scope = `${params.issueNumber}.review`;
+		const scope = params.session.scope ?? `${params.issueNumber}.review`;
 
 		await runPhaseWithRetry(
 			() =>
@@ -330,6 +346,7 @@ async function runReviewPhase(params: {
 							QUEUE_RULES: queueRulesForPrompt({
 								batch: queueBatchForIssue(params.issueNumber),
 							}),
+							SESSION_NOTE: params.session.notes.review,
 							SKILLS: skillsForPrompt("review", params.issueLabels),
 						},
 						promptFile: config.prompts.review,
@@ -346,6 +363,9 @@ async function runReviewPhase(params: {
 								sessionCapture: capture,
 							}),
 						},
+						...(params.session.scope !== undefined
+							? { sessionScope: params.session.scope }
+							: {}),
 					}),
 				),
 			"review",
@@ -444,7 +464,12 @@ interface ExecuteIssuePhasesParams {
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
-	options?: { baseRef?: string; force?: true | PhaseName; phase?: PhaseName };
+	options?: {
+		baseRef?: string;
+		force?: true | PhaseName;
+		phase?: PhaseName;
+		singleSession?: boolean;
+	};
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 		worktreePath: string;
@@ -477,7 +502,86 @@ function reEvaluatePhase(params: ExecuteIssuePhasesParams, phase: PhaseName): Ph
 	)[phase];
 }
 
+/**
+ * How the three phases share an agent session.
+ *
+ * Split mode (the default) omits both fields, so each phase keeps its own session scope and gets an
+ * empty `{{SESSION_NOTE}}` — byte-identical to the behavior before single-session mode existed.
+ * Chained mode points every phase at one scope (so each resumes what the last left behind) and
+ * tells the agent, per phase, what it is about to inherit.
+ */
+interface PhaseSession {
+	/**
+	 * Per-phase prompt paragraph for `{{SESSION_NOTE}}`; empty strings in split mode.
+	 *
+	 * The text differs per phase because the same sentence is wrong at different points: the design
+	 * turn has written nothing yet, while the review turn has written everything it is judging.
+	 */
+	notes: Record<PhaseName, string>;
+	/**
+	 * Shared session-store scope in chained mode, or `undefined` to keep the per-phase scope.
+	 *
+	 * A phase only resumes when this scope holds a session for the same backend; otherwise it
+	 * starts fresh and warns, which is the documented degradation.
+	 */
+	scope?: string;
+}
+
+const splitSession: PhaseSession = {
+	notes: { design: "", implement: "", review: "" },
+};
+
+/**
+ * - Decides whether the phases chain, and builds the note that says so.
+ * - @param params - Issue number, resolved steps, and the requested mode.
+ * - @returns The shared scope and per-phase prompt notes, or an empty session for split mode.
+ * - @remarks A chain nobody asked for is silently absent. A _requested_ one that cannot happen (a
+ *   phase backend without resume) is refused by the CLI for a flag, and warned about here for a
+ *   config default, because a repository preference should not abort every lane over one profile.
+ */
+function resolvePhaseSession(params: {
+	issueNumber: string;
+	requested: boolean;
+	steps: Record<AgentPhaseName, ResolvedAgentStep>;
+}): PhaseSession {
+	if (!params.requested) {
+		return splitSession;
+	}
+
+	const unable = phaseNames.filter(
+		(phase) => !backendSupportsResume(params.steps[phase].agentBackend),
+	);
+	if (unable.length > 0) {
+		const named = unable
+			.map((phase) => `${phase} (${params.steps[phase].agentBackend})`)
+			.join(", ");
+		console.warn(
+			`  ⚠ agents.singleSession is set, but ${named} cannot resume a session (only ${resumableBackends.join(" and ")} can); running split.`,
+		);
+		return splitSession;
+	}
+
+	return {
+		notes: {
+			design: "After this plan, you will implement it and then review your own work — all in this same conversation. Write the plan for your future self, not for a stranger: it must be complete enough that a later turn of yours can execute it without re-deriving the reasoning behind it.",
+			implement:
+				"The plan you are implementing was written earlier in this conversation, by you. Treat it as the decided direction rather than a proposal to re-litigate, and if you must depart from it, say why in your final response instead of silently changing course.",
+			review: "This conversation already contains the plan you wrote and the implementation you committed, along with every decision behind both. You are reviewing your own work: read the diff adversarially and be skeptical of the reasoning you just produced, rather than restating it as justification.",
+		},
+		scope: `${params.issueNumber}.session`,
+	};
+}
+
 async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<void> {
+	const session = resolvePhaseSession({
+		issueNumber: params.issueNumber,
+		requested: params.options?.singleSession ?? config.agents.singleSession,
+		steps: params.steps,
+	});
+	if (session.scope !== undefined) {
+		console.log(`\n▶ Single session: design → implement → review (#${params.issueNumber})`);
+	}
+
 	if (params.eval_.design !== "skip") {
 		params.attempted.add("design");
 		await runDesignPhase({
@@ -485,6 +589,7 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
 			sandbox: params.sandbox,
+			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
 			step: params.steps.design,
@@ -522,6 +627,7 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
 			sandbox: params.sandbox,
+			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
 			step: params.steps.implement,
@@ -547,6 +653,7 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
 			sandbox: params.sandbox,
+			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
 			step: params.steps.review,
@@ -616,6 +723,8 @@ export async function runSingleIssue(
 		phase?: PhaseName;
 		resume?: boolean;
 		setupOutput?: SetupOutput;
+		/** Chain design → implement → review through one agent session; defaults to config. */
+		singleSession?: boolean;
 		skipSetup?: boolean;
 		steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 		worktree?: string;

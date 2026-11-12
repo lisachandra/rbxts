@@ -81,6 +81,7 @@ const defaultDispatch: QueueDispatch = async (name, issues, options, resume, rem
 				readQueueManifest().sequences.find((entry) => entry.name === name)?.issues,
 			pushAndDelete: options.pushAndDelete === true,
 			setupOutput: options.setupOutput,
+			singleSession: options.singleSession,
 			skipSetup: options.skipSetup,
 			steps: options.steps,
 			strictChain: options.strictChain === true || config.queue.strictChain === true,

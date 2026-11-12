@@ -7,6 +7,7 @@ import { runAll, runSingleIssue } from "./issue.js";
 import { markerPath } from "./markers.js";
 import { clearSession, saveSession } from "./providers/session-store.js";
 import { config, io } from "./runtime.js";
+import { resumableSession } from "./session-resume.js";
 import { readState, writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
@@ -637,6 +638,295 @@ describe("orchestration with heavy stubs", () => {
 		assert.deepEqual(resumeOptionsSeen, [undefined, "task-777"]);
 
 		clearSession(`${issue}.implement`);
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("single session chains all three phases through one session id", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-single-session-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				if (args[0] === "status") {
+					return "";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		/*
+		 * The agent announces a fresh session id on its first turn and the same id again while
+		 * resuming. `runSessioned` reads it from the capture, which the stream feeds — so a fake run
+		 * has to deliver the id the way a real backend would, as a raw stream event.
+		 */
+		const resumeOptionsSeen: Array<string | undefined> = [];
+		let runCalls = 0;
+		io.run = (async (options: {
+			logging?: { onAgentStreamEvent?: (event: { line: string; type: string }) => void };
+			resumeSession?: string;
+		}) => {
+			runCalls += 1;
+			resumeOptionsSeen.push(options.resumeSession);
+
+			const marker =
+				runCalls === 1
+					? markerPath(`${issue}.design`)
+					: runCalls === 2
+						? markerPath(`${issue}.implement`)
+						: markerPath(`${issue}.review`);
+
+			if (runCalls === 1) {
+				mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, ".sandcastle", "plans", `${issue}.md`),
+					"# Plan",
+					"utf-8",
+				);
+			}
+
+			/* A real backend announces the session early in the stream; the capture persists it. */
+			options.logging?.onAgentStreamEvent?.({
+				type: "raw",
+				line: JSON.stringify({ type: "task_started", taskId: "session-shared" }),
+			});
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+			return { commits: [], stdout: "ok" };
+		}) as unknown as typeof io.run;
+
+		await runSingleIssue(issue, "model", "low", {
+			agentBackend: "dirac",
+			baseRef: "main",
+			singleSession: true,
+			worktree,
+		});
+
+		/*
+		 * The contract: design starts the conversation, and implement and review both resume the id
+		 * it captured. Three fresh sessions would mean the mode did nothing.
+		 */
+		assert.equal(resumeOptionsSeen[0], undefined, "design must start a fresh session");
+		assert.equal(
+			resumeOptionsSeen[1],
+			"session-shared",
+			"implement must resume design's session",
+		);
+		assert.equal(resumeOptionsSeen[2], "session-shared", "review must resume the same session");
+
+		const state = readState(issue);
+		assert.equal(state?.phases.design.status, "done");
+		assert.equal(state?.phases.implement.status, "done");
+		assert.equal(state?.phases.review.status, "done");
+
+		clearSession(`${issue}.session`);
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("split mode keeps one session per phase", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-split-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				return "";
+			},
+		});
+
+		const resumeOptionsSeen: Array<string | undefined> = [];
+		let runCalls = 0;
+		io.run = (async (options: {
+			logging?: { onAgentStreamEvent?: (event: { line: string; type: string }) => void };
+			resumeSession?: string;
+		}) => {
+			runCalls += 1;
+			resumeOptionsSeen.push(options.resumeSession);
+
+			const marker =
+				runCalls === 1
+					? markerPath(`${issue}.design`)
+					: runCalls === 2
+						? markerPath(`${issue}.implement`)
+						: markerPath(`${issue}.review`);
+
+			if (runCalls === 1) {
+				mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, ".sandcastle", "plans", `${issue}.md`),
+					"# Plan",
+					"utf-8",
+				);
+			}
+
+			options.logging?.onAgentStreamEvent?.({
+				type: "raw",
+				line: JSON.stringify({
+					type: "task_started",
+					taskId: `session-${String(runCalls)}`,
+				}),
+			});
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+			return { commits: [], stdout: "ok" };
+		}) as unknown as typeof io.run;
+
+		await runSingleIssue(issue, "model", "low", {
+			agentBackend: "dirac",
+			baseRef: "main",
+			worktree,
+		});
+
+		/*
+		 * Capture really ran — each phase stored its own id — so the assertion below is about the
+		 * scopes staying separate rather than about capture quietly failing.
+		 */
+		assert.notEqual(resumableSession(`${issue}.design`, "dirac"), undefined);
+		assert.notEqual(resumableSession(`${issue}.implement`, "dirac"), undefined);
+		assert.notEqual(resumableSession(`${issue}.review`, "dirac"), undefined);
+
+		/* Every phase starts its own conversation: the per-phase scopes never see each other's id. */
+		assert.deepEqual(resumeOptionsSeen, [undefined, undefined, undefined]);
+
+		for (const phase of ["design", "implement", "review"]) {
+			clearSession(`${issue}.${phase}`);
+		}
+
+		cleanupIssueArtifacts(issue);
+		rmSync(worktree, { force: true, recursive: true });
+	});
+
+	test("a requested single session on a non-resumable backend degrades with a warning", async () => {
+		const issue = uniqueIssue();
+		const worktree = join(tmpRoot, `run-degrade-${issue}`);
+		mkdirSync(worktree, { recursive: true });
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "worktree" && args[1] === "list") {
+					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
+				}
+
+				if (args[0] === "rev-parse") {
+					return "abc1234567890";
+				}
+
+				return "";
+			},
+			sync: (command) => {
+				if (command.includes("gh issue view")) {
+					return JSON.stringify({ labels: [], title: "Test issue title" });
+				}
+
+				if (command.includes("rev-list")) {
+					return "1";
+				}
+
+				return "";
+			},
+		});
+
+		const resumeOptionsSeen: Array<string | undefined> = [];
+		let runCalls = 0;
+		io.run = (async (options: { resumeSession?: string }) => {
+			runCalls += 1;
+			resumeOptionsSeen.push(options.resumeSession);
+
+			const marker =
+				runCalls === 1
+					? markerPath(`${issue}.design`)
+					: runCalls === 2
+						? markerPath(`${issue}.implement`)
+						: markerPath(`${issue}.review`);
+
+			if (runCalls === 1) {
+				mkdirSync(join(worktree, ".sandcastle", "plans"), { recursive: true });
+				writeFileSync(
+					join(worktree, ".sandcastle", "plans", `${issue}.md`),
+					"# Plan",
+					"utf-8",
+				);
+			}
+
+			mkdirSync(dirname(marker), { recursive: true });
+			writeFileSync(marker, "", "utf-8");
+			return { commits: [], stdout: "ok" };
+		}) as unknown as typeof io.run;
+
+		const warnings: Array<string> = [];
+		const originalWarn = console.warn;
+		console.warn = (...args: Array<unknown>) => {
+			warnings.push(args.map(String).join(" "));
+		};
+
+		try {
+			await runSingleIssue(issue, "model", "low", {
+				agentBackend: "pi",
+				baseRef: "main",
+				singleSession: true,
+				steps: undefined,
+				worktree,
+			});
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		assert.match(
+			warnings.join("\n"),
+			/cannot resume a session/u,
+			"a chain that cannot happen must say so",
+		);
+		assert.deepEqual(
+			resumeOptionsSeen,
+			[undefined, undefined, undefined],
+			"the phases run split rather than pretending to chain",
+		);
+
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });
 	});

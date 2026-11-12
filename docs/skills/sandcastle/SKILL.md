@@ -185,6 +185,15 @@ queue is the runnable artifact, the comment is only the report.
 - **Dispatch resumes**, and batches are atomic: members already APPROVED are skipped while their
   branch still chains as the next base (`--no-resume` re-runs them), and `--max-issues <n>` refuses
   a batch that would exceed the budget rather than trimming it.
+- **Phases are three conversations unless you ask for one.** Design → implement → review normally
+  run as separate sessions, so the implementer reads the plan as a file and the reviewer reads the
+  diff cold. `queue run --single-session` (or `agents.singleSession: true`) chains all three through
+  one session instead, so the implementer inherits the reasoning behind the plan and the reviewer
+  inherits both — which is what keeps the plan's "why" alive into review. Everything else is
+  unchanged: markers, state slots, budgets, retries, `--phase`, and `--force <phase>` behave the
+  same, because only the session scope moves. It is a per-backend capability (`dirac` and `zcode`
+  resume; an explicit flag on any other backend is refused), and it spans one issue's phases, never
+  two members of a batch.
 - **Parallel lanes are a repo opt-in.** With `queue.parallel` above 1, `queue run --parallel <n>`
   runs up to `n` batches at once and lane `k` runs `agents.catalog[k % length]`. Members inside a
   batch never run in parallel — each member's branch is the next member's base — so the only

@@ -84,6 +84,16 @@ export interface SandcastleConfig {
 		enabled: Array<AgentBackend>;
 		/** Default model per backend, used when `--model` is not passed. */
 		models: Partial<Record<AgentBackend, string>>;
+		/**
+		 * Run design → implement → review as one continuous agent conversation.
+		 *
+		 * Each phase keeps its own prompt, marker, budget, retry loop, and state slot — only the
+		 * session is shared, so the implementer and the reviewer see the reasoning that produced
+		 * the plan and the diff instead of reconstructing it from files. Resume is a per-backend
+		 * capability (only `dirac` and `zcode` implement it), so an explicit request on another
+		 * backend is refused rather than silently running three separate conversations.
+		 */
+		singleSession: boolean;
 		/** Per-step agent/model/effort overrides; missing steps inherit workflow defaults. */
 		steps: AgentStepsConfig;
 	};
@@ -252,6 +262,7 @@ export const sandcastleConfigSchema = z
 						"zcode": z.string().optional(),
 					})
 					.optional(),
+				singleSession: z.boolean().optional(),
 				steps: agentStepsSchema,
 			})
 			.optional(),
@@ -331,6 +342,7 @@ const defaultConfig: SandcastleConfig = {
 		default: "dirac",
 		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi", "zcode"],
 		models: {},
+		singleSession: false,
 		steps: {},
 	},
 	baseBranch: "main",
@@ -434,6 +446,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 					? { zcode: parsed.agents.models.zcode }
 					: {}),
 			},
+			singleSession: parsed.agents?.singleSession ?? defaultConfig.agents.singleSession,
 			steps: parsed.agents?.steps ?? {},
 		},
 		baseBranch: parsed.baseBranch ?? defaultConfig.baseBranch,

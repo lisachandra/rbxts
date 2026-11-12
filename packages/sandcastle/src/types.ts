@@ -18,6 +18,22 @@ export type AgentBackend =
 	| "copilot"
 	| "opencode"
 	| "claude-code";
+
+/**
+ * Backends that can carry one conversation across separate phase runs.
+ *
+ * Upstream gates `resumeSession` on the provider supplying `sessionStorage`, and only `dirac` and
+ * `zcode` do — they own native session stores and this package records the id it saw. The other
+ * backends spawn a fresh conversation per phase, so "single session" cannot mean anything for them
+ * and a request for it is refused rather than quietly downgraded.
+ */
+export const resumableBackends: ReadonlyArray<AgentBackend> = ["dirac", "zcode"];
+
+/** Whether {@link AgentBackend} can chain phases through one session. */
+export function backendSupportsResume(backend: AgentBackend): boolean {
+	return resumableBackends.includes(backend);
+}
+
 /**
  * Backend effort levels. "max" is natively supported by dirac, claude-code, and zcode and is
  * forwarded untouched; backends capped at "xhigh" (pi, codex) map it down via
@@ -133,6 +149,14 @@ export interface SharedPromptArgs {
 	ISSUE_TITLE?: string;
 	PLAN_PATH?: string;
 	READY_LABEL?: string;
+	/**
+	 * Paragraph telling a chained phase that the plan, the diff, and the review subject are its own
+	 * earlier work, or the empty string in split mode.
+	 *
+	 * Always set, for the same reason as {@link SETUP_NOTE}: an unsubstituted `{{SESSION_NOTE}}`
+	 * would leak into the agent's instructions.
+	 */
+	SESSION_NOTE?: string;
 	/**
 	 * One-line report of a setup failure the run continued past, or the empty string when setup
 	 * succeeded. The prompt files interpolate it verbatim, so it is always set — a missing key

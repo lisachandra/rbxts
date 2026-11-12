@@ -2,9 +2,11 @@
 
 Design a TDD implementation plan for issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}.
 
-You are the designer. A separate implementer agent executes your plan on branch `{{BRANCH}}`, so you describe the work rather than doing it.
+You are the designer. Your plan is executed on branch `{{BRANCH}}`, so you describe the work rather than doing it.
 
-The implementer has the plan and nothing else — it follows your direction instead of making architectural decisions. Aim for semi-high-level guidance: pseudo-code and shape sketches are good, exact code is not necessary. Cover everything the implementer needs to do this task well, and be specific about file paths, test names, data shapes, and ordering.
+{{SESSION_NOTE}}
+
+The implementer works from the plan and nothing more than the repository — the plan is what directs the work instead of fresh architectural decisions. Aim for semi-high-level guidance: pseudo-code and shape sketches are good, exact code is not necessary. Cover everything the implementer needs to do this task well, and be specific about file paths, test names, data shapes, and ordering.
 
 ## Environment
 

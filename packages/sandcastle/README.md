@@ -99,6 +99,7 @@ absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
 | `agents.default`           | `dirac`                                  | Backend used when `--agent` is not passed                                                                                                                                                                              |
 | `agents.models`            | `{}`                                     | Default model per backend, used when `--model` is not passed                                                                                                                                                           |
 | `agents.steps`             | `{}`                                     | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview`                                                                                         |
+| `agents.singleSession`     | `false`                                  | Run design → implement → review as one continuous agent conversation; `--single-session` / `--no-single-session` override per invocation                                                                               |
 | `effort`                   | `xhigh`                                  | Default reasoning effort                                                                                                                                                                                               |
 
 Precedence for every step is CLI flag (`--design-model`, `--implement-agent`, `--review-effort`, `--planner-*`, `--resolve-*`, `--integration-review-*`) over `agents.steps` config over the workflow default (`--agent` / `--model` / `--effort` plus `agents.models`). When a step selects a different backend without its own model, the mapped `agents.models[backend]` wins over the workflow model.
@@ -139,6 +140,7 @@ the link is skipped with a warning if the target is missing.
 sandcastle --issue 123 --dry-run   # print resolved config without running
 sandcastle --issue 123             # run design, implement, review
 sandcastle --issue 123 --resume    # resume the incomplete phase
+sandcastle --issue 123 --single-session # design, implement, review in one conversation
 sandcastle --issue 123 --skip-setup # reuse worktree without re-running setup commands
 sandcastle --issue all             # plan + dispatch unblocked issues
 sandcastle issue-sequence --sequential 156,157,158 --base main
@@ -531,6 +533,34 @@ a stored session was created under a different `agents.catalog` profile, or the 
 changed since the failed attempt, the conversation continues where it left off but on the
 current model and effort. These mutators pass `persistAsWorkspaceLastUsed: false`, so a
 sandcastle run never rewrites the desktop app's last-used selection.
+
+### Single-session mode (`dirac` and `zcode`)
+
+By default the three phases are three separate conversations: the implementer receives the plan
+as a file and the reviewer receives the diff, so each reconstructs reasoning it never witnessed.
+`--single-session` (or `agents.singleSession: true`) instead chains them through **one** session:
+design runs, the implementer resumes that conversation, and the reviewer resumes it again. The
+implementer sees why the plan says what it says; the reviewer sees the diff and the thinking
+that produced it.
+
+Nothing else changes. Each phase keeps its own prompt, completion marker, state slot, budget,
+retry loop, and model/effort selection, so `--phase`, `--force <phase>`, `--resume`, per-phase
+budgets, failure attribution, and the review landing gate all behave exactly as in split mode.
+Only the session scope moves: split mode stores one session per phase, single-session stores one
+under `<issue>.session`. A broken link in the chain (a cleared or expired session) degrades to a
+fresh conversation for that phase with a warning, keeping the phase's marker requirements intact.
+
+Resume is a backend capability, so the mode is too: only `dirac` and `zcode` implement it. An
+explicit `--single-session` on any other backend is refused (rather than silently running three
+separate conversations), while a repository-level `agents.singleSession: true` default warns and
+falls back to split mode — a config default should not make the tool unusable on the backend the
+repo actually uses. `--phase` and `--single-session` are contradictory and refused together.
+`planner`, `resolve`, and `integrationReview` are unaffected: they are not part of the issue
+phase chain.
+
+```text
+  ▶ Single session: design → implement → review (#123)
+```
 
 ## Development
 

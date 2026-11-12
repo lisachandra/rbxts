@@ -114,11 +114,19 @@ export async function runMarkerPhase(params: {
 		SandboxRunOptions,
 		"name" | "agent" | "promptArgs" | "promptFile" | "maxIterations"
 	>;
+	/**
+	 * Session-store scope, when it must differ from the marker's.
+	 *
+	 * Single-session mode points all three phases at one scope so each resumes the conversation the
+	 * last one left behind. Split mode omits it, and the marker's own scope is used — which is what
+	 * keeps resume per phase by default.
+	 */
+	sessionScope?: string;
 }): Promise<SandboxRunResult> {
 	clearMarker(params.marker);
 	// The marker scope doubles as the session-store scope, keyed per issue+phase.
 	const agent = createAgent(params.agentBackend, params.model, params.effort, params.marker, {
-		scope: scopeForMarkerPath(params.marker),
+		scope: params.sessionScope ?? scopeForMarkerPath(params.marker),
 	});
 
 	const budgetMs = resolvePhaseBudgetMs();

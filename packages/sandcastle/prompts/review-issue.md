@@ -2,7 +2,9 @@
 
 Review the Sandcastle implementation branch `{{BRANCH}}` for GitHub issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}.
 
-You are the reviewer. The implementer was an agent working from a plan; you have the full context plus `AGENTS.md` and the project's ADRs at your disposal.
+You are the reviewer. The implementation was produced by an agent working from a plan; you have the full context plus `AGENTS.md` and the project's ADRs at your disposal.
+
+{{SESSION_NOTE}}
 
 ## Environment
 

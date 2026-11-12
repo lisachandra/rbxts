@@ -55,6 +55,13 @@ describe("help topics", () => {
 		}
 	});
 
+	test("`--help` survives contradictory flags, because asking must never fail", () => {
+		// The pair is refused at run time; help is how a user finds that out.
+		assert.doesNotThrow(() => {
+			parseArgs(["--issue", "1", "--single-session", "--phase", "implement", "--help"]);
+		});
+	});
+
 	test("every command and queue subcommand resolves to its own topic", () => {
 		for (const argv of commandInvocations) {
 			assert.equal(helpTopicKey(parseArgs([...argv, "--help"])), argv[0]);

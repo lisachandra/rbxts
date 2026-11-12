@@ -51,6 +51,8 @@ export interface SequentialIssueParams {
 	pushAndDelete: boolean;
 	resume: boolean;
 	setupOutput?: SetupOutput;
+	/** Chain design → implement → review through one agent session; defaults to config. */
+	singleSession?: boolean;
 	skipSetup?: boolean;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	strictChain?: boolean;
@@ -93,6 +95,8 @@ export interface SequentialIssueOptions {
 	 */
 	pushAndDelete?: boolean;
 	setupOutput?: SetupOutput;
+	/** Chain design → implement → review through one agent session; defaults to config. */
+	singleSession?: boolean;
 	skipSetup?: boolean;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	/** Abort instead of warn when a reused member's branch does not contain the accumulated base. */
@@ -203,6 +207,7 @@ async function processSequentialIssue({
 	pushAndDelete,
 	resume,
 	setupOutput,
+	singleSession,
 	skipSetup,
 	steps,
 	strictChain,
@@ -301,6 +306,7 @@ async function processSequentialIssue({
 			ignoreSetup,
 			resume,
 			setupOutput,
+			...(singleSession !== undefined ? { singleSession } : {}),
 			skipSetup,
 			...(steps ? { steps } : {}),
 			worktree,
@@ -384,6 +390,7 @@ export async function runSequentialIssues(
 		nextOrder,
 		pushAndDelete = false,
 		setupOutput,
+		singleSession,
 		skipSetup,
 		steps,
 		strictChain,
@@ -423,6 +430,7 @@ export async function runSequentialIssues(
 				pushAndDelete,
 				resume,
 				setupOutput,
+				...(singleSession !== undefined ? { singleSession } : {}),
 				skipSetup,
 				...(steps ? { steps } : {}),
 				...(strictChain !== undefined ? { strictChain } : {}),
@@ -476,6 +484,7 @@ export async function runSequentialIssues(
 					pushAndDelete,
 					resume,
 					setupOutput,
+					...(singleSession !== undefined ? { singleSession } : {}),
 					skipSetup,
 					...(steps ? { steps } : {}),
 					...(strictChain !== undefined ? { strictChain } : {}),
