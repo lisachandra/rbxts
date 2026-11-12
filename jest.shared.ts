@@ -67,7 +67,7 @@ export default defineConfig({
 		 */
 		passWithNoTests: true,
 		runInBand: true,
-		setupFiles: ["./node_modules/@lisachandra/test/out/setup"],
+		setupFiles: ["@lisachandra/test/setup"],
 		testTimeout: 300_000,
 	},
 	timeout: 300_000,
