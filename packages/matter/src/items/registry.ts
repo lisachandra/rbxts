@@ -19,8 +19,12 @@ let itemId = 0;
  * assigning each a unique incrementing numeric ID.
  *
  * @remarks
- *   Only PascalCase keys are treated as hierarchy nodes; non-PascalCase keys (data fields) are
- *   skipped.
+ *   The counter is pre-order: a node takes its ID before its children are visited, so every node
+ *   reaches `itemId++` exactly once. Incrementing _after_ the recursion instead gave a parent and
+ *   its first child the same number, because the child's own increment happened first and the
+ *   parent then reused the value. Two items sharing one wire ID made `getItemIdFromNumericId`
+ *   return whichever path the map yielded last. Only PascalCase keys are treated as hierarchy
+ *   nodes; non-PascalCase keys (data fields) are skipped.
  * @param object - The item definitions object tree to register.
  * @param id - The current path prefix (used internally for recursion).
  */
@@ -35,7 +39,7 @@ export function createItemRegistry(
 
 		const newId = [...id, key] as unknown as ValidItemPath;
 		itemIds.set(newId, itemId);
-		createItemRegistry(value, newId);
 		itemId++;
+		createItemRegistry(value, newId);
 	}
 }

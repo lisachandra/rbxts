@@ -35,6 +35,16 @@ export interface ReplicationTracker {
 	trackEntity(player: Player, entity: AnyEntity): void;
 
 	/**
+	 * Records that a player no longer knows about an entity.
+	 *
+	 * @remarks
+	 *   Idempotent: forgetting an entity the player never knew is a no-op.
+	 * @param player - Player that no longer knows the entity.
+	 * @param entity - Entity to forget.
+	 */
+	forgetEntity(player: Player, entity: AnyEntity): void;
+
+	/**
 	 * Checks whether a player knows about an entity.
 	 *
 	 * @param player - Player to query.
@@ -44,15 +54,17 @@ export interface ReplicationTracker {
 	knowsEntity(player: Player, entity: AnyEntity): boolean;
 
 	/**
-	 * Returns the set of entities a player knows about.
+	 * Returns a snapshot of the entities a player knows about.
 	 *
 	 * @remarks
-	 *   Returns the tracker's internal set; callers may mutate it to replace the player's known
-	 *   entities wholesale.
+	 *   A copy, not the tracker's internal set: writing to the result cannot change replication
+	 *   state. An earlier version returned the internal `Set`, which let any caller clear or
+	 *   rewrite a player's known entities without the tracker knowing. State changes go through
+	 *   {@link trackEntity} and {@link forgetEntity} only.
 	 * @param player - Player to query.
-	 * @returns The player's set of known entities (empty set if none tracked yet).
+	 * @returns The player's known entities at the time of the call (empty if none tracked yet).
 	 */
-	entitiesFor(player: Player): Set<AnyEntity>;
+	entitiesFor(player: Player): ReadonlySet<AnyEntity>;
 
 	/**
 	 * Removes all state for a player.
@@ -73,19 +85,37 @@ export function createReplicationTracker(): ReplicationTracker {
 	const received = new Set<Player>();
 	const entities = new Map<Player, Set<AnyEntity>>();
 
+	/** The mutable set for a player, created on first use. */
+	function mutableEntitiesFor(player: Player): Set<AnyEntity> {
+		let set = entities.get(player);
+		if (!set) {
+			set = new Set<AnyEntity>();
+			entities.set(player, set);
+		}
+
+		return set;
+	}
+
 	return {
 		dispose(player) {
 			received.delete(player);
 			entities.delete(player);
 		},
 		entitiesFor(player) {
-			let set = entities.get(player);
-			if (!set) {
-				set = new Set<AnyEntity>();
-				entities.set(player, set);
+			/*
+			 * A snapshot, not the live set. `ReadonlySet` is erased at runtime, so returning the
+			 * internal set would still let a caller `clear()` it — the type would only be a promise.
+			 * The copy is built by hand because roblox-ts's `Set` constructor takes an array.
+			 */
+			const snapshot = new Set<AnyEntity>();
+			for (const entity of entities.get(player) ?? new Set<AnyEntity>()) {
+				snapshot.add(entity);
 			}
 
-			return set;
+			return snapshot;
+		},
+		forgetEntity(player, entity) {
+			entities.get(player)?.delete(entity);
 		},
 		hasReceived(player) {
 			return received.has(player);
@@ -98,13 +128,7 @@ export function createReplicationTracker(): ReplicationTracker {
 			received.add(player);
 		},
 		trackEntity(player, entity) {
-			let set = entities.get(player);
-			if (!set) {
-				set = new Set<AnyEntity>();
-				entities.set(player, set);
-			}
-
-			set.add(entity);
+			mutableEntitiesFor(player).add(entity);
 		},
 	};
 }

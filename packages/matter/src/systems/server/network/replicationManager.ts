@@ -204,17 +204,23 @@ function handleInitialReplication(
 		);
 		const playerHasReceived = tracker.hasReceived(profile.player);
 		const eligible = getEligibleEntities(world, componentEntityId);
-		const known = tracker.entitiesFor(profile.player);
 
-		for (const entityId of known) {
-			if (!eligible.has(entityId)) {
-				messaging.client.emit(profile.player, Message.DespawnEntity, entityId);
+		/*
+		 * The tracker hands out a read-only view, so the reconciliation is expressed as intent:
+		 * forget what the player may no longer see, then record what they may. Mutating a live `Set`
+		 * here would let this system and the tracker disagree about who knows what.
+		 */
+		for (const entityId of tracker.entitiesFor(profile.player)) {
+			if (eligible.has(entityId)) {
+				continue;
 			}
+
+			messaging.client.emit(profile.player, Message.DespawnEntity, entityId);
+			tracker.forgetEntity(profile.player, entityId);
 		}
 
-		known.clear();
 		for (const entityId of eligible) {
-			known.add(entityId);
+			tracker.trackEntity(profile.player, entityId);
 		}
 
 		if (playerHasReceived) {

@@ -15,7 +15,7 @@ rewriting persisted player documents.
   that reads the executor and reports the denial. `createAuthorizationPolicy` folds the configured
   roles to lower case once, at configuration time, so a lookup is exact set membership.
 - Matching is by full role name: `Developer` admits `developer` (case-folded) but never `Junior
-  Developer`. An empty role — what `GetRoleInGroup` returns for a non-member — is denied.
+Developer`. An empty role — what `GetRoleInGroup` returns for a non-member — is denied.
 - An empty configuration denies every player; an allowlisted user ID still bypasses the role check.
 - The three `configure*` functions keep their signatures.
 

@@ -43,23 +43,26 @@ describe("item lookup helpers", () => {
 	});
 
 	it("should translate between numeric ids and item paths, and compare item ids", () => {
-		expect.assertions(6);
+		expect.assertions(8);
 
 		expect(getItemName(potionPath)).toBe("Potion");
 		expect(isSameId(potionPath, potionPath)).toBe(true);
 		expect(isSameId(potionPath, otherPath)).toBe(false);
 
 		const numericId = getNumericItemIdFromId(potionPath);
+		const consumableNumericId = getNumericItemIdFromId(consumablePath);
 
 		expect(numericId).toBeDefined();
+		expect(consumableNumericId).toBeDefined();
 
 		/*
-		 * Only assert that the reverse lookup resolves *something* for a registered id. A strict
-		 * round-trip is not yet meaningful: `createItemRegistry` increments its counter after
-		 * recursing, so a parent path and its first child are assigned the same numeric id and the
-		 * reverse lookup returns whichever the map yields last. See the registry-collision follow-up.
+		 * Regression: the allocator used to increment after recursing, so a parent and its first
+		 * child shared one numeric id and the reverse lookup returned whichever path the map yielded
+		 * last — observed as `["Consumable", "Potion"]` in a full run and `["Consumable"]` in an
+		 * isolated one.
 		 */
-		expect(getItemIdFromNumericId(numericId!)).toBeDefined();
+		expect(numericId).never.toBe(consumableNumericId);
+		expect(getItemIdFromNumericId(numericId!)).toEqual(potionPath);
 		expect(getItemIdFromNumericId(999999)).toBeUndefined();
 	});
 

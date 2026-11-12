@@ -98,6 +98,87 @@ describe("replication tracker", () => {
 		});
 	});
 
+	describe("forgetEntity", () => {
+		it("should stop reporting a forgotten entity", () => {
+			expect.assertions(3);
+
+			const tracker = freshTracker();
+
+			tracker.trackEntity(player, entityA);
+
+			expect(tracker.knowsEntity(player, entityA)).toBe(true);
+
+			tracker.forgetEntity(player, entityA);
+
+			expect(tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(tracker.entitiesFor(player).size()).toBe(0);
+		});
+
+		it("should be idempotent for an entity that was never tracked", () => {
+			expect.assertions(2);
+
+			const tracker = freshTracker();
+
+			tracker.forgetEntity(player, entityA);
+			tracker.trackEntity(player, entityB);
+			tracker.forgetEntity(player, entityA);
+
+			expect(tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(tracker.knowsEntity(player, entityB)).toBe(true);
+		});
+
+		it("should not affect other players or other entities", () => {
+			expect.assertions(4);
+
+			const tracker = freshTracker();
+
+			tracker.trackEntity(player, entityA);
+			tracker.trackEntity(player, entityB);
+			tracker.trackEntity(otherPlayer, entityA);
+
+			tracker.forgetEntity(player, entityA);
+
+			expect(tracker.knowsEntity(player, entityA)).toBe(false);
+			expect(tracker.knowsEntity(player, entityB)).toBe(true);
+			expect(tracker.knowsEntity(otherPlayer, entityA)).toBe(true);
+			expect(tracker.entitiesFor(player).size()).toBe(1);
+		});
+	});
+
+	describe("entitiesFor", () => {
+		it("should return a snapshot that cannot change replication state", () => {
+			expect.assertions(3);
+
+			const tracker = freshTracker();
+
+			tracker.trackEntity(player, entityA);
+			const snapshot = tracker.entitiesFor(player);
+
+			/*
+			 * The defect this guards: `entitiesFor` used to return the internal `Set`, so any caller
+			 * could clear a player's known entities behind the tracker's back. `ReadonlySet` is erased
+			 * at runtime, so the assertion has to write through the value, not merely read the type.
+			 */
+			(snapshot as Set<AnyEntity>).clear();
+
+			expect(tracker.knowsEntity(player, entityA)).toBe(true);
+			expect(tracker.entitiesFor(player).size()).toBe(1);
+			expect(snapshot.size()).toBe(0);
+		});
+
+		it("should not let a stale snapshot hide a later track", () => {
+			expect.assertions(2);
+
+			const tracker = freshTracker();
+
+			const before = tracker.entitiesFor(player);
+			tracker.trackEntity(player, entityA);
+
+			expect(before.size()).toBe(0);
+			expect(tracker.entitiesFor(player).size()).toBe(1);
+		});
+	});
+
 	describe("dispose", () => {
 		it("should clear all player state", () => {
 			expect.assertions(5);

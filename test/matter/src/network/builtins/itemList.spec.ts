@@ -10,6 +10,7 @@ import {
 } from "@lisachandra/matter";
 import type { Item } from "@lisachandra/matter/components";
 import { defineItems } from "@lisachandra/matter/items";
+import { getNumericItemIdFromId } from "@lisachandra/matter/utils/item/lookup";
 import { beforeAll, beforeEach, describe, expect, it } from "@rbxts/jest-globals";
 import { component, World } from "@rbxts/matter";
 import createSerializer, { type u16 } from "@rbxts/serio";
@@ -59,6 +60,13 @@ function makeItem(data: Partial<TestData> = {}, amount = 1, guid = "guid-1"): It
 	} as unknown as Item;
 }
 
+/**
+ * The numeric id the registry assigned to `Weapon.Sword`, read from the registry rather than
+ * hardcoded: the allocator's counter is module-level and shared across spec files, so a literal
+ * only holds for whichever file happens to run first.
+ */
+const SWORD_ID = getNumericItemIdFromId(["Weapon", "Sword"] as never)!;
+
 /** Populates the shared crate's itemGUIDMap so serializer/deserializer can resolve numeric IDs. */
 function seedGUIDMap(): void {
 	const map = store.client.getState("itemGUIDMap");
@@ -85,7 +93,7 @@ describe("createItemListDeserializer", () => {
 			reader,
 		);
 		const result = deserializer(
-			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
+			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: SWORD_ID }] },
 			99 as never,
 			entityId,
 		) as TestComponent;
@@ -158,7 +166,7 @@ describe("createItemListDeserializer", () => {
 			reader,
 		);
 		const result = deserializer(
-			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
+			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: SWORD_ID }] },
 			99 as never,
 			undefined,
 		) as TestComponent;
@@ -179,7 +187,7 @@ describe("createItemListDeserializer", () => {
 
 		// Incoming numeric guid 1 maps back to guid-1 via the reader's GUID map.
 		const result = deserializer(
-			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
+			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: SWORD_ID }] },
 			99 as never,
 			undefined,
 		) as TestComponent;
@@ -213,7 +221,7 @@ describe("createItemListSerializer", () => {
 
 		// First replication: full item serialized.
 		expect(first.items).toHaveLength(1);
-		expect(first.items[0]!).toMatchObject({ amount: 1, guid: 1, id: 0 });
+		expect(first.items[0]!).toMatchObject({ amount: 1, guid: 1, id: SWORD_ID });
 
 		// Second replication with identical items: delta is empty.
 		const second = serializer(
@@ -300,7 +308,7 @@ describe("createItemListSerializer", () => {
 
 		const serializedItem = first.items[0] as { id: number };
 
-		expect(serializedItem.id).toBe(0);
+		expect(serializedItem.id).toBe(SWORD_ID);
 	});
 
 	it("should thread CodecStateReader through extras hooks without accessing store", () => {
@@ -411,7 +419,7 @@ describe("inventory codec (slice 6)", () => {
 		expect(codec).toBeDefined();
 
 		const result = codec!.deserializer!(
-			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: 0 }] },
+			{ items: [{ amount: 1, blobs: undefined, buf: undefined, guid: 1, id: SWORD_ID }] },
 			99 as never,
 			entityId as never,
 		) as TestComponent;
