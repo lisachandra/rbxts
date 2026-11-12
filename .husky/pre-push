@@ -1,4 +1,11 @@
 #!/bin/sh
-pnpm typecheck && pnpm lint:fix && pnpm build
+# The checks must gate the push. A bare `a && b && c` chain does not do that: when `a` fails the
+# chain short-circuits to the *next statement*, so the git-lfs lines below ran and the script
+# exited 0 — a failing typecheck or lint was reported but never enforced.
+#
+# `|| exit 1` makes the chain's result the script's result explicitly, rather than relying on the
+# `set -e` rule for AND-lists (which depends on whether the list is the whole pipeline).
+pnpm typecheck && pnpm lint:fix && pnpm build || exit 1
+
 command -v git-lfs >/dev/null 2>&1 || { echo >&2 "\nThis repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting '.git/hooks/pre-push'.\n"; exit 2; }
-git lfs pre-push "$@"
+exec git lfs pre-push "$@"

@@ -7,6 +7,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+	getStageEntriesForPackage,
+	normalizeForComparison,
+	quoteForCommand,
+	removePath,
+} from "./hoistPaths.mjs";
+
 const hoistScriptPath = fileURLToPath(import.meta.url);
 const hoistScriptDirectory = path.dirname(hoistScriptPath);
 const rootDirectory = path.resolve(hoistScriptDirectory, "..");
@@ -23,13 +30,6 @@ function pathExists(targetPath) {
 	} catch {
 		return false;
 	}
-}
-
-function normalizeForComparison(targetPath) {
-	return path
-		.normalize(targetPath)
-		.replace(/[\\/]+$/u, "")
-		.toLowerCase();
 }
 
 function resolvesOutsideSelf(targetPath) {
@@ -64,16 +64,11 @@ function ensureDirectory(targetPath) {
 	fs.mkdirSync(targetPath, { recursive: true });
 }
 
-function removePath(targetPath) {
-	if (!pathExists(targetPath)) {
-		return;
-	}
-
-	fs.rmSync(targetPath, { force: true, recursive: true });
-}
-
 function ensureLink(sourcePath, targetPath) {
 	ensureDirectory(path.dirname(targetPath));
+
+	/* The link target's own directory is the root this delete may touch, never the repo or home. */
+	const linkRoot = path.dirname(targetPath);
 
 	if (pathExists(targetPath)) {
 		const existingResolvedPath = tryRealpath(targetPath);
@@ -86,31 +81,37 @@ function ensureLink(sourcePath, targetPath) {
 			return;
 		}
 
-		removePath(targetPath);
+		removePath(targetPath, linkRoot);
 	}
 
 	const linkSourcePath = getLinkSourcePath(sourcePath);
 	const stats = fs.statSync(linkSourcePath);
+	const isDirectory = stats.isDirectory();
+
+	/** One junction via `cmd`, or a symlink everywhere else. */
+	const createLink = () => {
+		if (isDirectory && process.platform === "win32") {
+			/*
+			 * `windowsVerbatimArguments` is load-bearing, not a style choice: without it Node re-quotes
+			 * the already-quoted path and `mklink` rejects it as invalid syntax. See quoteForCommand.
+			 */
+			execFileSync(
+				"cmd.exe",
+				["/c", "mklink", "/J", quoteForCommand(targetPath), quoteForCommand(linkSourcePath)],
+				{ stdio: ["ignore", "ignore", "pipe"], windowsVerbatimArguments: true },
+			);
+			return;
+		}
+
+		fs.symlinkSync(linkSourcePath, targetPath, isDirectory ? "dir" : "file");
+	};
 
 	try {
-		if (process.platform === "win32" && stats.isDirectory()) {
-			execFileSync("cmd.exe", ["/c", "mklink", "/J", targetPath, linkSourcePath], {
-				stdio: ["ignore", "ignore", "pipe"],
-			});
-		} else {
-			fs.symlinkSync(linkSourcePath, targetPath, stats.isDirectory() ? "dir" : "file");
-		}
+		createLink();
 	} catch (err) {
 		if (err && typeof err === "object" && "code" in err && err.code === "EEXIST") {
-			removePath(targetPath);
-			if (process.platform === "win32" && stats.isDirectory()) {
-				execFileSync("cmd.exe", ["/c", "mklink", "/J", targetPath, linkSourcePath], {
-					stdio: ["ignore", "ignore", "pipe"],
-				});
-			} else {
-				fs.symlinkSync(linkSourcePath, targetPath, stats.isDirectory() ? "dir" : "file");
-			}
-
+			removePath(targetPath, linkRoot);
+			createLink();
 			return;
 		}
 
@@ -119,7 +120,7 @@ function ensureLink(sourcePath, targetPath) {
 }
 
 function ensureCopiedFile(sourcePath, targetPath) {
-	removePath(targetPath);
+	removePath(targetPath, path.dirname(targetPath));
 	ensureDirectory(path.dirname(targetPath));
 	fs.copyFileSync(sourcePath, targetPath);
 }
@@ -250,35 +251,6 @@ function getWorkspaceDirectories() {
 	return workspaces;
 }
 
-function normalizePackageRelativePath(value) {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-
-	if (value.length === 0) {
-		return undefined;
-	}
-
-	if (value.includes("*")) {
-		return undefined;
-	}
-
-	if (path.isAbsolute(value)) {
-		return undefined;
-	}
-
-	const normalized = value.startsWith("./") ? value.slice(2) : value;
-	if (normalized.length === 0) {
-		return undefined;
-	}
-
-	if (normalized.startsWith("../")) {
-		return undefined;
-	}
-
-	return normalized;
-}
-
 function getHoistConfig(packageJson) {
 	if (packageJson.hoist === false) {
 		return { enabled: false, mode: "all" };
@@ -292,63 +264,6 @@ function getHoistConfig(packageJson) {
 	}
 
 	return { enabled: true, mode: "all" };
-}
-
-function collectStringLeafPaths(value, output) {
-	if (typeof value === "string") {
-		const normalized = normalizePackageRelativePath(value);
-		if (normalized) {
-			output.add(normalized);
-		}
-
-		return;
-	}
-
-	if (!value || typeof value !== "object") {
-		return;
-	}
-
-	if (Array.isArray(value)) {
-		for (const item of value) {
-			collectStringLeafPaths(item, output);
-		}
-
-		return;
-	}
-
-	for (const nestedValue of Object.values(value)) {
-		collectStringLeafPaths(nestedValue, output);
-	}
-}
-
-function getStageEntriesForPackage(packageJson) {
-	const entries = new Set(["package.json"]);
-	const directFields = [
-		packageJson.main,
-		packageJson.module,
-		packageJson.types,
-		packageJson.typings,
-	];
-	for (const field of directFields) {
-		const normalized = normalizePackageRelativePath(field);
-		if (normalized) {
-			entries.add(normalized);
-		}
-	}
-
-	if (Array.isArray(packageJson.files)) {
-		for (const fileEntry of packageJson.files) {
-			const normalized = normalizePackageRelativePath(fileEntry);
-			if (normalized) {
-				entries.add(normalized);
-			}
-		}
-	}
-
-	collectStringLeafPaths(packageJson.exports, entries);
-	collectStringLeafPaths(packageJson.bin, entries);
-
-	return [...entries].sort();
 }
 
 function pruneNestedStageEntries(workspacePath, relativePaths) {
@@ -467,7 +382,7 @@ function ensureScopeDirectory(targetPackagePath) {
 
 	const stats = fs.lstatSync(scopeDirectory);
 	if (stats.isSymbolicLink() || resolvesOutsideSelf(scopeDirectory)) {
-		removePath(scopeDirectory);
+		removePath(scopeDirectory, rootNodeModules);
 		ensureDirectory(scopeDirectory);
 	}
 }
@@ -478,12 +393,12 @@ function getWorkspaceStagePath(packageName) {
 
 function stageWorkspacePackage({ packageJson, packageName, workspacePath }) {
 	const targetPath = getWorkspaceStagePath(packageName);
-	removePath(targetPath);
+	removePath(targetPath, workspaceLinksRoot);
 	ensureDirectory(targetPath);
 
 	const stageEntries = pruneNestedStageEntries(
 		workspacePath,
-		getStageEntriesForPackage(packageJson),
+		getStageEntriesForPackage(packageJson, workspacePath),
 	);
 	for (const relativePath of stageEntries) {
 		const sourcePath = path.join(workspacePath, relativePath);
@@ -604,7 +519,7 @@ function cleanupRootWorkspaceLinks(workspaces, patterns) {
 			if (!activeNames.has(packageName) && pathExists(candidate)) {
 				const resolvedPath = tryRealpath(candidate);
 				if (resolvedPath?.startsWith(`${workspaceLinksRoot}${path.sep}`)) {
-					removePath(candidate);
+					removePath(candidate, rootNodeModules);
 				}
 			}
 		}
@@ -769,4 +684,7 @@ function main() {
 	);
 }
 
-main();
+/* Only run the sync when this file is the entry point, so the pure predicates can be tested. */
+if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === hoistScriptPath) {
+	main();
+}
