@@ -20,9 +20,18 @@
 			"name": "sandcastle-tooling",
 			"notes": "All three edit packages/sandcastle/src/queue/ but on distinct files: #38 queue/manifest.ts (version-tolerant read), #33 queue/commands.ts + queue/ops.ts + main.ts + cli.ts (injected context), #60 queue/graph.ts + queue/render.ts (parallel lanes). In-batch order is #38 -> #33 -> #60 because #33 rewrites the two modules every subcommand flows through, and #60's graph render must go through the context #33 introduces rather than re-deriving it. No shared file, so no R-rule is needed against the other batches except where noted.",
 			"title": "sandcastle: queue tooling"
+		},
+		{
+			"issues": [
+				"47",
+				"41"
+			],
+			"name": "sandcastle-containment",
+			"notes": "Both edit packages/sandcastle/src/git.ts and worktree.ts: #47 routes the destructive spawns (worktree.ts rmdir via cmd.exe, git.ts baseRef) through one containment/child-process seam, and #41 adds signing verification to the commit path in git.ts plus the three commit call sites (issue.ts, queue/persist.ts, integration/merger.ts). Serialized in this batch because of the shared files. #47 first: it establishes the seam #41's commit path should then use, rather than #41 teaching the old shape to verify signatures and #47 rewriting it. This batch also overlaps sandcastle-tooling on nothing (#38/#33/#60 touch queue/, main.ts, cli.ts), so the two can share a lane if parallelism is on, except that #47 also edits queue/clean.ts and queue/land.ts — which sandcastle-tooling does not touch.",
+			"title": "sandcastle: containment and signing"
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T08:31:13.065Z",
+	"updatedAt": "2026-11-12T08:32:18.347Z",
 	"version": 2
 }
