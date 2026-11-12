@@ -23,9 +23,7 @@
 			"notes": "seeded from the open ready-for-agent backlog"
 		},
 		{
-			"issues": [
-				"46"
-			],
+			"issues": [],
 			"name": "security-controls",
 			"notes": "Slices A (this batch), B and C of #45 land as separate batches; each is a different package with no shared files.",
 			"title": "security: testable controls"
@@ -41,6 +39,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T06:19:44.370Z",
+	"updatedAt": "2026-11-12T06:19:52.085Z",
 	"version": 2
 }
