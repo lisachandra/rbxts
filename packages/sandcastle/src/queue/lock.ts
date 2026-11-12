@@ -29,6 +29,20 @@ export const manifestLockName = "queue-manifest.lock";
 /** Lock held by a `queue run` invocation for its whole lifetime. */
 export const runLockName = "queue-run.lock";
 
+/**
+ * - Lock name guarding one batch's execution.
+ * - @param name - The batch (integration) name.
+ * - @returns A lock file name unique to that batch.
+ * - @remarks A `--parallel` lane runs its batch in its own process, so it cannot rely on the parent's
+ *   `runLockName` to keep a second dispatcher off that batch: without this, `queue run --name
+ *   <batch>` in another terminal would run the same members against the same worktrees. The parent
+ *   still holds `runLockName`, so the two locks are nested rather than merged — a batch lock alone
+ *   is what makes a single lane safe to hand a name it binds.
+ */
+export function batchLockName(name: string): string {
+	return `queue-batch-${name.replace(/[^A-Za-z0-9._-]/gu, "-")}.lock`;
+}
+
 /** Ten minutes: longer than any mutation, shorter than a human's patience. */
 const defaultStaleMs = 10 * 60 * 1000;
 

@@ -76,6 +76,7 @@ function composition(
 function stageQueue(queue: QueueManifest = manifest()): void {
 	config.queue.file = relativeManifest;
 	config.queue.commit = false;
+	config.queue.lease = "off";
 	writeQueueManifest(queue, join(primary, relativeManifest));
 
 	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
@@ -373,6 +374,7 @@ describe("queue landing", () => {
 	test("--finish clears the gates waiting on the batch before deleting it", () => {
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 		writeQueueManifest(
 			manifest({
 				sequences: [

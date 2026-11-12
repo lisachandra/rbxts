@@ -89,6 +89,7 @@ describe("queue manifest persistence", () => {
 		stubGit(calls, otherPrimary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		const output = quiet(() => {
 			transactQueueManifest(parseArgs(["queue", "list"]), () => ({
@@ -152,6 +153,7 @@ describe("queue manifest persistence", () => {
 
 	test("--queue-commit overrides a repository that does not commit", () => {
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		assert.equal(
 			queueCommitEnabled({ ...parseArgs(["queue", "list"]), queueCommit: true }),

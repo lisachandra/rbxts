@@ -92,8 +92,21 @@ export interface CliOptions {
 
 	readonly queueIncludeHuman?: boolean;
 	readonly queueKeepEntries?: boolean;
+	/**
+	 * Cross-machine dispatch lease override for one run.
+	 *
+	 * `false` (`--no-lease`) makes no network calls; `true` (`--lease-strict`) refuses to dispatch
+	 * without the remote lease. Left `undefined` so `queue.lease` in the config decides.
+	 */
+	readonly queueLease?: boolean;
+	/** Run one batch and stop: the child mode of a `--parallel` lane. */
+	readonly queueOnce?: boolean;
 	readonly queueOpen?: boolean;
+	/** Batches `queue run` may execute at once; never above `queue.parallel`. */
+	readonly queueParallel?: number;
 	readonly queuePort?: number;
+	/** Catalog profile a lane runs; defaults to the lane index modulo the catalog. */
+	readonly queueProfile?: string;
 
 	readonly queuePromoteGates?: boolean;
 	readonly queueRequireClean?: boolean;
@@ -210,8 +223,12 @@ interface ParsedArgState {
 
 	queueIncludeHuman: boolean;
 	queueKeepEntries: boolean;
+	queueLease: boolean | undefined;
+	queueOnce: boolean;
 	queueOpen: boolean;
+	queueParallel: number | undefined;
 	queuePort: number | undefined;
+	queueProfile: string | undefined;
 
 	queuePromoteGates: boolean;
 	queueRequireClean: boolean;
@@ -289,9 +306,12 @@ function createParsedArgState(): ParsedArgState {
 		queueHost: undefined,
 		queueIncludeHuman: false,
 		queueKeepEntries: false,
-
+		queueLease: undefined,
+		queueOnce: false,
 		queueOpen: false,
+		queueParallel: undefined,
 		queuePort: undefined,
+		queueProfile: undefined,
 		queuePromoteGates: false,
 		queueRequireClean: false,
 		queueSequence: undefined,
@@ -584,6 +604,15 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		state.notes = next;
 		return index + 1;
 	},
+	"--parallel": (state, next, index) => {
+		const parsed = Number(next);
+		if (next === undefined || next === "" || !Number.isInteger(parsed) || parsed < 1) {
+			throw new Error("--parallel requires a positive integer");
+		}
+
+		state.queueParallel = parsed;
+		return index + 1;
+	},
 	"--phase": (state, next, index) => {
 		if (!isPhaseName(next)) {
 			throw new Error("--phase must be one of: design, implement, review");
@@ -611,6 +640,14 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		}
 
 		state.queuePort = port;
+		return index + 1;
+	},
+	"--profile": (state, next, index) => {
+		if (next === undefined || next === "" || next.startsWith("-")) {
+			throw new Error("--profile requires an agents.catalog profile name");
+		}
+
+		state.queueProfile = next;
 		return index + 1;
 	},
 
@@ -779,6 +816,12 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	"--last": (state) => {
 		state.last = true;
 	},
+	"--lease-strict": (state) => {
+		state.queueLease = true;
+	},
+	"--no-lease": (state) => {
+		state.queueLease = false;
+	},
 	"--no-queue": (state) => {
 		state.queueEnabled = false;
 	},
@@ -787,6 +830,9 @@ const booleanArgHandlers: Record<string, (state: ParsedArgState) => void> = {
 	},
 	"--no-resume": (state) => {
 		state.noResume = true;
+	},
+	"--once": (state) => {
+		state.queueOnce = true;
 	},
 	"--open": (state) => {
 		state.queueOpen = true;
@@ -1001,6 +1047,79 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			throw new Error(
 				"queue run does not accept --gated/--human/--sequence; place issues with `queue add`.",
 			);
+		}
+
+		if (state.queueSubcommand !== "run" && state.queueParallel !== undefined) {
+			throw new Error(
+				"--parallel runs several batches at once; use it with `queue run`, or set queue.parallel for the repo allowance.",
+			);
+		}
+
+		if (state.queueSubcommand !== "run" && state.queueOnce === true) {
+			throw new Error(
+				"--once runs exactly one batch; use it with `queue run --name <batch>`.",
+			);
+		}
+
+		if (state.queueSubcommand !== "run" && state.queueLease !== undefined) {
+			throw new Error(
+				"--no-lease and --lease-strict configure cross-machine dispatch; use them with `queue run`.",
+			);
+		}
+
+		if (state.queueSubcommand !== "run" && state.queueProfile !== undefined) {
+			throw new Error(
+				"--profile selects an agents.catalog profile for one lane; use it with `queue run`.",
+			);
+		}
+
+		/*
+		 * `--once` is what a `--parallel` lane calls its child with: one batch, no scheduling. Without
+		 * `--name` it has nothing to run, and without the guard a bare `queue run --once` would look
+		 * successful while dispatching nothing.
+		 */
+		if (state.queueOnce === true && (state.integrationName ?? "") === "") {
+			throw new Error("--once requires --name <batch>.");
+		}
+
+		/*
+		 * A profile is per lane; asking for one while running several lanes is ambiguous about which
+		 * lane it applies to, so it is refused rather than silently applied to lane 0.
+		 */
+		if (state.queueProfile !== undefined && (state.queueParallel ?? 1) > 1) {
+			throw new Error(
+				"--profile names one lane's model; drop it with --parallel > 1, or let each lane take its catalog profile in order.",
+			);
+		}
+
+		/*
+		 * `queue.parallel` is the repository's allowance; `--parallel` may only narrow it. Refusing
+		 * rather than clamping keeps a script that asked for four lanes from silently running two and
+		 * reporting a queue that is merely slow.
+		 */
+		if (state.queueParallel !== undefined && state.queueParallel > config.queue.parallel) {
+			throw new Error(
+				`--parallel ${String(state.queueParallel)} exceeds this repository's allowance of ${String(config.queue.parallel)}; raise queue.parallel in sandcastle.config.ts to run more lanes at once.`,
+			);
+		}
+
+		const parallel = state.queueParallel ?? config.queue.parallel;
+		if (parallel > 1 && config.agents.catalog.length === 0) {
+			throw new Error(
+				"queue run --parallel needs agents.catalog in sandcastle.config.ts: each lane draws one model + harness profile from it.",
+			);
+		}
+
+		if (state.queueProfile !== undefined) {
+			const profile = config.agents.catalog.find(
+				(entry) => entry.name === state.queueProfile,
+			);
+			if (profile === undefined) {
+				const known = config.agents.catalog.map((entry) => entry.name).join(", ");
+				throw new Error(
+					`--profile "${state.queueProfile}" is not in agents.catalog; known profiles: ${known === "" ? "(none)" : known}.`,
+				);
+			}
 		}
 
 		if (
@@ -1292,9 +1411,13 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		queueHost: state.queueHost,
 		queueIncludeHuman: state.queueIncludeHuman,
 		queueKeepEntries: state.queueKeepEntries,
+		queueLease: state.queueLease,
 
+		queueOnce: state.queueOnce,
 		queueOpen: state.queueOpen,
+		queueParallel: state.queueParallel,
 		queuePort: state.queuePort,
+		queueProfile: state.queueProfile,
 		queuePromoteGates: state.queuePromoteGates,
 		queueRequireClean: state.queueRequireClean,
 		queueSequence: state.queueSequence,

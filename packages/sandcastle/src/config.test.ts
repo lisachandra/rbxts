@@ -40,6 +40,105 @@ describe("config loading", () => {
 		 * `sandcastle setup` inherits), so a repository without a preference must stay undefined.
 		 */
 		assert.equal(config.setupOutput, undefined);
+		// No catalog means the repository never opted into lanes; dispatch stays single-model.
+		assert.deepEqual(config.agents.catalog, []);
+		assert.equal(config.queue.parallel, 1);
+		// `auto` takes the cross-machine lease when `origin` allows it and degrades to local locks.
+		assert.equal(config.queue.lease, "auto");
+	});
+
+	/** Writes a config file into its own directory and loads it. */
+	function loadFrom(name: string, source: ReadonlyArray<string>): ReturnType<typeof loadConfig> {
+		const dir = join(tmpRoot, name);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, "sandcastle.config.ts"), source.join("\n"), "utf-8");
+		return loadConfig(dir);
+	}
+
+	test("loadConfig accepts an agents.catalog with per-step overrides", () => {
+		const config = loadFrom(`${"config-catalog"}-valid`, [
+			"const config = {",
+			"	agents: {",
+			"		catalog: [",
+			'			{ name: "flash", backend: "zcode", model: "flash-m", effort: "high" },',
+			'			{ name: "deep", backend: "dirac", model: "deep-m", steps: { review: { effort: "low" } } },',
+			"		],",
+			"	},",
+			"	queue: { parallel: 3 },",
+			"};",
+			"export default config;",
+		]);
+
+		assert.deepEqual(
+			config.agents.catalog.map((profile) => profile.name),
+			["flash", "deep"],
+		);
+		assert.equal(config.agents.catalog[1]?.steps?.review?.effort, "low");
+		assert.equal(config.queue.parallel, 3);
+	});
+
+	test("loadConfig rejects a duplicate catalog profile name", () => {
+		assert.throws(
+			() =>
+				loadFrom("config-catalog-duplicate", [
+					"const config = {",
+					"	agents: {",
+					"		catalog: [",
+					'			{ name: "flash", backend: "zcode", model: "a" },',
+					'			{ name: "flash", backend: "pi", model: "b" },',
+					"		],",
+					"	},",
+					"};",
+					"export default config;",
+				]),
+			/repeats the profile name "flash"/u,
+		);
+	});
+
+	test("loadConfig rejects a catalog profile whose backend is disabled", () => {
+		assert.throws(
+			() =>
+				loadFrom("config-catalog-disabled", [
+					"const config = {",
+					"	agents: {",
+					'		enabled: ["zcode"],',
+					'		catalog: [{ name: "pi-lane", backend: "pi", model: "m" }],',
+					"	},",
+					"};",
+					"export default config;",
+				]),
+			/profile "pi-lane" uses backend "pi", which agents\.enabled does not list/u,
+		);
+	});
+
+	test("loadConfig rejects queue.parallel below one", () => {
+		assert.throws(
+			() =>
+				loadFrom("config-parallel-zero", [
+					"const config = { queue: { parallel: 0 } };",
+					"export default config;",
+				]),
+			/parallel/u,
+		);
+	});
+
+	test("loadConfig accepts each queue.lease mode and rejects an unknown one", () => {
+		for (const mode of ["auto", "off", "strict"] as const) {
+			const config = loadFrom(`config-lease-${mode}`, [
+				`const config = { queue: { lease: "${mode}" } };`,
+				"export default config;",
+			]);
+			assert.equal(config.queue.lease, mode);
+		}
+
+		assert.throws(
+			() =>
+				loadFrom("config-lease-bogus", [
+					'const config = { queue: { lease: "sometimes" } };',
+					"export default config;",
+				]),
+			/lease/u,
+		);
 	});
 
 	test("loadConfig merges repo config over defaults", () => {

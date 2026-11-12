@@ -64,6 +64,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		const output = addSequence("7");
 
@@ -80,6 +81,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		const release = acquireQueueLock({ name: manifestLockName });
 		try {
@@ -97,6 +99,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		writeFileSync(
 			queueLockPath(manifestLockName),
@@ -115,6 +118,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		transactQueueManifest(parseArgs(["queue", "list"]), (manifest) => ({
 			message: "  ✓ Nothing to prune",
@@ -130,6 +134,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		addSequence("10");
 
@@ -144,6 +149,7 @@ describe("queue manifest transactions", () => {
 		stubGit(primary);
 		config.queue.file = relativeManifest;
 		config.queue.commit = false;
+		config.queue.lease = "off";
 
 		const output = addSequence("11", {
 			...parseArgs(["queue", "list"]),

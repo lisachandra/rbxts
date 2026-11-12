@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "vitest";
 
 import { commaSeparated, parseArgs, printHelp } from "./cli.js";
+import { config } from "./runtime.js";
 import { registerTestHooks, tmpRoot, withEnv } from "./test-helpers.js";
 
 registerTestHooks();
@@ -624,6 +625,71 @@ describe("commaSeparated / parseArgs", () => {
 			assert.throws(
 				() => parseArgs(["queue", "run", "--max-issues", "0"]),
 				/positive integer/u,
+			);
+		});
+
+		test("parseArgs parses --parallel, --profile, and --once for queue run", () => {
+			assert.throws(
+				() => parseArgs(["queue", "run", "--parallel", "0"]),
+				/positive integer/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "run", "--parallel", "abc"]),
+				/positive integer/u,
+			);
+			assert.throws(() => parseArgs(["queue", "list", "--parallel", "2"]), /queue run/u);
+			assert.throws(() => parseArgs(["queue", "list", "--once"]), /queue run/u);
+			assert.throws(() => parseArgs(["queue", "list", "--profile", "flash"]), /queue run/u);
+			// `--once` is a lane's entry point; without a batch it has nothing to run.
+			assert.throws(() => parseArgs(["queue", "run", "--once"]), /--once requires --name/u);
+			// A profile names one lane, so it cannot be combined with several.
+			assert.throws(
+				() => parseArgs(["queue", "run", "--parallel", "2", "--profile", "flash"]),
+				/--profile names one lane's model/u,
+			);
+		});
+
+		test("parseArgs resolves --profile against the catalog", () => {
+			const previous = config.agents.catalog;
+			config.agents.catalog = [
+				{ backend: "zcode", model: "m1", name: "flash" },
+				{ backend: "dirac", effort: "max", model: "m2", name: "deep" },
+			];
+			try {
+				assert.equal(
+					parseArgs(["queue", "run", "--name", "U2", "--once", "--profile", "deep"])
+						.queueProfile,
+					"deep",
+				);
+				assert.throws(
+					() =>
+						parseArgs(["queue", "run", "--name", "U2", "--once", "--profile", "ghost"]),
+					/--profile "ghost" is not in agents\.catalog; known profiles: flash, deep/u,
+				);
+			} finally {
+				config.agents.catalog = previous;
+			}
+		});
+
+		test("parseArgs parses --no-lease and --lease-strict for queue run only", () => {
+			assert.equal(parseArgs(["queue", "run", "--no-lease"]).queueLease, false);
+			assert.equal(parseArgs(["queue", "run", "--lease-strict"]).queueLease, true);
+			// Unset means "let queue.lease in the config decide".
+			assert.equal(parseArgs(["queue", "run"]).queueLease, undefined);
+
+			assert.throws(() => parseArgs(["queue", "list", "--no-lease"]), /queue run/u);
+			assert.throws(() => parseArgs(["queue", "list", "--lease-strict"]), /queue run/u);
+		});
+
+		test("parseArgs refuses --parallel above the repository allowance", () => {
+			// `config.queue.parallel` defaults to 1, so any parallel request is over budget here.
+			assert.throws(
+				() => parseArgs(["queue", "run", "--parallel", "2"]),
+				/exceeds this repository's allowance of 1/u,
+			);
+			assert.throws(
+				() => parseArgs(["queue", "run", "--parallel", "2"]),
+				/raise queue\.parallel/u,
 			);
 		});
 	});

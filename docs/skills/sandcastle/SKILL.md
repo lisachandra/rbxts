@@ -172,14 +172,34 @@ queue is the runnable artifact, the comment is only the report.
 
 ## What `queue run` guarantees
 
-- **One dispatcher per checkout**, held by a run lock, so no `R<n>` rule is broken by a second run
-  starting mid-batch. Cross-machine runs are not guarded: one checkout owns the queue.
+- **One dispatcher per repository.** A run lock keeps two runs on one checkout apart, so no `R<n>`
+  rule is broken by a second dispatcher starting mid-batch; across machines, `queue run` holds a lease
+  ref (`refs/sandcastle/dispatch-lease`) on `origin` and refuses when another checkout holds one. The
+  lease expires after 30 minutes without a renewal and a live run renews every 10, so a crashed
+  machine cannot wedge the queue. `queue.lease` picks the mode: `auto` (default) falls back to local
+  locks when `origin` is unreachable, `strict` refuses to dispatch without the lease, `off` makes no
+  network calls (`--no-lease` / `--lease-strict` for one run).
 - **Every manifest write is one locked transaction**, so a review registering a follow-up from
   inside a batch worktree writes the manifest in the primary checkout without waiting on the
   dispatcher and without losing a concurrent edit.
 - **Dispatch resumes**, and batches are atomic: members already APPROVED are skipped while their
   branch still chains as the next base (`--no-resume` re-runs them), and `--max-issues <n>` refuses
   a batch that would exceed the budget rather than trimming it.
+- **Parallel lanes are a repo opt-in.** With `queue.parallel` above 1, `queue run --parallel <n>`
+  runs up to `n` batches at once and lane `k` runs `agents.catalog[k % length]`. Members inside a
+  batch never run in parallel — each member's branch is the next member's base — so the only
+  concurrency is between batches the scheduler already treats as independent (READY, no open
+  blocker, no `R<n>` overlap). Each lane is a child process logging to
+  `.sandcastle/logs/batch-<batch>.<profile>.log`; a failed lane is reported and its siblings finish.
+  The parent keeps the run lock and each child takes a per-batch lock, and a child refuses to open a
+  pool of its own. `--dry-run --json` emits the per-lane object it predicts, so a plan can be read
+  without spawning anything. A lane that stayed idle is reported with the scheduler's own reason
+  (`⏸ 1 lane(s) idle: sequence "X" is GATED (…)`), and the run ends with a pool summary naming its
+  duration, how much of it had every lane busy, and each batch's own time — so "was this actually
+  parallel?" is answered by the output instead of guessed.
+- **`--once` is a lane's entry point**, not a user-facing mode: it runs exactly one named batch,
+  skips pruning/promotion/hand-off, and exits 0 when the batch finishes (`queue run`'s exit 1 means
+  "the queue is exhausted", which a lane must not report).
 
 ## Bypass
 

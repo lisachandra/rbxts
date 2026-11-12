@@ -25,8 +25,18 @@ export interface ScheduleParams {
 }
 
 export type ScheduleDecision =
-	| { kind: "done"; reason: string }
-	| { issues: Array<string>; kind: "sequence"; name: string };
+	| { issues: Array<string>; kind: "sequence"; name: string }
+	| {
+			kind: "done";
+			reason: string;
+			/**
+			 * True when every batch still in the manifest is waiting only because its members are
+			 * already dispatched. That is full utilization, not an exhausted queue, and the two
+			 * must not read the same in a run's report: one means "wait", the other means "go
+			 * home".
+			 */
+			saturated?: boolean;
+	  };
 
 /**
  * Members of `candidate` that a serialization rule keeps apart from an already-dispatched issue.
@@ -112,6 +122,8 @@ export function selectNextBatch(params: ScheduleParams): ScheduleDecision {
 	}
 
 	const reasons: Array<string> = [];
+	/** Sequences skipped only because every member is already dispatched. */
+	let inFlight = 0;
 	for (const sequence of view.sequences) {
 		if (filtered && sequence.name !== batch) {
 			continue;
@@ -123,6 +135,7 @@ export function selectNextBatch(params: ScheduleParams): ScheduleDecision {
 		}
 
 		if (sequence.issues.every((issue) => seen.has(issue.number))) {
+			inFlight += 1;
 			continue;
 		}
 
@@ -149,9 +162,17 @@ export function selectNextBatch(params: ScheduleParams): ScheduleDecision {
 		};
 	}
 
+	/*
+	 * "Nothing is ready" and "everything is already running" are different reports. The first says the
+	 * queue is exhausted or gated; the second says a dispatcher is at capacity and should wait. Only
+	 * the second sets `saturated`, and only when nothing else is also pending: a gated batch beside an
+	 * in-flight one is a queue with work to do later, not a full one.
+	 */
+	const saturated = reasons.length === 0 && inFlight > 0;
 	return {
 		kind: "done",
 		reason: reasons.length > 0 ? reasons.join(" · ") : "no sequence is ready to fire",
+		...(saturated ? { saturated: true } : {}),
 	};
 }
 

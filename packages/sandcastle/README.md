@@ -57,8 +57,14 @@ const config: SandcastleUserConfig = {
 			implement: { model: "strong-coder", effort: "max" },
 			review: { backend: "codex", effort: "high" },
 		},
+		// Selectable model + harness profiles for `queue run --parallel`; lane k runs catalog[k % n].
+		catalog: [
+			{ name: "flash", backend: "dirac", model: "dirac-model", effort: "high" },
+			{ name: "deep", backend: "codex", model: "codex-model", effort: "max" },
+		],
 	},
 	effort: "xhigh",
+	queue: { parallel: 2 },
 };
 
 export default config;
@@ -245,6 +251,8 @@ sandcastle queue serve      # the same graph as a local page (--port, --host, --
 sandcastle queue run --name ui-wiring-work  # fire the next READY batch; re-reads the manifest after each one
 sandcastle queue run --land                 # ...and compose each batch as it finishes
 sandcastle queue run --push-and-delete      # ...and reclaim each member's worktree as it finishes
+sandcastle queue run --parallel 2           # run two batches at once, one agents.catalog profile per lane
+sandcastle queue run --name ui-wiring-work --profile deep  # pin one batch to one profile
 sandcastle queue clean --batch ui-wiring-work --push-and-delete  # reclaim one batch's worktrees
 sandcastle queue clean --prune-git          # sweep .git/worktrees debris; removes no worktree
 sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
@@ -344,6 +352,94 @@ manifest themselves; otherwise commit it yourself, or the registration dies with
 needs a human must not look like an exhausted queue to whatever scripted the run. Under `--json`,
 every hand-off attempt also emits `{ handOff: { batch, ok, error } }`.
 
+### Parallel batches
+
+`queue run --parallel <n>` runs up to `n` batches at once. Parallelism is **between batches only**:
+members inside a batch are strictly serial because each member's branch is the next member's base.
+That is what makes concurrency safe here — every batch starts from the base ref, `after` gates carry
+the real dependencies, and an `R<n>` rule is the repository's own statement that two issues must never
+be in flight together.
+
+```ts
+// sandcastle.config.ts
+agents: {
+	catalog: [
+		{ name: "flash", backend: "zcode", model: "glm-5.3-flash", effort: "high" },
+		{ name: "deep", backend: "zcode", model: "glm-5.3", effort: "max",
+		  steps: { review: { effort: "high" } } },
+	],
+},
+queue: { lease: "auto", parallel: 2 },
+```
+
+- **`agents.catalog`** lists selectable model + harness profiles. Lane `k` runs
+  `catalog[k % catalog.length]`, fixed for the invocation, so an assignment is deterministic and
+  reproducible. An empty catalog means the repository never opted in.
+- **`queue.parallel`** is the repository's allowance. `--parallel` may only narrow it; asking for more
+  is refused with an error naming the key rather than silently clamped.
+- A serial `queue run` uses `catalog[0]`, so the serial and parallel paths start from the same model
+  and cannot disagree about which one a batch ran on.
+- `--profile <name>` pins one profile for a single-batch run; it is refused with `--parallel > 1`,
+  where "which lane?" has no answer.
+
+Each lane is a child process (`queue run --name <batch> --once --profile <name>`), because a failed or
+blocked member exits its process and would otherwise take sibling lanes down with it. Its stdout and
+stderr go to `.sandcastle/logs/batch-<batch>.<profile>.log`; the parent prints one line per lane event
+(`▶ Lane 1: "ui-wiring" [flash]`, `✓ … finished in 2h14m`). A failed lane's log tail is echoed, and the
+other lanes keep running — one stuck batch must not strand unrelated work. Landing stays in the parent
+and runs serially over the batches that finished cleanly, so two compositions never race on an
+integration manifest. A batch whose lane failed is not landed at all: its composition would describe a
+partial chain.
+
+`--parallel` interacts with the existing rules as you would expect: `--max-issues` still refuses an
+atomic batch that would overshoot, `--push-and-delete` still reclaims per member inside each lane, and
+`--land`/`--create-pr` still hand a finished batch to a human. The parent holds the run lock for the
+whole pool and each child takes an additional per-batch lock, so a hand-run `queue run --name <batch>`
+cannot collide with a lane. A lane child refuses to open a pool of its own, so a forwarded `--parallel`
+can never make a lane spawn grandchildren against the same manifest and worktrees.
+
+`--dry-run` prints the plan without spawning anything, and under `--json` it emits the same per-lane
+object a real run does (`{ batch, issues, kind: "lane", lane, profile, dryRun: true }`) rather than
+leaving a JSON consumer to scrape stderr. Exit codes stay split: a failed lane exits `1`; a failed
+hand-off exits `2`.
+
+A lane that stays free is explained rather than left to inference: the pool prints
+`⏸ 1 lane(s) idle: sequence "X" is GATED (…)` with the scheduler's own reason, and it distinguishes
+"the remaining batches are already in flight" (nothing to report) from "nothing else can fire". The
+run closes with a summary — duration, the share of it with every lane busy, and each batch's own
+time — and under `--json` with one `{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons }`
+object. A pool that fires nothing reports the exhaustion reason exactly as the serial loop does,
+instead of exiting `1` silently.
+
+### Cross-machine dispatch
+
+The locks above live in one working tree, so they say nothing to a second machine running against the
+same repository. `queue run` therefore also holds a **lease ref on `origin`** while it dispatches:
+`refs/sandcastle/dispatch-lease` points at a root commit whose message is `{ at, host, pid, branch }`.
+Acquisition is a compare-and-swap (`git push --force-with-lease` against the sha the checkout last
+read), so two machines cannot both win — the loser is refused and told which checkout holds it.
+
+```
+⚠ Cross-machine dispatch lease unavailable (this checkout has no `origin` remote); dispatching with local locks only.
+Another checkout is dispatching this queue: pid 8123 on desktop (branch main), renewed 4m ago, expires in 26m.
+```
+
+- **Expiry, not deadlock.** A lease older than 30 minutes is taken over, so a crashed machine cannot
+  wedge the queue. A live run renews every 10 minutes; if a renewal is rejected because someone else
+  now holds the ref, the run stops starting new batches (work already in flight is allowed to finish)
+  rather than dispatching under a lease it no longer owns.
+- **`queue.lease`** decides the mode. `auto` (the default) takes the lease and degrades to local
+  locks with a warning when `origin` is unreachable, so a single-machine checkout keeps working
+  offline. `strict` refuses to dispatch without the lease — the right setting for CI or a team with
+  two machines. `off` makes no network calls at all.
+- **`--no-lease`** and **`--lease-strict`** override the mode for one invocation.
+- A `--dry-run` takes no lease, and neither does a `--parallel` lane child: the parent already holds
+  it, so a child taking one would deadlock against its own run.
+- Lease pushes skip `pre-push` hooks. The ref carries an empty tree that no CI builds, and a hook that
+  runs typecheck/lint/build — or worse, rewrites files — must not run on a renewal.
+
+If a machine really is gone, clear its lease by hand: `git push origin :refs/sandcastle/dispatch-lease`.
+
 `sequences[].after` is a run-order gate: the batch stays GATED until that integration has
 been composed **and** its head commit is an ancestor of the base branch — the check a batch that
 consumes an earlier batch's commits actually needs. It is evaluated in `queue/gates.ts` with
@@ -422,6 +518,15 @@ phase scope under `<.sandcastle>/sessions/`, and offers it back on the next atte
 knows is cleared so the following retry starts fresh. Set
 `SANDCASTLE_NO_SESSION_RESUME=1` to disable resume entirely. Other backends always
 start fresh sessions.
+
+Resume keeps the conversation, not the selection: zcode's `session/resume` restores the
+session's persisted model and ignores a requested reasoning level, so the wrapper re-applies
+the configured model and effort through `session/setModel`/`session/setThoughtLevel` before
+the first turn. A resumed phase therefore always runs on the model the config asks for — when
+a stored session was created under a different `agents.catalog` profile, or the config's model
+changed since the failed attempt, the conversation continues where it left off but on the
+current model and effort. These mutators pass `persistAsWorkspaceLastUsed: false`, so a
+sandcastle run never rewrites the desktop app's last-used selection.
 
 ## Development
 

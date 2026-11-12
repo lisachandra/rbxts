@@ -188,4 +188,40 @@ describe("queue scheduling", () => {
 		assert.equal(sequenceTail(["1", "2"]), "2");
 		assert.equal(sequenceTail([]), "");
 	});
+
+	test("saturation is reported when every remaining member is already in flight", () => {
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1"], name: "U1" },
+				{ issues: ["2"], name: "U2" },
+			],
+		});
+		const decision = plan(queue, live(issue("1"), issue("2")), { seen: ["1", "2"] });
+
+		assert.equal(decision.kind, "done");
+		assert.equal(decision.kind === "done" ? decision.saturated : undefined, true);
+	});
+
+	test("an empty manifest is not saturated: there is nothing in flight either", () => {
+		const decision = plan(manifest(), live());
+
+		assert.equal(decision.kind, "done");
+		assert.equal(decision.kind === "done" ? decision.saturated : undefined, undefined);
+	});
+
+	test("a gated batch beside an in-flight one is not saturation", () => {
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1"], name: "U1" },
+				{ issues: ["2"], name: "U2" },
+			],
+		});
+		const decision = plan(queue, live(issue("1"), issue("2", { ready: false })), {
+			seen: ["1"],
+		});
+
+		assert.equal(decision.kind, "done");
+		assert.equal(decision.kind === "done" ? decision.saturated : undefined, undefined);
+		assert.match(reasonOf(decision), /U2.*GATED/u);
+	});
 });

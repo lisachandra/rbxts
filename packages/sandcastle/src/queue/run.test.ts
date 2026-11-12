@@ -117,6 +117,7 @@ function stage(
 	rmSync(queueLockPath(runLockName), { force: true });
 	config.queue.file = relativeManifest;
 	config.queue.commit = false;
+	config.queue.lease = "off";
 	writeQueueManifest({ ...emptyQueueManifest(), sequences }, manifestPath);
 	stubGh(live);
 
@@ -374,6 +375,72 @@ describe("queue run dispatch", () => {
 		assert.equal(existsSync(queueLockPath(runLockName)), false);
 	});
 
+	test("a dry run takes no dispatch lease, so it never touches the remote", async () => {
+		stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		/*
+		 * `stage` sets `lease: "off"`, so this flips it back to `auto` — the mode that would take a
+		 * lease — and asserts no lease git command is ever issued. The CAS mechanics themselves are
+		 * covered in `lease.test.ts`, which owns the fake remote.
+		 */
+		const config$ = config.queue.lease;
+		const gitCalls: Array<string> = [];
+		const execFileSync$ = io.execFileSync;
+		config.queue.lease = "auto";
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			const argv = Array.isArray(args) ? args.map(String) : [];
+			if (command === "git") {
+				gitCalls.push(argv.join(" "));
+			}
+
+			return (execFileSync$ as (...callArgs: Array<unknown>) => unknown)(command, args);
+		}) as typeof io.execFileSync;
+
+		try {
+			await run(["queue", "run", "--dry-run"], { reject: true });
+		} finally {
+			config.queue.lease = config$;
+			io.execFileSync = execFileSync$;
+		}
+
+		assert.equal(
+			gitCalls.some((call) => call.includes("dispatch-lease")),
+			false,
+			`a dry run must not touch the lease ref; saw: ${gitCalls.join(" | ")}`,
+		);
+	});
+
+	test("--once takes no lease: its parent already holds one", async () => {
+		stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		await approve("5");
+
+		const config$ = config.queue.lease;
+		const gitCalls: Array<string> = [];
+		const execFileSync$ = io.execFileSync;
+		config.queue.lease = "auto";
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			const argv = Array.isArray(args) ? args.map(String) : [];
+			if (command === "git") {
+				gitCalls.push(argv.join(" "));
+			}
+
+			return (execFileSync$ as (...callArgs: Array<unknown>) => unknown)(command, args);
+		}) as typeof io.execFileSync;
+
+		try {
+			await run(["queue", "run", "--name", "U2", "--once"], { reject: true });
+		} finally {
+			config.queue.lease = config$;
+			io.execFileSync = execFileSync$;
+		}
+
+		assert.equal(
+			gitCalls.some((call) => call.includes("dispatch-lease")),
+			false,
+			`a lane child must not take a second lease; saw: ${gitCalls.join(" | ")}`,
+		);
+	});
+
 	test("finishes the batch it just ran when a review appended a member mid-run", async () => {
 		stage(
 			[
@@ -463,5 +530,129 @@ describe("queue run dispatch", () => {
 
 		assert.deepEqual(codes, [2]);
 		assert.deepEqual(reported, [{ batch: "U2", error: "blocked", ok: false }]);
+	});
+
+	test("--once runs its batch and exits 0 rather than reporting an exhausted queue", async () => {
+		const { codes } = stage([{ issues: ["5", "6"], name: "U2" }], [makeIssue(5), makeIssue(6)]);
+
+		const result = await run(["queue", "run", "--name", "U2", "--once"], {
+			land: () => Promise.resolve({ ok: true }),
+			reject: true,
+		});
+
+		assert.deepEqual(result.calls, [{ issues: ["5", "6"], resume: true }]);
+		assert.deepEqual(
+			codes,
+			[],
+			"a finished lane is success; the serial loop's exit 1 would fail every parallel run",
+		);
+		assert.doesNotMatch(result.output, /Nothing to run/u);
+	});
+
+	test("--once refuses a batch the manifest does not define", async () => {
+		stage([], [makeIssue(5)]);
+
+		await assert.rejects(
+			run(["queue", "run", "--name", "ghost", "--once"], { reject: true }),
+			/--once names batch "ghost"/u,
+		);
+	});
+
+	test("--parallel reports a failed lane as exit 1 and lands nothing", async () => {
+		const { codes } = stage([], []);
+
+		config.queue.parallel = 2;
+		config.agents.catalog = [
+			{ backend: "zcode", model: "m1", name: "flash" },
+			{ backend: "zcode", model: "m2", name: "deep" },
+		];
+		let landed = 0;
+		await assert.rejects(
+			runQueueRun(parseArgs(["queue", "run", "--parallel", "2", "--land"]), {
+				land: () => {
+					landed += 1;
+					return Promise.resolve({ ok: true });
+				},
+				pool: () =>
+					Promise.resolve({
+						batches: ["U1"],
+						completed: [],
+						failures: [
+							{ batch: "U1", elapsedMs: 1, error: "boom", lane: 0, profile: "flash" },
+						],
+						issues: ["5"],
+					}),
+			}),
+			(err: unknown) => err instanceof ExitError,
+		);
+		config.queue.parallel = 1;
+		config.agents.catalog = [];
+
+		assert.deepEqual(codes, [1]);
+		assert.equal(landed, 0, "a failed batch must not be landed");
+	});
+
+	test("--parallel lands each completed batch, serially, and exits 2 on a hand-off failure", async () => {
+		const { codes } = stage([], []);
+
+		config.queue.parallel = 2;
+		config.agents.catalog = [{ backend: "zcode", model: "m1", name: "flash" }];
+		const landed: Array<string> = [];
+		await assert.rejects(
+			runQueueRun(parseArgs(["queue", "run", "--parallel", "2", "--land"]), {
+				land: (_options, name) => {
+					landed.push(name);
+					return Promise.resolve({ error: "no manifest", ok: false });
+				},
+				pool: () =>
+					Promise.resolve({
+						batches: ["U1", "U2"],
+						completed: [
+							{ batch: "U1", elapsedMs: 1, lane: 0, profile: "flash" },
+							{ batch: "U2", elapsedMs: 2, lane: 0, profile: "flash" },
+						],
+						failures: [],
+						issues: ["5", "6"],
+					}),
+			}),
+			(err: unknown) => err instanceof ExitError,
+		);
+		config.queue.parallel = 1;
+		config.agents.catalog = [];
+
+		assert.deepEqual(landed, ["U1", "U2"], "landing stays serial, in completion order");
+		assert.deepEqual(codes, [2]);
+	});
+
+	test("a lane child refuses to open a pool of its own", async () => {
+		stage([], []);
+
+		config.queue.parallel = 2;
+		config.agents.catalog = [{ backend: "zcode", model: "m1", name: "flash" }];
+		let pooled = 0;
+		process.env.SANDCASTLE_QUEUE_RUN_CHILD = "1";
+
+		try {
+			await assert.rejects(
+				runQueueRun(parseArgs(["queue", "run", "--parallel", "2"]), {
+					pool: () => {
+						pooled += 1;
+						return Promise.resolve({
+							batches: [],
+							completed: [],
+							failures: [],
+							issues: [],
+						});
+					},
+				}),
+				/lane child and cannot run a pool of its own/u,
+			);
+		} finally {
+			delete process.env.SANDCASTLE_QUEUE_RUN_CHILD;
+			config.queue.parallel = 1;
+			config.agents.catalog = [];
+		}
+
+		assert.equal(pooled, 0, "the pool must never start from inside a lane");
 	});
 });

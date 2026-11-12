@@ -29,6 +29,7 @@ function stage(manifest: QueueManifest): { done: () => void; lines: Array<string
 	rmSync(queueLockPath(manifestLockName), { force: true });
 	config.queue.file = relativeManifest;
 	config.queue.commit = false;
+	config.queue.lease = "off";
 	writeQueueManifest(manifest, manifestPath);
 	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
 		const argv = Array.isArray(args) ? args.map(String) : [];

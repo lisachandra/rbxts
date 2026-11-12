@@ -54,6 +54,11 @@ export const setupOutputs = ["inherit", "log"] as const;
 
 export type SetupOutput = (typeof setupOutputs)[number];
 
+/** Cross-machine dispatch guard modes; see `SandcastleConfig.queue.lease`. */
+export const queueLeases = ["auto", "off", "strict"] as const;
+
+export type QueueLeaseMode = (typeof queueLeases)[number];
+
 export const phaseNames: ReadonlyArray<PhaseName> = ["design", "implement", "review"];
 export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
 	"plan",
@@ -67,6 +72,13 @@ export const promptFileKeys: ReadonlyArray<PromptFileKey> = [
 /** Fully-resolved configuration surface exposed to consumers. */
 export interface SandcastleConfig {
 	agents: {
+		/**
+		 * Selectable model + harness profiles for `queue run --parallel`.
+		 *
+		 * Empty means the repository has not opted in: dispatch uses the single workflow default
+		 * and refuses `--parallel` above one.
+		 */
+		catalog: Array<AgentProfile>;
 		/** Backend used when `--agent` is not passed. */
 		default: AgentBackend;
 		enabled: Array<AgentBackend>;
@@ -116,6 +128,23 @@ export interface SandcastleConfig {
 		/** When false, the queue workflow is bypassed: no gating, no prompt contract. */
 		enabled: boolean;
 		file: string;
+		/**
+		 * Cross-machine dispatch guard.
+		 *
+		 * `auto` takes a lease on `origin` when it can and falls back to a local-only run when it
+		 * cannot; `strict` refuses to dispatch without one; `off` makes no network calls at all.
+		 * The lease is what stops two checkouts from reserving the same batch — the locks in
+		 * `.sandcastle` only ever guard one machine.
+		 */
+		lease: QueueLeaseMode;
+		/**
+		 * How many batches `queue run` may execute at once.
+		 *
+		 * This is the repository's allowance, not a per-run default: `--parallel <n>` may lower it
+		 * but never exceed it, so the machine and API budget stay the owner's decision. Members
+		 * inside one batch are never parallel — each member's branch is the next member's base.
+		 */
+		parallel: number;
 		/**
 		 * When true, dispatch aborts instead of warning when a reused member's branch does not
 		 * contain the accumulated base — the signature of a member inserted ahead of already-run
@@ -181,10 +210,34 @@ const agentStepsSchema = z
 	.strict()
 	.optional();
 
+/**
+ * One selectable model + harness profile.
+ *
+ * A profile is a named `backend`/`model`/`effort` triple with optional per-step overrides, so a
+ * repository can say "the cheap lane" and "the deep lane" once instead of restating a model for
+ * every batch it defines. `queue run --parallel` assigns one profile per lane; a serial run uses
+ * the first.
+ */
+const agentProfileSchema = z
+	.object({
+		backend: agentBackendSchema,
+		/** Default reasoning effort for this profile; falls back to the workflow effort. */
+		effort: effortSchema.optional(),
+		model: z.string().min(1),
+		/** Stable id used in logs and lane assignment, e.g. "flash". */
+		name: z.string().min(1),
+		/** Per-step overrides inside this profile, e.g. a cheaper review. */
+		steps: agentStepsSchema,
+	})
+	.strict();
+
+export type AgentProfile = z.output<typeof agentProfileSchema>;
+
 export const sandcastleConfigSchema = z
 	.object({
 		agents: z
 			.object({
+				catalog: z.array(agentProfileSchema).optional(),
 				default: agentBackendSchema.optional(),
 				enabled: z.array(agentBackendSchema).optional(),
 				models: z
@@ -224,6 +277,8 @@ export const sandcastleConfigSchema = z
 				commitBranch: z.string().min(1).optional(),
 				enabled: z.boolean().optional(),
 				file: z.string().min(1).optional(),
+				lease: z.enum(queueLeases).optional(),
+				parallel: z.number().int().min(1).optional(),
 				strictChain: z.boolean().optional(),
 			})
 			.optional(),
@@ -272,6 +327,7 @@ export type SandcastleUserConfig = z.input<typeof sandcastleConfigSchema>;
 
 const defaultConfig: SandcastleConfig = {
 	agents: {
+		catalog: [],
 		default: "dirac",
 		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi", "zcode"],
 		models: {},
@@ -294,6 +350,8 @@ const defaultConfig: SandcastleConfig = {
 		commitBranch: "main",
 		enabled: true,
 		file: "sandcastle.queue.json",
+		lease: "auto",
+		parallel: 1,
 		strictChain: false,
 	},
 	reviewMarker: "Sandcastle-Review",
@@ -349,6 +407,7 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 	const parsed = sandcastleConfigSchema.parse(userConfig);
 	const merged: SandcastleConfig = {
 		agents: {
+			catalog: parsed.agents?.catalog ?? defaultConfig.agents.catalog,
 			default: parsed.agents?.default ?? defaultConfig.agents.default,
 			enabled: parsed.agents?.enabled ?? defaultConfig.agents.enabled,
 			models: {
@@ -396,6 +455,8 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 				parsed.queue?.commitBranch ?? parsed.baseBranch ?? defaultConfig.queue.commitBranch,
 			enabled: parsed.queue?.enabled ?? defaultConfig.queue.enabled,
 			file: parsed.queue?.file ?? defaultConfig.queue.file,
+			lease: parsed.queue?.lease ?? defaultConfig.queue.lease,
+			parallel: parsed.queue?.parallel ?? defaultConfig.queue.parallel,
 			strictChain: parsed.queue?.strictChain ?? defaultConfig.queue.strictChain,
 		},
 		reviewMarker: parsed.reviewMarker ?? defaultConfig.reviewMarker,
@@ -434,7 +495,47 @@ export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 		}
 	}
 
+	validateCatalog(configPath, merged.agents);
+
 	return { ...merged, prompts };
+}
+
+/**
+ * - Rejects a catalog a lane could not run.
+ * - @param configPath - The file being validated, so the message names what to edit.
+ * - @param agents - Resolved agents block: catalog, enabled backends, and per-backend models.
+ * - @throws {Error} When a profile name repeats, a profile names a backend the repository disabled,
+ *   or a profile supplies no model and no `agents.models` entry covers its backend.
+ * - @remarks The catalog is checked at load time rather than at lane spawn: a typo in a lane's model
+ *   should fail the run before any worktree is built, not halfway through a batch.
+ */
+function validateCatalog(configPath: string, agents: SandcastleConfig["agents"]): void {
+	const seen = new Set<string>();
+	for (const profile of agents.catalog) {
+		if (seen.has(profile.name)) {
+			throw new Error(
+				`${configPath}: agents.catalog repeats the profile name "${profile.name}"; profile names identify lanes, so they must be unique.`,
+			);
+		}
+
+		seen.add(profile.name);
+
+		if (!agents.enabled.includes(profile.backend)) {
+			throw new Error(
+				`${configPath}: agents.catalog profile "${profile.name}" uses backend "${profile.backend}", which agents.enabled does not list. Add it to agents.enabled or change the profile's backend.`,
+			);
+		}
+
+		/*
+		 * `model` is required by the schema, so this only catches a profile that relied on whitespace;
+		 * the check stays because the failure it prevents surfaces mid-batch otherwise.
+		 */
+		if (profile.model.trim() === "") {
+			throw new Error(
+				`${configPath}: agents.catalog profile "${profile.name}" has an empty model.`,
+			);
+		}
+	}
 }
 
 /** Escapes a literal string for use inside a RegExp. */

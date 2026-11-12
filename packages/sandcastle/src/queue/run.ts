@@ -19,6 +19,7 @@
  */
 
 import type { CliOptions } from "../cli.js";
+import type { AgentProfile } from "../config.js";
 import { config, io } from "../runtime.js";
 import { runSequentialIssues } from "../sequential.js";
 import { getLatestReviewMarker, isIssueComplete } from "../state.js";
@@ -26,12 +27,15 @@ import { applyBootstrap, promotableGates, proposeBootstrap } from "./bootstrap.j
 import { inspectChainSequences } from "./chain.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { runQueueLand } from "./land.js";
+import { acquireDispatchLease, type LeaseHandle } from "./lease.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
-import { acquireQueueLock, runLockName } from "./lock.js";
+import { acquireQueueLock, batchLockName, runLockName } from "./lock.js";
 import { type QueueManifest, readQueueManifest, referencedIssues } from "./manifest.js";
 import { clearAfterReferences, deleteSequence, promoteIssue, removeIssue } from "./mutations.js";
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
+import { isLaneChild, type PoolResult, runParallelPool } from "./pool.js";
+import { profileByName, profileForLane, resolveLaneAgents } from "./profile.js";
 import { computeQueueView } from "./render.js";
 import { pendingMembers, selectNextBatch, sequenceTail } from "./schedule.js";
 
@@ -92,7 +96,12 @@ export interface QueueRunDeps {
 	dispatch?: QueueDispatch;
 	/** Replaces the hand-off attempt for one invocation. */
 	land?: QueueLand;
+	/** Replaces the parallel lane pool for one invocation. */
+	pool?: QueuePool;
 }
+
+/** Lane-pool seam: production runs one child per batch, tests inject the outcome. */
+export type QueuePool = (options: CliOptions) => Promise<PoolResult>;
 
 /** Chain-drift seam: production walks member branches with git ancestry, tests inject lines. */
 export type QueueChain = (manifest: QueueManifest) => Array<string>;
@@ -169,6 +178,13 @@ interface HandOffFailure {
 
 /** What one `queue run` invocation did; the exit code is decided from it in one place. */
 interface QueueRunSummary {
+	/**
+	 * Batches whose execution failed, in completion order.
+	 *
+	 * Distinct from {@link failures}: a failed dispatch means the work did not happen, which is a
+	 * different report from a finished batch whose pull request could not be composed.
+	 */
+	dispatchFailures?: Array<HandOffFailure>;
 	/** Hand-offs that failed, in dispatch order. */
 	failures: Array<HandOffFailure>;
 	/** Whether the loop stopped because nothing was runnable. */
@@ -263,28 +279,239 @@ function pruneClosed(options: CliOptions, closed: ReadonlyArray<string>): void {
  * sequential run fails.
  */
 export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}): Promise<void> {
-	for (const step of Object.values(options.steps)) {
-		if (step.model === "") {
-			throw new Error(
-				`No model configured for ${step.agentBackend} (queue run); set agents.models.${step.agentBackend} or pass --model <model>.`,
-			);
-		}
+	if (options.queueOnce === true) {
+		await runQueueOnce(options, deps.dispatch ?? defaultDispatch);
+		return;
 	}
 
+	if ((options.queueParallel ?? config.queue.parallel) > 1) {
+		await runQueueParallel(options, deps);
+		return;
+	}
+
+	// A serial run applies the first lane's profile, so a batch never runs on a model the lanes don't.
+	const profile = profileForLane(config.agents.catalog, 0);
+	const resolved = profile === undefined ? options : withLaneAgents(options, profile);
+
+	assertModels(resolved);
+
+	/*
+	 * The lease is taken before the local lock so the two are never held in the opposite order, and
+	 * released after the loop because a serial run's landing is inside it. A dry run predicts and
+	 * writes nothing, so it neither needs nor should take a remote lock a human might then have to
+	 * clear.
+	 */
+	const lease = leaseFor(options);
 	const release = acquireQueueLock({ name: runLockName });
 	let summary: QueueRunSummary;
 	try {
 		summary = await runQueueLoop(
-			options,
+			resolved,
 			deps.chain,
 			deps.dispatch ?? defaultDispatch,
 			deps.land ?? landBatch,
+			lease.lost,
 		);
+	} finally {
+		release();
+		lease.release();
+	}
+
+	reportQueueRun(resolved, summary);
+}
+
+/**
+ * - Acquires the cross-machine lease when this invocation dispatches, or a no-op handle when it does
+ *   not.
+ * - @param options - Parsed CLI options; `--no-lease` and `--lease-strict` override the config.
+ * - @returns A handle whose `release` is safe to call unconditionally.
+ * - @remarks A `--dry-run` takes no lease: it has no work to protect, and a lease held by a run that
+ *   dispatches nothing would only make a real run refuse. `--once` is a lane child whose parent
+ *   already holds the lease, so taking one there would deadlock against itself.
+ */
+function leaseFor(options: CliOptions): LeaseHandle {
+	if (options.dryRun === true || options.queueOnce === true) {
+		return { kind: "local", lost: () => false, release: () => undefined };
+	}
+
+	const mode =
+		options.queueLease === undefined
+			? config.queue.lease
+			: options.queueLease
+				? "strict"
+				: "off";
+	const lease = acquireDispatchLease({ mode });
+	if (lease.kind === "lease") {
+		emitText(options, "  ✓ Dispatch lease held");
+	}
+
+	return lease;
+}
+
+/**
+ * - Overlays a catalog profile's model and harness onto a run's options.
+ * - @param options - Parsed CLI options.
+ * - @param profile - The profile this lane runs.
+ * - @returns Options whose workflow default and per-step map come from that profile.
+ * - @remarks `runSequentialIssues` needs no new parameter: everything it reads about the model
+ *   arrives through these fields, so a lane differs from a serial run only in what this returns.
+ */
+function withLaneAgents(options: CliOptions, profile: AgentProfile): CliOptions {
+	const lane = resolveLaneAgents(config, profile, options.steps);
+	return {
+		...options,
+		agentBackend: lane.agentBackend,
+		effort: lane.effort,
+		model: lane.model,
+		steps: { ...options.steps, ...lane.steps },
+	};
+}
+
+/**
+ * - Runs exactly one batch and stops.
+ * - @param options - Parsed CLI options; `--name` names the batch.
+ * - @param dispatch - The sequential workflow.
+ * - @throws {Error} When `--name` does not name a batch in the manifest, or the resolved steps name
+ *   no model.
+ * - @remarks This is a `--parallel` lane's entry point. It deliberately skips pruning, gate
+ *   promotion, and the hand-off: the parent owns the queue, and a child that landed its own batch
+ *   would compose the same integration twice. A child exits 0 on completion, because "the batch
+ *   finished" is success here — the serial loop reports exit 1 for a batch that leaves nothing
+ *   further to fire, which is the opposite of what a lane means.
+ *
+ * @rejects {Error} When the batch's sequential run fails or a member is blocked.
+ */
+async function runQueueOnce(options: CliOptions, dispatch: QueueDispatch): Promise<void> {
+	const name = options.integrationName ?? "";
+	const sequence = readQueueManifest().sequences.find((entry) => entry.name === name);
+	if (sequence === undefined) {
+		throw new Error(`--once names batch "${name}", which the queue manifest does not define.`);
+	}
+
+	if (sequence.issues.length === 0) {
+		emitText(options, `  ⏹ Batch "${name}" has no members.`);
+		return;
+	}
+
+	const profile = profileOf(options);
+	const resolved = profile === undefined ? options : withLaneAgents(options, profile);
+	assertModels(resolved);
+
+	const release = acquireQueueLock({ name: batchLockName(name) });
+	try {
+		const processed = await dispatch(
+			name,
+			sequence.issues,
+			resolved,
+			options.noResume !== true,
+			options.maxIssues,
+		);
+		if (options.jsonOut === true) {
+			emitJson({ batch: name, issues: processed, kind: "once" });
+		}
+	} finally {
+		release();
+	}
+}
+
+/** The profile a run should execute with: `--profile`, else lane 0 of the catalog. */
+function profileOf(options: CliOptions): undefined | AgentProfile {
+	return (
+		profileByName(config.agents.catalog, options.queueProfile) ??
+		profileForLane(config.agents.catalog, 0)
+	);
+}
+
+/**
+ * - Refuses a run whose resolved steps name no model.
+ * - @param options - Parsed CLI options, with any lane profile already applied.
+ * - @throws {Error} Naming the backend and the config key that would fix it.
+ * - @remarks Checked here rather than in `parseArgs` because the model can come from a catalog
+ *   profile, which parsing does not resolve.
+ */
+function assertModels(options: CliOptions): void {
+	for (const step of Object.values(options.steps)) {
+		if (step.model === "") {
+			throw new Error(
+				`No model configured for ${step.agentBackend} (queue run); set agents.models.${step.agentBackend}, add an agents.catalog profile, or pass --model <model>.`,
+			);
+		}
+	}
+}
+
+/**
+ * - Runs ready batches through the lane pool and reports the outcome.
+ * - @param options - Parsed CLI options.
+ * - @param deps - Seams for the tests.
+ * - @remarks The parent holds `runLockName` for the whole pool, exactly as the serial loop does: that
+ *   is what keeps a second dispatcher from reserving a batch a lane is already running. Each child
+ *   additionally takes its own batch lock. Landing is serial and in completion order, so a failed
+ *   composition is recorded and the remaining lanes are unaffected.
+ *
+ * @rejects {Error} When this process is a lane child, which must never open a second pool.
+ */
+async function runQueueParallel(options: CliOptions, deps: QueueRunDeps): Promise<void> {
+	/*
+	 * A lane child must never fan out again. `--once` is what keeps a child single-batch, but the
+	 * marker is the guard: if the flag were ever forwarded or dropped, a child holding `--parallel`
+	 * would spawn grandchildren competing for the same manifest and the same worktrees.
+	 */
+	if (isLaneChild()) {
+		throw new Error(
+			"This process is a --parallel lane child and cannot run a pool of its own; lanes spawn from the parent only.",
+		);
+	}
+
+	/*
+	 * The lease spans the pool *and* the serial landing: landing pushes member branches and opens a
+	 * pull request, which is exactly the work a second dispatcher must not duplicate.
+	 */
+	const lease = leaseFor(options);
+	const land = deps.land ?? landBatch;
+	let pool: Awaited<ReturnType<typeof runParallelPool>>;
+	const release = acquireQueueLock({ name: runLockName });
+	try {
+		pool = await (
+			deps.pool ?? ((poolOptions) => runParallelPool(poolOptions, undefined, lease.lost))
+		)(options);
 	} finally {
 		release();
 	}
 
-	reportQueueRun(options, summary);
+	const dispatchFailures: Array<HandOffFailure> = pool.failures.map((failure) => ({
+		batch: failure.batch,
+		error: failure.error ?? "",
+	}));
+	const landFailures: Array<HandOffFailure> = [];
+
+	try {
+		/*
+		 * Land after the pool, serially, over the batches that finished cleanly. A batch whose lane
+		 * failed is left alone: its composition would describe a partial chain.
+		 */
+		if (options.land === true) {
+			for (const run of pool.completed) {
+				const outcome = await land(options, run.batch);
+				if (options.jsonOut === true) {
+					emitJson({
+						handOff: { batch: run.batch, error: outcome.error, ok: outcome.ok },
+					});
+				}
+
+				if (!outcome.ok) {
+					landFailures.push({ batch: run.batch, error: outcome.error ?? "" });
+				}
+			}
+		}
+	} finally {
+		lease.release();
+	}
+
+	reportQueueRun(options, {
+		dispatchFailures,
+		failures: landFailures,
+		nothingToRun: pool.batches.length === 0,
+	});
 }
 
 /**
@@ -297,7 +524,8 @@ export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}):
  *   before the queue moves on.
  */
 function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
-	if (summary.failures.length === 0) {
+	const dispatchFailures = summary.dispatchFailures ?? [];
+	if (summary.failures.length === 0 && dispatchFailures.length === 0) {
 		if (summary.nothingToRun) {
 			io.exit(1);
 		}
@@ -305,19 +533,43 @@ function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
 		return;
 	}
 
+	/*
+	 * A dispatch failure is reported before a hand-off failure: the work never landed, so a reader needs
+	 * to know that first. `--json` gets one object per failed batch, keyed so a consumer can tell the
+	 * two apart without inferring it from the order.
+	 */
 	if (options.jsonOut) {
-		emitJson({ failures: summary.failures, handOff: "failed" });
+		const failures = [
+			...dispatchFailures.map((failure) => ({ ...failure, kind: "dispatch" })),
+			...summary.failures.map((failure) => ({ ...failure, kind: "handOff" })),
+		];
+		emitJson({ failures, handOff: summary.failures.length > 0 ? "failed" : undefined });
 	} else {
-		const names = summary.failures.map((failure) => failure.batch).join(", ");
-		emitText(options, `  ✗ ${summary.failures.length} hand-off failure(s): ${names}`);
-		for (const failure of summary.failures) {
-			emitText(options, `    ${failure.batch}: ${failure.error}`);
+		if (dispatchFailures.length > 0) {
+			const names = dispatchFailures.map((failure) => failure.batch).join(", ");
+			emitText(options, `  ✗ ${dispatchFailures.length} batch failure(s): ${names}`);
+			for (const failure of dispatchFailures) {
+				emitText(options, `    ${failure.batch}: ${failure.error}`);
+			}
+
+			emitText(
+				options,
+				"    Re-run the failed batch with `pnpm sandcastle queue run --name <batch>`.",
+			);
 		}
 
-		emitText(options, "    Retry with `pnpm sandcastle queue land --name <batch>`.");
+		if (summary.failures.length > 0) {
+			const names = summary.failures.map((failure) => failure.batch).join(", ");
+			emitText(options, `  ✗ ${summary.failures.length} hand-off failure(s): ${names}`);
+			for (const failure of summary.failures) {
+				emitText(options, `    ${failure.batch}: ${failure.error}`);
+			}
+
+			emitText(options, "    Retry with `pnpm sandcastle queue land --name <batch>`.");
+		}
 	}
 
-	io.exit(2);
+	io.exit(summary.failures.length > 0 ? 2 : 1);
 }
 
 /** The dispatch loop itself, with the lock already held, reporting what it did. */
@@ -326,6 +578,7 @@ async function runQueueLoop(
 	chain: undefined | QueueChain,
 	dispatch: QueueDispatch,
 	land: QueueLand,
+	leaseLost: () => boolean = () => false,
 ): Promise<QueueRunSummary> {
 	const seen = new Set<string>();
 	const failures: Array<HandOffFailure> = [];
@@ -338,6 +591,19 @@ async function runQueueLoop(
 	let warnedDrift = false;
 	let prunedOnce = false;
 	for (;;) {
+		/*
+		 * Checked between batches, never mid-batch: the batch already in flight must be allowed to
+		 * finish, but starting another under a lease this checkout no longer holds is precisely the
+		 * overlap the lease exists to prevent.
+		 */
+		if (leaseLost()) {
+			emitText(
+				options,
+				"  ⏹ Another checkout took the dispatch lease; not starting another batch.",
+			);
+			return { failures, nothingToRun: false };
+		}
+
 		const manifest = readQueueManifest();
 		const live = fetchLiveQueueState({
 			numbers: referencedIssues(manifest),
