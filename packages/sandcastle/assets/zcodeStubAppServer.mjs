@@ -5,7 +5,8 @@
  * runtime-preferences and subagents/readRuntimeConfig client-bound requests
  * (issued up front when STUB_RUNTIME_PREFS_FILE is set, capturing the
  * wrapper's answers), session/create, session/resume, session/subscribe,
- * session/send, session/close, and session/event streaming.
+ * session/send, session/close, session/event streaming, and the selection
+ * mutators session/setModel and session/setThoughtLevel.
  * Mirrors the shape of paseo's zcode-provider stub.
  */
 
@@ -30,6 +31,57 @@ const requestPermission = process.env.STUB_REQUEST_PERMISSION === "1";
 const reasoningOnly = process.env.STUB_REASONING_ONLY === "1";
 const reasoningIntervalMs = Number.parseInt(process.env.STUB_REASONING_INTERVAL_MS ?? "250", 10);
 const reasoningDurationMs = Number.parseInt(process.env.STUB_REASONING_DURATION_MS ?? "8000", 10);
+/*
+ * The persisted session a resume lands on: its own model and thought level,
+ * distinct from anything the wrapper was started with. A resume restores
+ * this selection and ignores the request's `thoughtLevel`, which is the
+ * app-server behavior the wrapper compensates for with setModel /
+ * setThoughtLevel.
+ */
+const resumedModel = {
+	modelId: process.env.STUB_RESUME_MODEL_ID ?? "resumed-model",
+	providerId: process.env.STUB_RESUME_PROVIDER_ID ?? "stub",
+};
+const resumedThoughtLevel = process.env.STUB_RESUME_THOUGHT_LEVEL ?? "low";
+/* Live selection: start as the persisted one, mutate via setModel/setThoughtLevel. */
+let currentModel = resumedModel;
+let currentThoughtLevel = resumedThoughtLevel;
+
+/** The `session` half of a snapshot: model is the bare providerId/modelId. */
+function snapshotSession(sessionId, workspace) {
+	return {
+		mode,
+		model: { modelId: currentModel.modelId, providerId: currentModel.providerId },
+		sessionId,
+		status: "idle",
+		title: "",
+		workspace: workspace ?? { workspaceKey: "", workspacePath: "" },
+	};
+}
+
+/*
+ * The `settings` half: `model.current` carries the reasoning level the
+ * wrapper's resume fix-up compares against, `thoughtLevel.current` the
+ * session's live effort. Both mirror `rDt` in the real app-server.
+ * STUB_THOUGHT_LEVELS narrows the advertised levels (empty = a model with no
+ * reasoning support), so tests can exercise the unsupported-effort path.
+ */
+const advertisedLevels =
+	process.env.STUB_THOUGHT_LEVELS === undefined
+		? ["low", "high", "max"]
+		: process.env.STUB_THOUGHT_LEVELS.split(",").filter((value) => value !== "");
+
+function snapshotSettings() {
+	return {
+		mode: { current: mode },
+		model: { current: currentModel, lastUsed: currentModel },
+		thoughtLevel: {
+			available: advertisedLevels.map((value) => ({ label: value, value })),
+			current: currentThoughtLevel,
+			enabled: true,
+		},
+	};
+}
 
 /*
  * Client-bound requests issued at startup to capture the wrapper's answers:
@@ -92,15 +144,17 @@ rl.on("line", async (line) => {
 	const { id, method, params } = frame;
 
 	if (method === "session/create") {
+		if (params?.model !== undefined) {
+			currentModel = params.model;
+		}
+
+		if (typeof params?.thoughtLevel === "string" && params.thoughtLevel !== "") {
+			currentThoughtLevel = params.thoughtLevel;
+		}
+
 		reply(id, {
-			session: {
-				mode,
-				model: params?.model ?? { modelId: "default-model", providerId: "stub" },
-				sessionId: "stub-session-1",
-				status: "idle",
-				title: "",
-				workspace: params?.workspace ?? { workspaceKey: "", workspacePath: "" },
-			},
+			session: snapshotSession("stub-session-1", params?.workspace),
+			settings: snapshotSettings(),
 		});
 		return;
 	}
@@ -124,17 +178,53 @@ rl.on("line", async (line) => {
 			return;
 		}
 
+		/*
+		 * A resume restores the persisted selection and ignores the request's
+		 * `thoughtLevel` — the wrapper must fix both up explicitly.
+		 */
 		reply(id, {
-			session: {
-				mode,
-				model: { modelId: "default-model", providerId: "stub" },
-				// A resume echoes the requested id back; the wrapper asserts on it.
-				sessionId: params?.sessionId ?? "stub-session-resumed",
-				status: "idle",
-				title: "",
-				workspace: params?.workspace ?? { workspaceKey: "", workspacePath: "" },
-			},
+			session: snapshotSession(
+				params?.sessionId ?? "stub-session-resumed",
+				params?.workspace,
+			),
+			settings: snapshotSettings(),
 		});
+		return;
+	}
+
+	if (method === "session/setModel") {
+		const requested = params?.model;
+		if (requested?.providerId === undefined || requested?.modelId === undefined) {
+			write({
+				id,
+				error: {
+					code: -32602,
+					message: "Invalid params — model.providerId and model.modelId are required",
+				},
+			});
+			return;
+		}
+
+		currentModel = requested;
+		if (typeof requested.options?.reasoningLevel === "string") {
+			currentThoughtLevel = requested.options.reasoningLevel;
+		}
+
+		reply(id, { previousModel: null, thoughtLevel: currentThoughtLevel });
+		return;
+	}
+
+	if (method === "session/setThoughtLevel") {
+		if (typeof params?.thoughtLevel !== "string" || params.thoughtLevel === "") {
+			write({
+				id,
+				error: { code: -32602, message: "Invalid params — thoughtLevel is required" },
+			});
+			return;
+		}
+
+		currentThoughtLevel = params.thoughtLevel;
+		reply(id, { previousThoughtLevel: null, thoughtLevel: currentThoughtLevel });
 		return;
 	}
 

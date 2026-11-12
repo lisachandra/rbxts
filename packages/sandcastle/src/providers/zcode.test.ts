@@ -390,6 +390,119 @@ describe("zcode wrapper (stub app-server)", () => {
 		assert.match(stdout, /"result":"stub-pong"/);
 	});
 
+	/*
+	 * Resume must continue the conversation on the model sandcastle asked for.
+	 * `session/resume` restores the persisted selection (and ignores the
+	 * request's thoughtLevel), so the wrapper re-asserts the requested
+	 * selection through the session-scoped mutators before sending.
+	 */
+	describe("resume applies the requested model", () => {
+		const resumeArgs = " --resume-session session-42";
+
+		test("switches a resumed session whose model differs via session/setModel", () => {
+			const { seen, status, stderr } = runWrapper("continue", {
+				extraArgs: `${resumeArgs} --model "prov/model-x" --reasoning-effort high`,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+			const methods = seen.map((frame) => frame.method);
+			assert.ok(!methods.includes("session/create"), "resume must not create a session");
+
+			const setModel = seen.find((frame) => frame.method === "session/setModel");
+			const setModelParams = setModel?.params as {
+				model?: {
+					modelId?: string;
+					options?: { reasoningLevel?: string };
+					providerId?: string;
+				};
+				persistAsWorkspaceLastUsed?: boolean;
+				sessionId?: string;
+			};
+			assert.deepEqual(setModelParams?.model, {
+				modelId: "model-x",
+				options: { reasoningLevel: "high" },
+				providerId: "prov",
+			});
+			assert.equal(setModelParams?.sessionId, "session-42");
+			assert.equal(
+				setModelParams?.persistAsWorkspaceLastUsed,
+				false,
+				"a sandcastle run must not rewrite the desktop app's last-used model",
+			);
+
+			// setModel carries the effort, so no separate setThoughtLevel is needed.
+			assert.ok(!methods.includes("session/setThoughtLevel"));
+
+			/*
+			 * Order matters: the selection is fixed after subscribe (so the
+			 * state.updated notifications are deliverable) and before send (so the
+			 * first turn already runs on it).
+			 */
+			assert.ok(methods.indexOf("session/setModel") > methods.indexOf("session/subscribe"));
+			assert.ok(methods.indexOf("session/setModel") < methods.indexOf("session/send"));
+		});
+
+		test("sets only the effort when the resumed model already matches", () => {
+			const { seen, status, stderr } = runWrapper("continue", {
+				extraArgs: `${resumeArgs} --model "stub/resumed-model" --reasoning-effort high`,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+			const methods = seen.map((frame) => frame.method);
+			assert.ok(!methods.includes("session/setModel"), "model already matches");
+
+			const setEffort = seen.find((frame) => frame.method === "session/setThoughtLevel");
+			const effortParams = setEffort?.params as {
+				persistAsWorkspaceLastUsed?: boolean;
+				sessionId?: string;
+				thoughtLevel?: string;
+			};
+			assert.equal(effortParams?.thoughtLevel, "high");
+			assert.equal(effortParams?.sessionId, "session-42");
+			assert.equal(effortParams?.persistAsWorkspaceLastUsed, false);
+			assert.ok(methods.indexOf("session/setThoughtLevel") < methods.indexOf("session/send"));
+		});
+
+		test("leaves an already-matching selection untouched", () => {
+			const { seen, status, stderr } = runWrapper("continue", {
+				extraArgs: `${resumeArgs} --model "stub/resumed-model" --reasoning-effort low`,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+			const methods = new Set(seen.map((frame) => frame.method));
+			assert.ok(!methods.has("session/setModel"));
+			assert.ok(!methods.has("session/setThoughtLevel"));
+			assert.ok(methods.has("session/send"));
+		});
+
+		test("does not touch the selection when no model or effort was requested", () => {
+			const { seen, status, stderr } = runWrapper("continue", { extraArgs: resumeArgs });
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+			const methods = new Set(seen.map((frame) => frame.method));
+			assert.ok(!methods.has("session/setModel"));
+			assert.ok(!methods.has("session/setThoughtLevel"));
+		});
+
+		test("keeps the session's level when the model does not register it", () => {
+			/*
+			 * setThoughtLevel throws for a level the model does not register, so a
+			 * request the model cannot honour must not fail the phase — the turn
+			 * still runs on the session's own level.
+			 */
+			const { seen, status, stderr } = runWrapper("continue", {
+				env: { STUB_THOUGHT_LEVELS: "low" },
+				extraArgs: `${resumeArgs} --reasoning-effort max`,
+			});
+			assert.equal(status, 0, `wrapper failed: ${stderr}`);
+
+			const methods = new Set(seen.map((frame) => frame.method));
+			assert.ok(!methods.has("session/setThoughtLevel"));
+			assert.ok(methods.has("session/send"));
+			assert.match(stderr, /does not register reasoning level "max"/);
+		});
+	});
+
 	test("auto-answers permission requests with the allow option", () => {
 		const { status, stderr } = runWrapper("hi", { requestPermission: true });
 		assert.equal(status, 0, `wrapper failed: ${stderr}`);

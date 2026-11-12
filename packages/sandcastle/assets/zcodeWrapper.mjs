@@ -1289,6 +1289,92 @@ const [providerId, ...modelIdParts] = args.model.split("/");
 const hasExplicitModel =
 	args.model !== "" && providerId !== "" && modelIdParts.join("/").trim() !== "";
 
+/** `providerId/modelId` of a session snapshot's selection, or undefined when it carries none. */
+function modelKeyOf(selection) {
+	const provider = typeof selection?.providerId === "string" ? selection.providerId : "";
+	const modelId = typeof selection?.modelId === "string" ? selection.modelId : "";
+	return provider === "" || modelId === "" ? undefined : `${provider}/${modelId}`;
+}
+
+/**
+ * Re-assert the requested model/effort on a resumed session.
+ *
+ * `session/resume` restores the persisted selection and ignores the request's `thoughtLevel`
+ * entirely (and its strict schema rejects a `model` key), so a resume silently continues on
+ * whatever model the session was created with. Sandcastle passes the model it wants on every
+ * attempt, so apply the difference explicitly through the session-scoped mutators.
+ *
+ * The comparison reads the resumed snapshot's live selection (`settings.model.current` carries the
+ * reasoning level; `session.model` is the bare `providerId/modelId`). The effort is only applied
+ * when the session reports it among `settings.thoughtLevel.available`: `setThoughtLevel` throws for
+ * a level the model does not register, and a model without reasoning levels must not fail a phase
+ * over it. A model mismatch is fatal: running the phase on an unrequested model is the bug this
+ * exists to prevent. `persistAsWorkspaceLastUsed` stays false so a sandcastle run never rewrites
+ * the desktop app's last-used selection.
+ */
+async function applyResumedSelection(sessionId, snapshot) {
+	const restored = snapshot?.settings?.model?.current ?? snapshot?.session?.model;
+	const restoredEffort = snapshot?.settings?.thoughtLevel?.current ?? "";
+	const availableLevels = Array.isArray(snapshot?.settings?.thoughtLevel?.available)
+		? snapshot.settings.thoughtLevel.available
+				.map((entry) => entry?.value)
+				.filter((value) => typeof value === "string")
+		: [];
+	const effortSupported =
+		args.effort !== "" &&
+		(availableLevels.length === 0 || availableLevels.includes(args.effort));
+	const requestedEffort = effortSupported ? args.effort : "";
+
+	if (hasExplicitModel && modelKeyOf(restored) !== args.model) {
+		try {
+			await request(
+				"session/setModel",
+				{
+					model: {
+						modelId: modelIdParts.join("/"),
+						providerId,
+						...(requestedEffort !== ""
+							? { options: { reasoningLevel: requestedEffort } }
+							: {}),
+					},
+					persistAsWorkspaceLastUsed: false,
+					sessionId,
+				},
+				30_000,
+			);
+			emitNote(
+				`resumed session switched to ${args.model}${requestedEffort !== "" ? ` (${requestedEffort})` : ""}`,
+			);
+		} catch (error) {
+			await fail(`session/setModel failed: ${error.message}`);
+		}
+
+		return;
+	}
+
+	if (args.effort !== "" && !effortSupported) {
+		emitNoteOnce(
+			`resumed session's model does not register reasoning level "${args.effort}" (available: ${availableLevels.join(", ") || "none"}); keeping the session's own level`,
+		);
+		return;
+	}
+
+	if (requestedEffort === "" || restoredEffort === requestedEffort) {
+		return;
+	}
+
+	try {
+		await request(
+			"session/setThoughtLevel",
+			{ persistAsWorkspaceLastUsed: false, sessionId, thoughtLevel: requestedEffort },
+			30_000,
+		);
+		emitNote(`resumed session reasoning effort set to ${requestedEffort}`);
+	} catch (error) {
+		await fail(`session/setThoughtLevel failed: ${error.message}`);
+	}
+}
+
 /*
  * Plan-mode account providers only resolve after the host delivers their
  * entitlement (see buildAccountDelivery) — push it before session/create so
@@ -1302,9 +1388,10 @@ if (hasExplicitModel && providerId.startsWith("account:")) {
  * Resume the persisted session when asked (the app-server's session/resume
  * keeps the conversation history), otherwise create a fresh one. The resume
  * schema is stricter than create's: a root `model` key is rejected with
- * "Unrecognized key: model" (verified against the desktop app-server), so
- * resume keeps the session's existing model and forwards only the thought
- * level.
+ * "Unrecognized key: model" (verified against the desktop app-server), and
+ * the resume path restores the persisted selection without reading the
+ * request's `thoughtLevel` at all — see applyResumedSelection, which
+ * re-asserts both on the resumed session.
  */
 let created;
 try {
@@ -1313,8 +1400,12 @@ try {
 			"session/resume",
 			{
 				sessionId: args.resumeSession,
+				/*
+				 * `thoughtLevel` is accepted by the schema but never applied by the
+				 * resume path; applyResumedSelection sets it through
+				 * session/setThoughtLevel so the requested effort takes effect.
+				 */
 				workspace: { workspaceKey: cwd, workspacePath: cwd },
-				...(args.effort !== "" ? { thoughtLevel: args.effort } : {}),
 			},
 			120_000,
 		);
@@ -1374,6 +1465,15 @@ try {
 	await request("session/subscribe", { deliveryKind: DELIVERY_KIND, sessionId }, 15_000);
 } catch (err) {
 	await fail(`session/subscribe failed: ${err.message}`);
+}
+
+/*
+ * After subscribe (so the mutators' state.updated notifications have a
+ * delivery target) and before send, so the first turn of the resumed
+ * conversation already runs on the requested selection.
+ */
+if (args.resumeSession !== "") {
+	await applyResumedSelection(sessionId, created);
 }
 
 markActivity();

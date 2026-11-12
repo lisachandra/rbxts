@@ -14,9 +14,12 @@ the fatal-error patterns nor the stale-session patterns, so the store never
 dropped the id, and the retry log printed only the error's first line
 ("zcode exited with code 1:"), hiding the cause.
 
-- The wrapper's resume path no longer sends `model`; a resumed session keeps
-  the model it was created with. `thoughtLevel` is still forwarded (the real
-  schema accepts it; probed against the desktop app-server).
+- The wrapper's resume path no longer sends `model`. The resumed session's model
+  is re-asserted afterwards through `session/setModel`, because the app-server's
+  resume path restores the persisted selection and ignores the request's
+  `thoughtLevel` — so the resumed run still ends up on the requested model and
+  effort (the `thoughtLevel` key is no longer forwarded, since it had no
+  effect).
 - The stub app-server mirrors the real resume schema (rejects `model`), and
   the wrapper test asserts the resume params carry no model.
 - A resume rejected as "invalid params" / "unrecognized key" now counts as a
