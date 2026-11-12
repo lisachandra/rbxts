@@ -40,7 +40,16 @@
 			"title": "repo: test lanes and provider docs"
 		}
 	],
-	"serialized": [],
-	"updatedAt": "2026-11-12T08:32:47.856Z",
+	"serialized": [
+		{
+			"issues": [
+				"27",
+				"43"
+			],
+			"reason": "Both edit packages/sandcastle/src/providers/ (27 TSDoc on every adapter, 43 rewrites pi/codex/claude-code captureSessions). A doc-only diff and a behaviour diff over the same functions conflict textually on every hunk.",
+			"name": "R1"
+		}
+	],
+	"updatedAt": "2026-11-12T08:33:56.284Z",
 	"version": 2
 }
