@@ -9,9 +9,7 @@
 			"title": "repo: hoist containment"
 		},
 		{
-			"issues": [
-				"52"
-			],
+			"issues": [],
 			"name": "sandcastle-serve-gate",
 			"notes": "No overlap with #31/#33 (queue/run|ops|commands|manifest|persist|gates|render|schedule|live, main.ts, cli.ts, issue.ts, state.ts): #52 touches only queue/serve.ts and web/. Placed before sandcastle-work because it is independent and small, and because queue serve is what an operator uses while the other batches run.",
 			"title": "sandcastle: serve request gate"
@@ -43,6 +41,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T06:19:31.984Z",
+	"updatedAt": "2026-11-12T06:19:44.370Z",
 	"version": 2
 }
