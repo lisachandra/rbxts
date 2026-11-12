@@ -12,7 +12,7 @@
 
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { createServer, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, resolve as pathResolve, sep } from "node:path";
 
 import { config, packageRoot } from "../runtime.js";
@@ -117,8 +117,10 @@ function browserLauncher(url: string): { args: Array<string>; command: string } 
  * - @param staticDir - Directory the page was built into.
  * - @param pathname - Request path, still percent-encoded.
  * - @returns The absolute file path, or `undefined` for a miss or a traversal attempt.
- * - @remarks The socket is loopback-only, but the guard still earns its place: `../` in a URL is
- *   never a request the page itself makes.
+ * - @remarks The caller has already refused a malformed escape (see {@link gateRequest}), so the
+ *   decode here cannot throw. The containment check earns its place on the decoded result: `../` in
+ *   a URL is never a request the page itself makes, so a path that resolves outside the bundle is
+ *   refused even though the socket is loopback-only.
  */
 function resolveStatic(staticDir: string, pathname: string): string | undefined {
 	const root = pathResolve(staticDir);
@@ -128,6 +130,110 @@ function resolveStatic(staticDir: string, pathname: string): string | undefined 
 	}
 
 	return existsSync(candidate) && statSync(candidate).isFile() ? candidate : undefined;
+}
+
+/** Why a request was refused before routing; `status` is what the client sees. */
+interface GateRejection {
+	message: string;
+	status: number;
+}
+
+/** Whether a host names a loopback address, so `--host` leaving it can be reported as exposure. */
+export function isLoopbackHost(host: string): boolean {
+	return host === "127.0.0.1" || host === "::1" || host === "localhost";
+}
+
+/**
+ * - The one gate every request passes before routing.
+ * - @param request - The incoming request; its method, target, and `origin`/`host` headers are read.
+ * - @param boundHost - The host the server bound, which is the only one it answers to.
+ * - @param boundPort - The port the server bound, which an `Origin` must also name.
+ * - @returns A rejection when the request must not be served, or `undefined` to proceed.
+ * - @remarks Four checks, in the order a client would trip them:
+ *
+ *   - **Method.** `GET` only. The page has no write endpoint, so any other verb is a mistake at best.
+ *   - **Path.** A percent-escape that does not decode is a `400`. Answering it with the page would hide
+ *     a malformed request behind a successful-looking one, and letting it through would throw out of
+ *     the handler and kill the process.
+ *   - **Origin.** A request with no `Origin` is a top-level navigation, a `curl`, or an image request —
+ *     browsers omit it for those, so refusing them would break ordinary browsing. A present `Origin`
+ *     must be this server's own; anything else stops a cross-origin `fetch` from reading the queue
+ *     (private issue titles, batch notes) and from spending the `gh` token budget through
+ *     `?refresh=1`.
+ *   - **Host.** Pinning it is the DNS-rebinding defence: a page served from an attacker domain that
+ *     resolves to `127.0.0.1` is same-origin with the API unless the `Host` it sends is refused.
+ *
+ *   No CORS header is ever sent, because one would undo the origin check. The gate runs before
+ *   routing and before the view cache is touched, so a refused `?refresh=1` never spawns `gh`.
+ */
+function gateRequest(
+	request: IncomingMessage,
+	boundHost: string,
+	boundPort: number,
+): undefined | GateRejection {
+	if (request.method !== "GET") {
+		return { message: "Only GET is served.", status: 405 };
+	}
+
+	/*
+	 * A malformed escape is a malformed request, not a deep link: `decodeURIComponent` would throw
+	 * inside the handler and take the process down, and answering 400 keeps that failure a status.
+	 */
+	if (!isDecodable(request.url ?? "/")) {
+		return { message: "Malformed percent-escape in the request path.", status: 400 };
+	}
+
+	const { origin } = request.headers;
+	if (origin !== undefined && origin !== "" && !isSameOrigin(origin, boundHost, boundPort)) {
+		return { message: "Cross-origin requests are refused.", status: 403 };
+	}
+
+	const host = headerValue(request.headers.host);
+	if (host !== undefined && !isBoundHost(host, boundHost, boundPort)) {
+		return { message: "Unexpected Host header.", status: 403 };
+	}
+
+	return undefined;
+}
+
+/** A header as a single string; a repeated header is joined rather than read as an array. */
+function headerValue(value: string | undefined | Array<string>): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	return Array.isArray(value) ? value.join(",") : value;
+}
+
+/** Whether every percent-escape in a request target decodes. */
+function isDecodable(target: string): boolean {
+	try {
+		decodeURIComponent(target);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Whether an `Origin` value names exactly this server. */
+function isSameOrigin(origin: string, boundHost: string, boundPort: number): boolean {
+	return origin === `http://${boundHost}:${boundPort}` || origin === `http://${boundHost}`;
+}
+
+/**
+ * - Whether a `Host` header names the bound address.
+ * - @remarks The port is compared only when the header carries one, because a client using the
+ *   default port legitimately omits it. The host itself must match exactly, so `localhost:4321`
+ *   against a `127.0.0.1` bind is refused: the rebinding defence is worth that one false negative,
+ *   and the URL the CLI prints is the one that works.
+ */
+function isBoundHost(hostHeader: string, boundHost: string, boundPort: number): boolean {
+	const match = /^(.*?):(\d+)$/u.exec(hostHeader);
+	if (match === null) {
+		return hostHeader === boundHost;
+	}
+
+	return match[1] === boundHost && Number(match[2]) === boundPort;
 }
 
 function sendFile(response: ServerResponse, path: string): void {
@@ -166,6 +272,11 @@ export async function startQueueServer(options: QueueServeOptions = {}): Promise
 	const staticDir = options.staticDir ?? defaultStaticDir();
 	const buildView = options.view ?? liveQueueView;
 	const cache = new Map<boolean, ViewCacheEntry>();
+	/**
+	 * The port actually bound, which is not known until `listen` resolves: the tests pass `0`. The
+	 * gate compares an `Origin`/`Host` against it, so it is read at request time, never captured.
+	 */
+	let boundPort = options.port ?? defaultPort;
 
 	function viewFor(strictGates: boolean, refresh: boolean): ViewCacheEntry {
 		const cached = cache.get(strictGates);
@@ -183,6 +294,20 @@ export async function startQueueServer(options: QueueServeOptions = {}): Promise
 	}
 
 	const server = createServer((request, response) => {
+		/*
+		 * The gate runs before routing and before the view cache: a refused `?refresh=1` must never
+		 * reach `gh`, which is why the call count is what a spec asserts rather than the status alone.
+		 */
+		const rejection = gateRequest(request, host, boundPort);
+		if (rejection !== undefined) {
+			if (rejection.status === 405) {
+				response.setHeader("allow", "GET");
+			}
+
+			sendError(response, rejection.status, rejection.message);
+			return;
+		}
+
 		const url = new URL(request.url ?? "/", `http://${host}`);
 		const refresh = url.searchParams.get("refresh") === "1";
 
@@ -221,7 +346,8 @@ export async function startQueueServer(options: QueueServeOptions = {}): Promise
 	});
 
 	const address = server.address();
-	const port = typeof address === "object" && address !== null ? address.port : defaultPort;
+	boundPort = typeof address === "object" && address !== null ? address.port : defaultPort;
+	const port = boundPort;
 	return {
 		close: () =>
 			new Promise<void>((resolve) => {

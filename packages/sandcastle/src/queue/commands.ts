@@ -37,7 +37,7 @@ import {
 import { emitText } from "./output.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
-import { openBrowser, startQueueServer } from "./serve.js";
+import { isLoopbackHost, openBrowser, startQueueServer } from "./serve.js";
 export type QueueSubcommand =
 	| "add"
 	| "run"
@@ -277,6 +277,17 @@ async function runQueueServe(options: CliOptions): Promise<void> {
 		port: options.queuePort,
 	});
 	emitText(options, `  ✓ Queue graph on ${server.url} (Ctrl+C stops it)`);
+	/*
+	 * `--host` is the deliberate opt-out of loopback, so leaving it is reported rather than refused:
+	 * the flag exists for a reason, but exposing the queue to the network should never be silent.
+	 */
+	if (!isLoopbackHost(server.host)) {
+		emitText(
+			options,
+			`  ⚠ Bound to ${server.host}, not loopback: the queue page is reachable from the network.`,
+		);
+	}
+
 	if (options.queueOpen === true) {
 		openBrowser(server.url);
 	}

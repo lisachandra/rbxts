@@ -7,8 +7,26 @@ import { defineConfig } from "@isentinel/jest-roblox";
  * NOTE FOR AGENTS:
  * Implementing spec that fails on Roblox engine gap (ree parity)? Add the spec
  * path here with a one-line comment naming what ree does not do.
+ *
+ * These are **DataModel paths**, not checkout paths: `emulator.ignorePatterns`
+ * is matched against the staged tree, where each `test/*` project's compiled
+ * `out/` sits at `ReplicatedStorage/TS/tests` and the compiler flattens `src/`
+ * into it. So `test/core/src/utils.spec.ts` is `tests/utils.spec`, and a
+ * repo-relative path never matches — silently, which is how the whole ledger
+ * went unregistered. `test/demo` mounts under `TS/client` / `TS/shared`
+ * instead of `TS/tests`, so its entries follow that shape.
  */
-const reeParityPaths: Array<string> = [];
+const reeParityPaths: Array<string> = [
+	/*
+	 * ree boots a client context (`RunService:IsServer()` is false in every
+	 * mode), so the server-only `waitForDocument` guard aborts the suite.
+	 */
+	"tests/utils.spec", // test/core/src/utils.spec.ts
+	"tests/store.spec", // test/core/src/store.spec.ts — `documents` middleware is server-only
+	"tests/documentCommand.spec", // test/platform/src/documentCommand.spec.ts — calls waitForDocument
+	// ree has no Matter world; only a bootstrap creates one, and the spec never runs one.
+	"client/ui/app.spec", // test/demo/src/client/ui/app.spec.tsx
+];
 
 export default defineConfig({
 	/*
