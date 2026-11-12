@@ -126,7 +126,7 @@ export function getItemFromId<P extends ValidItemPath>(
  * Retrieves an item by its GUID and ID path from an array of items.
  *
  * @template P, U
- * @param world - The Matter world instance.
+ * @param _world - The Matter world instance.
  * @param guid - The GUID of the item.
  * @param id - The ID path of the item.
  * @param items - The array of items to search.

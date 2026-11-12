@@ -29,6 +29,7 @@ const root = resolve(import.meta.dirname, "..");
  * @param file - The JSONC file to read.
  * @returns The parsed config.
  */
+// oxlint-disable-next-line sonar/cognitive-complexity -- one pass over four mutually exclusive modes
 function readJsonc(file) {
 	const raw = readFileSync(file, "utf-8");
 	let out = "";

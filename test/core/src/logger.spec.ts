@@ -54,8 +54,8 @@ describe("logEventSFTOutputSink fallback behavior", () => {
 
 		expect(mockWarn).toHaveBeenCalledTimes(2);
 
-		// Fatal still halts.
-		expect(() => emit(LogLevel.Fatal)).toThrow();
+		// Fatal still halts, and it halts with the formatted line rather than a bare error.
+		expect(() => emit(LogLevel.Fatal)).toThrow("FATAL");
 	});
 
 	it("should preserve the ring buffer, flushing to fullLogOutputs past the cap", () => {

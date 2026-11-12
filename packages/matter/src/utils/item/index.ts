@@ -53,6 +53,8 @@ export const { createItem } = Lookup;
 export const { getItemDescription } = Lookup;
 
 /**
+ * Reads an item from the legacy store-bound world.
+ *
  * @deprecated Use `import { getItemFromId } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */
@@ -72,7 +74,12 @@ export const { getItemName } = Lookup;
 
 /** @deprecated Use `import { isSameId } from "@lisachandra/matter/utils/item/lookup"`. */
 export const { isSameId } = Lookup;
-/** @deprecated Use `import { addItem } from "@lisachandra/matter/utils/item/state"` passing `world`. */
+
+/**
+ * Adds an item to a container in the legacy store-bound world.
+ *
+ * @deprecated Use `import { addItem } from "@lisachandra/matter/utils/item/state"` passing `world`.
+ */
 export function addItem<P extends ValidItemPath>(
 	entityId: AnyEntity,
 	location: "Hotbar" | "Inventory",
@@ -82,6 +89,8 @@ export function addItem<P extends ValidItemPath>(
 }
 
 /**
+ * Reads an item by GUID from the legacy store-bound world.
+ *
  * @deprecated Use `import { getItemFromGUID } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */
@@ -90,6 +99,8 @@ export function getItemFromGUID<P extends ValidItemPath>(guid: string): N<Item<P
 }
 
 /**
+ * Reads an item by GUID, narrowed to a hierarchy id.
+ *
  * @deprecated Use `import { getItemWithIdFromGUID } from "@lisachandra/matter/utils/item/state"`
  *   passing `world`.
  */
@@ -103,6 +114,8 @@ export function getItemWithIdFromGUID<P extends ValidItemPath, U extends N<boole
 }
 
 /**
+ * Moves an item between containers in the legacy store-bound world.
+ *
  * @deprecated Use `import { moveItem } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */
@@ -115,6 +128,8 @@ export function moveItem(
 }
 
 /**
+ * Removes an amount of an item from the legacy store-bound world.
+ *
  * @deprecated Use `import { removeItem } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */
@@ -123,6 +138,8 @@ export function removeItem(guid: string, amount?: number): N<Item> {
 }
 
 /**
+ * Merges data into an item in the legacy store-bound world.
+ *
  * @deprecated Use `import { setItemData } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */
@@ -136,6 +153,8 @@ export function setItemData<T extends Item>(
 }
 
 /**
+ * Spawns an item into the legacy store-bound world.
+ *
  * @deprecated Use `import { spawnItem } from "@lisachandra/matter/utils/item/state"` passing
  *   `world`.
  */

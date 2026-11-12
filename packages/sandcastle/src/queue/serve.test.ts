@@ -305,6 +305,7 @@ describe("queue serve request gate", () => {
 
 	test("the traversal refusal survives the safe decoder", async () => {
 		await withServer({ staticDir: bundleDir(), view: () => queueView() }, async (server) => {
+			/* cspell:ignore cpackage fpackage -- both are the tail of an encoded `package.json`. */
 			for (const path of [
 				"/..%2f..%2fpackage.json",
 				"/%2e%2e%5c%2e%2e%5cpackage.json",

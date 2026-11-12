@@ -138,12 +138,15 @@ function printSequentialWorkflowSummary(results: Array<SequentialIssueResult>): 
  *
  * @internal
  */
-export function reclaimMemberWorktree(params: {
+export function reclaimMemberWorktree({
+	branch,
+	issue,
+	worktreePath,
+}: {
 	branch: string;
 	issue: string;
 	worktreePath: string;
 }): void {
-	const { branch, issue, worktreePath } = params;
 	if (!existsSync(worktreePath)) {
 		return;
 	}
@@ -368,6 +371,11 @@ export async function runSequentialIssues(
 		throw new Error("At least one issue number is required for sequential workflow");
 	}
 
+	/*
+	 * Deliberately not in the signature: the empty-input guard above has to run before the defaults
+	 * are applied, so the options are unwrapped here rather than in the parameter list.
+	 */
+	// oxlint-disable-next-line flawless/prefer-parameter-destructuring -- guarded before defaults apply
 	const {
 		budget,
 		dispatchIssue = processSequentialIssue,

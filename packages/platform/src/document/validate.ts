@@ -119,10 +119,11 @@ function wrapBobaValidator<T>(b: Boba<T>): (x: unknown) => asserts x is T {
 	};
 }
 
-/* eslint-disable jsdoc/require-param-description -- Flamework macro */
+/* eslint-disable jsdoc/require-param-description, jsdoc/require-description -- Flamework macro generates the docs */
 /**
  * Creates a `Boba` const v function for a specific type.
  *
+ * @param raw
  * @param meta
  * @metadata macro
  */

@@ -93,8 +93,13 @@ export function ruleConflicts(
  *   falling through to an unrelated one - firing a different batch first is how a follow-up
  *   registered mid-run was passed over.
  */
-export function selectNextBatch(params: ScheduleParams): ScheduleDecision {
-	const { batch, manifest, preferred, seen, view } = params;
+export function selectNextBatch({
+	batch,
+	manifest,
+	preferred,
+	seen,
+	view,
+}: ScheduleParams): ScheduleDecision {
 	const filtered = batch !== undefined && batch !== "";
 	if (filtered && !manifest.sequences.some((sequence) => sequence.name === batch)) {
 		return { kind: "done", reason: `no sequence named "${batch}"` };

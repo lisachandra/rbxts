@@ -320,8 +320,7 @@ export function getNodeFromEmitter(emitter: AudioEmitter): N<AudioEmitterNode> {
  * @param sound - The `Sound` component payload carrying the emitter.
  * @returns The containing `AudioEmitterNode`, or `undefined` if none is found.
  */
-export function getNodeFromSoundComponent(sound: Components["Sound"]): N<AudioEmitterNode> {
-	const { emitter } = sound;
+export function getNodeFromSoundComponent({ emitter }: Components["Sound"]): N<AudioEmitterNode> {
 	if (emitter === undefined) {
 		return undefined;
 	}

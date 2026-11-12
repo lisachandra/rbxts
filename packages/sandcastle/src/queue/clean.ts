@@ -119,13 +119,17 @@ function issueOfWorktree(branch: string | undefined): string | undefined {
 }
 
 /** Why a member's worktree is safe to remove, or `undefined` when it must be kept. */
-function removalReason(params: {
+function removalReason({
+	closed,
+	landed,
+	selections,
+	stale,
+}: {
 	closed: boolean;
 	landed: boolean;
 	selections: CleanSelections;
 	stale: boolean;
 }): string | undefined {
-	const { closed, landed, selections, stale } = params;
 	if (selections.closed && closed) {
 		return "closed";
 	}
@@ -150,13 +154,17 @@ function removalReason(params: {
  *   still open and not approved is kept: it may yet run. `selections.batch` narrows the candidates
  *   to one batch's members, which is how a batch is cleaned right after it is composed.
  */
-export function selectIssueWorktrees(params: {
+export function selectIssueWorktrees({
+	live,
+	manifest,
+	selections,
+	worktrees,
+}: {
 	live: LiveQueueState;
 	manifest: QueueManifest;
 	selections: CleanSelections;
 	worktrees: ReadonlyArray<RegisteredWorktree>;
 }): { kept: Array<KeptWorktree>; remove: Array<IssueWorktreeCandidate> } {
-	const { live, manifest, selections, worktrees } = params;
 	const remove: Array<IssueWorktreeCandidate> = [];
 	const kept: Array<KeptWorktree> = [];
 	const { batch } = selections;
