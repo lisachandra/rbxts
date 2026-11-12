@@ -4,12 +4,6 @@
 	"sequences": [
 		{
 			"issues": [],
-			"name": "repo-hoist-containment",
-			"notes": "Ready now, and placed first because #48 changes scripts/hoist.mjs, which every batch's setupCommands (pnpm setup -> postinstall -> pnpm hoist) runs in a fresh worktree. Landing it first means a broken containment change fails its own batch rather than poisoning every later batch's setup. No file overlap with #31/#33 (sandcastle src) or #46 (platform).",
-			"title": "repo: hoist containment"
-		},
-		{
-			"issues": [],
 			"name": "sandcastle-serve-gate",
 			"notes": "No overlap with #31/#33 (queue/run|ops|commands|manifest|persist|gates|render|schedule|live, main.ts, cli.ts, issue.ts, state.ts): #52 touches only queue/serve.ts and web/. Placed before sandcastle-work because it is independent and small, and because queue serve is what an operator uses while the other batches run.",
 			"title": "sandcastle: serve request gate"
@@ -30,6 +24,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T08:28:28.915Z",
+	"updatedAt": "2026-11-12T08:29:12.897Z",
 	"version": 2
 }
