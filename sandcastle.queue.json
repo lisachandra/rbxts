@@ -3,9 +3,12 @@
 	"human": [],
 	"sequences": [
 		{
-			"issues": [],
+			"issues": [
+				"45",
+				"53"
+			],
 			"name": "security-controls",
-			"notes": "Slices A (this batch), B and C of #45 land as separate batches; each is a different package with no shared files.",
+			"notes": "#45 is three slices in three packages (platform guards, matter item state, sandcastle providers) and #53 is three findings in matter/core/react-router: matter/systems/server/item/itemManager.ts is edited by both, so they are serialized in this batch rather than run as two lanes. Order #45 -> #53 because 45's item slice establishes the mutation module that 53's tick-abort finding then edits. Landed as separate commits but one integration, so the shared file cannot conflict.",
 			"title": "security: testable controls"
 		},
 		{
@@ -20,6 +23,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T08:30:31.405Z",
+	"updatedAt": "2026-11-12T08:31:13.065Z",
 	"version": 2
 }
