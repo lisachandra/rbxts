@@ -61,7 +61,7 @@ export function authorize(input: AuthorizationInput, policy: AuthorizationPolicy
 		return true;
 	}
 
-	const {role} = input;
+	const { role } = input;
 	if (role === undefined || role === "") {
 		return false;
 	}

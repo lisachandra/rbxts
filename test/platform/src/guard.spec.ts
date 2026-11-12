@@ -56,41 +56,57 @@ function resetConfiguration(): void {
 }
 
 describe("authorize", () => {
-	it.each(NEAR_MISSES)("refuses the near-miss role $role", (role) => {
+	it.each(NEAR_MISSES)("should refuse the near-miss role $role", (role) => {
+		expect.assertions(1);
+
 		expect(authorize({ role, userId: 1 }, defaultPolicy())).toBe(false);
 	});
 
-	it.each(ROLES)("admits the exact role $role", (role) => {
+	it.each(ROLES)("should admit the exact role $role", (role) => {
+		expect.assertions(1);
+
 		expect(authorize({ role, userId: 1 }, defaultPolicy())).toBe(true);
 	});
 
-	it("refuses an empty role, which is what a non-member has", () => {
+	it("should refuse an empty role, which is what a non-member has", () => {
+		expect.assertions(1);
+
 		expect(authorize({ role: "", userId: 1 }, defaultPolicy())).toBe(false);
 	});
 
-	it("refuses a member whose role was never observed", () => {
+	it("should refuse a member whose role was never observed", () => {
+		expect.assertions(1);
+
 		expect(authorize({ userId: 1 }, defaultPolicy())).toBe(false);
 	});
 
-	it("admits an allowlisted user id regardless of role", () => {
+	it("should admit an allowlisted user id regardless of role", () => {
+		expect.assertions(1);
+
 		const policy = createAuthorizationPolicy(ROLES, [42]);
 
 		expect(authorize({ role: "Developer Intern", userId: 42 }, policy)).toBe(true);
 	});
 
-	it("denies every player when nothing is configured", () => {
+	it("should deny every player when nothing is configured", () => {
+		expect.assertions(2);
+
 		const empty = createAuthorizationPolicy([], []);
 
 		expect(authorize({ role: "Developer", userId: 1 }, empty)).toBe(false);
 		expect(authorize({ role: "developer", userId: 1 }, empty)).toBe(false);
 	});
 
-	it("folds case on the role but still refuses a longer rank", () => {
+	it("should fold case on the role but still refuse a longer rank", () => {
+		expect.assertions(2);
+
 		expect(authorize({ role: "developer", userId: 1 }, defaultPolicy())).toBe(true);
 		expect(authorize({ role: "junior developer", userId: 1 }, defaultPolicy())).toBe(false);
 	});
 
-	it("folds case on the configured role too", () => {
+	it("should fold case on the configured role too", () => {
+		expect.assertions(1);
+
 		const policy = createAuthorizationPolicy(["developer"], []);
 
 		expect(authorize({ role: "Developer", userId: 1 }, policy)).toBe(true);
@@ -98,7 +114,9 @@ describe("authorize", () => {
 });
 
 describe("adminOrDeveloper", () => {
-	it.each(NEAR_MISSES)("denies command execution to the near-miss role $role", (role) => {
+	it.each(NEAR_MISSES)("should deny command execution to the near-miss role $role", (role) => {
+		expect.assertions(3);
+
 		resetConfiguration();
 		const context = contextFor(playerWithRole(role));
 
@@ -107,7 +125,9 @@ describe("adminOrDeveloper", () => {
 		expect(context.getReply()?.text).toContain("Tester");
 	});
 
-	it.each(ROLES)("allows command execution to the exact role $role", (role) => {
+	it.each(ROLES)("should allow command execution to the exact role $role", (role) => {
+		expect.assertions(2);
+
 		resetConfiguration();
 		const context = contextFor(playerWithRole(role));
 
@@ -115,7 +135,9 @@ describe("adminOrDeveloper", () => {
 		expect(context.isReplyReceived()).toBe(false);
 	});
 
-	it("allows an allowlisted user id even with an unrelated role", () => {
+	it("should allow an allowlisted user id even with an unrelated role", () => {
+		expect.assertions(1);
+
 		resetConfiguration();
 		configureCenturionUsers([42]);
 		const context = contextFor(playerWithRole("Developer Intern", 42));
@@ -123,7 +145,9 @@ describe("adminOrDeveloper", () => {
 		expect(adminOrDeveloper(context)).toBe(true);
 	});
 
-	it("denies when no roles and no users are configured", () => {
+	it("should deny when no roles and no users are configured", () => {
+		expect.assertions(2);
+
 		resetConfiguration();
 		configureCenturionRoles([]);
 		const context = contextFor(playerWithRole("Developer"));
@@ -132,7 +156,9 @@ describe("adminOrDeveloper", () => {
 		expect(context.isReplyReceived()).toBe(true);
 	});
 
-	it("reports the executor name on denial", () => {
+	it("should report the executor name on denial", () => {
+		expect.assertions(1);
+
 		resetConfiguration();
 		const context = contextFor(playerWithRole(""));
 
