@@ -68,6 +68,15 @@
 			"name": "platform-security",
 			"notes": "Both touch packages/platform/src and its test suite. #68 adds a guard-return assertion in centurion/ plus test/platform/src/guard.spec.ts; #69 rewrites teleporter.ts and adds test/platform/src/teleporter.spec.ts. Serialized because they are the same package's security surface and #69's README edits sit beside #68's guard TSDoc. Order #68 then #69: the assertion establishes the 'guards are synchronous, fail loudly' rule that #69's teleporter halt follows.",
 			"title": "platform: guard assertion and teleporter hardening"
+		},
+		{
+			"issues": [
+				"70",
+				"71"
+			],
+			"name": "platform-docs",
+			"notes": "Both are README-only edits to packages/platform/README.md, so they are trivially serialized. #70 documents the Centurion allow-all default, the per-command @Guard convention, and that it is unenforced (from #51). #71 documents that createDataStoreValidator is not on the load path and what a consumer must do instead (from #66). Order #70 then #71 because both append to the same README and #70's section sits earlier in the file. No code changes, no published API change: patch bump each.",
+			"title": "platform: document the Centurion guard convention and the validation gap"
 		}
 	],
 	"serialized": [
@@ -96,6 +105,6 @@
 			"reason": "45 slice C and 43 both rewrite providers/ (dirac/zcode seam vs pi/codex/claude-code capture). Different adapters but the shared session-storage and marker modules are touched by both."
 		}
 	],
-	"updatedAt": "2026-11-12T10:34:00.502Z",
+	"updatedAt": "2026-11-12T10:34:57.759Z",
 	"version": 2
 }
