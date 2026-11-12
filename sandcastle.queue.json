@@ -54,10 +54,18 @@
 				"27",
 				"45"
 			],
-			"reason": "45 slice C routes providers/dirac.ts and providers/zcode.ts through a child-process seam; 27 rewrites TSDoc on all nine provider exports. Same files, same functions.",
-			"name": "R2"
+			"name": "R2",
+			"reason": "45 slice C routes providers/dirac.ts and providers/zcode.ts through a child-process seam; 27 rewrites TSDoc on all nine provider exports. Same files, same functions."
+		},
+		{
+			"issues": [
+				"45",
+				"43"
+			],
+			"reason": "45 slice C and 43 both rewrite providers/ (dirac/zcode seam vs pi/codex/claude-code capture). Different adapters but the shared session-storage and marker modules are touched by both.",
+			"name": "R3"
 		}
 	],
-	"updatedAt": "2026-11-12T08:34:31.010Z",
+	"updatedAt": "2026-11-12T08:35:10.878Z",
 	"version": 2
 }
