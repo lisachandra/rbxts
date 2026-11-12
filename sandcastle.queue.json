@@ -59,6 +59,15 @@
 			"name": "repo-orchestration",
 			"notes": "Five issues with no shared file: #25 orchestrator.test.ts (test only), #26 matter/src/start.ts + playerManager.ts (DocumentConfig union), #31 sandcastle phase module (issue.ts rewrite + new module), #64 platform guards.ts TSDoc + test/platform/src/guard.spec.ts, #14 sandcastle prompts/*.md. Overlap check against the other batches: #31 edits issue.ts, which #41 also edits for the commit call site — accepted because #41 is in sandcastle-containment and this batch is separate, so they run in different integrations and the merge resolves the single call site. #26 edits matter/src/start.ts and playerManager.ts, neither touched by #45 or #53.",
 			"title": "repo: orchestrator coverage, config unions, phase module, guard doc, prompts"
+		},
+		{
+			"issues": [
+				"68",
+				"69"
+			],
+			"name": "platform-security",
+			"notes": "Both touch packages/platform/src and its test suite. #68 adds a guard-return assertion in centurion/ plus test/platform/src/guard.spec.ts; #69 rewrites teleporter.ts and adds test/platform/src/teleporter.spec.ts. Serialized because they are the same package's security surface and #69's README edits sit beside #68's guard TSDoc. Order #68 then #69: the assertion establishes the 'guards are synchronous, fail loudly' rule that #69's teleporter halt follows.",
+			"title": "platform: guard assertion and teleporter hardening"
 		}
 	],
 	"serialized": [
@@ -87,6 +96,6 @@
 			"reason": "45 slice C and 43 both rewrite providers/ (dirac/zcode seam vs pi/codex/claude-code capture). Different adapters but the shared session-storage and marker modules are touched by both."
 		}
 	],
-	"updatedAt": "2026-11-12T10:13:17.629Z",
+	"updatedAt": "2026-11-12T10:34:00.502Z",
 	"version": 2
 }
