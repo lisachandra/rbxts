@@ -46,6 +46,18 @@
 			"name": "sandcastle-sessions",
 			"notes": "Alone in a batch because R1/R3 serialize it against #27 (providers TSDoc) and #45 (providers child-process seam). No other in-flight work touches the three adapters it changes.",
 			"title": "sandcastle: upstream session resume"
+		},
+		{
+			"issues": [
+				"25",
+				"26",
+				"31",
+				"64",
+				"14"
+			],
+			"name": "repo-orchestration",
+			"notes": "Five issues with no shared file: #25 orchestrator.test.ts (test only), #26 matter/src/start.ts + playerManager.ts (DocumentConfig union), #31 sandcastle phase module (issue.ts rewrite + new module), #64 platform guards.ts TSDoc + test/platform/src/guard.spec.ts, #14 sandcastle prompts/*.md. Overlap check against the other batches: #31 edits issue.ts, which #41 also edits for the commit call site — accepted because #41 is in sandcastle-containment and this batch is separate, so they run in different integrations and the merge resolves the single call site. #26 edits matter/src/start.ts and playerManager.ts, neither touched by #45 or #53.",
+			"title": "repo: orchestrator coverage, config unions, phase module, guard doc, prompts"
 		}
 	],
 	"serialized": [
@@ -74,6 +86,6 @@
 			"reason": "45 slice C and 43 both rewrite providers/ (dirac/zcode seam vs pi/codex/claude-code capture). Different adapters but the shared session-storage and marker modules are touched by both."
 		}
 	],
-	"updatedAt": "2026-11-12T08:35:43.333Z",
+	"updatedAt": "2026-11-12T08:36:45.878Z",
 	"version": 2
 }
