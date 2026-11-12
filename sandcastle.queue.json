@@ -33,7 +33,8 @@
 		{
 			"issues": [
 				"65",
-				"27"
+				"27",
+				"30"
 			],
 			"name": "repo-tests",
 			"notes": "Independent of every sandcastle-code batch: #65 touches test/react-router, test/react-template, test/types configs and specs, #27 touches packages/sandcastle/src/providers/*.ts TSDoc only. #27 must not share a lane with #43 or #45 (rules R1/R2): all three rewrite the same provider exports, and a doc-only diff against a behaviour diff conflicts on every hunk. #66 and #67 are deliberately absent — both are decision-gated and not ready-for-agent.",
@@ -86,6 +87,6 @@
 			"reason": "45 slice C and 43 both rewrite providers/ (dirac/zcode seam vs pi/codex/claude-code capture). Different adapters but the shared session-storage and marker modules are touched by both."
 		}
 	],
-	"updatedAt": "2026-11-12T08:37:49.136Z",
+	"updatedAt": "2026-11-12T10:13:17.629Z",
 	"version": 2
 }
