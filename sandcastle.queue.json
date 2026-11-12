@@ -3,14 +3,6 @@
 	"human": [],
 	"sequences": [
 		{
-			"issues": [
-				"31",
-				"33"
-			],
-			"name": "sandcastle-work",
-			"notes": "seeded from the open ready-for-agent backlog"
-		},
-		{
 			"issues": [],
 			"name": "security-controls",
 			"notes": "Slices A (this batch), B and C of #45 land as separate batches; each is a different package with no shared files.",
@@ -18,6 +10,6 @@
 		}
 	],
 	"serialized": [],
-	"updatedAt": "2026-11-12T08:29:25.302Z",
+	"updatedAt": "2026-11-12T08:29:32.866Z",
 	"version": 2
 }
