@@ -34,13 +34,19 @@ function getValueFromPaths<T extends Table>(root: T) {
  * Retrieves an instance from a nested hierarchy of instances using a path of names.
  *
  * @template T
- * @param root - The root instance.
+ * @param rootFactory - Produces the root instance on demand; the containers below are authored
+ *   place content, so this is called per lookup instead of indexing children at module scope — an
+ *   eager `ReplicatedStorage.Models.Items` here throws at require time on lanes whose stub
+ *   containers are empty (the offline emulator lane; game issue #671).
  * @param strict - If true, returns undefined if any part of the path is not found.
  * @returns A function that takes a path and returns the instance at that path.
  */
-function getInstanceFromPaths<T extends Instance>(root: T, strict = false) {
+function getInstanceFromPaths<T extends Instance>(
+	rootFactory: () => Instance | undefined,
+	strict = false,
+) {
 	return (paths: ValidItemPath): N<T> => {
-		let model: N<Instance> = root;
+		let model: N<Instance> = rootFactory();
 
 		for (const path of paths) {
 			model = model?.FindFirstChild(path) ?? (strict ? undefined : model);
@@ -51,13 +57,16 @@ function getInstanceFromPaths<T extends Instance>(root: T, strict = false) {
 }
 
 const itemDescriptionContainer = getValueFromPaths(descriptions);
-const itemModelContainer = getInstanceFromPaths(
-	ReplicatedStorage.Models.Items as Instance as Model,
+const itemModelContainer = getInstanceFromPaths<Model>(
+	() => ReplicatedStorage.FindFirstChild("Models")?.FindFirstChild("Items"),
 	true,
 );
-const itemToolContainer = getInstanceFromPaths(ReplicatedStorage.Tools as Instance as Tool, true);
-const itemToolAnimationContainer = getInstanceFromPaths(
-	ReplicatedStorage.Animations.Tools as Instance as Animation,
+const itemToolContainer = getInstanceFromPaths<Tool>(
+	() => ReplicatedStorage.FindFirstChild("Tools"),
+	true,
+);
+const itemToolAnimationContainer = getInstanceFromPaths<Animation>(() =>
+	ReplicatedStorage.FindFirstChild("Animations")?.FindFirstChild("Tools"),
 );
 const itemConfig = getValueFromPaths(itemDefinitions);
 
