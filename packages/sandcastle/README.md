@@ -359,8 +359,9 @@ every hand-off attempt also emits `{ handOff: { batch, ok, error } }`.
 `Ctrl+C` once stops a run cleanly: the in-flight agent is aborted, no further batch starts, and the
 run lock, batch locks, and dispatch lease are all released on the way out. Press it twice to hard-kill
 immediately — that skips the cleanup, so the residue described below is what you get. A cancelled
-run exits `130` (the shell's `SIGINT` convention) and lands nothing, so re-running the same command
-resumes where it stopped.
+run exits `130` (the shell's `SIGINT` convention) and starts no further hand-offs, so re-running the
+same command resumes where it stopped. A composition already under way under `--parallel` is allowed
+to finish: aborting it halfway would leave a partial integration manifest.
 
 When the terminal that owned the run is already gone — a closed window, a crashed editor — clear
 what it left behind in one command:
@@ -454,9 +455,10 @@ blocked member exits its process and would otherwise take sibling lanes down wit
 stderr go to `.sandcastle/logs/batch-<batch>.<profile>.log`; the parent prints one line per lane event
 (`▶ Lane 1: "ui-wiring" [flash]`, `✓ … finished in 2h14m`). A failed lane's log tail is echoed, and the
 other lanes keep running — one stuck batch must not strand unrelated work. Landing stays in the parent
-and runs serially over the batches that finished cleanly, so two compositions never race on an
-integration manifest. A batch whose lane failed is not landed at all: its composition would describe a
-partial chain.
+and runs serially, so two compositions never race on an integration manifest. It starts as soon as the
+batch it belongs to finishes, not when the pool drains: a pool refills a freed lane immediately, so a
+finished batch would otherwise wait hours behind unrelated work for its pull request. A batch whose
+lane failed is not landed at all: its composition would describe a partial chain.
 
 `--parallel` interacts with the existing rules as you would expect: `--max-issues` still refuses an
 atomic batch that would overshoot, `--push-and-delete` still reclaims per member inside each lane, and

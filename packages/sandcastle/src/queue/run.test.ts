@@ -625,6 +625,62 @@ describe("queue run dispatch", () => {
 		assert.deepEqual(codes, [2]);
 	});
 
+	test("--parallel hands a batch off while the pool is still running", async () => {
+		const { codes } = stage([], []);
+
+		config.queue.parallel = 2;
+		config.agents.catalog = [{ backend: "zcode", model: "m1", name: "flash" }];
+		const landed: Array<string> = [];
+		/** Batches already composed while a later lane was still working. */
+		const composedEarly: Array<string> = [];
+		let poolReturned = false;
+
+		try {
+			await runQueueRun(parseArgs(["queue", "run", "--parallel", "2", "--land"]), {
+				land: (_options, name) => {
+					landed.push(name);
+					if (!poolReturned) {
+						composedEarly.push(name);
+					}
+
+					return Promise.resolve({ ok: true });
+				},
+				/*
+				 * A pool that finishes U1 long before U2. The hook fires at U1's own boundary, so its
+				 * composition must be under way while U2's lane is still running — waiting for the pool
+				 * to return is exactly the bug this pins down.
+				 */
+				pool: async (_options, hooks) => {
+					hooks?.onCompleted?.({ batch: "U1", elapsedMs: 1, lane: 0, profile: "flash" });
+					/* Let the drain reach `land` before the pool reports itself finished. */
+					await Promise.resolve();
+					await Promise.resolve();
+					poolReturned = true;
+					return {
+						batches: ["U1", "U2"],
+						completed: [
+							{ batch: "U1", elapsedMs: 1, lane: 0, profile: "flash" },
+							{ batch: "U2", elapsedMs: 2, lane: 1, profile: "flash" },
+						],
+						failures: [],
+						issues: ["5", "6"],
+					};
+				},
+			});
+		} finally {
+			config.queue.parallel = 1;
+			config.agents.catalog = [];
+		}
+
+		assert.deepEqual(landed, ["U1", "U2"], "each batch lands exactly once, in order");
+		assert.deepEqual(
+			composedEarly,
+			["U1"],
+			"U1 is composed before the pool returns; U2 is queued from the completed list",
+		);
+		assert.deepEqual(codes, [], "a clean parallel run is success");
+	});
+
 	test("a lane child refuses to open a pool of its own", async () => {
 		stage([], []);
 

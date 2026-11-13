@@ -35,7 +35,7 @@ import { type QueueManifest, readQueueManifest, referencedIssues } from "./manif
 import { clearAfterReferences, deleteSequence, promoteIssue, removeIssue } from "./mutations.js";
 import { emitJson, emitText } from "./output.js";
 import { transactQueueManifest } from "./persist.js";
-import { isLaneChild, type PoolResult, runParallelPool } from "./pool.js";
+import { isLaneChild, type PoolHooks, type PoolResult, runParallelPool } from "./pool.js";
 import { profileByName, profileForLane, resolveLaneAgents } from "./profile.js";
 import { computeQueueView } from "./render.js";
 import { pendingMembers, selectNextBatch, sequenceTail } from "./schedule.js";
@@ -112,8 +112,14 @@ export interface QueueRunDeps {
 	pool?: QueuePool;
 }
 
-/** Lane-pool seam: production runs one child per batch, tests inject the outcome. */
-export type QueuePool = (options: CliOptions) => Promise<PoolResult>;
+/**
+ * Lane-pool seam: production runs one child per batch, tests inject the outcome.
+ *
+ * The hooks are passed in so a stub can announce completions the way the real pool does; a stub
+ * that ignores them simply reports its `completed` list, which the caller still hand-offs after the
+ * pool returns.
+ */
+export type QueuePool = (options: CliOptions, hooks?: PoolHooks) => Promise<PoolResult>;
 
 /** Chain-drift seam: production walks member branches with git ancestry, tests inject lines. */
 export type QueueChain = (manifest: QueueManifest) => Array<string>;
@@ -502,8 +508,13 @@ function assertModels(options: CliOptions): void {
  * - @param deps - Seams for the tests.
  * - @remarks The parent holds `runLockName` for the whole pool, exactly as the serial loop does: that
  *   is what keeps a second dispatcher from reserving a batch a lane is already running. Each child
- *   additionally takes its own batch lock. Landing is serial and in completion order, so a failed
- *   composition is recorded and the remaining lanes are unaffected.
+ *   additionally takes its own batch lock.
+ *
+ *   A hand-off starts as soon as its batch finishes, not when the pool drains: a pool refills a freed
+ *   lane immediately, so with a long backlog the last completion can be many hours after the first,
+ *   and a finished batch waiting that long for its pull request is the opposite of a hand-off. The
+ *   hand-offs are still serialized against each other, and still run under the lease, so two
+ *   compositions never race on an integration manifest.
  *
  * @rejects {Error} When this process is a lane child, which must never open a second pool.
  */
@@ -520,51 +531,130 @@ async function runQueueParallel(options: CliOptions, deps: QueueRunDeps): Promis
 	}
 
 	/*
-	 * The lease spans the pool *and* the serial landing: landing pushes member branches and opens a
-	 * pull request, which is exactly the work a second dispatcher must not duplicate.
+	 * The lease spans the pool *and* the landing: landing pushes member branches and opens a pull
+	 * request, which is exactly the work a second dispatcher must not duplicate. It is released only
+	 * after the last hand-off settles, including the ones a still-running pool has not handed over yet.
 	 */
 	const lease = leaseFor(options);
 	const land = deps.land ?? landBatch;
+	const landFailures: Array<HandOffFailure> = [];
+
+	/**
+	 * The serial hand-off queue: one composition at a time, in completion order.
+	 *
+	 * A queue rather than a loop because the hand-offs start while the pool is still running — each
+	 * completion pushes a batch, and the drain loop is awaited once the pool returns. Exactly one
+	 * drain runs at a time; a completion that arrives mid-drain only pushes. A failed composition
+	 * is recorded and the drain continues, so one blocked batch cannot strand the batches that
+	 * finished after it.
+	 */
+	const pending: Array<string> = [];
+	/** Batches already queued, so the post-pool sweep does not hand the same batch off twice. */
+	const handedOff = new Set<string>();
+	/** The drain in flight, if any; awaiting it after the pool waits for every hand-off. */
+	let draining: undefined | Promise<void>;
+
+	const drain = async (): Promise<void> => {
+		try {
+			for (let batch = pending.shift(); batch !== undefined; batch = pending.shift()) {
+				const outcome = await land(options, batch).catch(
+					(err: unknown): LandOutcome => ({ error: String(err), ok: false }),
+				);
+				if (options.jsonOut === true) {
+					emitJson({ handOff: { batch, error: outcome.error, ok: outcome.ok } });
+				}
+
+				if (!outcome.ok) {
+					landFailures.push({ batch, error: outcome.error ?? "" });
+				}
+			}
+		} catch (err) {
+			/*
+			 * Never reject: this promise is not awaited until the pool returns, and one that rejected
+			 * mid-run would surface as an unhandled rejection with no caller to blame. `land` already
+			 * converts its own failures into an outcome; this only catches the reporting around it.
+			 */
+			emitText(options, `  ⚠ A hand-off could not be reported: ${String(err)}`);
+		} finally {
+			draining = undefined;
+		}
+	};
+
+	const handOff = (batch: string): void => {
+		if (handedOff.has(batch)) {
+			return;
+		}
+
+		handedOff.add(batch);
+		pending.push(batch);
+		draining ??= drain();
+	};
+
+	/*
+	 * A cancelled run lands nothing further. The batches that completed before the signal have already
+	 * been handed off — their work is real — but a batch that finishes after it is not work the operator
+	 * still asked for. The pool reports a killed lane as a failure rather than a completion, so this is
+	 * the one case left to guard.
+	 */
+	const hooks: PoolHooks = {
+		onCompleted: (finished) => {
+			if (options.land === true && cancellation.requested() !== true) {
+				handOff(finished.batch);
+			}
+		},
+	};
+
+	/*
+	 * One outer `finally` owns the lease for the whole invocation — the pool *and* every hand-off it
+	 * announces — so a pool that throws still releases it. The run lock is narrower: it is what keeps a
+	 * second dispatcher from reserving a batch, and a composition does not reserve anything.
+	 */
 	let pool: Awaited<ReturnType<typeof runParallelPool>>;
-	const release = acquireQueueLock({ name: runLockName });
 	try {
-		pool = await (
-			deps.pool ?? ((poolOptions) => runParallelPool(poolOptions, undefined, lease.lost))
-		)(options);
+		const release = acquireQueueLock({ name: runLockName });
+		try {
+			pool = await (
+				deps.pool ??
+				((poolOptions, poolHooks) =>
+					runParallelPool(poolOptions, undefined, lease.lost, poolHooks))
+			)(options, hooks);
+		} finally {
+			release();
+		}
+
+		/*
+		 * Completions the pool did not announce through the hook: a batch that answered a cancel inside
+		 * the grace window, and any pool implementation that reports only its final `completed` list.
+		 * Their hand-offs are queued here, behind whatever the hook already started, so the order stays
+		 * completion order and only one composition runs at a time.
+		 *
+		 * A cancelled pool still lands nothing: the operator stopped the run.
+		 */
+		if (options.land === true && pool.cancelled !== true) {
+			for (const run of pool.completed) {
+				handOff(run.batch);
+			}
+		}
+
+		/*
+		 * Waits for the hand-offs still in flight, including one a cancelled pool started before the
+		 * signal. Aborting a composition halfway leaves a partial integration manifest, so the operator's
+		 * stop is honored for *starting* work, not for truncating work already under way.
+		 *
+		 * Re-read after each wait: a completion the pool announced just before returning may have
+		 * started a fresh drain after the one this awaited.
+		 */
+		for (let wait = draining; wait !== undefined; wait = draining) {
+			await wait;
+		}
 	} finally {
-		release();
+		lease.release();
 	}
 
 	const dispatchFailures: Array<HandOffFailure> = pool.failures.map((failure) => ({
 		batch: failure.batch,
 		error: failure.error ?? "",
 	}));
-	const landFailures: Array<HandOffFailure> = [];
-
-	try {
-		/*
-		 * Land after the pool, serially, over the batches that finished cleanly. A batch whose lane
-		 * failed is left alone: its composition would describe a partial chain. A cancelled pool lands
-		 * nothing — the operator stopped the run, so pushing branches and opening pull requests is
-		 * exactly the work they did not ask for.
-		 */
-		if (options.land === true && pool.cancelled !== true) {
-			for (const run of pool.completed) {
-				const outcome = await land(options, run.batch);
-				if (options.jsonOut === true) {
-					emitJson({
-						handOff: { batch: run.batch, error: outcome.error, ok: outcome.ok },
-					});
-				}
-
-				if (!outcome.ok) {
-					landFailures.push({ batch: run.batch, error: outcome.error ?? "" });
-				}
-			}
-		}
-	} finally {
-		lease.release();
-	}
 
 	reportQueueRun(options, {
 		cancelled: pool.cancelled,

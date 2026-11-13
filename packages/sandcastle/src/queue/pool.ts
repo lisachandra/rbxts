@@ -13,7 +13,9 @@
  *
  * The parent keeps three things the child cannot: the run lock, the schedule, and the hand-off.
  * Landing stays serial in the parent so two compositions never race on an integration manifest, and an
- * over-budget batch is refused before it starts because a batch is atomic.
+ * over-budget batch is refused before it starts because a batch is atomic. The parent learns a batch
+ * finished through {@link PoolHooks.onCompleted}, so a hand-off starts as soon as that batch settles
+ * instead of waiting for the whole pool to drain.
  */
 
 import { spawn } from "node:child_process";
@@ -144,6 +146,26 @@ export interface LaneOutcome {
 
 /** Starts one lane; production spawns a child process, tests inject a stub. */
 export type SpawnLane = (params: LaneSpawnParams) => Promise<LaneOutcome>;
+
+/**
+ * What the pool tells its caller while it is still running.
+ *
+ * A batch's hand-off is the parent's job (a lane child must never compose its own integration), and
+ * it must not wait for the rest of the pool: a pool that refills lanes until the queue is exhausted
+ * can run for many more hours after the first batch finishes. `onCompleted` is called once per
+ * batch that finished cleanly, in completion order, at the moment its lane frees up — so the caller
+ * can compose it while the remaining lanes keep working.
+ */
+export interface PoolHooks {
+	/**
+	 * Called for every batch whose lane exited zero, in completion order.
+	 *
+	 * Synchronous on purpose: the pool calls it from its own event loop, so a callback that awaited
+	 * a composition would idle the lane slot it is reacting to. The caller enqueues the hand-off
+	 * and returns.
+	 */
+	onCompleted?: (run: LaneRun) => void;
+}
 
 /** Absolute path of the CLI entry point, so a child re-enters the same build. */
 function entryPoint(): string {
@@ -376,6 +398,8 @@ function recordSettled(
  * - @param options - Parsed CLI options; `--parallel`, `--name`, and `--max-issues` are read here.
  * - @param spawnLaneImpl - Lane starter; tests inject a stub.
  * - @param leaseLost - Whether the cross-machine lease was lost; checked at each batch boundary.
+ * - @param hooks - Completion callbacks; `onCompleted` fires per finished batch, before the slot is
+ *   refilled, without holding the fill loop up.
  * - @returns Every batch fired, every issue committed, and every failure.
  * - @remarks Greedy fill in manifest order: whenever a lane frees up, the next READY batch that no
  *   rule excludes starts. There is no lookahead, so a long batch can idle a lane that a shorter
@@ -386,6 +410,7 @@ export async function runParallelPool(
 	options: CliOptions,
 	spawnLaneImpl: SpawnLane = spawnLane,
 	leaseLost: () => boolean = () => false,
+	hooks: PoolHooks = {},
 ): Promise<PoolResult> {
 	const parallel = options.queueParallel ?? config.queue.parallel;
 	const { catalog } = config.agents;
@@ -704,6 +729,13 @@ export async function runParallelPool(
 				options,
 				`  ✓ "${finished.batch}" [${finished.profile}] finished in ${formatElapsed(finished.elapsedMs)}.`,
 			);
+			/*
+			 * Announced here, at the batch's own boundary, rather than by the caller once this function
+			 * returns: the fill above refills the freed slot, so the pool can keep running for hours
+			 * after its first batch is done. The callback is synchronous by contract — the caller owns
+			 * the hand-off's queue — so this loop never waits on a composition.
+			 */
+			hooks.onCompleted?.(finished);
 		} else {
 			/*
 			 * Keep going: a blocked or failed batch is one lane's problem, and the queue's rule is that
