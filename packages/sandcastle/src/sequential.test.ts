@@ -10,7 +10,6 @@ import { type DispatchIssue, reclaimMemberWorktree, runSequentialIssues } from "
 import { writeState } from "./state.js";
 import {
 	cleanupIssueArtifacts,
-	ExitError,
 	gitStub,
 	makeState,
 	registerTestHooks,
@@ -116,10 +115,19 @@ describe("sequential issue workflow", () => {
 				throw new Error("boom");
 			},
 		});
+		/*
+		 * A failed member throws instead of calling `io.exit`, so the caller's `finally` blocks run and
+		 * the run lock, batch lock, and dispatch lease are released. Throwing from inside the dispatch
+		 * is what makes a failure recoverable; `process.exit` would leave all three behind.
+		 */
 		await assert.rejects(
 			async () => runSequentialIssues([failingIssue], "main", "m", "low", "dirac", false),
-			(err: unknown) => err instanceof ExitError && err.code === 1,
+			(err: unknown) =>
+				err instanceof Error &&
+				err.message.includes("Sequential workflow failed") &&
+				err.message.includes(`#${failingIssue}`),
 		);
+		assert.deepEqual(codes, [], "a failed member must not exit the process");
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });
@@ -181,9 +189,12 @@ describe("sequential issue workflow", () => {
 		await assert.rejects(
 			async () =>
 				runSequentialIssues([issue], "main", "model", "low", "dirac", false, { worktree }),
-			(err: unknown) => err instanceof ExitError && err.code === 1,
+			(err: unknown) =>
+				err instanceof Error &&
+				err.message.includes("Sequential workflow failed") &&
+				err.message.includes(`#${issue} (blocked)`),
 		);
-		assert.equal(codes.at(-1), 1);
+		assert.deepEqual(codes, [], "a blocked member must not exit the process");
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });
@@ -545,7 +556,8 @@ describe("chain rewind guard", () => {
 				runSequentialIssues([member], "sandcastle/issue-other", "m", "low", "dirac", true, {
 					strictChain: true,
 				}),
-			(err: unknown) => err instanceof ExitError && err.code === 1,
+			(err: unknown) =>
+				err instanceof Error && err.message.includes("Sequential workflow failed"),
 		);
 
 		cleanupIssueArtifacts(member);

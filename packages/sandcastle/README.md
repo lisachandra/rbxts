@@ -354,6 +354,31 @@ manifest themselves; otherwise commit it yourself, or the registration dies with
 needs a human must not look like an exhausted queue to whatever scripted the run. Under `--json`,
 every hand-off attempt also emits `{ handOff: { batch, ok, error } }`.
 
+### Cancelling a run
+
+`Ctrl+C` once stops a run cleanly: the in-flight agent is aborted, no further batch starts, and the
+run lock, batch locks, and dispatch lease are all released on the way out. Press it twice to hard-kill
+immediately — that skips the cleanup, so the residue described below is what you get. A cancelled
+run exits `130` (the shell's `SIGINT` convention) and lands nothing, so re-running the same command
+resumes where it stopped.
+
+When the terminal that owned the run is already gone — a closed window, a crashed editor — clear
+what it left behind in one command:
+
+```bash
+pnpm sandcastle queue cancel          # locks + lease whose owner is provably gone
+pnpm sandcastle queue cancel --force  # also clear a live owner's (last resort; never signals it)
+```
+
+It exits 0 when the checkout is clean and 1 when it kept something because its owner is still
+running, which is the same shape as `queue check`. It never kills a process: a live run is stopped
+from its own terminal, where `Ctrl+C` can unwind it properly.
+
+Residue also reclaims itself. Both a lock and a lease record the `host` and `pid` that took them, and
+a holder on this host whose pid no longer exists is taken over immediately instead of waiting out
+the ten-minute lock window or the thirty-minute lease TTL. The age window still applies to a holder
+on another host, whose pid says nothing here.
+
 ### Parallel batches
 
 `queue run --parallel <n>` runs up to `n` batches at once. Parallelism is **between batches only**:
@@ -443,8 +468,12 @@ Another checkout is dispatching this queue: pid 8123 on desktop (branch main), r
   it, so a child taking one would deadlock against its own run.
 - Lease pushes skip `pre-push` hooks. The ref carries an empty tree that no CI builds, and a hook that
   runs typecheck/lint/build — or worse, rewrites files — must not run on a renewal.
+- A lease whose holder is on this host and no longer running is taken over immediately
+  (`⚠ Taking over the dispatch lease of pid 8123 on this host, which is no longer running.`) rather
+  than waiting out the TTL. A holder on another machine still waits, because its pid says nothing here.
 
-If a machine really is gone, clear its lease by hand: `git push origin :refs/sandcastle/dispatch-lease`.
+If a machine really is gone, `pnpm sandcastle queue cancel` clears its lease (and its locks) without
+waiting; `git push origin :refs/sandcastle/dispatch-lease` remains the manual equivalent.
 
 `sequences[].after` is a run-order gate: the batch stays GATED until that integration has
 been composed **and** its head commit is an ancestor of the base branch — the check a batch that

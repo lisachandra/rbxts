@@ -18,6 +18,7 @@
  * `--no-resume` forces a clean re-run of every member.
  */
 
+import { cancellation, cancelledExitCode, installCancelHandlers } from "../cancel.js";
 import type { CliOptions } from "../cli.js";
 import type { AgentProfile } from "../config.js";
 import { config, io } from "../runtime.js";
@@ -180,6 +181,13 @@ interface HandOffFailure {
 /** What one `queue run` invocation did; the exit code is decided from it in one place. */
 interface QueueRunSummary {
 	/**
+	 * Whether an operator cancelled the run.
+	 *
+	 * Distinct from every failure: nothing went wrong, so the invocation reports the cancellation
+	 * and exits 130 instead of failing with 1 or 2.
+	 */
+	cancelled?: boolean;
+	/**
 	 * Batches whose execution failed, in completion order.
 	 *
 	 * Distinct from {@link failures}: a failed dispatch means the work did not happen, which is a
@@ -280,6 +288,28 @@ function pruneClosed(options: CliOptions, closed: ReadonlyArray<string>): void {
  * sequential run fails.
  */
 export async function runQueueRun(options: CliOptions, deps: QueueRunDeps = {}): Promise<void> {
+	/*
+	 * Installed here, not at module load: only a dispatch owns locks and a lease worth releasing, and
+	 * `queue serve` prints "Ctrl+C stops it" and depends on Node's default terminate. A lane child
+	 * installs its own handlers, which is what makes killing the lane a graceful stop rather than a
+	 * hard one.
+	 */
+	const disposeCancelHandlers = installCancelHandlers(() => {
+		emitText(
+			options,
+			"  ⏹ Cancelling — releasing locks and the dispatch lease (Ctrl+C again to hard-kill).",
+		);
+	});
+
+	try {
+		await runQueueCommandImpl(options, deps);
+	} finally {
+		disposeCancelHandlers();
+	}
+}
+
+/** The dispatch itself, with the signal handlers already installed. */
+async function runQueueCommandImpl(options: CliOptions, deps: QueueRunDeps): Promise<void> {
 	if (options.queueOnce === true) {
 		await runQueueOnce(options, deps.dispatch ?? defaultDispatch);
 		return;
@@ -407,6 +437,18 @@ async function runQueueOnce(options: CliOptions, dispatch: QueueDispatch): Promi
 			options.noResume !== true,
 			options.maxIssues,
 		);
+		/*
+		 * A cancelled lane exits 130 rather than 0. The parent reads a zero exit as "this batch is
+		 * finished", so reporting success here would let a cancelled batch be landed.
+		 */
+		if (cancellation.requested()) {
+			if (options.jsonOut === true) {
+				emitJson({ batch: name, cancelled: true, issues: processed, kind: "once" });
+			}
+
+			io.exit(cancelledExitCode);
+		}
+
 		if (options.jsonOut === true) {
 			emitJson({ batch: name, issues: processed, kind: "once" });
 		}
@@ -488,9 +530,11 @@ async function runQueueParallel(options: CliOptions, deps: QueueRunDeps): Promis
 	try {
 		/*
 		 * Land after the pool, serially, over the batches that finished cleanly. A batch whose lane
-		 * failed is left alone: its composition would describe a partial chain.
+		 * failed is left alone: its composition would describe a partial chain. A cancelled pool lands
+		 * nothing — the operator stopped the run, so pushing branches and opening pull requests is
+		 * exactly the work they did not ask for.
 		 */
-		if (options.land === true) {
+		if (options.land === true && pool.cancelled !== true) {
 			for (const run of pool.completed) {
 				const outcome = await land(options, run.batch);
 				if (options.jsonOut === true) {
@@ -509,6 +553,7 @@ async function runQueueParallel(options: CliOptions, deps: QueueRunDeps): Promis
 	}
 
 	reportQueueRun(options, {
+		cancelled: pool.cancelled,
 		dispatchFailures,
 		failures: landFailures,
 		nothingToRun: pool.batches.length === 0,
@@ -525,6 +570,24 @@ async function runQueueParallel(options: CliOptions, deps: QueueRunDeps): Promis
  *   before the queue moves on.
  */
 function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
+	/*
+	 * A cancellation is reported before any failure and always wins the exit code. The operator asked
+	 * to stop, so whatever a batch left behind is expected, not something to report as a failure and
+	 * not something a script should retry.
+	 */
+	if (summary.cancelled === true) {
+		if (options.jsonOut) {
+			emitJson({ cancelled: true, kind: "cancel" });
+		} else {
+			emitText(
+				options,
+				"  ⏹ Cancelled; locks and the dispatch lease were released. Re-run to resume.",
+			);
+		}
+
+		io.exit(cancelledExitCode);
+	}
+
 	const dispatchFailures = summary.dispatchFailures ?? [];
 	if (summary.failures.length === 0 && dispatchFailures.length === 0) {
 		if (summary.nothingToRun) {
@@ -592,6 +655,15 @@ async function runQueueLoop(
 	let warnedDrift = false;
 	let prunedOnce = false;
 	for (;;) {
+		/*
+		 * Cancellation is checked here, at the batch boundary, and the batch already in flight is
+		 * aborted by the phase pipeline rather than being left to finish. Checking only between batches
+		 * would make `Ctrl+C` look ignored for hours on a long batch.
+		 */
+		if (cancellation.requested()) {
+			return { cancelled: true, failures, nothingToRun: false };
+		}
+
 		/*
 		 * Checked between batches, never mid-batch: the batch already in flight must be allowed to
 		 * finish, but starting another under a lease this checkout no longer holds is precisely the

@@ -176,9 +176,15 @@ queue is the runnable artifact, the comment is only the report.
   rule is broken by a second dispatcher starting mid-batch; across machines, `queue run` holds a lease
   ref (`refs/sandcastle/dispatch-lease`) on `origin` and refuses when another checkout holds one. The
   lease expires after 30 minutes without a renewal and a live run renews every 10, so a crashed
-  machine cannot wedge the queue. `queue.lease` picks the mode: `auto` (default) falls back to local
-  locks when `origin` is unreachable, `strict` refuses to dispatch without the lease, `off` makes no
-  network calls (`--no-lease` / `--lease-strict` for one run).
+  machine cannot wedge the queue. A lock or lease whose holder is on this host and whose pid is gone
+  is taken over immediately instead of waiting that window out. `queue.lease` picks the mode: `auto`
+  (default) falls back to local locks when `origin` is unreachable, `strict` refuses to dispatch
+  without the lease, `off` makes no network calls (`--no-lease` / `--lease-strict` for one run).
+- **`Ctrl+C` cancels cleanly.** One signal aborts the in-flight agent, starts no further batch, and
+  releases the run lock, batch locks, and dispatch lease; the run exits `130` and lands nothing, so
+  re-running resumes. A second signal hard-kills. When the owning terminal is already gone,
+  `pnpm sandcastle queue cancel` clears that residue (exit 1 and no action while a holder is alive;
+  `--force` overrides, and neither ever signals a process).
 - **Every manifest write is one locked transaction**, so a review registering a follow-up from
   inside a batch worktree writes the manifest in the primary checkout without waiting on the
   dispatcher and without losing a concurrent edit.

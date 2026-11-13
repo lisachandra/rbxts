@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { afterEach, describe, test } from "vitest";
 
+import { CancelError, cancellation } from "./cancel.js";
 import { isFatalProviderError, runPhaseWithRetry } from "./retry.js";
 import { io } from "./runtime.js";
 import { registerTestHooks } from "./test-helpers.js";
@@ -126,6 +128,117 @@ describe("phase retry", () => {
 		);
 		assert.equal(attempts, 1);
 		assert.deepEqual(sleeps, []);
+	});
+
+	test("a cancellation is never retried", async () => {
+		const sleeps: Array<number> = [];
+		io.sleep = async (ms: number) => {
+			sleeps.push(ms);
+		};
+
+		let attempts = 0;
+		await assert.rejects(
+			async () =>
+				runPhaseWithRetry(async () => {
+					attempts += 1;
+					throw new CancelError();
+				}, "implement"),
+			(err: unknown) => err instanceof CancelError,
+		);
+		assert.equal(attempts, 1, "a cancelled phase must not start another agent run");
+		assert.deepEqual(sleeps, [], "and must not sleep through a backoff either");
+	});
+
+	test("a cancellation requested mid-run stops the loop at the next attempt", async () => {
+		const sleeps: Array<number> = [];
+		io.sleep = async (ms: number) => {
+			sleeps.push(ms);
+		};
+
+		let attempts = 0;
+		await assert.rejects(
+			async () =>
+				runPhaseWithRetry(async () => {
+					attempts += 1;
+					/*
+					 * The first attempt fails transiently and the operator cancels while the retry is
+					 * pending. The backoff must not swallow the request: that 30s→300s sleep is exactly
+					 * where `Ctrl+C` used to look ignored.
+					 */
+					cancellation.request();
+					throw new Error("connection reset");
+				}, "design"),
+			(err: unknown) => err instanceof CancelError,
+		);
+
+		assert.equal(attempts, 1);
+		assert.equal(sleeps.length, 0, "the sleep must end as soon as the signal fires");
+	});
+
+	test("a backoff sleep ends early when the operator cancels", async () => {
+		/*
+		 * Retries are enabled for this case: the shared hooks cap them at 0, and the point is what
+		 * happens during a backoff, which only exists when a retry is allowed.
+		 */
+		process.env.SANDCASTLE_PHASE_MAX_RETRIES = "5";
+		let attempts = 0;
+		let slept = 0;
+		const started = Date.now();
+		io.sleep = async (ms: number) => {
+			slept += 1;
+			/* Stands in for the 30s delay, but the request lands while it is "sleeping". */
+			cancellation.request();
+			await new Promise<void>((resolve) => {
+				if (cancellation.signal.aborted) {
+					resolve();
+					return;
+				}
+
+				cancellation.signal.addEventListener("abort", () => resolve(), { once: true });
+			});
+			void ms;
+		};
+
+		await assert.rejects(
+			async () =>
+				runPhaseWithRetry(async () => {
+					attempts += 1;
+					throw new Error("socket hang up");
+				}, "review"),
+			(err: unknown) => err instanceof CancelError,
+		);
+
+		assert.equal(attempts, 1, "the cancelled backoff must not lead to another attempt");
+		assert.equal(slept, 1, "it did reach the backoff, which is what this test is about");
+		assert.ok(Date.now() - started < 5_000, "the 30s backoff must not have been waited out");
+	});
+
+	test("repeated failures do not accumulate abort listeners", async () => {
+		/*
+		 * Retries are unlimited by default and a run can spend hours in them, so a listener added per
+		 * attempt and never removed would grow without bound on the process-wide signal — eventually
+		 * tripping Node's MaxListenersExceededWarning and keeping every finished attempt's closure
+		 * alive. Counted directly, because that is the thing that leaks.
+		 */
+		process.env.SANDCASTLE_PHASE_MAX_RETRIES = "4";
+		io.sleep = async () => {};
+
+		const { signal } = cancellation;
+		const before = getEventListeners(signal, "abort").length;
+
+		await assert.rejects(
+			async () =>
+				runPhaseWithRetry(async () => {
+					throw new Error("connection reset");
+				}, "design"),
+			/connection reset/u,
+		);
+
+		assert.equal(
+			getEventListeners(signal, "abort").length,
+			before,
+			"every attempt's listener must be removed when it settles",
+		);
 	});
 
 	test("SANDCASTLE_PHASE_MAX_RETRIES caps retries and rethrows the original error", async () => {

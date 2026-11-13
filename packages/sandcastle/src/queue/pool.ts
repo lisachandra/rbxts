@@ -21,9 +21,10 @@ import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync } fr
 import { dirname, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { cancellation } from "../cancel.js";
 import type { CliOptions } from "../cli.js";
 import type { AgentProfile } from "../config.js";
-import { config, logsDir } from "../runtime.js";
+import { config, io, logsDir } from "../runtime.js";
 import { inspectChainSequences } from "./chain.js";
 import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
 import { fetchLiveQueueState } from "./live.js";
@@ -38,6 +39,9 @@ const failureTailLines = 30;
 
 /** Ceiling for one lane's log before it rotates, matching the setup log's limit. */
 const laneLogMaxBytes = 5 * 1024 * 1024;
+
+/** How long a cancelled pool waits for its lanes to exit before it stops waiting. */
+const laneKillGraceMs = 15_000;
 
 /** One batch's run in a lane. */
 export interface LaneRun {
@@ -75,6 +79,13 @@ export interface LaneSummary {
 export interface PoolResult {
 	/** Batches fired, in fire order. */
 	batches: Array<string>;
+	/**
+	 * Whether an operator cancelled the pool.
+	 *
+	 * The lanes it killed are reported as failures with a cancellation reason, but the caller must
+	 * not treat them as batch failures: nothing went wrong, and no landing may happen.
+	 */
+	cancelled?: boolean;
 	/** Batches that completed successfully, in completion order. */
 	completed: Array<LaneRun>;
 	/**
@@ -115,10 +126,24 @@ export interface LaneSpawnParams {
 	options: CliOptions;
 	/** Catalog profile the lane runs. */
 	profile: AgentProfile;
+	/**
+	 * Hands the pool a way to stop this lane while it is still running.
+	 *
+	 * Called synchronously, because a cancelled pool has to signal children that have not settled
+	 * yet. A stub that never calls it is fine: the pool then waits for that lane instead of killing
+	 * it.
+	 */
+	registerKill?: (kill: () => void) => void;
+}
+
+/** How one lane ended. */
+export interface LaneOutcome {
+	error?: string;
+	ok: boolean;
 }
 
 /** Starts one lane; production spawns a child process, tests inject a stub. */
-export type SpawnLane = (params: LaneSpawnParams) => Promise<{ error?: string; ok: boolean }>;
+export type SpawnLane = (params: LaneSpawnParams) => Promise<LaneOutcome>;
 
 /** Absolute path of the CLI entry point, so a child re-enters the same build. */
 function entryPoint(): string {
@@ -217,9 +242,15 @@ export function laneLogPath(batch: string, profile: string): string {
 /**
  * - Spawns a lane's child and waits for it.
  * - @param params - Batch, log, profile, and derived options.
- * - @returns `ok` on a zero exit; otherwise the exit reason plus the log's tail.
+ * - @returns `ok` on a zero exit; otherwise the exit reason plus the log's tail. Also carries `kill`
+ *   so the pool can stop the child when an operator cancels.
  * - @remarks The child's output never reaches the parent's stdout: the log is the lane's report, and
  *   the parent prints one line per lane event so a `--json` consumer still sees parseable output.
+ *
+ *   `kill` sends `SIGTERM` rather than `SIGKILL`: the child installs the same cancellation handlers
+ *   as its parent, so the signal becomes a graceful cancel that aborts its agent tree and releases
+ *   its batch lock. On Windows the default termination is already forceful, and the timeout in the
+ *   pool is what bounds a child that ignores it.
  */
 const spawnLane: SpawnLane = (params) =>
 	new Promise((resolve) => {
@@ -229,6 +260,8 @@ const spawnLane: SpawnLane = (params) =>
 			stdio: ["ignore", fd, fd],
 			windowsHide: true,
 		});
+
+		params.registerKill?.(() => child.kill());
 
 		const finish = (ok: boolean, error?: string): void => {
 			try {
@@ -264,21 +297,80 @@ const spawnLane: SpawnLane = (params) =>
 /** One in-flight lane. */
 interface RunningLane {
 	batch: string;
+	/** Stops the lane's child, when the starter supplied a way to. */
+	kill?: () => void;
 	lane: number;
 	profile: AgentProfile;
 	settled: Promise<LaneRun>;
+	/** When the child was spawned, so a killed lane reports its own duration. */
+	startedAt: number;
 }
 
 /**
- * - Runs ready batches, up to `parallel` at a time, each in its own child process.
- * - @param options - Parsed CLI options; `--parallel`, `--name`, and `--max-issues` are read here.
- * - @param spawnLaneImpl - Lane starter; tests inject a stub.
- * - @returns Every batch fired, every issue committed, and every failure.
- * - @remarks Greedy fill in manifest order: whenever a lane frees up, the next READY batch that no
- *   rule excludes starts. There is no lookahead, so a long batch can idle a lane that a shorter
- *   later batch would have filled — that is the cost of a schedule a human can still read off the
- *   manifest.
+ * - Waits for the first lane to settle, or for an operator to cancel, whichever comes first.
+ * - @param running - Lanes currently in flight.
+ * - @returns The lane that settled, or `"cancelled"` when the signal fired first.
+ * - @remarks Without this the pool waits for a whole batch before it notices a cancellation, because
+ *   the request would otherwise only be seen at the next fill. A batch can run for hours, so that
+ *   would make the first `Ctrl+C` look ignored — and in `--parallel` each lane is a separate
+ *   process that nothing else in this one is going to stop.
  */
+async function nextEvent(running: Iterable<RunningLane>): Promise<LaneRun | "cancelled"> {
+	/* Captured, because `reset` can replace the signal before this wait settles. */
+	const { signal } = cancellation;
+	if (signal.aborted) {
+		return "cancelled";
+	}
+
+	const lanes = Promise.race([...running].map((lane) => lane.settled));
+	let unsubscribe = (): void => undefined;
+	const cancelled = new Promise<"cancelled">((resolve) => {
+		const onAbort = (): void => {
+			resolve("cancelled");
+		};
+
+		signal.addEventListener("abort", onAbort, { once: true });
+		unsubscribe = () => {
+			signal.removeEventListener("abort", onAbort);
+		};
+	});
+
+	try {
+		return await Promise.race([lanes, cancelled]);
+	} finally {
+		/* One listener per wait, removed on every path: a pool waits once per lane completion. */
+		unsubscribe();
+	}
+}
+
+/**
+ * - Files lanes that settled during the cancel grace window under the right outcome.
+ * - @param settled - `Promise.allSettled` results for the lanes that were running.
+ * - @param completed - Lanes that finished their batch, appended to.
+ * - @param failures - Lanes that did not, appended to.
+ * - @remarks A lane that answered the cancel by unwinding reports failure, so it belongs in
+ *   `failures`; a lane that finished its batch before the kill landed did real work and belongs in
+ *   `completed`. A rejection is impossible here — `settled` is created from `lane.settled`, which
+ *   never rejects — so those are skipped rather than invented as failures.
+ */
+function recordSettled(
+	settled: ReadonlyArray<PromiseSettledResult<LaneRun>>,
+	completed: Array<LaneRun>,
+	failures: Array<LaneRun>,
+): void {
+	for (const outcome of settled) {
+		if (outcome.status !== "fulfilled") {
+			continue;
+		}
+
+		if (outcome.value.error === undefined) {
+			completed.push(outcome.value);
+		} else {
+			failures.push(outcome.value);
+		}
+	}
+}
+
 /**
  * - Runs ready batches, up to `parallel` at a time, each in its own child process.
  * - @param options - Parsed CLI options; `--parallel`, `--name`, and `--max-issues` are read here.
@@ -338,6 +430,10 @@ export async function runParallelPool(
 	};
 
 	let stopped = false;
+	/** Whether an operator cancelled the pool; reported to the caller so it lands nothing. */
+	let cancelled = false;
+	/** Whether the running lanes have already been signalled, so the kill is sent once per pool. */
+	let killed = false;
 	let startedAt: number | undefined;
 	let saturatedMs = 0;
 	/** When the current full-occupancy stretch began, if one is in progress. */
@@ -356,11 +452,19 @@ export async function runParallelPool(
 		}
 
 		batches.push(batch);
+		/*
+		 * Registered before the spawn returns, so a cancellation that arrives while this lane is
+		 * still starting can already reach it.
+		 */
+		let kill: undefined | (() => void);
 		const params: LaneSpawnParams = {
 			batch,
 			logPath: laneLogPath(batch, profile.name),
 			options,
 			profile,
+			registerKill: (stop) => {
+				kill = stop;
+			},
 		};
 
 		const startedAtLane = Date.now();
@@ -386,7 +490,7 @@ export async function runParallelPool(
 				...(outcome.error === undefined ? {} : { error: outcome.error }),
 			}),
 		);
-		running.set(lane, { batch, lane, profile, settled });
+		running.set(lane, { batch, kill, lane, profile, settled, startedAt: startedAtLane });
 
 		/* The pool became full as a result of this start: open a new saturated stretch. */
 		if (running.size >= parallel) {
@@ -410,6 +514,19 @@ export async function runParallelPool(
 		 * runnable, so the view is rebuilt before every fill.
 		 */
 		while (!stopped && running.size < parallel) {
+			/*
+			 * Cancellation stops the *schedule* here; the lanes already running are killed by the wait
+			 * below, so a request does not have to wait for a multi-hour batch to finish before it
+			 * does anything. It is recorded here as well as in the wait, because a cancel that arrives
+			 * with no lane running must still be reported as a cancellation (exit 130), not as an
+			 * exhausted queue (exit 1).
+			 */
+			if (cancellation.requested()) {
+				cancelled = true;
+				stopped = true;
+				break;
+			}
+
 			/*
 			 * Checked here rather than mid-phase: a lane that already started is allowed to finish, so
 			 * losing the lease stops the *schedule* without corrupting work in flight.
@@ -516,11 +633,66 @@ export async function runParallelPool(
 		}
 
 		/*
-		 * Wait for the first lane to finish. Which one it was decides only what is reported here — the
-		 * fill above re-reads the manifest, so a sibling's follow-up or a gate promotion is honored
-		 * before the freed slot is handed out.
+		 * Wait for whichever comes first: a lane finishing, or an operator cancelling. Racing the signal
+		 * is what makes the first `Ctrl+C` act on a lane that has hours left — checking cancellation only
+		 * between fills would wait for a whole batch first.
 		 */
-		const finished = await Promise.race([...running.values()].map((lane) => lane.settled));
+		const first = await nextEvent(running.values());
+		if (first === "cancelled") {
+			cancelled = true;
+			if (!killed) {
+				killed = true;
+				/*
+				 * Each child is asked to cancel gracefully — its own handlers abort the agent tree and
+				 * release the batch lock — and the pool waits only a bounded time for them: a lane that
+				 * ignores the signal must not keep the operator's terminal hostage.
+				 */
+				emitText(
+					options,
+					`  ⏹ Cancelling ${String(running.size)} running lane(s); waiting up to ${String(laneKillGraceMs / 1000)}s.`,
+				);
+				for (const lane of running.values()) {
+					lane.kill?.();
+				}
+			}
+
+			/*
+			 * Wait for whatever the lanes do within the grace window, then stop waiting. A lane that
+			 * answered the signal is recorded for what it actually did: one that finished its batch
+			 * before the kill landed is a completed batch, and dropping it would under-report work
+			 * that really happened. Only a lane still running at the deadline is a cancellation
+			 * failure.
+			 */
+			const settledRuns = await Promise.race([
+				Promise.allSettled([...running.values()].map((lane) => lane.settled)),
+				io.sleep(laneKillGraceMs).then(() => undefined),
+			]);
+			if (settledRuns === undefined) {
+				/* Still alive after the grace window: report them and stop waiting. */
+				for (const lane of running.values()) {
+					failures.push({
+						batch: lane.batch,
+						elapsedMs: Date.now() - lane.startedAt,
+						error: "cancelled by operator; the lane did not exit within the grace window",
+						lane: lane.lane,
+						profile: lane.profile.name,
+					});
+				}
+			} else {
+				recordSettled(settledRuns, completed, failures);
+			}
+
+			running.clear();
+			closeFullStretch();
+			continue;
+		}
+
+		/*
+		 * A lane settled. Which one it was decides only what is reported here — the fill above re-reads
+		 * the manifest, so a sibling's follow-up or a gate promotion is honored before the freed slot is
+		 * handed out.
+		 */
+		const finished = first;
 		running.delete(finished.lane);
 		freeSlots.push(finished.lane);
 		freeSlots.sort((left, right) => left - right);
@@ -570,6 +742,7 @@ export async function runParallelPool(
 
 	return {
 		batches,
+		...(cancelled ? { cancelled } : {}),
 		completed,
 		elapsedMs,
 		failures,

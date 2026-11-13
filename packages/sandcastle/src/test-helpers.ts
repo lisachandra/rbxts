@@ -12,6 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach } from "vitest";
 
+import { cancellation } from "./cancel.js";
 import { issueBranch } from "./git.js";
 import { io } from "./runtime.js";
 import type { PhaseState, PhaseStatus } from "./types.js";
@@ -235,11 +236,17 @@ export function gitStub(handlers: {
 	}) as typeof io.execSync;
 }
 
-/** Resets io stubs, argv, and the environment before/after every test in the file. */
+/** Resets io stubs, argv, cancellation, and the environment before/after every test in the file. */
 export function registerTestHooks(): void {
 	beforeEach(() => {
 		mkdirSync(tmpRoot, { recursive: true });
 		restoreIo();
+		/*
+		 * A cancellation is a process-wide request, so a test that exercises one must not leave the
+		 * next test cancelled. Reset before as well as after, which also covers a request leaked by a
+		 * test that failed before its own cleanup ran.
+		 */
+		cancellation.reset();
 		process.argv = [...originalArgv];
 		/*
 		 * Phase retries are unlimited in production, with 30s+ backoff — tests
@@ -252,6 +259,7 @@ export function registerTestHooks(): void {
 
 	afterEach(() => {
 		restoreIo();
+		cancellation.reset();
 		process.argv = [...originalArgv];
 		for (const [key, value] of Object.entries(originalEnv)) {
 			process.env[key] = value;

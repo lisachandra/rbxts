@@ -3,6 +3,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
+import { cancellation, cancelledExitCode } from "../cancel.js";
 import type { CliOptions } from "../cli.js";
 import { parseArgs } from "../cli.js";
 import { config, io } from "../runtime.js";
@@ -654,5 +655,141 @@ describe("queue run dispatch", () => {
 		}
 
 		assert.equal(pooled, 0, "the pool must never start from inside a lane");
+	});
+});
+
+/**
+ * Cancellation is a process-wide request; `registerTestHooks` clears it around every test, so these
+ * cases drive the shared singleton freely.
+ */
+describe("cancelling a run", () => {
+	test("a cancel before the first batch exits 130 and dispatches nothing", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		cancellation.request();
+
+		const result = await run(["queue", "run"], { reject: true });
+
+		assert.deepEqual(result.calls, [], "the operator said stop before any work started");
+		assert.deepEqual(codes, [cancelledExitCode]);
+		assert.match(result.output, /Cancelled; locks and the dispatch lease were released/u);
+	});
+
+	test("a cancelled run still releases the run lock", async () => {
+		stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		cancellation.request();
+
+		await run(["queue", "run"], { reject: true });
+
+		/*
+		 * This is the whole point of handling the signal rather than letting Node kill the process:
+		 * `queue run`'s `finally` releases the run lock, the batch lock, and the lease. Before this,
+		 * `Ctrl+C` skipped all three and the next run waited ten minutes for the lock and thirty for
+		 * the lease.
+		 */
+		assert.equal(
+			existsSync(queueLockPath(runLockName)),
+			false,
+			"a cancelled run must not leave its run lock behind",
+		);
+	});
+
+	test("a cancel that lands mid-run stops the next batch from firing", async () => {
+		stage(
+			[
+				{ issues: ["5"], name: "U2" },
+				{ issues: ["6"], name: "U3" },
+			],
+			[makeIssue(5), makeIssue(6)],
+		);
+
+		/*
+		 * The dispatch stands in for an operator cancelling during U2: the first batch starts (its
+		 * agents are aborted by the phase pipeline), and the loop must not start U3 afterwards.
+		 */
+		let dispatched = 0;
+		const result = await run(["queue", "run"], {
+			dispatch: (_, issues) => {
+				dispatched += 1;
+				cancellation.request();
+				return Promise.resolve([...issues]);
+			},
+			reject: true,
+		});
+
+		assert.equal(dispatched, 1, "only the batch already in flight may run");
+		assert.deepEqual(
+			result.calls.map((call) => call.issues),
+			[["5"]],
+		);
+	});
+
+	test("--json reports a cancellation as its own kind, not as a failure", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		cancellation.request();
+
+		const result = await run(["queue", "run", "--json"], { reject: true });
+
+		const entries = result.output
+			.split("\n")
+			.filter((line) => line !== "")
+			.map((line) => JSON.parse(line) as Record<string, unknown>);
+
+		assert.deepEqual(codes, [cancelledExitCode]);
+		assert.ok(
+			entries.some((entry) => entry.cancelled === true && entry.kind === "cancel"),
+			`no cancellation object in ${result.output}`,
+		);
+	});
+
+	test("a cancelled lane child exits 130 so its parent does not read the batch as finished", async () => {
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		await run(["queue", "run", "--name", "U2", "--once"], {
+			dispatch: (_, issues) => {
+				cancellation.request();
+				return Promise.resolve([...issues]);
+			},
+			reject: true,
+		});
+
+		/*
+		 * A zero exit means "this batch is complete" to the pool, which would then land a batch the
+		 * operator cancelled halfway through. 130 is the shell's SIGINT code and unmistakably not zero.
+		 */
+		assert.deepEqual(codes, [cancelledExitCode]);
+	});
+
+	test("--parallel lands nothing after a cancelled pool", async () => {
+		const { codes } = stage([], []);
+
+		config.queue.parallel = 2;
+		config.agents.catalog = [{ backend: "zcode", model: "m1", name: "flash" }];
+		let landed = 0;
+
+		try {
+			await assert.rejects(
+				runQueueRun(parseArgs(["queue", "run", "--parallel", "2", "--land"]), {
+					land: () => {
+						landed += 1;
+						return Promise.resolve({ ok: true });
+					},
+					pool: () =>
+						Promise.resolve({
+							batches: ["U1"],
+							cancelled: true,
+							completed: [{ batch: "U1", elapsedMs: 1, lane: 0, profile: "flash" }],
+							failures: [],
+							issues: ["5"],
+						}),
+				}),
+				(err: unknown) => err instanceof ExitError,
+			);
+		} finally {
+			config.queue.parallel = 1;
+			config.agents.catalog = [];
+		}
+
+		assert.equal(landed, 0, "a cancelled run must not push branches or open pull requests");
+		assert.deepEqual(codes, [cancelledExitCode]);
 	});
 });

@@ -10,6 +10,7 @@
  * caps the retries when a caller wants exhaustion instead of persistence.
  */
 
+import { CancelError, cancellation } from "./cancel.js";
 import { PhaseBudgetError } from "./markers.js";
 import { ZcodePreflightError } from "./providers/zcode-preflight.js";
 import { io } from "./runtime.js";
@@ -48,6 +49,15 @@ const FATAL_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
  * @returns `true` only for credential, model-selection, and setup failures.
  */
 export function isFatalProviderError(err: unknown): boolean {
+	/*
+	 * Cancellation is not a failure to retry: the operator asked for the run to stop, so retrying
+	 * would sleep through the backoff and resume work they stopped. It is checked here as well as in
+	 * the loop so every existing caller of this predicate agrees about it.
+	 */
+	if (err instanceof CancelError) {
+		return true;
+	}
+
 	// A wall-clock kill is the trigger for a resume-backed retry, never a dead end.
 	if (err instanceof PhaseBudgetError) {
 		return false;
@@ -117,9 +127,27 @@ export async function runPhaseWithRetry<T>(
 	const startedAt = Date.now();
 
 	for (let attempt = 1; ; attempt++) {
+		/*
+		 * Checked before every attempt so a cancellation that arrived during a backoff sleep stops
+		 * the loop instead of starting one more agent run.
+		 */
+		if (cancellation.requested()) {
+			throw new CancelError();
+		}
+
 		try {
 			return await sandboxRun();
 		} catch (err) {
+			/*
+			 * A cancellation is reported in preference to whatever error it interrupted. The operator
+			 * asked for the run to stop, so calling this attempt a failure would misreport the exit code
+			 * (130 becomes 1) and send them looking for a bug that is only the stop. The message the
+			 * attempt carried is dropped for the same reason: it describes a phase nobody finished.
+			 */
+			if (cancellation.requested()) {
+				throw new CancelError();
+			}
+
 			if (isFatalProviderError(err) || attempt > resolvedMaxRetries) {
 				throw err;
 			}
@@ -143,7 +171,41 @@ export async function runPhaseWithRetry<T>(
 				);
 			}
 
-			await io.sleep(backoffSeconds * 1000);
+			await sleepUnlessCancelled(backoffSeconds * 1000);
 		}
+	}
+}
+
+/**
+ * - Sleeps for `ms`, ending early when an operator cancels.
+ * - @param ms - Backoff duration in milliseconds.
+ *
+ * @remarks
+ *   A backoff can last five minutes, so a plain sleep would make `Ctrl+C` look ignored for that
+ *   long. Racing the cancel signal keeps the retry loop's delay but lets the request through. The
+ *   listener is removed on both paths: retries are unlimited by default, so a leak here would grow
+ *   one listener per attempt for the life of the process.
+ */
+async function sleepUnlessCancelled(ms: number): Promise<void> {
+	/* Captured, because `reset` can replace the signal before this settles. */
+	const { signal } = cancellation;
+	if (signal.aborted) {
+		return;
+	}
+
+	let onAbort = (): void => undefined;
+	try {
+		await Promise.race([
+			io.sleep(ms),
+			new Promise<void>((resolve) => {
+				onAbort = (): void => {
+					resolve();
+				};
+
+				signal.addEventListener("abort", onAbort, { once: true });
+			}),
+		]);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
 	}
 }

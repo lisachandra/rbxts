@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
+import { hostname } from "node:os";
 import { describe, test } from "vitest";
 
-import { acquireDispatchLease, type LeasePayload, leaseRef, leaseTtlMs } from "./lease.js";
+import {
+	acquireDispatchLease,
+	clearStaleLease,
+	type LeasePayload,
+	leaseRef,
+	leaseTtlMs,
+} from "./lease.js";
 
 /** Recorded `git` invocation, so a test can assert both the effect and the shape of the CAS. */
 interface Call {
@@ -277,5 +284,136 @@ describe("dispatch lease", () => {
 
 		assert.equal(value.lost(), true);
 		value.release();
+	});
+});
+
+describe("dead holders", () => {
+	test("a lease held by a dead process on this host is taken over without waiting for the TTL", () => {
+		const git = new FakeGit();
+		/* Fresh enough to be well inside the TTL: only the liveness probe can free it. */
+		git.publish(payload({ at: Date.now() - 60_000, host: hostname(), pid: 999_999 }));
+
+		const { output, value } = capture(() =>
+			acquireDispatchLease({ isAlive: () => false, run: git.run }),
+		);
+
+		assert.equal(value.kind, "lease");
+		assert.match(output, /Taking over the dispatch lease of pid 999999 on this host/u);
+		assert.match(output, /no longer running/u);
+		value.release();
+	});
+
+	test("a lease held by a live process on this host is refused", () => {
+		const git = new FakeGit();
+		git.publish(payload({ at: Date.now() - 60_000, host: hostname(), pid: 4242 }));
+
+		assert.throws(
+			() => acquireDispatchLease({ isAlive: () => true, run: git.run }),
+			(err: unknown) =>
+				err instanceof Error &&
+				/Another checkout is dispatching this queue/u.test(err.message) &&
+				/pid 4242/u.test(err.message),
+		);
+	});
+
+	test("a lease held on another host stays bound to the TTL, because its pid says nothing", () => {
+		const git = new FakeGit();
+		git.publish(payload({ at: Date.now() - 60_000, host: "laptop", pid: 4242 }));
+
+		/* The probe is irrelevant for a remote holder: a same-numbered local pid proves nothing. */
+		assert.throws(
+			() => acquireDispatchLease({ isAlive: () => false, run: git.run }),
+			/Another checkout is dispatching this queue/u,
+		);
+	});
+});
+
+describe("clearing a stale lease", () => {
+	test("clears a dead same-host holder's lease through the CAS", () => {
+		const git = new FakeGit();
+		git.publish(payload({ at: Date.now() - 60_000, host: hostname(), pid: 999_999 }));
+
+		const { value } = capture(() => clearStaleLease({ isAlive: () => false, run: git.run }));
+
+		assert.equal(value.kind, "cleared");
+		assert.equal(git.remote, "", "the remote ref must actually be gone");
+		assert.equal(git.local, "");
+
+		/*
+		 * The delete is a `--force-with-lease` against the sha that was just read. A plain delete would
+		 * also clear a lease acquired in between, which is the one way a recovery command could do real
+		 * damage.
+		 */
+		const deletes = git.calls.filter(
+			(call) => call.args[0] === "push" && (call.args.at(-1) ?? "").startsWith(":"),
+		);
+		assert.equal(deletes.length, 1);
+		assert.ok(
+			deletes[0]?.args.some((arg) => arg.startsWith("--force-with-lease=")),
+			"a lease delete must be a compare-and-swap",
+		);
+	});
+
+	test("refuses to clear a live holder's lease", () => {
+		const git = new FakeGit();
+		git.publish(payload({ at: Date.now() - 60_000, host: hostname(), pid: 4242 }));
+
+		const { value } = capture(() => clearStaleLease({ isAlive: () => true, run: git.run }));
+
+		assert.equal(value.kind, "refused");
+		assert.notEqual(git.remote, "", "a live holder keeps its lease");
+	});
+
+	test("--force clears a live holder's lease", () => {
+		const git = new FakeGit();
+		git.publish(payload({ at: Date.now() - 60_000, host: hostname(), pid: 4242 }));
+
+		const { value } = capture(() =>
+			clearStaleLease({ force: true, isAlive: () => true, run: git.run }),
+		);
+
+		assert.equal(value.kind, "cleared");
+		assert.equal(git.remote, "");
+	});
+
+	test("an absent lease is reported as absent, not as an error", () => {
+		const git = new FakeGit();
+
+		const { value } = capture(() => clearStaleLease({ run: git.run }));
+
+		assert.equal(value.kind, "absent");
+	});
+
+	test("a checkout with no origin reports no lease rather than failing", () => {
+		const git = new FakeGit();
+		git.hasOrigin = false;
+
+		const { value } = capture(() => clearStaleLease({ run: git.run }));
+
+		assert.equal(value.kind, "absent");
+	});
+
+	test("an unreachable origin is an error, not a silent success", () => {
+		const git = new FakeGit();
+		/*
+		 * `ls-remote` is the read that decides whether a lease exists at all, so that is what has to
+		 * fail here: `transportDown` only fakes a failed `push`.
+		 */
+		const unreachable = (args: ReadonlyArray<string>): string => {
+			if (args.join(" ") === `ls-remote origin ${leaseRef}`) {
+				throw new Error("fatal: unable to access 'https://github.com/x/y.git'");
+			}
+
+			return git.run(args);
+		};
+
+		/*
+		 * Reading the ref is the whole precondition for deleting it. A failed `ls-remote` is not "no
+		 * lease", and reporting it as cleared would let an operator believe a live run's lease is gone.
+		 */
+		assert.throws(
+			() => clearStaleLease({ run: unreachable }),
+			/Could not read the dispatch lease/u,
+		);
 	});
 });

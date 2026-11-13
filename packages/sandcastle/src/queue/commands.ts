@@ -12,6 +12,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import type { CliOptions } from "../cli.js";
 import { config, io, repoRoot } from "../runtime.js";
+import { runQueueCancel } from "./cancel.js";
 import { inspectChainSequences } from "./chain.js";
 import { runQueueClean } from "./clean.js";
 import { upsertGraphComment } from "./comment.js";
@@ -49,6 +50,7 @@ export type QueueSubcommand =
 	| "prune"
 	| "serve"
 	| "clean"
+	| "cancel"
 	| "remove"
 	| "migrate"
 	| "promote"
@@ -60,6 +62,7 @@ export const queueSubcommands: ReadonlyArray<QueueSubcommand> = [
 	"migrate",
 	"add",
 	"bootstrap",
+	"cancel",
 	"check",
 	"clean",
 	"graph",
@@ -121,8 +124,24 @@ function runQueueDisabled(options: CliOptions): void {
 	console.log("  ⏭ Queue workflow disabled (queue.enabled: false); nothing to check.");
 }
 
-/** Runs the `sandcastle queue` command group; `run` returns the dispatch promise. */
+/**
+ * Runs the `sandcastle queue` command group; `run` returns the dispatch promise.
+ *
+ * @remarks
+ *   `cancel` runs before the enabled check on purpose. Its job is to release what a dead run left
+ *   behind — a lock file, a lease ref on `origin` — and none of that stops existing because the
+ *   repository turned the workflow off. Reporting "nothing to check" there would be false, and the
+ *   residue would keep a later re-enable from dispatching.
+ */
 export function runQueueCommand(options: CliOptions): void | Promise<void> {
+	if (options.queueSubcommand === "cancel") {
+		if (!runQueueCancel(options)) {
+			io.exit(1);
+		}
+
+		return;
+	}
+
 	if (!queueEnabled(options)) {
 		runQueueDisabled(options);
 		return;

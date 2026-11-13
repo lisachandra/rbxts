@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import { createAgent, scopeForMarkerPath } from "./agent.js";
+import { CancelError, cancellation } from "./cancel.js";
 import { completionRules } from "./prompts/completion.js";
 import { config, stateRoot } from "./runtime.js";
 import type { AgentBackend } from "./types.js";
@@ -139,6 +140,25 @@ export async function runMarkerPhase(params: {
 			: undefined;
 	budgetTimer?.unref?.();
 
+	/*
+	 * Operator cancellation has to reach the agent, not just the loop that would start the next
+	 * phase: an in-flight attempt can run for the whole phase budget. The subscription is per
+	 * attempt and removed in the `finally`, which is what keeps unlimited retries from accumulating
+	 * listeners on the process-wide signal. The signal is captured because `reset` can replace it
+	 * before the attempt finishes, and `removeEventListener` only works on the object that was
+	 * subscribed.
+	 */
+	const { signal } = cancellation;
+	const onCancel = (): void => {
+		controller.abort(new CancelError());
+	};
+
+	if (signal.aborted) {
+		onCancel();
+	} else {
+		signal.addEventListener("abort", onCancel, { once: true });
+	}
+
 	try {
 		const result = await params.run({
 			...params.runOptions,
@@ -147,7 +167,11 @@ export async function runMarkerPhase(params: {
 			name: params.name,
 			promptArgs: { ...params.promptArgs, ...completionPromptArgs(params.marker) },
 			promptFile: params.promptFile,
-			...(budgetMs > 0 ? { signal: controller.signal } : {}),
+			/*
+			 * The signal is passed whenever either kill can fire. A phase with the budget disabled
+			 * still has to be cancellable, so the condition is no longer "budget configured".
+			 */
+			signal: controller.signal,
 		});
 
 		if (!markerExists(params.marker)) {
@@ -179,5 +203,7 @@ export async function runMarkerPhase(params: {
 		if (budgetTimer !== undefined) {
 			clearTimeout(budgetTimer);
 		}
+
+		signal.removeEventListener("abort", onCancel);
 	}
 }

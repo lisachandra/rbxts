@@ -54,6 +54,18 @@ const topics = {
 		],
 		usage: ["pnpm sandcastle queue bootstrap [--apply] [--dry-run]"],
 	},
+	"cancel": {
+		flags: ["--force  Clear a lock even when its owner is still running (last resort)"],
+		notes: [
+			"Clears what a run that is gone left behind: the dispatch lease on origin and the",
+			"queue lock files in .sandcastle/. It never signals a process.",
+			"Refuses while a holder is still running — stop that run from its own terminal with",
+			"Ctrl+C, which releases everything itself. --force clears anyway and can corrupt an",
+			"active run's manifest transaction, so it is for stuck processes only.",
+			"Exit 0: cleared (or nothing to clear). Exit 1: a live holder was kept.",
+		],
+		usage: ["pnpm sandcastle queue cancel", "pnpm sandcastle queue cancel --force"],
+	},
 	"check": {
 		flags: [
 			"--json  Machine-readable queue view",
@@ -303,6 +315,7 @@ const topics = {
 			"Subcommands:",
 			"  add        Place an issue in a batch, a gate, or the human bucket",
 			"  bootstrap  Propose placements for the unplaced ready backlog",
+			"  cancel     Clear a dead run's locks and dispatch lease",
 			"  check      Exit non-zero while the queue and GitHub disagree",
 			"  clean      Remove closed, landed, or stale worktrees",
 			"  graph      Render the run order as a Mermaid diagram (or json/ascii)",
@@ -386,6 +399,10 @@ const topics = {
 			'"auto" (default) falls back to local locks when origin is unreachable, "strict" refuses,',
 			'"off" makes no network calls. A crashed run\'s lease expires after 30 minutes, and a live',
 			"run renews every 10. --dry-run takes no lease.",
+			"Ctrl+C cancels: the in-flight agent is aborted, running lanes are stopped, and every lock",
+			"and the lease is released before the process exits 130. A second Ctrl+C hard-kills. A run",
+			"whose terminal is already gone is cleared with `queue cancel`; a lock or lease whose owner",
+			"is on this host and no longer running is also reclaimed automatically by the next command.",
 		],
 		usage: [
 			"pnpm sandcastle queue run [--name <batch>] [--max-issues <n>] [--keep-entries] [--land]",
@@ -477,6 +494,7 @@ export function isHelpTopicKey(value: string): value is HelpTopicKey {
 const queueTopics: ReadonlySet<string> = new Set([
 	"add",
 	"bootstrap",
+	"cancel",
 	"check",
 	"clean",
 	"graph",

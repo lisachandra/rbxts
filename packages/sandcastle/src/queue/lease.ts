@@ -25,6 +25,7 @@ import { hostname } from "node:os";
 import type { QueueLeaseMode } from "../config.js";
 import { git } from "../git.js";
 import { config } from "../runtime.js";
+import { isPidAlive, ownerIsDead } from "./lock.js";
 
 /** The ref a checkout holds while it dispatches. */
 export const leaseRef = "refs/sandcastle/dispatch-lease";
@@ -66,6 +67,8 @@ export interface LeaseHandle {
 
 /** Seams so tests never touch the network or the clock. */
 export interface LeaseOptions {
+	/** Pid liveness probe for a lease held on this host; defaults to the process table. */
+	isAlive?: (pid: number) => boolean;
 	/** Mode override; defaults to `config.queue.lease`. */
 	mode?: QueueLeaseMode;
 	/** Current epoch milliseconds; defaults to `Date.now`. */
@@ -230,6 +233,20 @@ function describeHolder(payload: LeasePayload, now: number, ttlMs: number): stri
 	return `pid ${String(payload.pid)} on ${payload.host} (branch ${payload.branch}), renewed ${String(ageMinutes)}m ago, expires in ${String(expiresInMinutes)}m`;
 }
 
+/**
+ * - Whether a lease holder is on this host and its pid is gone.
+ * - @param payload - The lease payload read from the ref.
+ * - @param isAlive - Pid liveness probe.
+ * - @returns `true` only for a same-host holder that provably exited.
+ * - @remarks Delegates to {@link ownerIsDead} so a lease and a lock are judged by one rule. A pid on
+ *   another machine says nothing about that machine, so those leases stay bound to the TTL. A probe
+ *   that cannot answer reports "alive", which is the safe direction: taking over a live dispatcher
+ *   duplicates work the lease exists to prevent.
+ */
+function holderIsDead(payload: LeasePayload, isAlive: (pid: number) => boolean): boolean {
+	return ownerIsDead(payload, isAlive);
+}
+
 /** Current branch name, or a placeholder when the checkout is detached. */
 function currentBranch(run: (args: ReadonlyArray<string>) => string): string {
 	const branch = attempt(run, ["rev-parse", "--abbrev-ref", "HEAD"]);
@@ -279,6 +296,7 @@ export function acquireDispatchLease(options: LeaseOptions = {}): LeaseHandle {
 	const run = options.run ?? ((args: ReadonlyArray<string>) => git(args));
 	const ttlMs = options.ttlMs ?? leaseTtlMs;
 	const renewMs = options.renewMs ?? leaseRenewMs;
+	const isAlive = options.isAlive ?? isPidAlive;
 
 	const degrade = (reason: string): LeaseHandle => {
 		if (mode === "strict") {
@@ -306,14 +324,22 @@ export function acquireDispatchLease(options: LeaseOptions = {}): LeaseHandle {
 	const stamp = now();
 
 	if (existing !== undefined) {
-		if (stamp - existing.payload.at < ttlMs) {
+		/*
+		 * A holder on this host whose pid is gone is dead, not merely silent: its lease would otherwise
+		 * refuse every dispatch until the TTL ran out, which is exactly the wait `Ctrl+C` used to cost.
+		 * A holder on another host cannot be probed, so it keeps the TTL rule.
+		 */
+		const deadHere = holderIsDead(existing.payload, isAlive);
+		if (!deadHere && stamp - existing.payload.at < ttlMs) {
 			throw new Error(
 				`Another checkout is dispatching this queue: ${describeHolder(existing.payload, stamp, ttlMs)}. Run \`git push origin :${leaseRef}\` only if that machine is gone.`,
 			);
 		}
 
 		console.error(
-			`  ⚠ Taking over an expired dispatch lease (${describeHolder(existing.payload, stamp, ttlMs)}).`,
+			deadHere
+				? `  ⚠ Taking over the dispatch lease of pid ${String(existing.payload.pid)} on this host, which is no longer running.`
+				: `  ⚠ Taking over an expired dispatch lease (${describeHolder(existing.payload, stamp, ttlMs)}).`,
 		);
 	}
 
@@ -400,4 +426,51 @@ export function acquireDispatchLease(options: LeaseOptions = {}): LeaseHandle {
 			}
 		},
 	};
+}
+
+/** What `queue cancel` found and did to the published lease. */
+export type LeaseClearOutcome =
+	/** No lease is published, or this checkout cannot reach `origin` to look. */
+	| { kind: "absent" }
+	/** The lease was cleared. */
+	| { holder: LeasePayload; kind: "cleared" }
+	/** A live holder kept the lease. */
+	| { holder: LeasePayload; kind: "refused" };
+
+/**
+ * - Clears a lease left by a run that is gone.
+ * - @param options - `force` clears even a live holder's lease; the rest are the usual seams.
+ * - @returns What was found and what was done to it.
+ * - @throws {Error} When `origin` is unreachable: clearing a ref that cannot be read is not a
+ *   recoverable guess.
+ * - @remarks The delete is a `--force-with-lease` CAS against the sha read here, so it can never
+ *   clear a lease someone else acquired in between — the one way a recovery command could do real
+ *   damage. This never signals a process; a live run is the operator's to cancel.
+ */
+export function clearStaleLease(
+	options: LeaseOptions & { force?: boolean } = {},
+): LeaseClearOutcome {
+	const run = options.run ?? ((args: ReadonlyArray<string>) => git(args));
+	const isAlive = options.isAlive ?? isPidAlive;
+
+	if (!hasOrigin(run)) {
+		return { kind: "absent" };
+	}
+
+	const syncError = syncLeaseRef(run);
+	if (syncError !== undefined) {
+		throw new Error(`Could not read the dispatch lease: ${syncError}.`);
+	}
+
+	const existing = readLease(run);
+	if (existing === undefined) {
+		return { kind: "absent" };
+	}
+
+	if (options.force !== true && !holderIsDead(existing.payload, isAlive)) {
+		return { holder: existing.payload, kind: "refused" };
+	}
+
+	deleteLease(run, existing.sha);
+	return { holder: existing.payload, kind: "cleared" };
 }

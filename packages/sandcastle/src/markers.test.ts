@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, test } from "vitest";
 
+import { CancelError, cancellation } from "./cancel.js";
 import { PhaseBudgetError, resolvePhaseBudgetMs, runMarkerPhase } from "./markers.js";
 import { isFatalProviderError } from "./retry.js";
 import { registerTestHooks } from "./test-helpers.js";
@@ -176,5 +177,42 @@ describe("phase budget", () => {
 
 	test("PhaseBudgetError is retryable, not fatal", () => {
 		assert.equal(isFatalProviderError(new PhaseBudgetError(120)), false);
+	});
+
+	test("an operator cancel aborts the in-flight agent, even with the budget disabled", async () => {
+		/*
+		 * The budget is off in production by default, which is exactly why cancellation cannot ride
+		 * on the budget controller's timer: the signal has to be passed unconditionally or `Ctrl+C`
+		 * would do nothing to a phase that can run for hours.
+		 */
+		process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = "0";
+		const marker = markerPathFor();
+		let seenAbort = false;
+
+		const phase = runMarkerPhase({
+			agentBackend: "dirac",
+			effort: "high",
+			marker,
+			model: "m",
+			name: "cancel test",
+			promptArgs: {},
+			promptFile: "unused.md",
+			run: (options) =>
+				// Never resolves on its own: only the abort can end it, as upstream does.
+				new Promise<never>((_resolve, reject) => {
+					options.signal?.addEventListener("abort", () => {
+						seenAbort = true;
+						reject(options.signal?.reason);
+					});
+				}),
+		});
+
+		/* Requesting on the next tick gives the phase time to subscribe first. */
+		setTimeout(() => {
+			cancellation.request();
+		}, 0);
+
+		await assert.rejects(phase, (err: unknown) => err instanceof CancelError);
+		assert.equal(seenAbort, true, "the agent must have received the abort");
 	});
 });

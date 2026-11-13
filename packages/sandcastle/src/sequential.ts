@@ -5,6 +5,7 @@
 
 import { existsSync } from "node:fs";
 
+import { cancellation } from "./cancel.js";
 import type { SetupOutput } from "./config.js";
 import {
 	branchTip,
@@ -16,7 +17,7 @@ import {
 	issueBranch,
 } from "./git.js";
 import { runSingleIssue } from "./issue.js";
-import { io, normalizedPath, worktreePathForBranch } from "./runtime.js";
+import { normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
 import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js";
 import type { EmitLine } from "./worktree.js";
@@ -102,6 +103,19 @@ export interface SequentialIssueOptions {
 	/** Abort instead of warn when a reused member's branch does not contain the accumulated base. */
 	strictChain?: boolean;
 	worktree?: string;
+}
+
+/**
+ * - Reports an operator cancellation and the members it stranded.
+ * - @param results - Members processed before the request arrived.
+ * - @param nextIssue - The member that would have run next.
+ * - @remarks Printed here rather than thrown: a cancellation is not a member failure, and turning it
+ *   into an exception would make the queue report a failed batch for work nobody attempted.
+ */
+function reportCancelled(results: ReadonlyArray<SequentialIssueResult>, nextIssue: string): void {
+	console.log(
+		`\n⏹ Cancelled before #${nextIssue}; ${String(results.length)} member(s) finished. Re-run to resume.`,
+	);
 }
 
 function printSequentialWorkflowSummary(results: Array<SequentialIssueResult>): {
@@ -417,6 +431,15 @@ export async function runSequentialIssues(
 				continue;
 			}
 
+			/*
+			 * Cancelled between members: report what ran and stop. The member already in flight was
+			 * aborted by the phase pipeline, so there is nothing further to unwind here.
+			 */
+			if (cancellation.requested()) {
+				reportCancelled(results, issueNumber);
+				break;
+			}
+
 			const processed = await dispatchIssue({
 				agentBackend,
 				currentBase,
@@ -469,6 +492,16 @@ export async function runSequentialIssues(
 				const issueNumber = order[index];
 				if (issueNumber === undefined) {
 					continue;
+				}
+
+				/*
+				 * Cancelled between members: report what ran and stop. The member already in flight was
+				 * aborted by the phase pipeline, so there is nothing further to unwind here.
+				 */
+				if (cancellation.requested()) {
+					reportCancelled(results, issueNumber);
+					done = true;
+					break;
 				}
 
 				const processed = await dispatchIssue({
@@ -530,7 +563,17 @@ export async function runSequentialIssues(
 
 	const summary = printSequentialWorkflowSummary(results);
 	if (summary.blocked > 0 || summary.failed > 0) {
-		io.exit(1);
+		/*
+		 * Thrown, never `io.exit`. This runs inside `queue run`'s dispatch, and `process.exit` does not
+		 * unwind: the run lock, the batch lock, and the cross-machine lease would all survive the
+		 * process and block the next dispatch for ten to thirty minutes. Throwing lets every `finally`
+		 * run, and the caller still turns it into exit 1.
+		 */
+		const offenders = results
+			.filter((result) => result.status !== "ok")
+			.map((result) => `#${result.issue} (${result.status})`)
+			.join(", ");
+		throw new Error(`Sequential workflow failed: ${offenders}`);
 	}
 
 	return results;
