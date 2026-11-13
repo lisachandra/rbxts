@@ -244,10 +244,14 @@ export async function main(): Promise<void> {
 				force: options.force,
 				ignoreSetup: options.ignoreSetup,
 				phase: options.phase,
+				...(options.queueProfile === undefined
+					? {}
+					: { queueProfile: options.queueProfile }),
 				resume: options.resume,
 				setupOutput: options.setupOutput,
 				singleSession: options.singleSession,
 				skipSetup: options.skipSetup,
+				stepOverrides: options.stepOverrides,
 				steps: options.steps,
 				worktree: options.worktree,
 			});
@@ -277,6 +281,7 @@ export async function main(): Promise<void> {
 				setupOutput: options.setupOutput,
 				singleSession: options.singleSession,
 				skipSetup: options.skipSetup,
+				stepOverrides: options.stepOverrides,
 				steps: options.steps,
 				worktree: options.worktree,
 			},

@@ -13,6 +13,7 @@
 import { CancelError, cancellation } from "./cancel.js";
 import { PhaseBudgetError } from "./markers.js";
 import { ZcodePreflightError } from "./providers/zcode-preflight.js";
+import { ConfigReloadError } from "./reload.js";
 import { io } from "./runtime.js";
 
 const INITIAL_BACKOFF_SECONDS = 30;
@@ -146,6 +147,17 @@ export async function runPhaseWithRetry<T>(
 			 */
 			if (cancellation.requested()) {
 				throw new CancelError();
+			}
+
+			/*
+			 * A reload is neither a failure nor an ordinary retry: the operator asked for a different
+			 * model, so the attempt restarts at once on the new one. Counting it would let a handful of
+			 * deliberate switches exhaust `SANDCASTLE_PHASE_MAX_RETRIES`, and backing off would leave the
+			 * run idle for minutes on a change that is already read and ready.
+			 */
+			if (err instanceof ConfigReloadError) {
+				console.warn(`  ↻ ${err.message} Restarting on the new selection.`);
+				continue;
 			}
 
 			if (isFatalProviderError(err) || attempt > resolvedMaxRetries) {

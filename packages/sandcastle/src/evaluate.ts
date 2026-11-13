@@ -24,6 +24,13 @@ export function evaluatePhases(
 	},
 ): EvaluationResult {
 	void opts.resume;
+	/*
+	 * The model no longer decides anything. A completed implement phase used to re-run whenever the
+	 * resolved model differed from the one recorded on the state, so an unrelated config edit — or an
+	 * expiring promotional window — redid work that had already passed review. Only `--force` re-runs a
+	 * finished phase now. The parameter stays because callers pass it and this is a package export.
+	 */
+	void models;
 	const planFile = pathResolve(repoRoot, config.dir, "plans", `${issueNumber}.md`);
 	const worktreePath = opts.worktree ?? worktreePathForBranch(issueBranch(issueNumber));
 	const state = readState(issueNumber);
@@ -41,7 +48,6 @@ export function evaluatePhases(
 		result[opts.phase] = evaluateSinglePhase(
 			opts.phase,
 			issueNumber,
-			modelForPhase(models, opts.phase),
 			state,
 			planFile,
 			worktreePath,
@@ -61,7 +67,6 @@ export function evaluatePhases(
 		design: evaluateSinglePhase(
 			"design",
 			issueNumber,
-			modelForPhase(models, "design"),
 			state,
 			planFile,
 			worktreePath,
@@ -71,7 +76,6 @@ export function evaluatePhases(
 		implement: evaluateSinglePhase(
 			"implement",
 			issueNumber,
-			modelForPhase(models, "implement"),
 			state,
 			planFile,
 			worktreePath,
@@ -82,7 +86,6 @@ export function evaluatePhases(
 		review: evaluateSinglePhase(
 			"review",
 			issueNumber,
-			modelForPhase(models, "review"),
 			state,
 			planFile,
 			worktreePath,
@@ -108,15 +111,9 @@ export function evaluatePhases(
 	return result;
 }
 
-/** Normalizes the `models` arg: a single workflow model or a per-phase map. */
-function modelForPhase(models: string | Record<PhaseName, string>, phase: PhaseName): string {
-	return typeof models === "string" ? models : (models[phase] ?? "");
-}
-
 function evaluateSinglePhase(
 	phase: PhaseName,
 	issueNumber: string,
-	model: string,
 	state: undefined | PhaseState,
 	planFile: string,
 	worktreePath: string,
@@ -128,15 +125,7 @@ function evaluateSinglePhase(
 			return evaluateDesign(state, planFile, worktreePath, reasons);
 		}
 		case "implement": {
-			return evaluateImplement(
-				state,
-				model,
-				planFile,
-				worktreePath,
-				issueNumber,
-				baseRef,
-				reasons,
-			);
+			return evaluateImplement(state, planFile, worktreePath, issueNumber, baseRef, reasons);
 		}
 		case "review": {
 			return evaluateReview(state, issueNumber, baseRef, worktreePath, reasons);
@@ -218,7 +207,6 @@ export function evaluateDesign(
 
 export function evaluateImplement(
 	state: undefined | PhaseState,
-	model: string,
 	planFile: string,
 	worktreePath: string,
 	issueNumber: string,
@@ -247,17 +235,6 @@ export function evaluateImplement(
 	const newCommits = countNewCommits(worktreePath, baseRef);
 	if (newCommits === 0) {
 		reasons.implement = "no new commits in worktree";
-		return "start";
-	}
-
-	/*
-	 * If model changed, restart implementation.
-	 * If the implement model changed (or a legacy single-model state moved to per-phase
-	 * config), restart implementation. Per-phase overrides live in state.phasesConfig.
-	 */
-	const implementModel = state?.phasesConfig?.implement?.model ?? state?.model;
-	if (state?.phases.implement.status === "done" && implementModel !== model) {
-		reasons.implement = `model changed (${implementModel} → ${model})`;
 		return "start";
 	}
 

@@ -379,6 +379,46 @@ a holder on this host whose pid no longer exists is taken over immediately inste
 the ten-minute lock window or the thirty-minute lease TTL. The age window still applies to a holder
 on another host, whose pid says nothing here.
 
+### Changing the model of a running session
+
+Edit `sandcastle.config.ts`. A running run re-reads the file every 30 seconds
+(`SANDCASTLE_RELOAD_CHECK_SECONDS` to change that), and switches on what it now says. There is no
+command and no state file: the config file _is_ the switch.
+
+```ts
+// sandcastle.config.ts — change this while a batch is in flight
+agents: {
+    models: { zcode: "provider/new-model" },
+    // or per step, or a whole catalog profile
+}
+```
+
+What happens, in order:
+
+- The file's mtime only decides whether to re-parse. An edit that does not change any step's
+  effective selection — a comment, a formatting pass — is reported as applied and kills nothing.
+- A step whose selection moved is aborted mid-attempt and restarted immediately on the new value.
+  The restart does not count against `SANDCASTLE_PHASE_MAX_RETRIES` and does not back off, because
+  nothing failed; the phase resumes the same conversation, and the backend re-asserts the model and
+  effort on the resumed session.
+- Precedence is "changed wins", per step. A step the edit did not touch keeps whatever it was
+  running — including an explicit `--implement-model`. A step whose config-derived value moved takes
+  the new value even over a flag, because that is what the edit was about.
+- A catalog edit applies by profile name: lanes keep their assigned profile and follow its new
+  model. A profile that is deleted or renamed keeps its last-known values for the rest of the run,
+  with one warning saying a new run is needed.
+- A config that does not parse is reported once and ignored; the last good configuration keeps
+  running, so a typo cannot stop an overnight run. Fixing it is picked up on the next tick.
+- Two changes are refused with "start a new run": `dir` (every path this process created already
+  belongs to the old one) and any step's `backend` (a stored session can only be resumed by the
+  backend that owns it).
+
+Finished phases do not redo work when the model changes. A completed implement used to re-run
+whenever the resolved model differed from the one recorded on the state, so an unrelated config edit
+— or a model whose promotional window closed — redid work that had already passed review. Only
+`--force` re-runs a finished phase now; `pnpm sandcastle --issue <n> --status` prints the selection
+a phase actually ran on when it differs from the current config.
+
 ### Parallel batches
 
 `queue run --parallel <n>` runs up to `n` batches at once. Parallelism is **between batches only**:

@@ -44,6 +44,23 @@ function legacyModelFor(backend: AgentBackend): string {
 }
 
 /**
+ * - The workflow default model this repository's configuration alone selects for `backend`.
+ * - @param models - `agents.models`, the per-backend map.
+ * - @param backend - The backend whose entry is read.
+ * - @returns The mapped model, else the backend's legacy env fallback, else the empty string.
+ * - @remarks Shared with the live reloader, which compares two resolutions of the config file. A
+ *   reload that resolved the workflow default differently from argument parsing would report a
+ *   change on the first tick after launch, and a phase would restart for no reason.
+ */
+export function configuredWorkflowModel(
+	models: Partial<Record<AgentBackend, string>>,
+	backend: AgentBackend,
+): string {
+	const mapped = models[backend]?.trim() ?? "";
+	return mapped !== "" ? mapped : legacyModelFor(backend);
+}
+
+/**
  * Resolves one step. When the step selects a different backend than the workflow and neither CLI
  * nor config supplies a model, the mapped model for that backend (`agents.models[backend]`, then
  * legacy env) wins over the workflow model.

@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { evaluatePhases } from "./evaluate.js";
 import { issueBranch } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
+import { sameStep } from "./reload.js";
 import { worktreePathForBranch } from "./runtime.js";
 import { readState } from "./state.js";
 import type { AgentPhaseName, PhaseName, ResolvedAgentStep } from "./types.js";
@@ -38,8 +39,18 @@ export function printStatus(
 		for (const step of ["design", "implement", "review"] as const) {
 			const resolved = steps[step];
 			if (resolved) {
+				/*
+				 * The state records the selection a phase actually ran on, which a live config reload
+				 * can have moved away from the config again. Printing the difference is what makes the
+				 * switch visible from outside the run: "the config says b, but this issue ran a".
+				 */
+				const recorded = state?.phasesConfig?.[step];
+				const ranOn =
+					recorded === undefined || sameStep(recorded, resolved)
+						? ""
+						: `  (last run used ${recorded.agentBackend}/${recorded.model || "(none)"} (${recorded.effort}))`;
 				console.log(
-					`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})`,
+					`  ${step}: ${resolved.agentBackend}/${resolved.model} (${resolved.effort})${ranOn}`,
 				);
 			}
 		}

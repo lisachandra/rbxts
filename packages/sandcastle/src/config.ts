@@ -394,18 +394,35 @@ const defaultConfig: SandcastleConfig = {
 };
 
 /**
+ * Absolute path of the repository's configuration file.
+ *
+ * Exported so the live-reload engine can stat exactly the file {@link loadConfig} reads instead of
+ * reconstructing the name in a second place.
+ */
+export function configFilePath(repoRoot: string): string {
+	return pathResolve(repoRoot, "sandcastle.config.ts");
+}
+
+/**
  * Loads `<repoRoot>/sandcastle.config.ts` (if present) and merges it over the package defaults.
  * Never throws for a missing file; throws with a readable message when a present config fails
  * validation.
+ *
+ * @remarks
+ *   `moduleCache` is off, so calling this again re-evaluates the file. That is what the live reload
+ *   depends on: jiti otherwise keeps the first result in Node's CommonJS cache, and a re-read would
+ *   return the values the process launched with no matter what the file now says. The cost is one
+ *   transformed evaluation per actual change, since the reloader only calls this after the file's
+ *   mtime moved.
  */
 export function loadConfig(repoRoot: string): ResolvedSandcastleConfig {
 	const packageRoot = pathResolve(dirname(fileURLToPath(import.meta.url)), "..");
-	const configPath = pathResolve(repoRoot, "sandcastle.config.ts");
+	const configPath = configFilePath(repoRoot);
 
 	let userConfig: unknown = {};
 	if (existsSync(configPath)) {
 		try {
-			const jiti = createJiti(import.meta.url, { interopDefault: true });
+			const jiti = createJiti(import.meta.url, { interopDefault: true, moduleCache: false });
 			const loaded = jiti(configPath) as unknown;
 			userConfig =
 				loaded !== null && typeof loaded === "object" && "default" in loaded

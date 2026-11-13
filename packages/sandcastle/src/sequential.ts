@@ -19,7 +19,7 @@ import {
 import { runSingleIssue } from "./issue.js";
 import { normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { getLatestReviewMarker, isIssueBlocked, isIssueComplete } from "./state.js";
-import type { AgentBackend, AgentPhaseName, ResolvedAgentStep } from "./types.js";
+import type { AgentBackend, AgentPhaseName, AgentStepsConfig, ResolvedAgentStep } from "./types.js";
 import type { EmitLine } from "./worktree.js";
 import { pushThenRemoveWorktree } from "./worktree.js";
 
@@ -50,11 +50,15 @@ export interface SequentialIssueParams {
 	issueNumber: string;
 	model: string;
 	pushAndDelete: boolean;
+	/** Catalog profile this run is bound to, so a reload recomputes through the same profile. */
+	queueProfile?: string;
 	resume: boolean;
 	setupOutput?: SetupOutput;
 	/** Chain design → implement → review through one agent session; defaults to config. */
 	singleSession?: boolean;
 	skipSetup?: boolean;
+	/** Raw per-step CLI overrides, so a live reload keeps an explicit flag on untouched steps. */
+	stepOverrides?: AgentStepsConfig;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	strictChain?: boolean;
 	total: number;
@@ -95,10 +99,14 @@ export interface SequentialIssueOptions {
 	 *   carries 31.
 	 */
 	pushAndDelete?: boolean;
+	/** Catalog profile this run is bound to, so a reload recomputes through the same profile. */
+	queueProfile?: string;
 	setupOutput?: SetupOutput;
 	/** Chain design → implement → review through one agent session; defaults to config. */
 	singleSession?: boolean;
 	skipSetup?: boolean;
+	/** Raw per-step CLI overrides, so a live reload keeps an explicit flag on untouched steps. */
+	stepOverrides?: AgentStepsConfig;
 	steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 	/** Abort instead of warn when a reused member's branch does not contain the accumulated base. */
 	strictChain?: boolean;
@@ -219,10 +227,12 @@ async function processSequentialIssue({
 	issueNumber,
 	model,
 	pushAndDelete,
+	queueProfile,
 	resume,
 	setupOutput,
 	singleSession,
 	skipSetup,
+	stepOverrides,
 	steps,
 	strictChain,
 	total,
@@ -318,10 +328,12 @@ async function processSequentialIssue({
 			baseRef: currentBase,
 			...(emit !== undefined ? { emit } : {}),
 			ignoreSetup,
+			...(queueProfile === undefined ? {} : { queueProfile }),
 			resume,
 			setupOutput,
 			...(singleSession !== undefined ? { singleSession } : {}),
 			skipSetup,
+			...(stepOverrides === undefined ? {} : { stepOverrides }),
 			...(steps ? { steps } : {}),
 			worktree,
 		});
@@ -403,9 +415,11 @@ export async function runSequentialIssues(
 		ignoreSetup,
 		nextOrder,
 		pushAndDelete = false,
+		queueProfile,
 		setupOutput,
 		singleSession,
 		skipSetup,
+		stepOverrides,
 		steps,
 		strictChain,
 		worktree,
@@ -451,10 +465,12 @@ export async function runSequentialIssues(
 				issueNumber,
 				model,
 				pushAndDelete,
+				...(queueProfile === undefined ? {} : { queueProfile }),
 				resume,
 				setupOutput,
 				...(singleSession !== undefined ? { singleSession } : {}),
 				skipSetup,
+				...(stepOverrides === undefined ? {} : { stepOverrides }),
 				...(steps ? { steps } : {}),
 				...(strictChain !== undefined ? { strictChain } : {}),
 				total: issueNumbers.length,
@@ -515,10 +531,12 @@ export async function runSequentialIssues(
 					issueNumber,
 					model,
 					pushAndDelete,
+					...(queueProfile === undefined ? {} : { queueProfile }),
 					resume,
 					setupOutput,
 					...(singleSession !== undefined ? { singleSession } : {}),
 					skipSetup,
+					...(stepOverrides === undefined ? {} : { stepOverrides }),
 					...(steps ? { steps } : {}),
 					...(strictChain !== undefined ? { strictChain } : {}),
 					total: order.length,

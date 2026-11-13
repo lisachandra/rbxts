@@ -81,9 +81,19 @@ const defaultDispatch: QueueDispatch = async (name, issues, options, resume, rem
 			nextOrder: () =>
 				readQueueManifest().sequences.find((entry) => entry.name === name)?.issues,
 			pushAndDelete: options.pushAndDelete === true,
+			/*
+			 * The lane's profile name and the raw per-step flags travel with the member so a live
+			 * config reload recomputes the same effective steps this dispatch started from. Without
+			 * them a reload would see the resolved `steps` — already folded through both — and could
+			 * no longer tell a CLI flag from a config value.
+			 */
+			...(options.queueProfile === undefined ? {} : { queueProfile: options.queueProfile }),
 			setupOutput: options.setupOutput,
 			singleSession: options.singleSession,
 			skipSetup: options.skipSetup,
+			...(options.stepOverrides === undefined
+				? {}
+				: { stepOverrides: options.stepOverrides }),
 			steps: options.steps,
 			strictChain: options.strictChain === true || config.queue.strictChain === true,
 		},
@@ -320,8 +330,12 @@ async function runQueueCommandImpl(options: CliOptions, deps: QueueRunDeps): Pro
 		return;
 	}
 
-	// A serial run applies the first lane's profile, so a batch never runs on a model the lanes don't.
-	const profile = profileForLane(config.agents.catalog, 0);
+	/*
+	 * A serial run applies the selected profile — `--profile` when given, else lane 0 — so a batch never
+	 * runs on a model the lanes don't. Resolving lane 0 unconditionally made `--profile deep` a silent
+	 * no-op for a serial `queue run`, which then disagreed with the same flag under a pool.
+	 */
+	const profile = profileOf(options);
 	const resolved = profile === undefined ? options : withLaneAgents(options, profile);
 
 	assertModels(resolved);

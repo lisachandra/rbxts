@@ -52,7 +52,18 @@ export function profileForLane(
 	return catalog[index % catalog.length];
 }
 
-/** The profile `--profile <name>` selects, or `undefined` when no flag was passed or it is unknown. */
+/**
+ * - The profile `--profile <name>` selects.
+ * - @param catalog - `agents.catalog`, in declared order.
+ * - @param name - The flag's value; `undefined` or empty means the flag was not passed.
+ * - @returns The named profile, or `undefined` when no flag was passed.
+ * - @throws {Error} When a name was given but the catalog does not define it.
+ * - @remarks Falling back to lane 0 on an unknown name is how a renamed profile silently ran a
+ *   different model than the one printed and logged: the parent captured the catalog when the pool
+ *   started and spawned children by name, so a rename mid-pool resolved every later child to lane
+ *   0. The caller asked for a specific profile, so an unresolvable name is an error rather than a
+ *   default.
+ */
 export function profileByName(
 	catalog: ReadonlyArray<AgentProfile>,
 	name: string | undefined,
@@ -61,7 +72,15 @@ export function profileByName(
 		return undefined;
 	}
 
-	return catalog.find((profile) => profile.name === name);
+	const profile = catalog.find((entry) => entry.name === name);
+	if (profile === undefined) {
+		const known = catalog.map((entry) => entry.name).join(", ");
+		throw new Error(
+			`--profile "${name}" is not in agents.catalog; known profiles: ${known === "" ? "(none)" : known}.`,
+		);
+	}
+
+	return profile;
 }
 
 /** Merges a profile's per-step overrides over the repository's steps; the profile wins. */

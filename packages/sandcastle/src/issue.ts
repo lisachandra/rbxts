@@ -41,6 +41,7 @@ import { queueRulesForPrompt } from "./prompts/queue.js";
 import { skillsForPrompt } from "./prompts/skills.js";
 import { saveSession } from "./providers/session-store.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
+import { ConfigReloader, launchSelection, watchStep } from "./reload.js";
 import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir, worktreePathForBranch } from "./runtime.js";
 import { runSessioned } from "./session-resume.js";
@@ -55,11 +56,13 @@ import {
 import type {
 	AgentBackend,
 	AgentPhaseName,
+	AgentStepsConfig,
 	EvaluationResult,
 	PhaseDecision,
 	PhaseName,
 	PhaseState,
 	ResolvedAgentStep,
+	SandcastleEffort,
 	SharedPromptArgs,
 } from "./types.js";
 import { backendSupportsResume, resumableBackends } from "./types.js";
@@ -128,6 +131,8 @@ async function runDesignPhase(params: {
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
+	/** Live config follower; each attempt re-reads its step so a reload takes effect on restart. */
+	reloader: ConfigReloader;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 		worktreePath: string;
@@ -136,51 +141,72 @@ async function runDesignPhase(params: {
 	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
-	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 1: Design (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.design`);
 	const scope = params.session.scope ?? `${params.issueNumber}.design`;
 
-	await runPhaseWithRetry(
-		() =>
-			runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
-				runMarkerPhase({
-					agentBackend: params.step.agentBackend,
-					effort: params.step.effort,
-					marker,
-					model: params.step.model,
-					name: `designer #${params.issueNumber}`,
-					promptArgs: {
-						...params.sharedArgs,
-						SESSION_NOTE: params.session.notes.design,
-						SKILLS: skillsForPrompt("design", params.issueLabels),
-					},
-					promptFile: config.prompts.plan,
-					run: params.sandbox.run,
-					runOptions: {
-						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(params.logPath, {
-							digest: backendSupportsDigest(params.step.agentBackend),
-							onSessionCaptured: (sessionId) =>
-								saveSession(scope, {
-									backend: params.step.agentBackend,
-									sessionId,
-								}),
-							sessionCapture: capture,
-						}),
-					},
-					...(params.session.scope !== undefined
-						? { sessionScope: params.session.scope }
-						: {}),
-				}),
-			),
-		"design",
-	);
+	await runPhaseWithRetry(() => {
+		/*
+		 * Read inside the attempt, never captured outside it: a reload aborts the attempt with
+		 * ConfigReloadError, and the retry closure is the one place that must then see the new
+		 * selection. `runSessioned` takes the backend so a stale session is not resumed across a
+		 * backend change — which a reload refuses anyway, but the resumed backend is what gates it.
+		 */
+		const step = params.reloader.step("design");
+		return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
+			runMarkerPhase({
+				agentBackend: step.agentBackend,
+				effort: step.effort,
+				marker,
+				model: step.model,
+				name: `designer #${params.issueNumber}`,
+				promptArgs: {
+					...params.sharedArgs,
+					SESSION_NOTE: params.session.notes.design,
+					SKILLS: skillsForPrompt("design", params.issueLabels),
+				},
+				promptFile: config.prompts.plan,
+				run: params.sandbox.run,
+				runOptions: {
+					...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+					logging: fileLogging(params.logPath, {
+						digest: backendSupportsDigest(step.agentBackend),
+						onSessionCaptured: (sessionId) =>
+							saveSession(scope, { backend: step.agentBackend, sessionId }),
+						sessionCapture: capture,
+					}),
+				},
+				...(params.session.scope !== undefined
+					? { sessionScope: params.session.scope }
+					: {}),
+				watchConfig: watchStep(params.reloader, "design"),
+			}),
+		);
+	}, "design");
 
+	recordPhaseConfig(params.state, params.reloader);
 	updatePhase(params.state, "design", "done");
 	commitPlan(params.sandbox.worktreePath, params.issueNumber);
 	console.log("  ✓ Design phase complete.");
+}
+
+/**
+ * - Stamps the selection each phase is running on onto the issue state.
+ * - @param state - The issue's phase state, written by the caller's `updatePhase`.
+ * - @param reloader - The live follower the selection came from.
+ * - @remarks Recorded per attempt rather than once per run: the point of the stamp is that a later
+ *   `status` or audit can tell which model produced which phase, and a run that switched models
+ *   halfway has two answers. `evaluate` no longer re-runs a phase because this value moved.
+ */
+function recordPhaseConfig(state: PhaseState, reloader: ConfigReloader): void {
+	state.phasesConfig = {
+		design: reloader.step("design"),
+		implement: reloader.step("implement"),
+		review: reloader.step("review"),
+	};
+	state.model = reloader.step("implement").model;
+	state.effort = reloader.step("implement").effort;
 }
 
 /**
@@ -243,6 +269,8 @@ async function runImplementPhase(params: {
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
+	/** Live config follower; each attempt re-reads its step so a reload takes effect on restart. */
+	reloader: ConfigReloader;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
@@ -250,47 +278,43 @@ async function runImplementPhase(params: {
 	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
-	step: ResolvedAgentStep;
 }): Promise<void> {
 	console.log(`\n── Phase 2: Implement (issue #${params.issueNumber}) ──`);
 	const marker = markerPath(`${params.issueNumber}.implement`);
 	const scope = params.session.scope ?? `${params.issueNumber}.implement`;
 
-	const implResult = await runPhaseWithRetry(
-		() =>
-			runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
-				runMarkerPhase({
-					agentBackend: params.step.agentBackend,
-					effort: params.step.effort,
-					marker,
-					model: params.step.model,
-					name: `implementer #${params.issueNumber}`,
-					promptArgs: {
-						...params.sharedArgs,
-						SESSION_NOTE: params.session.notes.implement,
-						SKILLS: skillsForPrompt("implement", params.issueLabels),
-					},
-					promptFile: config.prompts.implement,
-					run: params.sandbox.run,
-					runOptions: {
-						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(params.logPath, {
-							digest: backendSupportsDigest(params.step.agentBackend),
-							onSessionCaptured: (sessionId) =>
-								saveSession(scope, {
-									backend: params.step.agentBackend,
-									sessionId,
-								}),
-							sessionCapture: capture,
-						}),
-					},
-					...(params.session.scope !== undefined
-						? { sessionScope: params.session.scope }
-						: {}),
-				}),
-			),
-		"implement",
-	);
+	const implResult = await runPhaseWithRetry(() => {
+		const step = params.reloader.step("implement");
+		return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
+			runMarkerPhase({
+				agentBackend: step.agentBackend,
+				effort: step.effort,
+				marker,
+				model: step.model,
+				name: `implementer #${params.issueNumber}`,
+				promptArgs: {
+					...params.sharedArgs,
+					SESSION_NOTE: params.session.notes.implement,
+					SKILLS: skillsForPrompt("implement", params.issueLabels),
+				},
+				promptFile: config.prompts.implement,
+				run: params.sandbox.run,
+				runOptions: {
+					...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+					logging: fileLogging(params.logPath, {
+						digest: backendSupportsDigest(step.agentBackend),
+						onSessionCaptured: (sessionId) =>
+							saveSession(scope, { backend: step.agentBackend, sessionId }),
+						sessionCapture: capture,
+					}),
+				},
+				...(params.session.scope !== undefined
+					? { sessionScope: params.session.scope }
+					: {}),
+				watchConfig: watchStep(params.reloader, "implement"),
+			}),
+		);
+	}, "implement");
 
 	/*
 	 * Combined, not replaced: the sandbox reports only the commits made during this run, so a re-run
@@ -318,6 +342,8 @@ async function runReviewPhase(params: {
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
+	/** Live config follower; each attempt re-reads its step so a reload takes effect on restart. */
+	reloader: ConfigReloader;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 	};
@@ -325,52 +351,49 @@ async function runReviewPhase(params: {
 	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
-	step: ResolvedAgentStep;
 }): Promise<void> {
 	if (params.hasCommits || params.evalReview === "force") {
 		console.log(`\n── Phase 3: Review (issue #${params.issueNumber}) ──`);
 		const marker = markerPath(`${params.issueNumber}.review`);
 		const scope = params.session.scope ?? `${params.issueNumber}.review`;
 
-		await runPhaseWithRetry(
-			() =>
-				runSessioned({ backend: params.step.agentBackend, scope }, ({ capture, resumed }) =>
-					runMarkerPhase({
-						agentBackend: params.step.agentBackend,
-						effort: params.step.effort,
-						marker,
-						model: params.step.model,
-						name: `reviewer #${params.issueNumber}`,
-						promptArgs: {
-							...params.sharedArgs,
-							QUEUE_RULES: queueRulesForPrompt({
-								batch: queueBatchForIssue(params.issueNumber),
-							}),
-							SESSION_NOTE: params.session.notes.review,
-							SKILLS: skillsForPrompt("review", params.issueLabels),
-						},
-						promptFile: config.prompts.review,
-						run: params.sandbox.run,
-						runOptions: {
-							...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-							logging: fileLogging(params.logPath, {
-								digest: backendSupportsDigest(params.step.agentBackend),
-								onSessionCaptured: (sessionId) =>
-									saveSession(scope, {
-										backend: params.step.agentBackend,
-										sessionId,
-									}),
-								sessionCapture: capture,
-							}),
-						},
-						...(params.session.scope !== undefined
-							? { sessionScope: params.session.scope }
-							: {}),
-					}),
-				),
-			"review",
-		);
+		await runPhaseWithRetry(() => {
+			const step = params.reloader.step("review");
+			return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
+				runMarkerPhase({
+					agentBackend: step.agentBackend,
+					effort: step.effort,
+					marker,
+					model: step.model,
+					name: `reviewer #${params.issueNumber}`,
+					promptArgs: {
+						...params.sharedArgs,
+						QUEUE_RULES: queueRulesForPrompt({
+							batch: queueBatchForIssue(params.issueNumber),
+						}),
+						SESSION_NOTE: params.session.notes.review,
+						SKILLS: skillsForPrompt("review", params.issueLabels),
+					},
+					promptFile: config.prompts.review,
+					run: params.sandbox.run,
+					runOptions: {
+						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
+						logging: fileLogging(params.logPath, {
+							digest: backendSupportsDigest(step.agentBackend),
+							onSessionCaptured: (sessionId) =>
+								saveSession(scope, { backend: step.agentBackend, sessionId }),
+							sessionCapture: capture,
+						}),
+					},
+					...(params.session.scope !== undefined
+						? { sessionScope: params.session.scope }
+						: {}),
+					watchConfig: watchStep(params.reloader, "review"),
+				}),
+			);
+		}, "review");
 
+		recordPhaseConfig(params.state, params.reloader);
 		updatePhase(params.state, "review", "done", { commentPosted: true });
 		console.log("  ✓ Review phase complete.");
 		return;
@@ -470,6 +493,8 @@ interface ExecuteIssuePhasesParams {
 		phase?: PhaseName;
 		singleSession?: boolean;
 	};
+	/** Live config follower shared by all three phases of this issue. */
+	reloader: ConfigReloader;
 	sandbox: {
 		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
 		worktreePath: string;
@@ -485,12 +510,19 @@ interface ExecuteIssuePhasesParams {
  * not a valid decision for implement/review once design finishes.
  */
 function reEvaluatePhase(params: ExecuteIssuePhasesParams, phase: PhaseName): PhaseDecision {
+	/*
+	 * The live selection, so a phase that has not started yet is judged against the model it would
+	 * actually run on. The model is no longer a *reason* to re-run a finished phase — only `--force`
+	 * is — but a fresh evaluation still has to be computed from something, and this is the honest
+	 * value rather than the one the run launched with.
+	 */
+	const steps = params.reloader.steps();
 	return evaluatePhases(
 		params.issueNumber,
 		{
-			design: params.steps.design.model,
-			implement: params.steps.implement.model,
-			review: params.steps.review.model,
+			design: steps.design.model,
+			implement: steps.implement.model,
+			review: steps.review.model,
 		},
 		{
 			baseRef: params.options?.baseRef,
@@ -588,11 +620,11 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
+			reloader: params.reloader,
 			sandbox: params.sandbox,
 			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
-			step: params.steps.design,
 		});
 	} else {
 		console.log("\n── Phase 1: Design — SKIPPED ──");
@@ -626,11 +658,11 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
+			reloader: params.reloader,
 			sandbox: params.sandbox,
 			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
-			step: params.steps.implement,
 		});
 	} else {
 		console.log("\n── Phase 2: Implement — SKIPPED ──");
@@ -652,11 +684,11 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 			issueLabels: params.issueLabels,
 			issueNumber: params.issueNumber,
 			logPath: params.logPath,
+			reloader: params.reloader,
 			sandbox: params.sandbox,
 			session,
 			sharedArgs: params.sharedArgs,
 			state: params.state,
-			step: params.steps.review,
 		});
 	} else {
 		console.log("\n── Phase 3: Review — SKIPPED ──");
@@ -721,11 +753,21 @@ export async function runSingleIssue(
 		force?: true | PhaseName;
 		ignoreSetup?: boolean;
 		phase?: PhaseName;
+		/** Catalog profile the run is bound to, so a reload recomputes through the same profile. */
+		queueProfile?: string;
 		resume?: boolean;
 		setupOutput?: SetupOutput;
 		/** Chain design → implement → review through one agent session; defaults to config. */
 		singleSession?: boolean;
 		skipSetup?: boolean;
+		/**
+		 * Raw per-step CLI overrides, distinct from the resolved `steps`.
+		 *
+		 * The live reloader needs them to keep an explicit `--implement-model` on a step the
+		 * operator did not later change in the config file. Callers that pass a pre-resolved
+		 * `steps` map without this get config-only reloading, which is the documented degradation.
+		 */
+		stepOverrides?: AgentStepsConfig;
 		steps?: Record<AgentPhaseName, ResolvedAgentStep>;
 		worktree?: string;
 	},
@@ -780,6 +822,21 @@ export async function runSingleIssue(
 		},
 	};
 	const steps = options?.steps ?? fallbackSteps;
+	/*
+	 * The live follower every phase reads its selection from. Built from the launch selection rather
+	 * than the resolved `steps`, so its "was this the operator's own flag?" answer stays truthful: a
+	 * value that came from the config file has to be allowed to move when the file changes, and one
+	 * that came from `--model` must not.
+	 */
+	const reloader = new ConfigReloader(
+		launchSelection({
+			agentBackend: workflowBackend,
+			effort: effort as SandcastleEffort,
+			model,
+			...(options?.queueProfile === undefined ? {} : { queueProfile: options.queueProfile }),
+			steps: options?.stepOverrides ?? {},
+		}),
+	);
 	const models = {
 		design: steps.design.model,
 		implement: steps.implement.model,
@@ -882,6 +939,7 @@ export async function runSingleIssue(
 			issueNumber,
 			logPath,
 			options,
+			reloader,
 			sandbox,
 			sharedArgs,
 			state,

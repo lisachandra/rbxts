@@ -80,20 +80,20 @@ describe("phase evaluation", () => {
 		cleanupIssueArtifacts(issue);
 	});
 
-	test("evaluateImplement covers plan/worktree/commits/model/fail paths", () => {
+	test("evaluateImplement covers plan/worktree/commits/state paths", () => {
 		const issue = uniqueIssue();
 		const planFile = join(plansDir, `${issue}.md`);
 		const worktree = join(tmpRoot, `wt-impl-${issue}`);
 		const reasons = { design: "", implement: "", review: "" };
 
 		assert.equal(
-			evaluateImplement(undefined, "m", planFile, worktree, issue, "main", reasons),
+			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
 			"skip",
 		);
 
 		writePlan(issue, "# Plan");
 		assert.equal(
-			evaluateImplement(undefined, "m", planFile, worktree, issue, "main", reasons),
+			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
 			"start",
 		);
 		assert.match(reasons.implement, /worktree does not exist/);
@@ -104,36 +104,33 @@ describe("phase evaluation", () => {
 		};
 
 		assert.equal(
-			evaluateImplement(undefined, "m", planFile, worktree, issue, "main", reasons),
+			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
 			"start",
 		);
 		assert.match(reasons.implement, /no new commits/);
 
 		stubExecSync("2");
 		assert.equal(
-			evaluateImplement(undefined, "m", planFile, worktree, issue, "main", reasons),
+			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
 			"start",
 		);
 		assert.match(reasons.implement, /no state record/);
 
+		/*
+		 * A completed implement stays done whatever the model: the phase used to re-run whenever the
+		 * resolved model differed from the recorded one, so a config edit — or a model that stopped
+		 * being available — redid work that had already passed review. Only `--force` re-runs now.
+		 */
 		const done = makeState(issue, { implement: "done", model: "old" });
-		assert.equal(
-			evaluateImplement(done, "new", planFile, worktree, issue, "main", reasons),
-			"start",
-		);
-		assert.match(reasons.implement, /model changed/);
-
-		const same = makeState(issue, { implement: "done", model: "same" });
-		assert.equal(
-			evaluateImplement(same, "same", planFile, worktree, issue, "main", reasons),
-			"skip",
-		);
+		assert.equal(evaluateImplement(done, planFile, worktree, issue, "main", reasons), "skip");
+		assert.match(reasons.implement, /build previously passed/);
 
 		const failed = makeState(issue, { implement: "failed" });
 		assert.equal(
-			evaluateImplement(failed, "m", planFile, worktree, issue, "main", reasons),
+			evaluateImplement(failed, planFile, worktree, issue, "main", reasons),
 			"start",
 		);
+		assert.match(reasons.implement, /previous attempt failed/);
 
 		cleanupIssueArtifacts(issue);
 		rmSync(worktree, { force: true, recursive: true });

@@ -162,7 +162,12 @@ describe("lane profiles", () => {
 		assert.equal(profileByName([flash, deep], undefined), undefined);
 		assert.equal(profileByName([flash, deep], ""), undefined);
 		assert.equal(profileByName([flash, deep], "deep")?.name, "deep");
-		assert.equal(profileByName([flash, deep], "nope"), undefined);
+		/*
+		 * An unknown name used to fall back to lane 0, which is how a renamed profile ran a different
+		 * model than the one the parent printed. The caller named a profile, so an unresolvable name
+		 * must fail rather than silently substitute one.
+		 */
+		assert.throws(() => profileByName([flash, deep], "nope"), /is not in agents\.catalog/u);
 	});
 
 	test("a profile replaces the workflow default and keeps its step overrides", () => {

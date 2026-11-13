@@ -127,6 +127,15 @@ export interface CliOptions {
 	readonly setupOutput?: SetupOutput;
 	readonly skipSetup?: boolean;
 	readonly status: boolean;
+	/**
+	 * Raw per-step flags, before the config is folded in.
+	 *
+	 * A live reload compares the file against the launch selection, and this is what lets a step
+	 * the edit did not touch keep an explicit `--implement-model`. Forwarded to every dispatch,
+	 * because a run that loses it could only reload config values and would quietly drop the
+	 * operator's flags.
+	 */
+	readonly stepOverrides: AgentStepsConfig;
 	readonly steps: Record<AgentPhaseName, ResolvedAgentStep>;
 	readonly strictChain?: boolean;
 	readonly title?: string;
@@ -250,6 +259,16 @@ interface ParsedArgState {
 	singleSession: boolean | undefined;
 	skipSetup: boolean;
 	status: boolean;
+	/**
+	 * Raw per-step overrides, exactly as the flags were parsed.
+	 *
+	 * Kept beside `steps` because `steps` is already resolved against the config loaded at parse
+	 * time, and a live reload has to know which values were the caller's own last word. Without it,
+	 * any config edit would either discard an explicit `--implement-model` or keep it forever; with
+	 * it, "a step the edit changed takes the new value, every other step keeps its flag" is
+	 * expressible.
+	 */
+	stepOverrides: AgentStepsConfig;
 	steps: AgentStepsConfig;
 	strictChain: boolean;
 	title: string | undefined;
@@ -333,6 +352,7 @@ function createParsedArgState(): ParsedArgState {
 		singleSession: undefined,
 		skipSetup: false,
 		status: false,
+		stepOverrides: {},
 		steps: {},
 		strictChain: false,
 		title: undefined,
@@ -1478,6 +1498,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		singleSession: state.singleSession,
 		skipSetup: state.skipSetup,
 		status: state.status,
+		stepOverrides: state.steps,
 		steps,
 		strictChain: state.strictChain,
 		title: state.title,

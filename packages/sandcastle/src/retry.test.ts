@@ -3,6 +3,7 @@ import { getEventListeners } from "node:events";
 import { afterEach, describe, test } from "vitest";
 
 import { CancelError, cancellation } from "./cancel.js";
+import { ConfigReloadError } from "./reload.js";
 import { isFatalProviderError, runPhaseWithRetry } from "./retry.js";
 import { io } from "./runtime.js";
 import { registerTestHooks } from "./test-helpers.js";
@@ -211,6 +212,37 @@ describe("phase retry", () => {
 		assert.equal(attempts, 1, "the cancelled backoff must not lead to another attempt");
 		assert.equal(slept, 1, "it did reach the backoff, which is what this test is about");
 		assert.ok(Date.now() - started < 5_000, "the 30s backoff must not have been waited out");
+	});
+
+	test("a reload restarts the attempt at once, uncounted and without backoff", async () => {
+		/*
+		 * A reload is not a failure: the operator asked for a different model. Counting it would let a
+		 * handful of deliberate switches exhaust `SANDCASTLE_PHASE_MAX_RETRIES`, and backing off would
+		 * leave the run idle for minutes on a value that is already read and ready.
+		 */
+		process.env.SANDCASTLE_PHASE_MAX_RETRIES = "0";
+		const sleeps: Array<number> = [];
+		io.sleep = async (ms: number) => {
+			sleeps.push(ms);
+		};
+
+		let attempts = 0;
+		const result = await runPhaseWithRetry(async () => {
+			attempts += 1;
+			if (attempts < 3) {
+				throw new ConfigReloadError("implement zcode/a → zcode/b");
+			}
+
+			return "on-the-new-model";
+		}, "implement");
+
+		assert.equal(result, "on-the-new-model");
+		assert.equal(attempts, 3, "each reload must get another attempt even at a cap of 0");
+		assert.deepEqual(sleeps, [], "a reload must not sleep through a backoff");
+	});
+
+	test("a reload is not classified as a fatal provider error", () => {
+		assert.equal(isFatalProviderError(new ConfigReloadError("x")), false);
 	});
 
 	test("repeated failures do not accumulate abort listeners", async () => {

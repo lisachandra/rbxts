@@ -3,8 +3,15 @@ import { mkdirSync, rmSync } from "node:fs";
 import { describe, test } from "vitest";
 
 import { worktreePathForBranch } from "./runtime.js";
+import { writeState } from "./state.js";
 import { printStatus } from "./status.js";
-import { gitStub, registerTestHooks } from "./test-helpers.js";
+import {
+	cleanupIssueArtifacts,
+	gitStub,
+	makeState,
+	registerTestHooks,
+	uniqueIssue,
+} from "./test-helpers.js";
 
 registerTestHooks();
 
@@ -105,6 +112,65 @@ describe("printStatus", () => {
 			);
 		} finally {
 			rmSync(worktree, { force: true, recursive: true });
+		}
+	});
+
+	test("names the selection a phase actually ran on when the config has moved since", () => {
+		/*
+		 * The point of stamping `phasesConfig`: after a live reload the config says one thing and the
+		 * finished phase ran another. Printing only the config would make the run look like it always
+		 * ran the new model.
+		 */
+		const issue = uniqueIssue();
+		gitStub({
+			file: (args) => (args[0] === "rev-list" && args[1] === "--count" ? "2" : undefined),
+			sync: (command) =>
+				command.includes("gh issue view")
+					? JSON.stringify({ labels: [], title: "Title D" })
+					: undefined,
+		});
+
+		const state = makeState(issue, { implement: "done" });
+		writeState({
+			...state,
+			phasesConfig: {
+				design: { agentBackend: "zcode", effort: "low", model: "old-design" },
+				implement: { agentBackend: "zcode", effort: "low", model: "old-implement" },
+			},
+		} as never);
+
+		try {
+			const lines = captureOutput(() =>
+				printStatus(
+					issue,
+					{ design: "new-design", implement: "new-implement", review: "new-review" },
+					"main",
+					undefined,
+					{
+						design: { agentBackend: "zcode", effort: "high", model: "new-design" },
+						implement: {
+							agentBackend: "zcode",
+							effort: "high",
+							model: "new-implement",
+						},
+						integrationReview: { agentBackend: "zcode", effort: "high", model: "x" },
+						planner: { agentBackend: "zcode", effort: "high", model: "x" },
+						resolve: { agentBackend: "zcode", effort: "high", model: "x" },
+						review: { agentBackend: "zcode", effort: "high", model: "new-review" },
+					},
+				),
+			);
+
+			const implement = lines.find((line) => line.trimStart().startsWith("implement:"));
+			assert.ok(
+				implement?.includes("last run used zcode/old-implement (low)"),
+				`expected the previous selection on the implement line, got: ${String(implement)}`,
+			);
+			/* Review never ran, so there is nothing to compare it against. */
+			const review = lines.find((line) => line.trimStart().startsWith("review:"));
+			assert.equal(review?.includes("last run used"), false, String(review));
+		} finally {
+			cleanupIssueArtifacts(issue);
 		}
 	});
 });

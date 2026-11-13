@@ -25,7 +25,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { loadConfig } from "./config.js";
+import { loadConfig, type ResolvedSandcastleConfig } from "./config.js";
 
 const sandcastleDir = dirname(fileURLToPath(import.meta.url));
 export const packageRoot = pathResolve(sandcastleDir, "..");
@@ -41,7 +41,28 @@ export const repoRoot = process.cwd();
  * run from the checkout itself, or from a subdirectory of it, keeps the caller's directory.
  */
 export const stateRoot = sharedStateRoot(repoRoot);
-export const config = loadConfig(repoRoot);
+/**
+ * The loaded configuration, replaced in place by {@link applyConfig}.
+ *
+ * A mutable object rather than a reassigned binding: every consumer imports `config` by name, so
+ * assigning a new object here would leave all of them looking at the old one. Applying a reload
+ * therefore merges the new keys into this object, which is why nothing in the package may
+ * destructure it at module scope.
+ */
+export const config: ResolvedSandcastleConfig = loadConfig(repoRoot);
+/**
+ * - Replaces the live configuration with a freshly loaded one.
+ * - @param next - The configuration to adopt; callers reload first so a failure leaves `config`
+ *   alone.
+ * - @remarks `dir` cannot move: `logsDir`, `plansDir`, `stateDir`, `integrationsDir`, `worktreesDir`
+ *   and `sandcastleEnvPath` are derived from it once, at import, and every path this process
+ *   created already belongs to the old one. The reload engine refuses such a change before calling
+ *   this.
+ */
+export function applyConfig(next: ResolvedSandcastleConfig): void {
+	Object.assign(config, next);
+}
+
 export const logsDir = pathResolve(stateRoot, config.dir, "logs");
 export const plansDir = pathResolve(stateRoot, config.dir, "plans");
 export const stateDir = pathResolve(stateRoot, config.dir, "state");

@@ -6,6 +6,7 @@ import { afterEach, describe, test } from "vitest";
 
 import { CancelError, cancellation } from "./cancel.js";
 import { PhaseBudgetError, resolvePhaseBudgetMs, runMarkerPhase } from "./markers.js";
+import { ConfigReloadError } from "./reload.js";
 import { isFatalProviderError } from "./retry.js";
 import { registerTestHooks } from "./test-helpers.js";
 
@@ -21,12 +22,19 @@ afterEach(() => {
 
 describe("phase budget", () => {
 	const savedBudget = process.env.SANDCASTLE_PHASE_BUDGET_MINUTES;
+	const savedReload = process.env.SANDCASTLE_RELOAD_CHECK_SECONDS;
 
 	afterEach(() => {
 		if (savedBudget === undefined) {
 			delete process.env.SANDCASTLE_PHASE_BUDGET_MINUTES;
 		} else {
 			process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = savedBudget;
+		}
+
+		if (savedReload === undefined) {
+			delete process.env.SANDCASTLE_RELOAD_CHECK_SECONDS;
+		} else {
+			process.env.SANDCASTLE_RELOAD_CHECK_SECONDS = savedReload;
 		}
 	});
 
@@ -177,6 +185,49 @@ describe("phase budget", () => {
 
 	test("PhaseBudgetError is retryable, not fatal", () => {
 		assert.equal(isFatalProviderError(new PhaseBudgetError(120)), false);
+	});
+
+	test("the config watcher aborts the attempt with ConfigReloadError", async () => {
+		/*
+		 * The tick is the only thing that can end an attempt when the selection moves, so it has to
+		 * reach the same abort controller the budget and cancellation use — one way for an attempt to
+		 * end, one error type per reason.
+		 */
+		process.env.SANDCASTLE_PHASE_BUDGET_MINUTES = "0";
+		process.env.SANDCASTLE_RELOAD_CHECK_SECONDS = "1";
+		const marker = markerPathFor();
+		let ticks = 0;
+
+		const phase = runMarkerPhase({
+			agentBackend: "dirac",
+			effort: "high",
+			marker,
+			model: "m",
+			name: "reload test",
+			promptArgs: {},
+			promptFile: "unused.md",
+			run: (options) =>
+				new Promise<never>((_resolve, reject) => {
+					options.signal?.addEventListener("abort", () => {
+						reject(options.signal?.reason);
+					});
+				}),
+			/* Answers "moved" whenever it is asked; the first ask is the tick at reloadCheckMs. */
+			watchConfig: () => {
+				ticks += 1;
+				return "implement zcode/a → zcode/b";
+			},
+		});
+
+		await assert.rejects(phase, (error: unknown) => {
+			assert.ok(
+				error instanceof ConfigReloadError,
+				`expected ConfigReloadError, got ${error}`,
+			);
+			assert.match(String(error), /implement zcode\/a → zcode\/b/u);
+			return true;
+		});
+		assert.equal(ticks, 1, "the abort must stop further ticks");
 	});
 
 	test("an operator cancel aborts the in-flight agent, even with the budget disabled", async () => {

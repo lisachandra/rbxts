@@ -14,6 +14,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 import { createAgent, scopeForMarkerPath } from "./agent.js";
 import { CancelError, cancellation } from "./cancel.js";
 import { completionRules } from "./prompts/completion.js";
+import { ConfigReloadError, resolveReloadCheckMs } from "./reload.js";
 import { config, stateRoot } from "./runtime.js";
 import type { AgentBackend } from "./types.js";
 
@@ -123,6 +124,14 @@ export async function runMarkerPhase(params: {
 	 * keeps resume per phase by default.
 	 */
 	sessionScope?: string;
+	/**
+	 * Live config watcher for this phase, when the run follows `sandcastle.config.ts`.
+	 *
+	 * Called on a tick and returns a description when this phase's selection moved, which aborts
+	 * the attempt with {@link ConfigReloadError} so the retry loop restarts it on the new model.
+	 * Omitted by callers with no config to follow, which keeps the pre-reload behavior exact.
+	 */
+	watchConfig?: () => string | undefined;
 }): Promise<SandboxRunResult> {
 	clearMarker(params.marker);
 	// The marker scope doubles as the session-store scope, keyed per issue+phase.
@@ -139,6 +148,22 @@ export async function runMarkerPhase(params: {
 				}, budgetMs)
 			: undefined;
 	budgetTimer?.unref?.();
+
+	/*
+	 * The config watcher shares the attempt's abort controller with the budget and with operator
+	 * cancellation, so an attempt has one way to end early and one error type per reason. The interval
+	 * is deliberately not `unref`f: following the config is live work for as long as the attempt runs,
+	 * unlike the budget's timer, which only has to fire once.
+	 */
+	const reloadTimer =
+		params.watchConfig === undefined
+			? undefined
+			: setInterval(() => {
+					const detail = params.watchConfig?.();
+					if (detail !== undefined) {
+						controller.abort(new ConfigReloadError(detail));
+					}
+				}, resolveReloadCheckMs());
 
 	/*
 	 * Operator cancellation has to reach the agent, not just the loop that would start the next
@@ -202,6 +227,10 @@ export async function runMarkerPhase(params: {
 	} finally {
 		if (budgetTimer !== undefined) {
 			clearTimeout(budgetTimer);
+		}
+
+		if (reloadTimer !== undefined) {
+			clearInterval(reloadTimer);
 		}
 
 		signal.removeEventListener("abort", onCancel);
