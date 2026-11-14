@@ -124,6 +124,16 @@ export function configureCenturionUsers(userIds: Array<number>): void {
  *   reported to the context.
  */
 export function adminOrDeveloper(context: CommandContext): boolean {
+	/*
+	 * Allow-listed user IDs pass before the role read: GetRoleInGroup is a web call,
+	 * and the whole point of the ID bypass is that it does not depend on the group
+	 * service (or on the executor exposing the method at all — the registry-config
+	 * spec drives the guard with a plain fake player).
+	 */
+	if (policy.userIds.has(context.executor.UserId)) {
+		return true;
+	}
+
 	const role = context.executor.GetRoleInGroup(groupId);
 	if (authorize({ role, userId: context.executor.UserId }, policy)) {
 		return true;
