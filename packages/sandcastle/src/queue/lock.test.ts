@@ -140,23 +140,37 @@ describe("queue lock acquisition", () => {
 		);
 
 		assert.match(stolen.error, /Stealing stale queue lock/u);
-		assert.match(stolen.error, /the previous run did not release it/u);
+		assert.match(stolen.error, /the owner is on another host and the age window has passed/u);
 		stolen.value();
 	});
 
-	test("a same-host owner the probe calls alive still falls back to the age window", () => {
-		writeLock(liveOwner, { at: Date.now() - 60_000, host: hostname(), pid: 999_999 });
+	test("a same-host owner the probe calls alive is refused however old the lock is", () => {
+		/*
+		 * The regression: a batch lock is held for the whole batch and nothing renews it, so its age
+		 * passed the window on every long batch. Stealing it let a second lane run the same batch
+		 * against the same worktrees (matchmaking-session-work ran twice in one pool). On this host
+		 * the process table is the authority, so age must never override "alive".
+		 */
+		writeLock(liveOwner, {
+			at: Date.now() - 6 * 60 * 60 * 1000,
+			host: hostname(),
+			pid: 999_999,
+		});
 
 		assert.throws(
-			() =>
-				acquireQueueLock({ isAlive: () => true, name: liveOwner, staleMs: 5 * 60 * 1000 }),
+			() => acquireQueueLock({ isAlive: () => true, name: liveOwner, staleMs: 30_000 }),
 			/Another sandcastle queue command holds/u,
 		);
+		assert.equal(readLockOwner(queueLockPath(liveOwner))?.pid, 999_999);
+	});
 
-		const { value } = captureStderr(() =>
-			acquireQueueLock({ isAlive: () => true, name: liveOwner, staleMs: 30_000 }),
+	test("a same-host owner the probe calls alive is refused even past the default window", () => {
+		writeLock(liveOwner, { at: Date.now() - 11 * 60 * 1000, host: hostname(), pid: 999_999 });
+
+		assert.throws(
+			() => acquireQueueLock({ isAlive: () => true, name: liveOwner }),
+			/Another sandcastle queue command holds/u,
 		);
-		value();
 	});
 
 	test("an unreadable lock is refused while it may still be a live writer", () => {

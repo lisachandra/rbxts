@@ -578,6 +578,12 @@ export async function runParallelPool(
 
 			const decision = selectNextBatch({
 				batch: options.integrationName,
+				/*
+				 * Every batch a lane is running right now. A batch that grew a member mid-run still has
+				 * unseen issues, so `reserved` alone would let a second lane re-fire it against the same
+				 * worktrees — the duplicate that raced markers and pushes on matchmaking-session-work.
+				 */
+				inFlight: new Set([...running.values()].map((lane) => lane.batch)),
 				manifest,
 				seen: reserved,
 				view,

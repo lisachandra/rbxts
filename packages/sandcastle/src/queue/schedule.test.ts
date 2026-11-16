@@ -42,10 +42,16 @@ function manifest(overrides: Partial<QueueManifest> = {}): QueueManifest {
 function plan(
 	queue: QueueManifest,
 	state: LiveQueueState,
-	params: { batch?: string; preferred?: string; seen?: Array<string> } = {},
+	params: {
+		batch?: string;
+		inFlight?: Array<string>;
+		preferred?: string;
+		seen?: Array<string>;
+	} = {},
 ): ScheduleDecision {
 	return selectNextBatch({
 		...(params.batch === undefined ? {} : { batch: params.batch }),
+		...(params.inFlight === undefined ? {} : { inFlight: new Set(params.inFlight) }),
 		...(params.preferred === undefined ? {} : { preferred: params.preferred }),
 		manifest: queue,
 		seen: new Set(params.seen),
@@ -179,6 +185,60 @@ describe("queue scheduling", () => {
 		// #4 was appended to U2 while it ran, so U2 is unfinished and fires ahead of U3.
 		assert.deepEqual(plan(queue, state, { preferred: "U2", seen: ["1"] }), {
 			issues: ["1", "4"],
+			kind: "sequence",
+			name: "U2",
+		});
+	});
+
+	test("a batch a lane is already running is never offered to a second lane", () => {
+		/*
+		 * The matchmaking-session-work regression: the batch grew a follow-up mid-run, so it still
+		 * had unseen members and read READY, and a freed lane re-fired it while lane 1 was still
+		 * inside it. Two children then raced the markers, the pushes, and each other's commits.
+		 */
+		const queue = manifest({
+			sequences: [
+				{ issues: ["1", "2", "4"], name: "U2" },
+				{ issues: ["3"], name: "U3" },
+			],
+		});
+		const state = live(issue("1"), issue("2"), issue("3"), issue("4"));
+
+		// Lane 1 owns U2 and it grew #4; the free lane must take U3 instead.
+		assert.deepEqual(plan(queue, state, { inFlight: ["U2"], seen: ["1", "2"] }), {
+			issues: ["3"],
+			kind: "sequence",
+			name: "U3",
+		});
+	});
+
+	test("an in-flight batch leaves a free lane idle rather than duplicating it", () => {
+		const queue = manifest({ sequences: [{ issues: ["1", "2"], name: "U2" }] });
+		const state = live(issue("1"), issue("2"));
+
+		const decision = plan(queue, state, { inFlight: ["U2"], seen: ["1"] });
+		assert.equal(decision.kind, "done");
+		assert.equal(reasonOf(decision), "no sequence is ready to fire");
+	});
+
+	test("an in-flight batch counts toward saturation, not toward idle", () => {
+		const queue = manifest({ sequences: [{ issues: ["1", "2"], name: "U2" }] });
+		const state = live(issue("1"), issue("2"));
+
+		const decision = plan(queue, state, { inFlight: ["U2"], seen: [] });
+		assert.deepEqual(decision, {
+			kind: "done",
+			reason: "no sequence is ready to fire",
+			saturated: true,
+		});
+	});
+
+	test("a serial run's grown batch still re-fires: no in-flight set, no suppression", () => {
+		const queue = manifest({ sequences: [{ issues: ["1", "2", "3"], name: "U2" }] });
+		const state = live(issue("1"), issue("2"), issue("3"));
+
+		assert.deepEqual(plan(queue, state, { preferred: "U2", seen: ["1", "2"] }), {
+			issues: ["1", "2", "3"],
 			kind: "sequence",
 			name: "U2",
 		});

@@ -77,11 +77,16 @@ export interface QueueLockOptions {
 	/** Lock file name, e.g. `manifestLockName`. */
 	name: string;
 	/**
-	 * Milliseconds after which a lock may be stolen; defaults to ten minutes.
+	 * Milliseconds after which a lock held by an owner this process cannot vouch for may be stolen;
+	 * defaults to ten minutes.
 	 *
 	 * The age window is the fallback for an owner this process cannot vouch for — another host, or
-	 * a pid that cannot be probed. A lock whose owner is on this host and provably gone is
-	 * reclaimed immediately instead of waiting it out.
+	 * a pid that cannot be probed — because nothing local can say whether it is still running. A
+	 * lock whose owner is on this host is decided by the process table alone: provably gone is
+	 * reclaimed immediately, provably alive is refused no matter how old it is. Age is deliberately
+	 * not a reason to steal a live same-host lock: a batch lock is held for as long as its batch
+	 * runs (hours), nothing renews it, and stealing it is what let a second lane run the same batch
+	 * against the same worktrees.
 	 */
 	staleMs?: number;
 }
@@ -186,9 +191,11 @@ function describe(owner: undefined | LockOwner): string {
  *   reports the live owner. Stealing is announced on stderr because it means some other run died
  *   holding it.
  *
- *   An owner that is on this host and whose pid no longer exists is reclaimed immediately rather than
- *   after the age window — a cancelled or crashed run is the common case, and making the operator
- *   wait ten minutes for it is the whole complaint this covers.
+ *   An owner that is on this host is judged by the process table, never by age: one whose pid no
+ *   longer exists is reclaimed immediately (a cancelled or crashed run is the common case, and making
+ *   the operator wait ten minutes for it is the whole complaint this covers), and one whose pid still
+ *   exists is refused however long it has held the lock. Age only decides locks from another host,
+ *   which this process cannot probe.
  */
 export function acquireQueueLock(options: QueueLockOptions): () => void {
 	const path = queueLockPath(options.name);
@@ -244,9 +251,16 @@ export function acquireQueueLock(options: QueueLockOptions): () => void {
 			continue;
 		}
 
-		if (Date.now() - owner.at >= staleMs) {
+		/*
+		 * A same-host owner that is not provably gone is alive as far as this checkout can tell, and
+		 * the process table is the authority for that host. Age must not override it: a batch lock is
+		 * held for the whole batch, nothing renews it, and stealing a live one lets a second lane run
+		 * the same batch against the same worktrees. Only a lock from another host — which cannot be
+		 * probed from here — falls back to the age window.
+		 */
+		if (owner.host !== hostname() && Date.now() - owner.at >= staleMs) {
 			console.error(
-				`  ⚠ Stealing stale queue lock ${path} (${describe(owner)}); the previous run did not release it.`,
+				`  ⚠ Stealing stale queue lock ${path} (${describe(owner)}); the owner is on another host and the age window has passed.`,
 			);
 			rmSync(path, { force: true });
 			continue;

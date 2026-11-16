@@ -288,6 +288,81 @@ describe("parallel pool", () => {
 		assert.match(output, /Lane 2: "U2" \[deep\]/u);
 	});
 
+	test("a batch that grew mid-run is never re-fired into a second lane", async () => {
+		/*
+		 * The matchmaking-session-work regression. U1 is long; while its lane runs, U1 grows a
+		 * follow-up (#7) and an unrelated batch U2 becomes ready. Reserving only *issues* left U1
+		 * looking READY with one unseen member, so the freed lane re-fired U1 against the very
+		 * worktrees and branches lane 1 was still inside.
+		 */
+		stage(
+			[
+				{ issues: ["5"], name: "U1" },
+				{ issues: ["6"], name: "U2" },
+			],
+			[makeIssue(5), makeIssue(6), makeIssue(7)],
+		);
+
+		const parsed = options([flash, deep], ["queue", "run", "--parallel", "2"]);
+		/** Live instances of each batch, so a duplicate is measured as overlap rather than a count. */
+		const live = new Map<string, number>();
+		const started: Array<string> = [];
+		let peakU1 = 0;
+		let grown = false;
+
+		const { value } = await capture(async () =>
+			runParallelPool(parsed, async ({ batch }: LaneSpawnParams) => {
+				started.push(batch);
+				const now = (live.get(batch) ?? 0) + 1;
+				live.set(batch, now);
+				if (batch === "U1") {
+					peakU1 = Math.max(peakU1, now);
+				}
+
+				try {
+					if (batch === "U1") {
+						if (!grown) {
+							grown = true;
+							/* A review inside U1 registered a follow-up into U1's tail. */
+							writeQueueManifest(
+								{
+									...emptyQueueManifest(),
+									sequences: [
+										{ issues: ["5", "7"], name: "U1" },
+										{ issues: ["6"], name: "U2" },
+									],
+								},
+								manifestPath,
+							);
+						}
+
+						/*
+						 * Stay in flight across U2's completion, so the freed slot's refill sees U1
+						 * still running. A timer rather than a gate: the pool must still terminate,
+						 * whether it wrongly re-fires U1 or correctly leaves the slot idle.
+						 */
+						await new Promise((resolve) => setTimeout(resolve, 30));
+					}
+
+					return { ok: true };
+				} finally {
+					live.set(batch, (live.get(batch) ?? 1) - 1);
+				}
+			}),
+		);
+
+		assert.equal(peakU1, 1, `U1 ran concurrently with itself: ${started.join(",")}`);
+		assert.ok(
+			value.batches.length >= 2,
+			`the pool must refill the free lane rather than idle: ${started.join(",")}`,
+		);
+		/*
+		 * The growth is not lost: #7 is reserved once the first U1 run ends, so the batch continues
+		 * rather than being abandoned. Only the *overlap* was the bug.
+		 */
+		assert.deepEqual([...value.issues].sort(), ["5", "6", "7"]);
+	});
+
 	test("a serialization rule keeps two batches out of the same pool slot", async () => {
 		stage(
 			[

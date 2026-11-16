@@ -13,6 +13,17 @@ import type { QueueView } from "./render.js";
 export interface ScheduleParams {
 	/** Restrict dispatch to this sequence name (`queue run --name <batch>`). */
 	batch?: string;
+	/**
+	 * Sequences a lane of this pool is running right now.
+	 *
+	 * A parallel pool must never put one sequence in two lanes: members run against the same
+	 * worktrees and the same branch names, so two children for one sequence race the completion
+	 * markers, the pushes, and each other's commits. `seen` cannot express this, because it holds
+	 * _issues_ — a sequence that grew after it was dispatched still has unseen members, which is
+	 * exactly the case that let lane 2 re-fire matchmaking while lane 1 was still running it. A
+	 * serial run passes nothing here, so its `preferred` re-fire of a grown batch is unchanged.
+	 */
+	inFlight?: ReadonlySet<string>;
 	manifest: QueueManifest;
 	/**
 	 * Batch dispatched immediately before this call. While it still has members this run has not
@@ -95,6 +106,7 @@ export function ruleConflicts(
  */
 export function selectNextBatch({
 	batch,
+	inFlight,
 	manifest,
 	preferred,
 	seen,
@@ -127,8 +139,10 @@ export function selectNextBatch({
 	}
 
 	const reasons: Array<string> = [];
-	/** Sequences skipped only because every member is already dispatched. */
-	let inFlight = 0;
+	/** Sequences skipped because every member is already dispatched. */
+	let dispatched = 0;
+	/** Sequences skipped because another lane of this pool is running them. */
+	let runningElsewhere = 0;
 	for (const sequence of view.sequences) {
 		if (filtered && sequence.name !== batch) {
 			continue;
@@ -140,7 +154,16 @@ export function selectNextBatch({
 		}
 
 		if (sequence.issues.every((issue) => seen.has(issue.number))) {
-			inFlight += 1;
+			dispatched += 1;
+			continue;
+		}
+
+		/*
+		 * One sequence, one lane. Checked before readiness and rules so a batch a lane is running is
+		 * never offered to a second one, even when it grew members that `seen` has not recorded.
+		 */
+		if (inFlight?.has(sequence.name) === true) {
+			runningElsewhere += 1;
 			continue;
 		}
 
@@ -173,7 +196,8 @@ export function selectNextBatch({
 	 * the second sets `saturated`, and only when nothing else is also pending: a gated batch beside an
 	 * in-flight one is a queue with work to do later, not a full one.
 	 */
-	const saturated = reasons.length === 0 && inFlight > 0;
+	const busy = dispatched + runningElsewhere;
+	const saturated = reasons.length === 0 && busy > 0;
 	return {
 		kind: "done",
 		reason: reasons.length > 0 ? reasons.join(" · ") : "no sequence is ready to fire",

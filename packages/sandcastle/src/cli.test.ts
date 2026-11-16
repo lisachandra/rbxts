@@ -210,6 +210,57 @@ describe("commaSeparated / parseArgs", () => {
 		);
 	});
 
+	test("an agent command falls back to lane 0 of agents.catalog when no model is configured", () => {
+		/*
+		 * A repository can declare its models only in `agents.catalog`, which every `queue run` lane
+		 * uses. `integration-resume` and `merge` have no lane to draw from, so they refused to start
+		 * on exactly the config their own queue dispatch requires — a resume of a batch `queue run`
+		 * had just composed exited 1.
+		 */
+		const previousCatalog = config.agents.catalog;
+		const previousModels = config.agents.models;
+		config.agents.catalog = [
+			{ backend: "zcode", effort: "max", model: "catalog-model", name: "glm" },
+		];
+		config.agents.models = {};
+
+		try {
+			withEnv(
+				{
+					DIRAC_SANDCASTLE_MODEL: undefined,
+					PI_SANDCASTLE_MODEL: undefined,
+					SANDCASTLE_MODEL: undefined,
+				},
+				() => {
+					const resumed = parseArgs(["integration-resume", "--name", "club-system-work"]);
+					assert.equal(resumed.model, "catalog-model");
+					assert.equal(resumed.agentBackend, "zcode");
+					assert.equal(resumed.effort, "max");
+					assert.equal(resumed.steps.design.model, "catalog-model");
+
+					// An explicit flag still wins over the catalog.
+					const explicit = parseArgs([
+						"integration-resume",
+						"--name",
+						"club-system-work",
+						"--model",
+						"flag-model",
+					]);
+					assert.equal(explicit.model, "flag-model");
+
+					/*
+					 * A queue dispatch keeps its own lane resolution, so the catalog does not mask a
+					 * genuinely empty catalog in the parallel path's own error.
+					 */
+					assert.equal(parseArgs(["queue", "run"]).model, "");
+				},
+			);
+		} finally {
+			config.agents.catalog = previousCatalog;
+			config.agents.models = previousModels;
+		}
+	});
+
 	test("parseArgs uses backend-specific model env keys", () => {
 		withEnv(
 			{

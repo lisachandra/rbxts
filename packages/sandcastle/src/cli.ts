@@ -13,6 +13,7 @@ import { phaseNames, setupOutputs } from "./config.js";
 import { type HelpTopicKey, renderHelpTopic } from "./help.js";
 import { isQueueSubcommand, type QueueSubcommand, queueSubcommands } from "./queue/commands.js";
 import type { QueueGraphFormat } from "./queue/graph.js";
+import { resolveLaneAgents } from "./queue/profile.js";
 import { config } from "./runtime.js";
 import { agentStepNames, resolveAgentSteps } from "./steps.js";
 import type {
@@ -1372,13 +1373,33 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		state.model?.trim() ??
 		config.agents.models[state.agentBackend]?.trim() ??
 		(legacyModel !== "" ? legacyModel : undefined);
-	const workflowModel = model ?? "";
-	const steps = resolveAgentSteps(
-		{ agentBackend: state.agentBackend, effort: state.effort, model: workflowModel },
-		config.agents.models,
-		config.agents.steps,
-		state.steps,
-	);
+
+	/*
+	 * A repository may declare its models *only* in `agents.catalog`, which is the shape every
+	 * `queue run` lane uses. An agent command that is not a queue dispatch — `integration-resume`,
+	 * `merge`, `issue` — has no lane to draw from, so it falls back to lane 0's profile instead of
+	 * refusing to start. This is the same profile a serial `queue run` applies, and a resume is
+	 * that same work picking up where it stopped. Only the complete absence of another model
+	 * triggers it, so an explicit flag and `agents.models.<backend>` both still win.
+	 */
+	const catalogDefault = config.agents.catalog[0];
+	const laneAgents =
+		(model === undefined || model === "") &&
+		state.command !== "queue" &&
+		catalogDefault !== undefined
+			? resolveLaneAgents(config, catalogDefault, state.steps)
+			: undefined;
+	const agentBackend = laneAgents?.agentBackend ?? state.agentBackend;
+	const effort = laneAgents?.effort ?? state.effort;
+	const workflowModel = laneAgents?.model ?? model ?? "";
+	const steps =
+		laneAgents?.steps ??
+		resolveAgentSteps(
+			{ agentBackend, effort, model: workflowModel },
+			config.agents.models,
+			config.agents.steps,
+			state.steps,
+		);
 	for (const step of agentStepNames) {
 		if (!isAgentBackend(steps[step].agentBackend)) {
 			throw new Error(`SANDCASTLE_AGENT must be one of: ${config.agents.enabled.join(", ")}`);
@@ -1414,16 +1435,16 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 			}
 		}
 
-		if (model === undefined || model === "") {
+		if (workflowModel === "") {
 			throw new Error(
-				`No model configured for ${state.agentBackend}; set agents.models.${state.agentBackend} in sandcastle.config.ts or pass --model <model>.`,
+				`No model configured for ${agentBackend}; set agents.models.${agentBackend} in sandcastle.config.ts, add an agents.catalog profile, or pass --model <model>.`,
 			);
 		}
 	}
 
 	return {
 		after: state.after,
-		agentBackend: state.agentBackend,
+		agentBackend,
 		allowUnreviewed: state.allowUnreviewed,
 		base: state.base,
 		before: state.before,
@@ -1441,7 +1462,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		continueAnyway: state.continueAnyway,
 		createPr: state.createPr,
 		dryRun: state.dryRun,
-		effort: state.effort,
+		effort,
 		force: state.force,
 		help: state.help,
 		ignoreSetup: state.ignoreSetup,
@@ -1456,7 +1477,7 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		landRecompose: state.landRecompose,
 		last: state.last,
 		maxIssues: state.maxIssues,
-		model: model ?? "",
+		model: workflowModel,
 		noResume: state.noResume,
 		notes: state.notes,
 		phase: state.phase,
