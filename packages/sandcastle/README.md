@@ -1,656 +1,178 @@
 # @lisachandra/sandcastle
 
-Sandcastle is a three-phase agent runner for GitHub issues:
+Runs labelled GitHub issues through three agent phases — **design → implement → review** — each on a
+persistent worktree, then composes a batch of reviewed branches into one integration branch and hands you
+a pull request. It never merges: the review and the merge stay yours.
 
-1. **Design** — a planning agent researches the issue and writes a TDD plan.
-2. **Implement** — an agent implements the plan on a persistent issue branch/worktree.
-3. **Review** — an agent reviews the diff, fixes findings, and leaves a machine-readable
-   `Sandcastle-Review: APPROVED|BLOCKED` comment on the issue.
+GitHub remains the source of truth for issue state. A small git-tracked manifest records only what GitHub
+cannot express — batch order, gates between batches, and "never run these two together" rules.
 
-It also composes reviewed issue branches into integration branches for a human merge.
+## The shape of a run
 
-## Requirements
+An issue gets three separate agent conversations:
 
-- Node.js ≥ 20.12 and pnpm ≥ 11 (for the `gh:` registry alias used with private GitHub Packages)
-- The `gh` CLI authenticated for the target repository
-- An agent backend (`zcode`, `dirac`, or `pi`) with its model configured in `sandcastle.config.ts`
+1. **Design** researches the issue and writes a TDD plan to `.sandcastle/plans/<n>.md`.
+2. **Implement** works from that plan on a persistent branch and worktree.
+3. **Review** reads the diff cold, fixes what it finds, and posts
+   `Sandcastle-Review: APPROVED` or `BLOCKED` on the issue.
 
-## Install
+Separate conversations are deliberate: the implementer reads the plan as a file rather than inheriting
+the reasoning, and the reviewer sees the diff rather than the intent. Each phase ends by writing a
+`.completed` marker; a clean exit without one counts as a failure, so a truncated run is not mistaken for
+success.
 
-```bash
-pnpm add -D @lisachandra/sandcastle
-```
+`sandcastle --issue 123` runs one issue. `sandcastle --issue all` plans and dispatches the unblocked
+backlog.
 
-## Configuration
+## Configuring
 
-Create `sandcastle.config.ts` at the repository root. Every field is optional; generic
-defaults are used otherwise. The file is loaded with jiti and validated with zod.
+Create `sandcastle.config.ts` at the repository root. Only the fields a repo actually needs are usually
+set — agent backend and model, setup commands, and the label that marks AFK-ready work:
 
 ```ts
 import type { SandcastleUserConfig } from "@lisachandra/sandcastle";
 
 const config: SandcastleUserConfig = {
-	dir: ".sandcastle",
-	baseBranch: "main",
-	setupCommands: ["scripts/bash/fetch-places.sh && pnpm setup"],
-	symlinks: [
-		{ path: "creator-docs", target: "creator-docs" },
-		{ path: ".diracrules", target: ".agents" },
-	],
-	prompts: {
-		plan: ".sandcastle/plan-prompt.md",
-	},
-	skills: {
-		labels: {
-			ecs: { design: ["ecs-design"], implement: ["ecs-design"] },
-		},
-	},
+	setupCommands: ["pnpm setup"],
 	labels: { readyForAgent: "ready-for-agent" },
-	reviewMarker: "Sandcastle-Review",
-	issueCommand: "gh issue view {issue}",
 	agents: {
-		enabled: ["claude-code", "codex", "copilot", "cursor", "dirac", "opencode", "pi"],
-		default: "dirac",
-		models: { dirac: "dirac-model", codex: "codex-model" },
-		steps: {
-			design: { model: "cheap-planner", effort: "medium" },
-			implement: { model: "strong-coder", effort: "max" },
-			review: { backend: "codex", effort: "high" },
-		},
-		// Selectable model + harness profiles for `queue run --parallel`; lane k runs catalog[k % n].
-		catalog: [
-			{ name: "flash", backend: "dirac", model: "dirac-model", effort: "high" },
-			{ name: "deep", backend: "codex", model: "codex-model", effort: "max" },
-		],
+		models: { dirac: "dirac-model" },
+		steps: { review: { backend: "codex", effort: "high" } },
 	},
-	effort: "xhigh",
-	queue: { parallel: 2 },
 };
 
 export default config;
 ```
 
-`SandcastleUserConfig` accepts the same partial shapes as the validator (every field
-optional). Programmatic consumers that need the fully-resolved config (all prompt paths
-absolute, defaults merged) can use `SandcastleConfig` / `loadConfig`.
+`agents.steps` is where a workflow gets cheaper or stronger per phase — a small model for design and a
+strong one for review is the usual shape. A CLI flag always wins over it, and it wins over the workflow
+default, so `--implement-model` can rescue a single run without editing the file.
 
-### Options
+Credentials stay in the environment, never in the config: `OPENAI_API_KEY`, `OPENAI_API_BASE`, and
+`GH_TOKEN` are the ones still read from it. Put them in a repo-root `.env`, which setup copies into every
+worktree so the agents inherit it. Legacy `SANDCASTLE_AGENT`, `SANDCASTLE_EFFORT`, `SANDCASTLE_MODEL`, and
+`DIRAC_SANDCASTLE_MODEL` / `PI_SANDCASTLE_MODEL` are no longer read — setting them prints a warning
+pointing at the config key that replaced them (`SANDCASTLE_MODEL` is simply ignored).
 
-| Option                     | Default                                  | Purpose                                                                                                                                                                                                                |
-| -------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dir`                      | `.sandcastle`                            | State, plans, logs, worktrees, and integrations directory                                                                                                                                                              |
-| `baseBranch`               | `main`                                   | Diff base for implementation and review                                                                                                                                                                                |
-| `setupCommands`            | `[]`                                     | Shell commands run in a fresh worktree before phase agents                                                                                                                                                             |
-| `setupOutput`              | `log` for runs, `inherit` for `setup`    | Where `setupCommands` output goes: `log` appends to `.sandcastle/logs/setup-*.log`; `inherit` streams into the runner. `--setup-output` overrides per invocation                                                       |
-| `symlinks`                 | `[]`                                     | Repository directories linked into fresh worktrees                                                                                                                                                                     |
-| `prompts`                  | package defaults                         | Per-phase prompt file paths (repo-relative)                                                                                                                                                                            |
-| `queue.file`               | `sandcastle.queue.json`                  | Queue manifest path (repo-relative) used by the `sandcastle queue` command group                                                                                                                                       |
-| `queue.enabled`            | `true`                                   | Set `false` to bypass the queue workflow entirely (no gates, reviews report follow-ups in the comment only); `--no-queue` / `--queue` override per invocation                                                          |
-| `queue.commit`             | `false`                                  | Commit the manifest after each mutating queue command (never pushes)                                                                                                                                                   |
-| `queue.strictChain`        | `false`                                  | Abort dispatch instead of warning when a reused member's branch does not contain the accumulated base; `--strict-chain` overrides per invocation                                                                       |
-| `integration.mergeSubject` | `chore(integration): integrate {source}` | Subject of the merge commit that composes an integration; `{source}` is the source name. Conventional by default, because a repository with commitlint rejects a non-conventional one and leaves the merge uncommitted |
-| `integration.verifyHooks`  | `false`                                  | Run the repository's git hooks for that merge commit. Leave off: the hooks target human commits, and a hook refusing the merge leaves the composition uncommitted                                                      |
-| `skills.defaults`          | phase defaults                           | Skills injected into each phase prompt                                                                                                                                                                                 |
-| `skills.labels`            | `{}`                                     | Extra skills per issue label (e.g. `ecs`, `security`, `ui`)                                                                                                                                                            |
-| `labels.readyForAgent`     | `ready-for-agent`                        | Issue label that marks AFK-ready issues                                                                                                                                                                                |
-| `reviewMarker`             | `Sandcastle-Review`                      | Comment marker prefix (`<marker>: APPROVED                                                                                                                                                                             | BLOCKED`) |
-| `issueCommand`             | `gh issue view {issue}`                  | Command template used to fetch issue data                                                                                                                                                                              |
-| `agents.enabled`           | all supported backends                   | Allowed agent backends (`claude-code`, `codex`, `copilot`, `cursor`, `dirac`, `opencode`, `pi`, `zcode`)                                                                                                               |
-| `agents.default`           | `dirac`                                  | Backend used when `--agent` is not passed                                                                                                                                                                              |
-| `agents.models`            | `{}`                                     | Default model per backend, used when `--model` is not passed                                                                                                                                                           |
-| `agents.steps`             | `{}`                                     | Per-step `{ backend, model, effort }` overrides for `design`, `implement`, `review`, `planner`, `resolve`, `integrationReview`                                                                                         |
-| `agents.singleSession`     | `false`                                  | Run design → implement → review as one continuous agent conversation; `--single-session` / `--no-single-session` override per invocation                                                                               |
-| `effort`                   | `xhigh`                                  | Default reasoning effort                                                                                                                                                                                               |
+Setup commands run in each fresh worktree before the agents start. Output is logged to a per-worktree
+file rather than streamed, because an install that prints thousands of lines buries the agent's output;
+a failure prints the last 30 lines to the terminal, and stdin is closed so a command waiting for input
+fails instead of hanging an unattended run. Set `setupOutput: "inherit"` (or `--setup-output inherit`)
+when you want the old streaming behaviour.
 
-Precedence for every step is CLI flag (`--design-model`, `--implement-agent`, `--review-effort`, `--planner-*`, `--resolve-*`, `--integration-review-*`) over `agents.steps` config over the workflow default (`--agent` / `--model` / `--effort` plus `agents.models`). When a step selects a different backend without its own model, the mapped `agents.models[backend]` wins over the workflow model.
+## The queue
 
-### Local docs via `creator-docs`
-
-Repos that need Roblox API documentation for agents keep a local, gitignored copy of the
-[`roblox/creator-docs`](https://github.com/roblox/creator-docs) repository:
-
-1. Sparse-checkout the docs once into a shared location (outside the repo):
-
-    ```bash
-    git clone --filter=blob:none --sparse https://github.com/roblox/creator-docs F:/Acid/creator-docs
-    git -C F:/Acid/creator-docs sparse-checkout set content
-    ```
-
-2. Junction (Windows) or symlink it into the repository root as `creator-docs`:
-
-    ```powershell
-    New-Item -ItemType Junction -Path <repo>/creator-docs -Target F:/Acid/creator-docs
-    ```
-
-3. Ignore it: add `creator-docs/` to the repo's `.gitignore` (or `.git/info/exclude` for a
-   machine-local setup).
-
-4. Reference it in `sandcastle.config.ts` so agents in fresh worktrees can read the docs:
-
-    ```ts
-    symlinks: [{ path: "creator-docs", target: "creator-docs" }],
-    ```
-
-The docs are never committed; each worktree gets a junction to the same sparse checkout, and
-the link is skipped with a warning if the target is missing.
-
-## Usage
+Reviews find follow-up work, it gets filed, and it never reaches the plan. The queue closes that gap: a
+manifest of batches that `queue run` dispatches from, so filed follow-ups actually get scheduled.
 
 ```bash
-sandcastle --issue 123 --dry-run   # print resolved config without running
-sandcastle --issue 123             # run design, implement, review
-sandcastle --issue 123 --resume    # resume the incomplete phase
-sandcastle --issue 123 --single-session # design, implement, review in one conversation
-sandcastle --issue 123 --skip-setup # reuse worktree without re-running setup commands
-sandcastle --issue all             # plan + dispatch unblocked issues
-sandcastle issue-sequence --sequential 156,157,158 --base main
-sandcastle merge --name release-candidate --issues 150,151 --base main
+pnpm sandcastle queue list              # READY/GATED batches plus drift
+pnpm sandcastle queue run               # fire everything that is ready
+pnpm sandcastle queue run --land        # ...and compose each batch as it finishes
+pnpm sandcastle queue land --name <batch> --create-pr
 ```
 
-By default every run executes `setupCommands` and links configured `symlinks` in the worktree
-before agents start — including integration merges (`merge`, `merge-integrations`, and
-`integration-resume`). `--ignore-setup` continues even if the setup command fails (symlinks are
-still linked); `--skip-setup` skips the setup commands entirely while still linking symlinks.
+`land` composes the batch on `sandcastle/integration/<name>`, resolving conflicts and running an
+integration review with agents, then opens a PR whose body closes every member. Merging that PR is the
+human step, and it is also what unblocks any batch waiting on this one.
 
-Setup output is logged rather than inherited on agent runs, because an install that prints
-thousands of lines otherwise buries the phase stream:
+A **batch** is a named, ordered group, and its name _is_ its integration branch, so names are unique.
+Order inside a batch is a dependency: each member's branch is the next one's base. That is why
+parallelism is between batches only — members of one batch must stay serial.
 
-```text
-  ▶ Running setup commands → .sandcastle/logs/setup-issue-sandcastle-issue-498.log
-  ✓ Setup commands finished (4m12s) → .sandcastle/logs/setup-issue-sandcastle-issue-498.log
-```
-
-`setup-issue-*.log` and `setup-integration-*.log` keep each worktree's history, appended per
-invocation with a `--- Setup started ---` header and rotated to `.1` past 5 MiB. A failed setup
-prints its last 30 lines to the terminal before rethrowing, so the real error is visible without
-opening the file. `stdin` is ignored in `log` mode, so a setup command that waits for input fails
-instead of hanging an unattended run.
-
-`--setup-output inherit` restores streaming into the terminal (and stdin) for a run;
-`setupOutput: "inherit" | "log"` in `sandcastle.config.ts` sets it for the repository, and an
-explicit flag still wins. A standalone `sandcastle setup` inherits by default — you are waiting
-on that output — while `log` remains an explicit choice there. If the log cannot be opened, the
-runner warns and falls back to `inherit` rather than failing the environment.
-
-Because integration worktrees are long-lived, they accumulate uncommitted changes: setup
-artifacts (fetched places, submodule checkouts), formatter churn from `lint:fix`, and agent
-edits that no source branch owns. When a source also touched one of those files, git aborts the
-merge with "Your local changes to the following files would be overwritten by merge" — and the
-conflict resolver cannot act on that.
-
-The merge loop therefore inspects the worktree first:
-
-- default: fail before merging, list the blocking paths, and record status `blocked`
-- `--quarantine-drift`: `git stash push -m "sandcastle <name>: pre-merge drift"` those paths,
-  record the stash commit on the manifest, and continue merging
-- submodule pointers are reported but never block a merge (git merges over them)
-- untracked files are ignored, so the `.agents` / `.diracrules` / `creator-docs` junctions are
-  never stashed
-
-`integration-status` prints the quarantined paths and the `git stash apply <commit>` command to
-restore them. Only genuine unmerged paths produce `conflict-resolution-required`; blocked runs
-are resumable and re-enter the same source once the worktree is clean.
-
-### Standalone worktree setup (`sandcastle setup`)
-
-Harnesses (like paseo) and manual `git worktree add` flows can prepare a worktree without
-starting an agent. The command reads the same `sandcastle.config.ts` fields and is
-idempotent:
+Placement is done through the CLI, never by editing the JSON:
 
 ```bash
-sandcastle setup                        # prepare the current directory
-sandcastle setup --worktree <path>      # prepare an existing worktree path
-sandcastle setup --branch <name> [--base <ref>]  # create/reuse a worktree and prepare it
-sandcastle setup --dry-run              # print what would happen, execute nothing
-sandcastle setup --setup-output log     # append setup output to a log instead of the terminal
+pnpm sandcastle queue add --issue 42 --sequence <batch> --after 41
+pnpm sandcastle queue sequence --name <batch> --issues 40,41,42
+pnpm sandcastle queue rule --name R1 --issues 41,42 --reason "same file"
 ```
 
-Preparation is identical to what an issue run performs before its phases: create the
-`.sandcastle/{worktrees,logs,plans,state,integrations}` directories, copy the repo `.env`
-when present, run `setupCommands`, and link `symlinks`. `--ignore-setup` and `--skip-setup`
-behave as in the issue workflow. Setup output is inherited here (you are waiting on it);
-pass `--setup-output log` or set `setupOutput: "log"` to write it to a log instead. A bare
-`sandcastle setup` (no flags) targets the current directory — the shape paseo hands you for a
-clean worktree.
+`queue add --gated` parks an issue until a stated condition clears; `--human` marks a decision that needs
+a person and is never auto-promoted. A `queue check` that reports drift means the manifest and GitHub
+disagree — an unplaced `ready-for-agent` issue, a closed issue still in a batch — and it must be clean
+before firing.
 
-Persistent issue worktrees live in `.sandcastle/worktrees/sandcastle-issue-<n>`, state in
-`.sandcastle/state/<n>.json`, plans in `.sandcastle/plans/<n>.md`, completion markers in
-`.sandcastle/markers/`, and logs in `.sandcastle/logs/issue-<n>.log` (live upstream log output;
-`issue-<n>.digest.log` additionally streams a clean markdown digest for dirac and zcode runs). Each phase agent
-finishes by creating a scoped `.completed` marker as its final action; the runner treats a
-clean exit without that marker as a phase failure. The runner never closes issues, merges
-branches, or publishes releases; the final human merge is yours.
+### Gates between batches
 
-## Queue (`sandcastle queue`)
+A batch that needs another batch's commits is declared with `--after <batch>` and stays GATED until that
+integration is an ancestor of the base branch. It clears itself once the PR merges, so no manual step is
+needed. Prose like "runs after X merges" is invisible to the scheduler — that is the bug `--after`
+exists to replace.
 
-Reviews regularly surface follow-up work: new issues that get filed on GitHub but never make
-it into the batch plan. The queue command group closes that gap. GitHub issues stay the
-canonical store for issue state (open/closed, labels, blocked-by edges — always fetched
-live); the queue manifest (default `sandcastle.queue.json`, at the repository root,
-git-tracked) records only what GitHub cannot express — batch composition and run order,
-same-file serialization rules, and gate conditions:
+## Landing
+
+`land` composes the batch, then prints the `git push` and `gh pr create` commands unless you pass
+`--create-pr`. A composition that no longer matches its batch — the tail moved, a member branch moved
+after it was merged — is refused rather than shipped, because its PR would close issues it does not
+carry; `--recompose` rebuilds it from the current tail.
+
+## Reclaiming worktrees
+
+Branches are durable and worktrees are disposable. A long batch otherwise accumulates one full checkout
+per member, each with its own installed dependencies.
 
 ```bash
-sandcastle queue add --issue 42 --sequence U2                    # append to a batch
-sandcastle queue add --issue 42 --sequence U2 --after 41         # insert after issue 41
-sandcastle queue add --issue 43 --gated --joins V --reason "waiting on issue 41"
-sandcastle queue add --issue 44 --human --reason "needs a human decision session"
-sandcastle queue sequence --name ui-wiring-work --title "ui wiring" --issues 40,41,42 \n  --roles 40=shell,41=pause --after audio-seam-work   # the batch IS the integration name
-sandcastle queue sequence --name ui-wiring-work --issues 40,41,42 --before V   # place a batch in the run order
-sandcastle queue sequence --name ui-wiring-work --delete                       # drop a batch (no --issues needed)
-# a redefinition that moves or drops an already-dispatched member is refused: dispatched members stay first, in run order
-sandcastle queue land --name ui-wiring-work --create-pr  # compose the batch and open its PR
-sandcastle queue land --name ui-wiring-work --recompose   # rebuild a composition that no longer matches its batch
-sandcastle queue migrate --apply                         # translate a v1 manifest (--assign names unnamed batches)
-sandcastle queue rule --name R2 --issues 41,42 --reason "same file"
-sandcastle queue rule --delete --name R2                    # retire every rule named R2 (or match --issues)
-sandcastle queue remove --issue 43
-sandcastle queue list       # live view: READY/GATED batches, promotable gates, drift
-sandcastle queue check      # same view; exits non-zero while drift exists
-sandcastle queue clean --all            # remove closed/landed/stale worktrees (--dry-run to preview)
-sandcastle queue graph      # Mermaid diagram of the run order (--format json|ascii, --write, --comment)
-sandcastle queue serve      # the same graph as a local page (--port, --host, --open)
-sandcastle queue run --name ui-wiring-work  # fire the next READY batch; re-reads the manifest after each one
-sandcastle queue run --land                 # ...and compose each batch as it finishes
-sandcastle queue run --push-and-delete      # ...and reclaim each member's worktree as it finishes
-sandcastle queue run --parallel 2           # run two batches at once, one agents.catalog profile per lane
-sandcastle queue run --name ui-wiring-work --profile deep  # pin one batch to one profile
-sandcastle queue clean --batch ui-wiring-work --push-and-delete  # reclaim one batch's worktrees
-sandcastle queue clean --prune-git          # sweep .git/worktrees debris; removes no worktree
-sandcastle queue bootstrap       # propose placements for the unplaced backlog (--apply writes them)
+pnpm sandcastle queue run --push-and-delete
+pnpm sandcastle queue clean --batch <batch> --push-and-delete
+pnpm sandcastle queue clean --prune-git
 ```
 
-A worktree is disposable and its branch is the durable artifact, so `--push-and-delete` pushes a
-member's branch and then removes its worktree. On `queue run` it does that **per member, as the member
-finishes** — the next member is cut from the previous member's branch, never from its worktree, so
-nothing is left needing it. That matters for disk: a 31-member batch otherwise holds 31 full
-checkouts, each with whatever `setupCommands` installed. `queue clean --batch <name>
---push-and-delete` does the same for a batch you ran earlier.
+`--push-and-delete` pushes a member's branch and removes its worktree as that member finishes, since the
+next member is cut from the branch and never needs the checkout. Two things keep it safe: a member with
+uncommitted tracked paths keeps its worktree (a review can leave corrections that exist nowhere else),
+and so does a member whose push failed. `--prune-git` only clears the `.git/worktrees` registrations a
+hand-deleted checkout leaves behind.
 
-Two guards, both deliberate. A member with uncommitted tracked paths keeps its worktree — a review can
-leave corrections that exist nowhere else — and the line is reported so you can commit them or drop
-them with `--force`. A failed push also keeps it, since the push is what makes the worktree
-disposable. Re-running a phase after a reclaim costs a fresh checkout plus `setupCommands` again; that
-is the trade `--push-and-delete` makes.
+## Changing a run in flight
 
-`--prune-git` clears the registrations a hand-deleted worktree leaves in `.git/worktrees`, which is
-what makes a repository's `.git` grow without bound. It removes no worktree and respects git's locks:
-a locked worktree's registration is git's to keep.
+Edit `sandcastle.config.ts`. A running run re-reads it every 30 seconds, and a step whose model changed is
+restarted on the new value without counting as a failure — so an overnight run can be moved to a
+different model without killing it. A config that does not parse is reported once and ignored, and the
+last good config keeps running. Two changes require a new run: `dir` and any step's `backend`, because a
+stored session can only be resumed by the same backend.
 
-Every batch is built from `--base`, so nothing stacks on an unlanded integration and there is one
-answer to "when do I merge?": when its pull request is open and reviewed. `sandcastle queue land
---name <batch>` composes the batch on `sandcastle/integration/<name>` — merging the members,
-resolving conflicts, running the integration review, all as agents — and then hands over the seam a
-human owns. By default it prints the `git push` and `gh pr create` commands; `--create-pr` runs them,
-and the PR body carries one `Closes #<n>` per member so merging it closes the whole batch (which is
-also what clears those issues' `blocked-by` edges for later batches). Nothing in sandcastle runs
-`gh pr merge`: the merge is the human step, and once it lands, batches whose `after` names this
-integration become READY on their own. `--finish` removes a batch whose members GitHub has already
-closed and clears the `after` references pointing at it.
+## Parallel batches
 
-Before it hands over, the composition is compared with the batch it was built for: a moved tail, a
-member the batch no longer carries, or a member branch that moved after it was merged all mean the
-PR would close an issue it does not carry. The hand-off is refused and the refusal names its fix —
-`--recompose`, which drops that composition and rebuilds it from the batch's current tail.
-
-A batch name is an integration name, so it is unique and no two batches share a branch, and it is the
-whole identity — the v1 split between a short code and a separate `mergeName` is gone. A v1 manifest
-is refused by name with the command that translates it: `sandcastle queue migrate` prints every
-rename, fold, and remapped gate as a proposal (`--apply` writes it), and `--assign <old>=<name>` names
-any batch v1 left unnamed rather than guessing.
-
-`queue list` / `queue check` fetch live issue state (`gh issue list` plus one batched
-GraphQL call for blocked-by edges) and render the visualization: per-batch READY/GATED with
-reasons, gated issues that are now promotable, and drift — unplaced ready-for-agent issues,
-closed-but-referenced issues, and referenced-but-missing issues. Each batch also renders what
-the manifest knows and GitHub does not: `title` beside the batch name, a `roles` phrase
-beside every member, and each `notes` line under the membership. `queue check` is safe to
-run after any review that files follow-up issues: it must report no drift before a review
-completes. The bundled review prompts reference these commands; repos that override
-`prompts.review` / `prompts.reviewIntegration` should keep that contract.
-
-`queue graph` renders the schedule the way a human reads it: one node per batch in run order, plus
-the edges the flat view cannot show — `after <integration>` gates, `serialized` rules, and live
-cross-batch blocked-by links. GitHub draws the Mermaid block natively in files, issues, PRs, and
-comments, so the diagram belongs next to the plan it describes. `--write <path>` emits the Markdown
-page (marker comment, legend, gated and human lists) without a render timestamp, which is what makes
-a committed copy diffable for schedule drift; `--comment <n>` posts that same page to a tracker issue
-and updates the comment it wrote last time instead of adding another; `--format json` prints the
-payload a tool consumes. The command is read-only — it never writes the manifest.
-
-`queue serve` answers the same payload over HTTP, so the schedule has an interactive surface for
-the cases GitHub cannot render: zoom and pan, flip between lanes (top-down, batches nothing
-constrains share a rank like a state chart) and run order (the dispatch spine left to right),
-toggle whole edge kinds and batch statuses to answer "what is left of this run order?", click
-a batch for its members, roles, blockers, notes and merge branch, and share a view as
-`?batch=<name>&layout=lanes&dir=TB`. Cards expose edge handles on all four sides with
-per-kind channels and roomy labels, so gates, rules, and blockers read without stacking. The page is served
-from `dist/web` and the APIs from the command itself, so no extra process is involved; it is a
-read-only local view bound to `127.0.0.1` with a 30-second cache in front of the `gh` reads, and
-`--refresh` in the page bypasses that cache rather than waiting it out.
-
-`queue run` dispatches the first READY sequence in manifest order — priority, not a base chain:
-every batch starts from `--base` and only members inside one batch chain — re-reads the manifest
-after every batch, and prunes landed entries (`--keep-entries` to keep them). It also re-reads the
-batch's member order **before each member**, so a follow-up a review registers after its own issue
-dispatches next, chained from that member's branch — inside the same invocation, not on a re-fire.
-From a member worktree, `queue add --after <m>` anchors only at the review's own issue (any other
-anchor is refused; omit `--after` to append to the tail); from the primary checkout the anchor is
-unrestricted, but an insertion ahead of a member that already completed is refused — that member is
-reuse-chained on its pre-insertion branch and would silently bypass the newcomer. Chain containment
-is drift: `queue check`/`queue list` report a member branch that does not contain its predecessor's
-tip, and `queue run` warns on the same condition at reuse time (`queue.strictChain: true` or
-`--strict-chain` aborts instead). Gated batches are
-skipped until READY, so a review that registers a follow-up changes what runs next inside the
-same invocation; `--max-issues <n>` caps one invocation. A batch that grew members while it ran is
-finished before any other batch: when it cannot continue, the run stops and names it rather than
-starting unrelated work (`--continue-anyway` restores the fall-through). `queue bootstrap`
-proposes placements for the unplaced backlog grouped by title scope. Repositories that do not want
-the workflow set `queue.enabled: false` (or pass `--no-queue`): the gate disappears and reviews only
-report follow-ups in their comment. With `queue.commit: true` the mutating commands commit the
-manifest themselves; otherwise commit it yourself, or the registration dies with the worktree.
-
-`queue run` exits 1 when nothing could fire and 2 when a `--land` hand-off failed: a batch that
-needs a human must not look like an exhausted queue to whatever scripted the run. Under `--json`,
-every hand-off attempt also emits `{ handOff: { batch, ok, error } }`.
-
-### Cancelling a run
-
-`Ctrl+C` once stops a run cleanly: the in-flight agent is aborted, no further batch starts, and the
-run lock, batch locks, and dispatch lease are all released on the way out. Press it twice to hard-kill
-immediately — that skips the cleanup, so the residue described below is what you get. A cancelled
-run exits `130` (the shell's `SIGINT` convention) and starts no further hand-offs, so re-running the
-same command resumes where it stopped. A composition already under way under `--parallel` is allowed
-to finish: aborting it halfway would leave a partial integration manifest.
-
-When the terminal that owned the run is already gone — a closed window, a crashed editor — clear
-what it left behind in one command:
-
-```bash
-pnpm sandcastle queue cancel          # locks + lease whose owner is provably gone
-pnpm sandcastle queue cancel --force  # also clear a live owner's (last resort; never signals it)
-```
-
-It exits 0 when the checkout is clean and 1 when it kept something because its owner is still
-running, which is the same shape as `queue check`. It never kills a process: a live run is stopped
-from its own terminal, where `Ctrl+C` can unwind it properly.
-
-Residue also reclaims itself. Both a lock and a lease record the `host` and `pid` that took them, and
-a holder on this host whose pid no longer exists is taken over immediately instead of waiting out
-the ten-minute lock window or the thirty-minute lease TTL. The age window still applies to a holder
-on another host, whose pid says nothing here.
-
-### Changing the model of a running session
-
-Edit `sandcastle.config.ts`. A running run re-reads the file every 30 seconds
-(`SANDCASTLE_RELOAD_CHECK_SECONDS` to change that), and switches on what it now says. There is no
-command and no state file: the config file _is_ the switch.
+`queue run --parallel 2` runs two batches at once, one lane each. This is safe precisely because batches
+never stack: every batch starts from the base ref, gates carry the real dependencies, and `R<n>` rules
+keep colliding issues apart.
 
 ```ts
-// sandcastle.config.ts — change this while a batch is in flight
-agents: {
-    models: { zcode: "provider/new-model" },
-    // or per step, or a whole catalog profile
-}
-```
-
-What happens, in order:
-
-- The file's mtime only decides whether to re-parse. An edit that does not change any step's
-  effective selection — a comment, a formatting pass — is reported as applied and kills nothing.
-- A step whose selection moved is aborted mid-attempt and restarted immediately on the new value.
-  The restart does not count against `SANDCASTLE_PHASE_MAX_RETRIES` and does not back off, because
-  nothing failed; the phase resumes the same conversation, and the backend re-asserts the model and
-  effort on the resumed session.
-- Precedence is "changed wins", per step. A step the edit did not touch keeps whatever it was
-  running — including an explicit `--implement-model`. A step whose config-derived value moved takes
-  the new value even over a flag, because that is what the edit was about.
-- A catalog edit applies by profile name: lanes keep their assigned profile and follow its new
-  model. A profile that is deleted or renamed keeps its last-known values for the rest of the run,
-  with one warning saying a new run is needed.
-- A config that does not parse is reported once and ignored; the last good configuration keeps
-  running, so a typo cannot stop an overnight run. Fixing it is picked up on the next tick.
-- Two changes are refused with "start a new run": `dir` (every path this process created already
-  belongs to the old one) and any step's `backend` (a stored session can only be resumed by the
-  backend that owns it).
-
-Finished phases do not redo work when the model changes. A completed implement used to re-run
-whenever the resolved model differed from the one recorded on the state, so an unrelated config edit
-— or a model whose promotional window closed — redid work that had already passed review. Only
-`--force` re-runs a finished phase now; `pnpm sandcastle --issue <n> --status` prints the selection
-a phase actually ran on when it differs from the current config.
-
-### Parallel batches
-
-`queue run --parallel <n>` runs up to `n` batches at once. Parallelism is **between batches only**:
-members inside a batch are strictly serial because each member's branch is the next member's base.
-That is what makes concurrency safe here — every batch starts from the base ref, `after` gates carry
-the real dependencies, and an `R<n>` rule is the repository's own statement that two issues must never
-be in flight together.
-
-```ts
-// sandcastle.config.ts
 agents: {
 	catalog: [
 		{ name: "flash", backend: "zcode", model: "glm-5.3-flash", effort: "high" },
-		{ name: "deep", backend: "zcode", model: "glm-5.3", effort: "max",
-		  steps: { review: { effort: "high" } } },
+		{ name: "deep", backend: "zcode", model: "glm-5.3", effort: "max" },
 	],
 },
-queue: { lease: "auto", parallel: 2 },
+queue: { parallel: 2 },
 ```
 
-- **`agents.catalog`** lists selectable model + harness profiles. Lane `k` runs
-  `catalog[k % catalog.length]`, fixed for the invocation, so an assignment is deterministic and
-  reproducible. An empty catalog means the repository never opted in.
-- **`queue.parallel`** is the repository's allowance. `--parallel` may only narrow it; asking for more
-  is refused with an error naming the key rather than silently clamped.
-- A serial `queue run` uses `catalog[0]`, so the serial and parallel paths start from the same model
-  and cannot disagree about which one a batch ran on.
-- `--profile <name>` pins one profile for a single-batch run; it is refused with `--parallel > 1`,
-  where "which lane?" has no answer.
+Lane `k` uses `catalog[k % n]` for the whole invocation, so an assignment is reproducible. Each lane is a
+child process with its own log, so one blocked batch cannot take its siblings down; landing stays in the
+parent and runs serially. A pool summary at the end reports per-batch duration and how much of the run had
+every lane busy, which answers "was this actually parallel?" without guessing.
 
-Each lane is a child process (`queue run --name <batch> --once --profile <name>`), because a failed or
-blocked member exits its process and would otherwise take sibling lanes down with it. Its stdout and
-stderr go to `.sandcastle/logs/batch-<batch>.<profile>.log`; the parent prints one line per lane event
-(`▶ Lane 1: "ui-wiring" [flash]`, `✓ … finished in 2h14m`). A failed lane's log tail is echoed, and the
-other lanes keep running — one stuck batch must not strand unrelated work. Landing stays in the parent
-and runs serially, so two compositions never race on an integration manifest. It starts as soon as the
-batch it belongs to finishes, not when the pool drains: a pool refills a freed lane immediately, so a
-finished batch would otherwise wait hours behind unrelated work for its pull request. A batch whose
-lane failed is not landed at all: its composition would describe a partial chain.
+## One dispatcher at a time
 
-`--parallel` interacts with the existing rules as you would expect: `--max-issues` still refuses an
-atomic batch that would overshoot, `--push-and-delete` still reclaims per member inside each lane, and
-`--land`/`--create-pr` still hand a finished batch to a human. The parent holds the run lock for the
-whole pool and each child takes an additional per-batch lock, so a hand-run `queue run --name <batch>`
-cannot collide with a lane. A lane child refuses to open a pool of its own, so a forwarded `--parallel`
-can never make a lane spawn grandchildren against the same manifest and worktrees.
+Two runs on one checkout would break the same-file rules, so a run holds a lock; across machines it also
+holds a lease ref on `origin`, acquired by compare-and-swap. The lease expires after 30 minutes without
+renewal, so a crashed machine cannot wedge the queue, and a holder on this host whose process is gone is
+taken over immediately.
 
-`--dry-run` prints the plan without spawning anything, and under `--json` it emits the same per-lane
-object a real run does (`{ batch, issues, kind: "lane", lane, profile, dryRun: true }`) rather than
-leaving a JSON consumer to scrape stderr. Exit codes stay split: a failed lane exits `1`; a failed
-hand-off exits `2`.
-
-A lane that stays free is explained rather than left to inference: the pool prints
-`⏸ 1 lane(s) idle: sequence "X" is GATED (…)` with the scheduler's own reason, and it distinguishes
-"the remaining batches are already in flight" (nothing to report) from "nothing else can fire". The
-run closes with a summary — duration, the share of it with every lane busy, and each batch's own
-time — and under `--json` with one
-`{ kind: "pool", elapsedMs, saturatedMs, utilization, idleReasons, lanes }` object. `lanes` is the
-per-slot account: busy time, idle time, and the batches each slot ran. A lane is a slot, not a
-batch number — the second batch across two lanes runs in slot 0 or 1 — so a pool that keeps refilling
-one slot while the other holds a long batch is visible instead of hidden behind an aggregate. A pool
-that fires nothing reports the exhaustion reason exactly as the serial loop does, instead of exiting
-`1` silently.
-
-### Cross-machine dispatch
-
-The locks above live in one working tree, so they say nothing to a second machine running against the
-same repository. `queue run` therefore also holds a **lease ref on `origin`** while it dispatches:
-`refs/sandcastle/dispatch-lease` points at a root commit whose message is `{ at, host, pid, branch }`.
-Acquisition is a compare-and-swap (`git push --force-with-lease` against the sha the checkout last
-read), so two machines cannot both win — the loser is refused and told which checkout holds it.
-
-```
-⚠ Cross-machine dispatch lease unavailable (this checkout has no `origin` remote); dispatching with local locks only.
-Another checkout is dispatching this queue: pid 8123 on desktop (branch main), renewed 4m ago, expires in 26m.
-```
-
-- **Expiry, not deadlock.** A lease older than 30 minutes is taken over, so a crashed machine cannot
-  wedge the queue. A live run renews every 10 minutes; if a renewal is rejected because someone else
-  now holds the ref, the run stops starting new batches (work already in flight is allowed to finish)
-  rather than dispatching under a lease it no longer owns.
-- **`queue.lease`** decides the mode. `auto` (the default) takes the lease and degrades to local
-  locks with a warning when `origin` is unreachable, so a single-machine checkout keeps working
-  offline. `strict` refuses to dispatch without the lease — the right setting for CI or a team with
-  two machines. `off` makes no network calls at all.
-- **`--no-lease`** and **`--lease-strict`** override the mode for one invocation.
-- A `--dry-run` takes no lease, and neither does a `--parallel` lane child: the parent already holds
-  it, so a child taking one would deadlock against its own run.
-- Lease pushes skip `pre-push` hooks. The ref carries an empty tree that no CI builds, and a hook that
-  runs typecheck/lint/build — or worse, rewrites files — must not run on a renewal.
-- A lease whose holder is on this host and no longer running is taken over immediately
-  (`⚠ Taking over the dispatch lease of pid 8123 on this host, which is no longer running.`) rather
-  than waiting out the TTL. A holder on another machine still waits, because its pid says nothing here.
-
-If a machine really is gone, `pnpm sandcastle queue cancel` clears its lease (and its locks) without
-waiting; `git push origin :refs/sandcastle/dispatch-lease` remains the manual equivalent.
-
-`sequences[].after` is a run-order gate: the batch stays GATED until that integration has
-been composed **and** its head commit is an ancestor of the base branch — the check a batch that
-consumes an earlier batch's commits actually needs. It is evaluated in `queue/gates.ts` with
-`git merge-base --is-ancestor`, it fails closed (a missing manifest, an unfinished composition,
-or a missing head commit all read as "not landed"), and it replaces the prose "runs only after
-X merged" that the scheduler used to ignore. A gated entry's `joins` records the batch it will
-move into, and `queue promote` prefers it over the issue title's conventional scope.
-
-The `sequences` array **is** the run order. A redefinition keeps its position, a new batch joins the
-tail, and `--before <batch>` or `--last` moves one explicitly, so editing a batch never re-ranks the
-schedule.
+`Ctrl+C` once cancels cleanly: the in-flight agent is aborted, no further batch starts, locks and lease
+are released, and the run exits `130` with nothing landed — re-running resumes. If the terminal is already
+gone, `pnpm sandcastle queue cancel` clears the residue without ever signalling a process.
 
 ## Backends
 
-Sandcastle supports `zcode` (default in this repo), `dirac`, `pi`, `codex`, `claude-code`,
-`cursor`, `opencode`, and `copilot`. The custom backends (`zcode`, `dirac`) live in
-`src/providers/`; the rest come from `@ai-hero/sandcastle`. Every backend is wrapped by the
-same marker-based completion layer. The marker file is the only completion contract — no
-completion token is used. The agent backend, default model, and effort are configured in
-`sandcastle.config.ts`; only credentials belong in the environment:
+`zcode` and `dirac` are the two with full support, including **session resume**: a failed phase continues
+its previous conversation instead of starting over, and `--single-session` chains design → implement →
+review through one conversation so each phase sees the previous reasoning. Resume is why
+`--single-session` is limited to those two backends.
 
-```ini
-# Credentials only (loaded from .sandcastle/.env or the process environment)
-OPENAI_API_KEY=
-OPENAI_API_BASE=
-GH_TOKEN=
-```
+`codex`, `claude-code`, `cursor`, `opencode`, `copilot`, and `pi` run each phase fresh.
 
-Legacy `SANDCASTLE_AGENT`, `SANDCASTLE_EFFORT`, `DIRAC_SANDCASTLE_MODEL`, and
-`PI_SANDCASTLE_MODEL` environment variables still work as fallbacks but print deprecation
-warnings; move them into `sandcastle.config.ts` (`agents.default`, `agents.models`, `effort`).
-
-### zcode backend
-
-`zcode` drives the ZCode CLI headlessly through its `zcode app-server` stdio protocol (the
-same protocol paseo's zcode provider speaks). Binary discovery order:
-
-1. `ZCODE_SANDCASTLE_BIN` environment variable (tests point this at a stub app-server)
-2. `zcode` on `PATH`
-3. the ZCode desktop app's bundled CLI (`%LOCALAPPDATA%\Programs\ZCode\resources\glm\zcode.cjs`
-   on Windows, with darwin/linux app paths as fallbacks) run via `node`
-
-While the model streams, the wrapper emits `{type:"keep-alive"}` heartbeats that reset
-upstream's 600s idle watchdog (`AgentIdleTimeoutError`). The heartbeat is re-armed only by
-stdout-producing protocol events — reasoning deltas are dropped from stdout, so long
-pure-thinking stretches keep heartbeating instead of starving the watchdog. The interval is
-tunable via `ZCODE_SANDCASTLE_HEARTBEAT_MS` (default 120000, minimum 100).
-
-By default the app-server loads subagent definitions from `~/.zcode/agents` and the worktree's
-`.zcode/agents`, so a headless run could spawn subagents. Set
-`ZCODE_SANDCASTLE_DISABLE_SUBAGENTS=1` to opt out per run: the wrapper then advertises
-`subagentRuntimeConfigEnabled` and answers `subagents/readRuntimeConfig` with the
-built-in-fallback snapshot, leaving the session with zero subagent types (no runtime profiles,
-and plugin agent definitions are skipped too).
-
-Authentication is zcode's own (`zcode login` / the desktop app's OAuth) — no API keys in
-`.sandcastle/.env` are needed. Model ids are `"<zcode-provider-id>/<modelId>"` pairs, e.g.
-`71fe3b98-87e8-4798-ac98-8985c12de697/th/glm-5.3-flash`; the provider UUID prefix comes from
-zcode's own model registry (`~/.zcode/v2/config.json`). Reasoning effort maps sandcastle's
-vocabulary onto zcode's per-model thought levels: `max` and `low` pass through, `xhigh`
-becomes `high` (zcode has no `xhigh`), and models that only support a binary reasoning flag
-(e.g. `enabled`) take that level verbatim via `--effort`. `permissions`/hooks come from
-zcode's own config; the wrapper auto-answers any permission request with the first `allow`
-option, so runs are only safe with a model/mode you trust (default is `--mode yolo`).
-
-Readable per-phase logs live at `issue-<n>.digest.log` for both `dirac` and `zcode` runs.
-
-### Session resume (`dirac` and `zcode`)
-
-Both custom backends support session resume: when a phase run fails mid-flight, the
-next attempt of the same phase continues the previous agent conversation instead of
-starting over. Sandcastle captures the session id each run announces (dirac's
-`task_started` JSON line, the zcode wrapper's `session_id` event), persists it per
-phase scope under `<.sandcastle>/sessions/`, and offers it back on the next attempt
-(dirac `-T <taskId>`, zcode `session/resume`). A session id the backend no longer
-knows is cleared so the following retry starts fresh. Set
-`SANDCASTLE_NO_SESSION_RESUME=1` to disable resume entirely. Other backends always
-start fresh sessions.
-
-Resume keeps the conversation, not the selection: zcode's `session/resume` restores the
-session's persisted model and ignores a requested reasoning level, so the wrapper re-applies
-the configured model and effort through `session/setModel`/`session/setThoughtLevel` before
-the first turn. A resumed phase therefore always runs on the model the config asks for — when
-a stored session was created under a different `agents.catalog` profile, or the config's model
-changed since the failed attempt, the conversation continues where it left off but on the
-current model and effort. These mutators pass `persistAsWorkspaceLastUsed: false`, so a
-sandcastle run never rewrites the desktop app's last-used selection.
-
-### Single-session mode (`dirac` and `zcode`)
-
-By default the three phases are three separate conversations: the implementer receives the plan
-as a file and the reviewer receives the diff, so each reconstructs reasoning it never witnessed.
-`--single-session` (or `agents.singleSession: true`) instead chains them through **one** session:
-design runs, the implementer resumes that conversation, and the reviewer resumes it again. The
-implementer sees why the plan says what it says; the reviewer sees the diff and the thinking
-that produced it.
-
-Nothing else changes. Each phase keeps its own prompt, completion marker, state slot, budget,
-retry loop, and model/effort selection, so `--phase`, `--force <phase>`, `--resume`, per-phase
-budgets, failure attribution, and the review landing gate all behave exactly as in split mode.
-Only the session scope moves: split mode stores one session per phase, single-session stores one
-under `<issue>.session`. A broken link in the chain (a cleared or expired session) degrades to a
-fresh conversation for that phase with a warning, keeping the phase's marker requirements intact.
-
-Resume is a backend capability, so the mode is too: only `dirac` and `zcode` implement it. An
-explicit `--single-session` on any other backend is refused (rather than silently running three
-separate conversations), while a repository-level `agents.singleSession: true` default warns and
-falls back to split mode — a config default should not make the tool unusable on the backend the
-repo actually uses. `--phase` and `--single-session` are contradictory and refused together.
-`planner`, `resolve`, and `integrationReview` are unaffected: they are not part of the issue
-phase chain.
-
-```text
-  ▶ Single session: design → implement → review (#123)
-```
-
-## Development
-
-```bash
-pnpm build          # compile TypeScript to dist/
-pnpm test           # typecheck (tsconfig.test.json) + node:test suite via tsx
-```
-
-The runner is split into focused modules under `src/`, with `main.ts` as the thin CLI entry
-that re-exports the public API:
-
-- `runtime.ts` — repository/config context and the injectable `io` boundary
-- `cli.ts` — argument parsing and help (including `--<step>-model|agent|effort` flags)
-- `steps.ts` — per-step resolution (CLI flag over `agents.steps` over workflow default)
-- `issue.ts` / `sequential.ts` — single-issue and sequential workflows
-- `integrations.ts` — integration composition and merge-conflict resolution
-- `queue/` — queue manifest, live GitHub state, and the `sandcastle queue` command group
-- `evaluate.ts` / `state.ts` — phase decisions and persisted issue state (`phasesConfig`)
-- `agent.ts` / `worktree.ts` / `git.ts` / `retry.ts` — agent providers, worktrees, git, retries
-
-Each module has a matching `*.test.ts` file; shared test fixtures live in
-`src/test-helpers.ts`.
+`sandcastle --help` and `sandcastle queue <subcommand> --help` cover the flags and exit codes. The
+operational contract for the queue — including how a review must register its follow-ups — lives in
+[`docs/skills/sandcastle/SKILL.md`](../../docs/skills/sandcastle/SKILL.md).

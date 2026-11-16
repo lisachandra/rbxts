@@ -1,307 +1,123 @@
 # @lisachandra/core
 
-Core runtime primitives: structured logging, reactive store, character schemas, and 13 utility modules.
+The runtime primitives the rest of the suite builds on: structured logging, a reactive store,
+character validation, and the small helpers that otherwise get copy-pasted between games.
 
-## Install
+## Logging
 
-```bash
-pnpm add @lisachandra/core
-```
-
-Peer dependencies: `@lisachandra/types`, `@flamework/core`, `@rbxts/crate`, `@rbxts/dataforge`, `@rbxts/lemon-signal`, `@rbxts/log`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `@rbxts/message-templates`, `@rbxts/services`, `@rbxts/sift`, `@rbxts/validate-tree`, `@rbxts/t`, `@rbxts/object-cache`, `type-fest`
-
-## Submodule Exports
-
-| Import                                | Purpose                      |
-| ------------------------------------- | ---------------------------- |
-| `@lisachandra/core/logger`            | Structured logging           |
-| `@lisachandra/core/store`             | Reactive state crate         |
-| `@lisachandra/core/schemas`           | Character validation schemas |
-| `@lisachandra/core/utils/asset`       | Asset ID resolution          |
-| `@lisachandra/core/utils/cframe`      | CFrame utilities             |
-| `@lisachandra/core/utils/color`       | Color manipulation           |
-| `@lisachandra/core/utils/formatTable` | Table formatting (Luau)      |
-| `@lisachandra/core/utils/main`        | General-purpose utilities    |
-| `@lisachandra/core/utils/math`        | Math helpers                 |
-| `@lisachandra/core/utils/r6ik`        | R6 inverse kinematics (Luau) |
-| `@lisachandra/core/utils/string`      | String manipulation          |
-| `@lisachandra/core/utils/type`        | Type guards and utilities    |
-| `@lisachandra/core/utils/vector`      | Vector math                  |
-| `@lisachandra/core/utils/vfx`         | Visual effects helpers       |
-
----
-
-## Logger (`@lisachandra/core/logger`)
-
-Structured logging via `@rbxts/log`. Supports configurable log levels, production mode, and version enrichment.
+`@rbxts/log` is the logging surface for the whole suite — `print`, `warn`, and `error` should not appear
+outside the sink. This package wires the sink and keeps the recent history in memory for an on-screen
+console.
 
 ```ts
-import { configureLogger, setupLogger, logOutput } from "@lisachandra/core/logger";
+import { configureLogger, logOutput, setupLogger } from "@lisachandra/core/logger";
+import { LogLevel } from "@rbxts/log";
 
-// Configure before calling setupLogger
-configureLogger({
-	defaultVersion: "1.2.3",
-	isProduction: false,
-	logLevel: LogLevel.Debugging,
-});
+configureLogger({ defaultVersion: "1.2.3", isProduction: false, logLevel: LogLevel.Debugging });
+setupLogger(); // once, at startup
 
-// Initialize the logger (call once at startup)
-setupLogger();
-
-// Read in-memory log buffer (last 128 entries as [time, message] pairs)
-for (const [time, msg] of logOutput) {
-	print(time, msg);
+for (const [time, message] of logOutput) {
+	// last 128 lines, for a debug overlay
 }
 ```
 
-### API
+`isProduction: true` forces the level to `Information` regardless of `logLevel`, so a production build
+cannot leak debug output by forgetting to change the level.
 
-| Export                    | Description                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| `LoggerConfig`            | Configuration shape for the logger                                             |
-| `loggerConfig`            | Mutable config object (defaults: version `"0.1.0"`, non-production, Debugging) |
-| `logLevel`                | Current active log level                                                       |
-| `configureLogger(config)` | Applies partial config updates                                                 |
-| `fullLogOutputs`          | Full historical log batches (when buffer overflows)                            |
-| `logOutput`               | Current in-memory log buffer (max 128 entries)                                 |
-| `setupLogger()`           | Installs the logger sink                                                       |
+## Store
 
----
-
-## Store (`@lisachandra/core/store`)
-
-A reactive state primitive built on `@rbxts/crate` with client/server state separation.
+One `Crate` shared by every system, split into client, server, and shared views so each side reads only
+what it can actually see.
 
 ```ts
 import { store } from "@lisachandra/core/store";
 
-// Client-side state
-store.client.getState().debugEnabled; // boolean
-store.client.getState("entityIdMap"); // Record<number, number>
-store.client.getState("playerEntityId"); // AnyEntity | undefined
+store.client.getState("playerEntityId"); // this client's entity
+store.server.getState("itemGUIDMap"); // server-only
+store.shared.getState("itemPointers"); // both sides
 
-// Server-side state
-store.server.getState("documents"); // Record<string, CollectionData>
-store.server.getState("itemGUIDMap"); // Record<string, number>
-
-// Shared access (works on both sides)
-store.shared.getState("itemPointers"); // Record<string, string>
-
-// The Matter World instance
-store.world; // World
-
-// Diff signal (fires on state changes)
-store.diffSignal; // Signal<CrateDiff<...>>
-
-// Server-only: hotbar storage
-store.hotbar; // Instance (Folder)
-
-// Server-only: loaded player documents
-store.documents; // Partial<Record<string, Document<CollectionData>>>
+store.world; // the Matter World, set by start()
+store.diffSignal; // fires on every change
 ```
 
-### State Shapes
-
-**`ClientState`:**
+Two things live on the store beyond state: `store.documents` (server, loaded player documents) and
+`store.hotbar` (server, the hotbar folder). Augment `CollectionData` to type the document payload your
+game stores:
 
 ```ts
-interface ClientState {
-	debugEnabled: boolean;
-	entityIdMap: Record<ServerEntityId, ClientEntityId>;
-	itemGUIDMap: Record<string, number>;
-	itemPointers: Record<string, string>;
-	playerEntityId?: AnyEntity;
-	serverStartClock: number;
-	serverStartEpoch: number;
+declare module "@lisachandra/core/store" {
+	interface CollectionData {
+		gold: number;
+		stats: { level: number; xp: number };
+	}
 }
 ```
 
-**`ServerState`:**
+## Character validation
+
+R6 and R15 schemas for `@rbxts/validate-tree`. `waitForCharacter` validates the tree and returns a
+typed model, so downstream code can trust that `Humanoid` and `RootPart` exist:
 
 ```ts
-interface ServerState {
-	serverStartClock: number;
-	serverStartEpoch: number;
-	itemGUIDMap: Record<string, number>;
-	itemPointers: Record<string, string>;
-	documents: Record<string, CollectionData>;
-}
+import { waitForCharacter } from "@lisachandra/core/utils/main";
+
+const character = await waitForCharacter(model); // throws on timeout or a malformed tree
 ```
 
----
+It validates against `schemas.r6Character` only, and `Character` is that type — an R15 rig fails it.
+For R15, validate with `schemas.r15Character` yourself (`schemas.humanoid` covers the humanoid alone).
+All three are deeply frozen.
 
-## Schemas (`@lisachandra/core/schemas`)
+## Async helpers
 
-Character validation schemas for `@rbxts/validate-tree`. Used to verify character model structure before interacting with it.
-
-```ts
-import { schemas, Character, Humanoid } from "@lisachandra/core/schemas";
-
-// Validate a character model
-const character = waitForCharacter(model);
-// character is typed as Character (R6Character)
-
-// Schema objects
-schemas.humanoid; // Humanoid validation schema
-schemas.r6Character; // R6 body schema
-schemas.r15Character; // R15 body schema
-```
-
----
-
-## Utility Modules
-
-### `utils/math`
+`utils/main` covers the joins and waits that are awkward to write correctly:
 
 ```ts
 import {
-	average,
-	closest,
-	farthest,
-	percentage,
-	round,
-	smoothstep,
-	weightRandom,
-	getServerClock,
-} from "@lisachandra/core/utils/math";
-
-getServerClock(); // Synced server time (works client-side)
-round(3.14159, 2); // 3.14
-smoothstep(0, 1, 0.5); // 0.5
-weightRandom(10, 20, 70); // Random weighted index
-```
-
-### `utils/vector`
-
-```ts
-import { reflect, distance } from "@lisachandra/core/utils/vector";
-
-const reflected = reflect(surfaceNormal, bulletDirection);
-const dist = distance(vecA, vecB);
-```
-
-### `utils/cframe`
-
-```ts
-import { distance } from "@lisachandra/core/utils/cframe";
-
-const dist = distance(cfA, cfB);
-```
-
-### `utils/color`
-
-```ts
-import { iterativeLerpColorArray } from "@lisachandra/core/utils/color";
-
-const blended = iterativeLerpColorArray([red, green, blue], 0.5);
-```
-
-### `utils/asset`
-
-```ts
-import {
-	getSoundFromId,
-	getAnimationFromId,
-	getSoundGroupFromId,
-} from "@lisachandra/core/utils/asset";
-
-const sound = getSoundFromId(42);
-const anim = getAnimationFromId(100);
-```
-
-### `utils/string`
-
-```ts
-import { toPascalCase, toCamelCase, formatTable, includes } from "@lisachandra/core/utils/string";
-
-toPascalCase("hello_world"); // "Hello_world"
-formatTable(myData, "Long"); // Formatted string
-```
-
-### `utils/type`
-
-```ts
-import {
-	is,
-	iterate,
-	force,
-	flow,
-	required,
-	getMember,
-	inspect,
-} from "@lisachandra/core/utils/type";
-
-// Iterate with type-safe key/value pairs
-for (const [key, value] of iterate(myTable)) {
-}
-
-// Type narrowing guard
-if (is<string>(value)) {
-	/* value is string */
-}
-
-// Conditional flow control
-for (const _ of flow(shouldRun)) {
-	// Only executes when shouldRun is true
-}
-```
-
-### `utils/main`
-
-```ts
-import {
-	waitForCharacter,
-	waitForDocument,
+	catcher,
 	loadAnimation,
 	lazyConnect,
-	lazyDisconnect,
 	tween,
-	catcher,
-	getHumanoid,
-	applyHumanoidDescription,
+	waitForDocument,
 } from "@lisachandra/core/utils/main";
 
-// Validate and wait for a character model
-const character = await waitForCharacter(model);
+const { track, cached } = await loadAnimation(humanoid, animation); // cached per character
 
-// Load an animation with caching
-const { track, cached } = await loadAnimation(humanoid, animation);
-
-// Tween helper
 await tween(RunService.Heartbeat, tweenInfo, (progress) => {
-	// progress goes 0..1
+	// progress runs 0 → 1
 });
 
-// Catch errors safely
-promise.catch(catcher);
+const connection = lazyConnect(part.Touched, () => {}); // skips the callback once disconnected
+promise.catch(catcher()); // catcher() builds the handler, so it logs traceback plus error
 ```
 
-### `utils/vfx`
+`loadAnimation` returns `{ track, cached }` — the second call for the same character and animation
+hands back the existing `AnimationTrack` instead of reloading it. `catcher` is a factory because it
+captures a traceback at the point you call it, before the rejection surfaces.
+
+`waitForDocument` needs to know how your game stores documents, since `core` cannot depend on the item
+system. Register an accessor once:
 
 ```ts
-import { playVFX, animatedVFX, weldTo } from "@lisachandra/core/utils/vfx";
+import { configureDocumentAccessor } from "@lisachandra/core/utils/main";
+import { store } from "@lisachandra/core/store";
 
-// Simple VFX playback
-const clone = playVFX(vfxAsset, cf, optionalWeldPart);
-
-// Animation-linked VFX
-animatedVFX(character, animationTrack, vfxPart);
+configureDocumentAccessor((userId) => ({ document: store.documents[`Player_${userId}`] }));
 ```
 
-### `utils/r6ik` (Luau)
+## Small helpers
 
-```ts
-import R6IK from "@lisachandra/core/utils/r6ik";
+The remaining modules are single-purpose and short:
 
-const ik = new R6IK(character);
-ik.ArmIK("Left", targetPosition);
-ik.LegIK("Right", targetPosition);
-```
-
-### `utils/formatTable` (Luau)
-
-```ts
-import formatTable from "@lisachandra/core/utils/formatTable";
-
-print(formatTable.formatTable(data, formatTable.formatMode.long));
-```
+- **`utils/math`** — `getServerClock()` for a clock shared by client and server, plus `smoothstep`,
+  `weightRandom`, `closest`, `round`, `average`, `farthest`, `percentage`.
+- **`utils/type`** — `is<T>` for narrowing, `iterate` for typed `pairs`, `required` to strip
+  optionality, `typeAssert` / `typeAssertIs` for assertions, and `flow(condition)`, which returns
+  `[]` or `[symbol]` so a `for ... of flow(run)` body runs only when `run` is true.
+- **`utils/string`** — `toPascalCase`, `toCamelCase`, their `is*` checks, `lookupKeyIgnoreCase`,
+  `toPath`, `includes`, `formatTable`.
+- **`utils/asset`** — `getSoundFromId`, `getAnimationFromId`, `getSoundGroupFromId`.
+- **`utils/vector`** — `reflect`, `distance`; **`utils/cframe`** — `distance`; **`utils/color`** —
+  `iterativeLerpColorArray`.
+- **`utils/vfx`** — `playVFX`, `animatedVFX`, `weldTo`, `toggleAllDescendants`.
+- **`utils/r6ik`** — `R6IK` for two-bone arm and leg IK on R6 rigs.

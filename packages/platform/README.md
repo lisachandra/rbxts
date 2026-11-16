@@ -1,197 +1,184 @@
 # @lisachandra/platform
 
-Platform glue: bootstrap orchestration, Centurion admin commands, document persistence, and player teleportation.
+The glue between a game and the rest of the suite: starting the client and server, admin commands,
+player documents, and signed teleports. This is the package most games import from most often.
 
-## Install
+## Starting a game
 
-```bash
-pnpm add @lisachandra/platform
-```
-
-Peer dependencies: `@lisachandra/types`, `@lisachandra/matter`, `@lisachandra/core`, `@flamework/core`, `@rbxts/centurion`, `@rbxts/dataforge`, `@rbxts/services`, `@rbxts/log`, `@rbxts/sift`, `@rbxts/t`, `@rbxts/serio`, `@rbxts/object-utils`, `@rbxts/rbxts-hashlib`, `@rbxts/regexp`, `@rbxts/luau-polyfill`, `@rbxts/matter`, `type-fest`
-
-## Submodule Exports
-
-| Import                                     | Purpose                                          |
-| ------------------------------------------ | ------------------------------------------------ |
-| `@lisachandra/platform`                    | Main: bootstrap, centurion utilities, teleporter |
-| `@lisachandra/platform/bootstrap`          | Client/server startup                            |
-| `@lisachandra/platform/centurion/type`     | Centurion type definitions                       |
-| `@lisachandra/platform/centurion/guards`   | Command authorization guards                     |
-| `@lisachandra/platform/centurion/commands` | Admin commands                                   |
-| `@lisachandra/platform/centurion/types`    | Custom Centurion argument types                  |
-| `@lisachandra/platform/centurion/utility`  | Type builder helpers                             |
-| `@lisachandra/platform/teleporter`         | Player teleportation                             |
-| `@lisachandra/platform/document`           | Document-based data                              |
-
----
-
-## Bootstrap
-
-The single entry point for starting the game on client or server:
+`bootstrap()` is the entry point. It collects systems from three sources — an explicit list, Flamework
+barrel modules, and Matter packages — merges them into one boundary, and starts the loop.
 
 ```ts
+// main.server.ts
 import { bootstrap } from "@lisachandra/platform";
-import { configureRuntimeAdapters } from "@lisachandra/matter";
-import { collection } from "./documents/playerData";
+import { builtinPackage } from "@lisachandra/matter/systems";
 
-// Server entry point (main.server.ts)
-configureRuntimeAdapters({
-	document: { collection },
-	playerLifecycle: {
-		preSpawn: async (player) => [true],
-		postSpawn(world, player, entityId) {
-			print(`Player ${player.Name} spawned!`);
-		},
-	},
-});
-
-const { world, crate, loop, boundary } = bootstrap({
+const { world, crate, loop } = bootstrap({
 	mode: "development",
-	systems: mySystems,
-	modules: {
-		server: serverSystems, // Flamework barrel module
-		shared: sharedSystems,
-	},
-	hotReload: {
-		containers: [rewireContainer],
-	},
+	modules: { server: serverSystems, shared: sharedSystems },
+	packages: [builtinPackage],
 });
+```
 
-// Client entry point (main.client.ts)
-const { world, crate } = bootstrap({
+```ts
+// main.client.ts
+bootstrap({
 	modules: { client: clientSystems, shared: sharedSystems },
+	packages: [builtinPackage],
 });
 ```
 
-### `BootstrapOptions`
+Any module exported from a `modules` barrel with a `meta` export is picked up automatically, so systems
+do not need registering one by one. `packages` is where `builtinPackage` goes; leaving it out is the
+usual reason "none of the item or replication systems run".
 
-| Option        | Type                                  | Description                                        |
-| ------------- | ------------------------------------- | -------------------------------------------------- |
-| `mode?`       | `"development" \| "production"`       | Enables Rewire hot reload when development         |
-| `modules?`    | `{ client?, server?, shared? }`       | Flamework barrel modules for auto-system discovery |
-| `systems?`    | `Array<AnySystem>`                    | Pre-resolved systems from pipeline/registry        |
-| `hotReload?`  | `{ containers? }`                     | Hot reload containers (development only)           |
-| `extensions?` | `{ containers?, modules?, systems? }` | Ad-hoc extensions merged into boundary             |
+`mode: "development"` enables Rewire hot reload, but only in Studio and only when you also pass
+`hotReload.containers`. Outside Studio it has no effect.
 
-### `BootstrapResult`
+## Admin commands
 
-```ts
-interface BootstrapResult {
-	world: World;
-	crate: Crate<ClientState | ServerState>;
-	loop: Loop<any>;
-	boundary: BootstrapBoundary;
-}
-```
-
----
-
-## Centurion Commands
-
-Pre-built admin commands with authorization:
-
-| Command                    | Description                       | Arguments                                |
-| -------------------------- | --------------------------------- | ---------------------------------------- |
-| `teleport` (aliases: `tp`) | Teleport players to a target      | `from: Players`, `target: Player`        |
-| `kick`                     | Kick players from the server      | `players: Players`                       |
-| `document`                 | Get document info for a player    | `user: Number`                           |
-| `set`                      | Set properties on an item by GUID | `itemGuid: String`, `properties: String` |
+Importing the Centurion barrel registers the four bundled commands, their argument types, and their
+guards:
 
 ```ts
-// Commands use @rbxts/centurion decorators
-// Importing the commands module auto-registers them
-import "@lisachandra/platform/centurion/commands";
+import "@lisachandra/platform/centurion";
+import { Centurion } from "@rbxts/centurion";
+
+Centurion.server({}).start();
 ```
 
-### Custom Argument Types
+You get `teleport` (alias `tp`), `kick`, `document` (inspect a player's document; kicks them so it
+reloads), and `set` (write item data by GUID, `string` and `number` values only).
+
+### Commands are open unless you guard them
+
+This is the one thing to read before adding a command. **Centurion has no default authorization.** A
+command with no `@Guard` is runnable by any client, and Centurion's `syncFilter` default makes it
+discoverable too. This package ships a guard but installs no default, so an unguarded command you add
+is open.
+
+Every bundled command uses `adminOrDeveloper`, and so should yours:
 
 ```ts
-import { Entity, Entities } from "@lisachandra/platform/centurion/types";
-
-// Single entity by name/@me/@id
-// Multi-entity with @all, @others, @query(), @except(), @only() prefixes
+@Command({ name: "kick", arguments: [{ type: CenturionType.Players, name: "players" }] })
+@Guard(adminOrDeveloper)
+public kick(_: CommandContext, players: Array<Player>): void {}
 ```
-
-### Guards
 
 ```ts
 import {
 	configureCenturionGroup,
 	configureCenturionRoles,
-	adminOrDeveloper,
+	configureCenturionUsers,
 } from "@lisachandra/platform/centurion/guards";
 
-configureCenturionGroup(1234567); // Roblox group ID
-configureCenturionRoles(["Developer", "Founder"]);
-
-// adminOrDeveloper is used as @Guard on all commands
+configureCenturionGroup(1234567);
+configureCenturionRoles(["Developer", "Founder"]); // the default
+configureCenturionUsers([1, 2]); // user IDs that skip the role check
 ```
 
-### Utility
+Roles match by full name, case-insensitively: `Developer` admits `developer` but never
+`Junior Developer`. An empty role list denies everyone.
+
+**The guard must return a boolean synchronously.** Centurion runs guards as
+`if not guard(context) then return nil end`, so a guard returning a `Promise` is truthy and the command
+executes — an async guard is a silent bypass, not an error. If your authorization needs a web call, do it
+before the guard and store the result.
+
+For anything beyond the shipped guard, `authorize(input, policy)` and `createAuthorizationPolicy(roles,
+userIds)` are pure functions, so a policy can be tested without a running server.
+
+### Custom argument types
 
 ```ts
-import { makeListableType, makeEnumType } from "@lisachandra/platform/centurion/utility";
+import { CenturionUserType, registerCenturionType } from "@lisachandra/platform/centurion";
 
-// Make a single type listable
-const ListablePlayer = makeListableType("Players", CenturionType.Player);
+declare module "@lisachandra/platform/centurion/type" {
+	interface CenturionUserTypes {
+		Item: "item";
+	}
+}
 
-// Create an enum type
-const GameModeType = makeEnumType("GameMode", ["Survival", "Creative", "Adventure"]);
+registerCenturionType("Item", "item");
 ```
 
----
+Both halves are needed for the same reason as custom components: the augmentation is compile-time, the
+call is runtime. `makeListableType` and `makeEnumType` build list and choice types on top.
 
-## Teleporter
+## Documents
 
-Secure, retryable player teleportation between places:
-
-```ts
-import {
-	teleport,
-	serializeTeleportData,
-	configureTeleport,
-	configureTeleportSecret,
-	isValidTeleport,
-} from "@lisachandra/platform/teleporter";
-
-// Configure once at startup
-configureTeleport({ expiration: 300, attempts: 3, retry_delay: 1 });
-configureTeleportSecret("my-secret-string");
-
-// Serialize data for teleport
-const options = serializeTeleportData({/* custom data */});
-
-// Teleport players
-const [success, result] = await teleport(placeId, [player], options);
-
-// Validate on arrival
-const { success, validHash, unexpired } = isValidTeleport(player);
-```
-
----
-
-## Document
-
-Dataforge-based data persistence with validation:
+Persistence is Dataforge. Create a store and tell Matter about it:
 
 ```ts
-import { configureRuntimeAdapters } from "@lisachandra/matter";
 import dataforge from "@rbxts/dataforge";
+import { configureRuntimeAdapters } from "@lisachandra/matter";
 
-// Create a custom store
 const store = dataforge.create_store<CollectionData>({
 	name: "PlayerData",
-	template: {
-		banned: false,
-		hotbar: [],
-		inventory: [],
-	},
+	template: { hotbar: [], inventory: [] },
 });
 
-// Pass to matter
 configureRuntimeAdapters({ document: { store } });
 ```
 
-For tests, `createTestStore()` builds an in-memory store backed by the dataforge memory hook and
-virtual scheduler.
+The document config accepts only `store`; `collection` is a deprecated alias kept for transitional
+compatibility. Note that `persistedComponents` is declared on the type but never read — it currently has
+no effect, so do not rely on it to wire persistence.
+
+Writes reach the datastore through the store's `documents` middleware, which pushes changed entries into
+their Dataforge profiles — updating `store.documents` is the operation, so no separate save call exists.
+
+### Nothing validates on load
+
+`createDataStoreValidator<T>()` builds a Boba validator, but **no part of the load path calls it**.
+Whatever shape is in the datastore is what your game receives. Validation used to happen when Lapis
+backed the collection; that left with the Dataforge migration and nothing replaced it.
+
+So validate where you consume the document, and decide the failure policy yourself — reject the player,
+reset to the template, or quarantine the record:
+
+```ts
+import { createDataStoreValidator } from "@lisachandra/platform/document/validate";
+
+const assertValid = createDataStoreValidator<CollectionData>();
+
+const document = await loadDocument(player);
+const [ok] = pcall(() => assertValid(document));
+if (!ok) {
+	// your recovery policy
+}
+```
+
+Pass `true` as the first argument for the raw Boba validator instead of an asserting function, which is
+what you want when you need a boolean rather than an assertion.
+
+### Testing with documents
+
+`createTestStore({ name, template })` returns `{ store, hook, scheduler }` using Dataforge's memory hook
+and virtual scheduler, so tests exercise real store loads and writes without touching a DataStore.
+Stepping the scheduler drives the deferred work to completion — nothing resolves until you step it.
+
+## Teleports
+
+Teleports carry a signed, expiring payload so a client cannot forge arrival data.
+
+```ts
+import {
+	configureTeleport,
+	configureTeleportSecret,
+	isValidTeleport,
+	serializeTeleportData,
+	teleport,
+} from "@lisachandra/platform/teleporter";
+
+configureTeleport({ expiration: 300, attempts: 3, retry_delay: 1 });
+configureTeleportSecret(secret); // must be the same in every participating place
+
+const [ok, result] = await teleport(placeId, [player], serializeTeleportData({ fromLobby: true }));
+
+// on arrival
+const { success, validHash, unexpired } = isValidTeleport(player);
+```
+
+`teleport` retries up to `attempts` times, waiting `retry_delay` between tries. Keep the secret out of
+source — read it from configuration — since anyone holding it can mint valid teleport data.

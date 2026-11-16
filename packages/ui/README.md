@@ -1,172 +1,118 @@
 # @lisachandra/ui
 
-React-based UI components and hooks for Roblox (`@rbxts/react`).
+React components and hooks for Roblox UI, plus the `px` scaling system that keeps a design's pixel
+values consistent across screen sizes.
 
-## Install
+## Sizing with `px`
 
-```bash
-pnpm add @lisachandra/ui
+The core idea: designs are authored at a fixed resolution, and `px()` converts those numbers into
+viewport-relative pixels. Provide it once through `AppContext` and read it anywhere below.
+
+```tsx
+import type { AppContextObject } from "@lisachandra/ui";
+import { AppContext, usePx } from "@lisachandra/ui";
+import { useViewport } from "@rbxts/pretty-react-hooks";
+import { useBinding, useMemo } from "@rbxts/react";
+
+function App() {
+	const viewport = useViewport(); // Binding<Vector2>, already subscribed
+	const px = usePx(viewport);
+	const [screen] = useBinding(Vector2.one);
+
+	const value = useMemo<AppContextObject>(
+		() => ({ px, screen, viewport }),
+		[px, screen, viewport],
+	);
+
+	return <AppContext.Provider value={value}>{/* ... */}</AppContext.Provider>;
+}
 ```
 
-Peer dependencies: `@lisachandra/types`, `@lisachandra/core`, `@rbxts/react`, `@rbxts/react-roblox`, `@rbxts/rewire`, `@rbxts/pretty-react-hooks`, `@rbxts/services`
+`px(value)` scales and rounds. The other forms exist because UI work constantly needs a specific
+rounding rule: `px.floor` and `px.ceil` for edges, `px.even` for centred content that must land on even
+numbers, and `px.fromUDim` / `px.fromUDim2` for values authored as `UDim`s.
 
----
+`px.fetch()` is how templates scale their properties — it returns a `FetchValue` that
+`@lisachandra/react-template` resolves, and it recomputes when the viewport changes:
 
-## VirtualScroller
+```tsx
+<MyFrameTemplate Size={px.fetch(px.fromUDim2)} TextSize={px.fetch()} />
+```
 
-A virtualized list renderer — only renders items visible in the viewport.
+If you only need the number, `computePx(viewport)` returns the scale factor.
+
+## `VirtualScroller`
+
+Renders only the rows in view, which is the difference between a 50-item inventory and a 5000-item one.
 
 ```tsx
 import { VirtualScroller } from "@lisachandra/ui";
 
-function MyInventory() {
-	return (
-		<VirtualScroller
-			itemCount={items.size()}
-			itemHeight={48}
-			renderItem={(index) => [<textlabel Text={items[index].name} />]}
-		/>
-	);
-}
+<VirtualScroller
+	itemCount={items.size()}
+	itemHeight={48}
+	renderItem={(index) => [<textlabel Text={items[index].name} />]}
+/>;
 ```
 
-Props:
+`itemHeight` must be uniform — that uniformity is what makes the maths cheap. Use `getKey` when rows
+have stable identities, `persistentItems` for rows that must stay mounted (an item being dragged, for
+example), and `dynamic` to render rows without the wrapper frames.
 
-| Prop               | Type                                            | Description                              |
-| ------------------ | ----------------------------------------------- | ---------------------------------------- |
-| `itemCount`        | `number`                                        | Total number of items                    |
-| `itemHeight`       | `number`                                        | Height of each item in pixels            |
-| `renderItem`       | `(index: number \| string) => Array<ReactNode>` | Render function per item                 |
-| `dynamic?`         | `boolean`                                       | If true, renders without wrapping frames |
-| `persistentItems?` | `Array<number>`                                 | Item indices to always render            |
-| `template?`        | `FunctionComponent`                             | Custom scrolling frame template          |
-| `getKey?`          | `(index: number) => string`                     | Custom key function                      |
-| `itemNative?`      | `InstanceProps<Frame>`                          | Native properties on each item frame     |
-| `native?`          | `InstanceAttributes<ScrollingFrame>`            | Native properties on the scrolling frame |
+## Reading a component in the UI
 
----
-
-## AppContext
-
-Provides `px` scaling methods and viewport bindings:
+`useComponentRecord` subscribes a component to an ECS component, giving it the change record rather than
+a copy — so it re-renders on the frames where the data actually moved.
 
 ```tsx
-import { AppContext } from "@lisachandra/ui";
-import { useMemo, useState } from "@rbxts/react";
-import { usePx } from "@lisachandra/ui";
+import { Components } from "@lisachandra/matter";
+import { useComponentRecord } from "@lisachandra/ui";
 
-function App() {
-	const [viewport, setViewport] = useState(Vector2.zero);
-	const px = usePx(viewport);
-
-	const contextValue = useMemo(
-		() => ({
-			px,
-			viewport,
-			screen: useBinding(Vector2.zero),
-		}),
-		[px],
-	);
-
-	return <AppContext.Provider value={contextValue}>{/* children */}</AppContext.Provider>;
-}
+const record = useComponentRecord(clientEntityId, Components.GardenProgress);
 ```
 
-### `px` Methods
+This is the normal bridge between Matter and React: the UI reads component data, and mutations go
+through messages rather than writing to the component directly.
 
-| Method                     | Description                                  |
-| -------------------------- | -------------------------------------------- |
-| `px(value)`                | Scale a number by the current pixel density  |
-| `px.floor(value)`          | Scale and floor                              |
-| `px.ceil(value)`           | Scale and ceil                               |
-| `px.even(value)`           | Scale and round to nearest even              |
-| `px.scale(value)`          | Multiply by scale factor (no rounding)       |
-| `px.fetch(fn?)`            | Create a fetch function with optional mapper |
-| `px.fromUDim(udim, fn?)`   | Scale a UDim                                 |
-| `px.fromUDim2(udim2, fn?)` | Scale a UDim2                                |
+## Screen projection
 
----
-
-## Hooks
-
-### `useWorldToScreen` / `projectWorldToScreen`
-
-Project a 3D world position to 2D screen coordinates:
+`useWorldToScreen` returns a `Binding<WorldToScreenResult>` that updates as the camera moves, so it can
+go straight onto a prop:
 
 ```tsx
-import { useWorldToScreen, projectWorldToScreen } from "@lisachandra/ui";
+import { projectWorldToScreen, useWorldToScreen } from "@lisachandra/ui";
 
-// As a hook (reactive)
-const screenPos = useWorldToScreen(useBinding(worldPosition), useBinding(new Vector2(100, 100)));
+const projected = useWorldToScreen(worldPositionBinding, sizeBinding);
 
-// Imperative
+// or imperatively, when you already have a px function
 const result = projectWorldToScreen(worldPos, baseSize, px);
 if (result?.onScreen) {
 	frame.Position = result.position;
-	frame.Size = result.size;
 }
 ```
 
-Returns: `{ onScreen: boolean, position: UDim2, size: UDim2 }`
+`useWorldToScreen` reads `px` from `AppContext`, so it must render under a provider.
+`projectWorldToScreen` returns `undefined` when the camera is missing or the point is behind it, and
+`onScreen` is what you check before showing an off-screen indicator.
 
-### `usePx`
+## Property and constant hooks
 
-Pixel-density-aware scaling hook:
-
-```tsx
-import { usePx, computePx } from "@lisachandra/ui";
-
-const px = usePx(viewportBinding);
-// px(100) — scales 100 based on viewport
-```
-
-### `useProperty`
-
-Track Instance property changes:
+`useProperty` reads instance properties React does not own and hands back the `Change` handler to attach:
 
 ```tsx
-import { useProperty } from "@lisachandra/ui";
-
-// Returns [values, changeEvent] matching property order
 const [size, position, change] = useProperty("Frame", "Size", "Position");
-
-return <frame Change={change}>{/* size and position are Binding<Vector2> values */}</frame>;
+return <frame Change={change} />;
 ```
 
-### `usePropertyBinding`
+`usePropertyBinding` returns the same values as bindings. `useConstant(() => value)` gives a value a
+stable identity across renders.
 
-Like `useProperty` but returns bindings instead of raw values:
+## Storybook support
 
-```tsx
-import { usePropertyBinding } from "@lisachandra/ui";
-
-const [sizeBinding, posBinding, change] = usePropertyBinding("Frame", "Size", "Position");
-```
-
-### `useConstant`
-
-Stable reference that survives re-renders:
+`StoryViewport` reports its size to the story harness and, on unmount, destroys what the story left
+behind — `ObjectCache` folders, `BasePart`s under `Workspace.Caches`, and the children of the crate
+module in `ReplicatedStorage` — so stories do not leak instances between runs:
 
 ```tsx
-import { useConstant } from "@lisachandra/ui";
-
-const id = useConstant(() => HttpService.GenerateGUID(false));
-// id stays the same across renders
-```
-
----
-
-## Hot Reloader
-
-```tsx
-import { createAppHotReloader } from "@lisachandra/ui";
-
-const reloader = createAppHotReloader({
-	target: PlayerGui,
-	moduleRoot: container,
-	entryModuleName: "app",
-	strictMode: true,
-});
-
-reloader.start();
+<StoryViewport setViewport={setViewport}>{story}</StoryViewport>
 ```

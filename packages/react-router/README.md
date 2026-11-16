@@ -1,143 +1,67 @@
-# @lisachandra/react-template & @lisachandra/react-router
+# @lisachandra/react-router
 
-React utilities for Roblox UIs.
+A client-side router for React Roblox, forked from
+[`roact-router`](https://github.com/Reselim/roact-router) and ported to `@rbxts/react`. Navigation is
+in-memory — there is no URL bar, so `History` is the source of truth and the router just keeps React in
+step with it.
 
-## @lisachandra/react-template
+## `Router` and `useRouter`
 
-Generates React components from existing Roblox Instance hierarchies. Useful for converting ScreenGui layouts into type-safe React templates.
-
-```bash
-pnpm add @lisachandra/react-template
-```
-
-Peer dependencies: `@lisachandra/types`, `@rbxts/react`, `@rbxts/services`
-
-### `ReactTemplate.fromInstance`
-
-Convert a Roblox Instance tree into a React component:
-
-```tsx
-import ReactTemplate from "@lisachandra/react-template";
-
-const screen = PlayerGui.WaitForChild("MyScreen");
-const MyScreen = ReactTemplate.fromInstance(screen);
-
-// Use like any React component
-<MyScreen>
-	<MyScreen.MyButton />
-</MyScreen>;
-```
-
-### `ReactTemplate.fetch`
-
-Create computed property values that react to instance changes:
-
-```tsx
-import ReactTemplate from "@lisachandra/react-template";
-
-<MyFrame
-	BackgroundColor3={ReactTemplate.fetch(
-		(color) => color.Lerp(Color3.fromRGB(255, 0, 0), 0.5),
-		"BackgroundColor3",
-	)}
-/>;
-```
-
-### `ReactTemplate.is`
-
-Check if a value is a React template component:
-
-```ts
-if (ReactTemplate.is(someComponent)) {
-	// someComponent is a valid template
-}
-```
-
-### Type Helpers
-
-```ts
-import type { TemplateProps, ExtendedInstanceProps } from "@lisachandra/react-template";
-
-// TemplateProps<T> includes children + extended props for any Instance type
-const props: TemplateProps<Frame> = { ... };
-```
-
----
-
-## @lisachandra/react-router
-
-A fork of `roact-router` ported to `@rbxts/react`. Provides client-side routing with a History API.
-
-```bash
-pnpm add @lisachandra/react-router
-```
-
-Peer dependencies: `@lisachandra/types`, `@rbxts/react`, `@rbxts/lemon-signal`, `@rbxts/services`
-
-### `Router`
+`Router` supplies the history stack and the active location to everything below it.
 
 ```tsx
 import { Router } from "@lisachandra/react-router";
 
-<Router>{/* Route-aware children */}</Router>;
+<Router>
+	<App />
+</Router>;
 ```
 
-Or with a custom History:
-
-```ts
-const history = new History(["/"]);
-<Router history={history} />
-```
-
-### `useRouter`
-
-Access the current location and history from any component:
+Descendants read it with `useRouter`:
 
 ```tsx
 import { useRouter } from "@lisachandra/react-router";
 
-function MyComponent() {
+function Nav() {
 	const { location, history } = useRouter();
-	// location.path, location.state
-	// history.push("/new-path")
+
+	return (
+		<textbutton
+			Text={`Go home (now at ${location.path})`}
+			Event={{ Activated: () => history.push("/home") }}
+		/>
+	);
 }
 ```
 
-### `useRouteMatch`
-
-Match the current path against a pattern:
+`Router` creates its own `History` if you do not pass one, which is the common case. Pass your own when
+something outside the tree needs to navigate — a keyboard binding, a server message, or a deep link
 
 ```tsx
-import { useRouteMatch } from "@lisachandra/react-router";
-
-const match = useRouteMatch({ path: "/players/:playerId" });
-if (match) {
-	const playerId = match.playerId; // captured from URL
-}
+const history = new History(["/"]);
+<Router history={history} />;
 ```
 
-### `History`
+## `History`
 
-Programmatic navigation:
+A linear stack with a signal that fires on every change.
 
 ```ts
 import { History } from "@lisachandra/react-router";
 
-const history = new History(["/"]);
-history.push("/settings", { tab: "audio" });
+const history = new History(["/", "/players"]); // starts at the last entry
+history.push("/settings", { tab: "audio" }); // navigate and carry state
+history.replace("/new-path"); // replace, don't grow the stack
 history.goBack();
 history.goForward();
-history.replace("/new-path");
 ```
 
-### `Path`
+Pushing after going back discards the forward entries, as a browser would. `location` is
+`{ path, state }`, and `onChanged` is a `Signal<[string, object]>` firing `(path, state)` — connect to
+it directly when you need to react outside React.
 
-Pattern matching with parameter capture:
+## Not available yet
 
-```ts
-import { Path } from "@lisachandra/react-router";
-
-const path = new Path("/users/:userId/posts/:postId");
-const match = path.match("/users/42/posts/99");
-// match = { userId: "42", postId: "99" }
-```
+`Path` and `useRouteMatch` exist in the source but are not exported, and the matcher currently throws
+rather than matching — see [#53](https://github.com/lisachandra/rbxts/issues/53) (finding N7). Until
+that is fixed, read `location.path` from `useRouter` and branch on it yourself.

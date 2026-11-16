@@ -1,201 +1,70 @@
 # @lisachandra/types
 
-Global type declarations and augmentations for Roblox services. This is the **leaf package** with no internal dependencies — all other `@lisachandra` packages depend on it.
-
-## Install
-
-```bash
-pnpm add @lisachandra/types
-```
-
-Peer dependencies:
+Global type declarations that make working with Roblox APIs concise. Install it and add it to
+`compilerOptions.types` once; the improvements then apply everywhere with no imports.
 
 ```json
-{
-	"type-fest": "*",
-	"@rbxts/types": "*",
-	"@rbxts/compiler-types": "*",
-	"@rbxts/matter": "*"
-}
+{ "types": ["../@rbxts/types", "../@lisachandra/types"] }
 ```
 
-## What It Provides
+## Typed instance lookups
 
-### Global Type `N<T>`
-
-A shorthand for optional values. Equivalent to `T | undefined`.
+The main win. Roblox's lookup methods return `Instance | undefined`, which means a cast at every call
+site. These overloads take the type you expect instead:
 
 ```ts
-type N<T> = T | undefined;
+const handle = model.FindFirstChild<BasePart>("Handle"); // BasePart | undefined
+const humanoid = character.WaitForChild<Humanoid>("Humanoid"); // Humanoid, no cast
+const part = instance.GetAttribute<BasePart>("Part"); // BasePart | undefined
 ```
 
-Usage:
+`WaitForChild` returns `T` when it blocks and `N<T>` when you pass a timeout. `FindFirstAncestor` and
+`FindFirstDescendant` work the same way.
+
+## `N<T>`
+
+`T | undefined` under a shorter name, used consistently across the suite so optional returns read the
+same everywhere.
 
 ```ts
-import type { N } from "@lisachandra/types";
-
-const value: N<number> = 42; // ok
-const missing: N<number> = undefined; // ok
+function findPlayer(name: string): N<Player> {}
 ```
 
-### Global Type `Table`
+## Service layout
 
-Represents any Lua table.
+`Workspace`, `ReplicatedStorage`, `SoundService`, and `Players` are augmented with the folder structure
+the library expects, so `Workspace.Nodes` and `ReplicatedStorage.UI` type-check without a lookup:
 
 ```ts
-type Table = Record<number | string | symbol, unknown>;
+Workspace.Characters; // Folder
+Workspace.NPCs; // Folder
+Workspace.Caches.Sound; // Folder
+ReplicatedStorage.HumanoidDescriptions; // Folder
+SoundService.Master; // SoundGroup
+Players.Hotbars; // Folder
 ```
 
-### Global Type `IsNominal<T>`
+## Matter system metadata
 
-Checks whether an object type has Flavor-branded nominal keys.
+Adds `phase`, `placeIds`, `priority`, and `after` to `SystemStruct`, so a system's `meta` export is
+checked — a typo in a phase name is a compile error rather than a system that never runs:
 
 ```ts
-type IsNominal<T> = Exclude<keyof T, ExcludeNominalKeys<T>> extends never ? false : true;
+export const meta = {
+	phase: "preSimulation",
+	system: mySystem,
+} satisfies SystemStruct<[World]>;
 ```
 
-### `_G` Global Augmentations
+Valid phases are the run-service events (`default`, `stepped`, `heartbeat`, `preSimulation`,
+`postSimulation`, `preRender`, `preAnimation`, `renderStepped`), the five render priorities
+(`renderFirst`, `renderInput`, `renderCamera`, `renderCharacter`, `renderLast`), and
+`playerModuleCamera`. There is no `Hz*` phase.
 
-Globally-available feature flags:
+`World` also gains `startDeferring()` / `stopDeferring()`.
 
-| Property                        | Type                                   | Purpose                       |
-| ------------------------------- | -------------------------------------- | ----------------------------- |
-| `__COMPAT_WARNINGS__`           | `boolean?`                             | Enable compatibility warnings |
-| `__DEV__`                       | `boolean?`                             | Development mode flag         |
-| `__EXPERIMENTAL__`              | `boolean?`                             | Enable experimental features  |
-| `__PROD__`                      | `boolean?`                             | Production mode flag          |
-| `__PROFILE__`                   | `boolean?`                             | Enable profiling              |
-| `__REACT_MICROPROFILER_LEVEL__` | `IntRange<0, 11>?`                     | React microprofiler level     |
-| `__TEST__`                      | `boolean?`                             | Test environment flag         |
-| `__VERSION__`                   | `` `${number}.${number}.${number}`? `` | Semantic version string       |
-| `NOCOLOR`                       | `boolean?`                             | Disable colored output        |
+## Feature flags
 
-### `LuaGlobals` Augmentations
-
-```ts
-declare global {
-	interface LuaGlobals {
-		/** Lua `unpack` with typed return. */
-		unpack: <T extends Array<unknown>>(...args: T) => T;
-		/** Lua `setfenv` with typed signature. */
-		setfenv: (func: Callback, fenv: Table) => void;
-	}
-}
-```
-
-### Instance Augmentations
-
-Every `Instance` gets type-safe, generic versions of common methods:
-
-| Method                         | Enhancement                                            |
-| ------------------------------ | ------------------------------------------------------ |
-| `FindFirstAncestor<T>(name)`   | Returns `N<T>` (typed ancestor)                        |
-| `FindFirstDescendant<T>(name)` | Returns `N<T>` (typed descendant)                      |
-| `GetAttribute<T>(name)`        | Returns `N<T>` instead of `AttributeValue`             |
-| `WaitForChild<T>(name)`        | Returns `T` (blocking) or `N<T>` (timeout overload)    |
-| `FindFirstChild<T>(name)`      | Returns `N<T>`, with a generic overload for known keys |
-
-Example:
-
-```ts
-const part = model.FindFirstChild<BasePart>("Handle");
-// part: BasePart | undefined (typed!)
-```
-
-### Service Augmentations
-
-Typed children for standard Roblox services:
-
-**`Workspace`:**
-
-```ts
-interface Workspace {
-	Map: Folder;
-	Characters: Folder;
-	NPCs: Folder;
-	Items: Folder;
-	Nodes: Folder;
-	Caches: Model & { Sound: Folder };
-}
-```
-
-**`ReplicatedStorage`:**
-
-```ts
-interface ReplicatedStorage {
-	Animations: Folder & { Tools: Folder };
-	Models: Folder & { Items: Folder; Tools: Folder };
-	UI: Folder;
-	Tools: Folder;
-	VFX: Folder;
-	HumanoidDescriptions: Folder;
-}
-```
-
-**`SoundService`:**
-
-```ts
-interface SoundService {
-	Sounds: Folder;
-	Master: SoundGroup;
-}
-```
-
-**`Players`:**
-
-```ts
-interface Players {
-	Hotbars: Folder;
-}
-```
-
-### Matter `SystemStruct` Augmentation
-
-Adds `phase?` support with Roblox-specific phase names:
-
-```ts
-type PhaseName =
-	| "Hz1"
-	| "Hz5"
-	| "Hz10"
-	| "Hz15"
-	| "Hz30"
-	| "Hz60"
-	| "stepped"
-	| "heartbeat"
-	| "preRender"
-	| "renderLast"
-	| "renderFirst"
-	| "renderInput"
-	| "preAnimation"
-	| "renderCamera"
-	| "renderStepped"
-	| "preSimulation"
-	| "postSimulation"
-	| "renderCharacter"
-	| "playerModuleCamera";
-```
-
-Also augments `World` with `startDeferring()` and `stopDeferring()`.
-
-### RuntimeLib
-
-Luau runtime bridge providing async utilities, generators, module loading, and error handling:
-
-```ts
-declare const RuntimeLib: RuntimeLib;
-```
-
-| Member                                             | Description                                             |
-| -------------------------------------------------- | ------------------------------------------------------- |
-| `RuntimeLib.Promise`                               | Promise constructor                                     |
-| `RuntimeLib.TRY_BREAK / TRY_CONTINUE / TRY_RETURN` | Try-control flow constants (2, 3, 1)                    |
-| `RuntimeLib.async(fn)`                             | Wraps a callback as a Promise-returning function        |
-| `RuntimeLib.await(promise)`                        | Await a Promise or pass through non-Promise values      |
-| `RuntimeLib.bit_lrsh(a, b)`                        | Logical right shift                                     |
-| `RuntimeLib.generator(fn)`                         | Wrap a generator function                               |
-| `RuntimeLib.getModule(context, scope, name)`       | Require a ModuleScript                                  |
-| `RuntimeLib.import(context, module, ...path)`      | Import from a module                                    |
-| `RuntimeLib.instanceof(obj, class)`                | Runtime `instanceof` check                              |
-| `RuntimeLib.reset()`                               | Reset the runtime                                       |
-| `RuntimeLib.try(tryFn, catchFn?, finallyFn?)`      | Try/catch/finally returning `LuaTuple<[number?, ...T]>` |
+`_G` declares the flags a build may define: `__DEV__`, `__PROD__`, `__TEST__`, `__PROFILE__`,
+`__COMPAT_WARNINGS__`, `__EXPERIMENTAL__`, `__VERSION__`, `__REACT_MICROPROFILER_LEVEL__`, and
+`NOCOLOR`. All are optional, so reading one never needs a guard for existence — only for its value.

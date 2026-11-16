@@ -1,143 +1,71 @@
-# @lisachandra/react-template & @lisachandra/react-router
+# @lisachandra/react-template
 
-React utilities for Roblox UIs.
-
-## @lisachandra/react-template
-
-Generates React components from existing Roblox Instance hierarchies. Useful for converting ScreenGui layouts into type-safe React templates.
-
-```bash
-pnpm add @lisachandra/react-template
-```
-
-Peer dependencies: `@lisachandra/types`, `@rbxts/react`, `@rbxts/services`
-
-### `ReactTemplate.fromInstance`
-
-Convert a Roblox Instance tree into a React component:
+Turns an existing Roblox `Instance` tree into a typed React component. The usual use is a `ScreenGui`
+laid out in Studio: the designer edits it visually, and the code renders it as JSX with its properties
+exposed as props.
 
 ```tsx
 import ReactTemplate from "@lisachandra/react-template";
+import { Players } from "@rbxts/services";
 
-const screen = PlayerGui.WaitForChild("MyScreen");
-const MyScreen = ReactTemplate.fromInstance(screen);
+const playerGui = Players.LocalPlayer.WaitForChild("PlayerGui");
+const MyScreen = ReactTemplate.fromInstance(playerGui.WaitForChild<ScreenGui>("MyScreen"));
 
-// Use like any React component
+<MyScreen />;
+```
+
+Every child of the instance becomes a named sub-template, so you can override individual pieces without
+rebuilding the whole screen. Children are passed as a table keyed by instance name:
+
+```tsx
 <MyScreen>
-	<MyScreen.MyButton />
-</MyScreen>;
+	{{
+		Title: { Text: "Inventory" },
+		CloseButton: { BackgroundColor3: Color3.fromRGB(200, 60, 60) },
+	}}
+</MyScreen>
 ```
 
-### `ReactTemplate.fetch`
+Pass `true` as the second argument to render the tree as a fragment instead of as a single instance —
+useful when the root is a container you do not want in the output.
 
-Create computed property values that react to instance changes:
+The generated component is memoised and forward-ref'd. In Studio it also subscribes to `Changed`, so
+property edits made in the Explorer show up without a rebuild.
+
+## Derived properties with `fetch`
+
+`fetch` computes a property from other properties on the same instance, which is how a template reacts
+to its own state:
 
 ```tsx
-import ReactTemplate from "@lisachandra/react-template";
-
 <MyFrame
 	BackgroundColor3={ReactTemplate.fetch(
 		(color) => color.Lerp(Color3.fromRGB(255, 0, 0), 0.5),
 		"BackgroundColor3",
 	)}
-/>;
+/>
 ```
 
-### `ReactTemplate.is`
+The named properties are passed to the resolver in order. This is also the mechanism `@lisachandra/ui`
+uses: `px.fetch()` returns a `FetchValue`, so sizing a template from the `px` scale is the same call:
 
-Check if a value is a React template component:
+```tsx
+<MyFrameTemplate Size={px.fetch(px.fromUDim2)} />
+```
+
+## Checking a component
 
 ```ts
 if (ReactTemplate.is(someComponent)) {
-	// someComponent is a valid template
+	// narrowed to FunctionComponent<TemplateProps<Instance>>
 }
 ```
 
-### Type Helpers
+`ReactTemplate.is` is a Studio-only check — it decides by looking the component up in a registry that
+`fromInstance` only populates when `RunService.IsStudio()`, so it returns `false` in a live game. Use it
+for storybook and dev tooling, not for runtime branching.
 
-```ts
-import type { TemplateProps, ExtendedInstanceProps } from "@lisachandra/react-template";
-
-// TemplateProps<T> includes children + extended props for any Instance type
-const props: TemplateProps<Frame> = { ... };
-```
-
----
-
-## @lisachandra/react-router
-
-A fork of `roact-router` ported to `@rbxts/react`. Provides client-side routing with a History API.
-
-```bash
-pnpm add @lisachandra/react-router
-```
-
-Peer dependencies: `@lisachandra/types`, `@rbxts/react`, `@rbxts/lemon-signal`, `@rbxts/services`
-
-### `Router`
-
-```tsx
-import { Router } from "@lisachandra/react-router";
-
-<Router>{/* Route-aware children */}</Router>;
-```
-
-Or with a custom History:
-
-```ts
-const history = new History(["/"]);
-<Router history={history} />
-```
-
-### `useRouter`
-
-Access the current location and history from any component:
-
-```tsx
-import { useRouter } from "@lisachandra/react-router";
-
-function MyComponent() {
-	const { location, history } = useRouter();
-	// location.path, location.state
-	// history.push("/new-path")
-}
-```
-
-### `useRouteMatch`
-
-Match the current path against a pattern:
-
-```tsx
-import { useRouteMatch } from "@lisachandra/react-router";
-
-const match = useRouteMatch({ path: "/players/:playerId" });
-if (match) {
-	const playerId = match.playerId; // captured from URL
-}
-```
-
-### `History`
-
-Programmatic navigation:
-
-```ts
-import { History } from "@lisachandra/react-router";
-
-const history = new History(["/"]);
-history.push("/settings", { tab: "audio" });
-history.goBack();
-history.goForward();
-history.replace("/new-path");
-```
-
-### `Path`
-
-Pattern matching with parameter capture:
-
-```ts
-import { Path } from "@lisachandra/react-router";
-
-const path = new Path("/users/:userId/posts/:postId");
-const match = path.match("/users/42/posts/99");
-// match = { userId: "42", postId: "99" }
-```
+`TemplateProps<T>` is the props type for an instance `T`, with nested instances mapped to nested
+templates. `ExtendedInstanceProps<T>` adds `Event`, `Change`, `Tag`, and `ref` to the instance's own
+properties. `ReactTemplate.children` is the key for declaring named child templates when a name collides
+with a real property.
