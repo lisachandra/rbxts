@@ -24,7 +24,10 @@
  * role headless — it delivers `provider/updateAccountConfig` for the selected
  * provider (keyed to the injected builtin catalog's revision) and answers
  * `interaction/requestProviderRuntimeHeaders` from the shared zcode
- * credential store, the way the desktop host does. The identity headers carry
+ * credential store, the way the desktop host does. The store's on-disk format
+ * changed in zcode 3.18: records are now `enc:v2:<os|env>:<fingerprint>:`
+ * under an OS-keyring or managed secret (see the credential-store block
+ * below), and both schemes are read. The identity headers carry
  * the desktop app's version even when `ZCODE_APP_VERSION` is unset in the
  * runner environment: the newest runtime dir under
  * `.zcode/v2/runtime/provider/<platform>-<arch>/` names the version the
@@ -60,6 +63,7 @@
 import { createDecipheriv, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import {
 	arch as osArch,
 	homedir,
@@ -112,27 +116,46 @@ const HEARTBEAT_INTERVAL_MS = (() => {
  * Credential-store access for answering provider runtime-header requests.
  *
  * The store is the same file the desktop app and the CLI write
- * (<data-dir>/.zcode/v2/credentials.json); values are AES-256-GCM encrypted
- * with a key derived from the machine identity, so any process running as the
- * same OS user can decrypt them — that is how the desktop host itself reads
- * the plan token it hands back to the agent. The wrapper holds decrypted
- * values only in memory, only for the single credential a model request
- * needs, and never logs them: diagnostics name credential *keys*, never
- * values. ZCODE_CREDENTIAL_SECRET overrides the derivation exactly as it
- * does for the CLI.
+ * (<data-dir>/.zcode/v2/credentials.json). Two record schemes exist, and zcode
+ * migrates every entry to the newer one on the first run after the change:
+ *
+ *   enc:v1:<base64url(iv)>.<base64url(tag)>.<base64url(ct)>
+ *       AES-256-GCM under a key derived from the machine identity, so any
+ *       process running as the same OS user can decrypt it.
+ *
+ *   enc:v2:<os|env>:<keyFingerprint>:<base64url(iv)>.<base64url(tag)>.<base64url(ct)>
+ *       AES-256-GCM under a 32-byte random key held in the OS keyring
+ *       (service "ZCode Credential Encryption", account = sha256 of the
+ *       resolved store path), or -- for headless servers -- under a managed
+ *       secret (ZCODE_CREDENTIAL_SECRET, else a 32..4096-byte private
+ *       credential-secret file beside the store). The embedded scheme and key
+ *       fingerprint are exactly what the CLI validates before decrypting.
+ *
+ * zcode 3.18 migrated this machine's store to v2, and a wrapper that only
+ * understood enc:v1: passed the *ciphertext* through as the api key -- the
+ * plan gateway answered 401 and the matchmaking-session-work lane died on
+ * #645. Both schemes are therefore supported here, and a record that cannot
+ * be decrypted is reported by KEY NAME only: it is never handed to the
+ * gateway as if it were a credential.
+ *
+ * The wrapper holds decrypted values only in memory, only for the single
+ * credential a model request needs, and never logs them: diagnostics name
+ * credential *keys*, never values.
  */
-const CREDENTIAL_ENC_PREFIX = "enc:v1:";
+const CREDENTIAL_ENC_V1_PREFIX = "enc:v1:";
+const CREDENTIAL_ENC_V2_PREFIX = "enc:v2:";
+/** Keyring service name the CLI and desktop use for the v2 key. */
+const CREDENTIAL_KEYRING_SERVICE = "ZCode Credential Encryption";
+/** Length of the hex key fingerprint embedded in a v2 record. */
+const CREDENTIAL_KEY_FINGERPRINT_LENGTH = 24;
+/** The v2 key is 32 random bytes, stored base64url in the keyring. */
+const CREDENTIAL_KEY_LENGTH = 32;
+/** ...which is 43 base64url characters, the CLI's accepted keyring shape. */
+const CREDENTIAL_KEYRING_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 function resolveCredentialStorePath() {
 	const baseDir = (process.env.ZCODE_DATA_BASE_DIR ?? "").trim() || homedir();
 	return path.join(baseDir, ".zcode", "v2", "credentials.json");
-}
-
-function deriveCredentialKey() {
-	const secret =
-		(process.env.ZCODE_CREDENTIAL_SECRET ?? "").trim() ||
-		`zcode-credential-fallback:${osPlatform()}:${homedir()}:${safeUserName()}`;
-	return createHash("sha256").update(secret).digest();
 }
 
 function safeUserName() {
@@ -144,25 +167,235 @@ function safeUserName() {
 }
 
 /**
- * Decrypts one store value (`enc:v1:` + base64url(iv).base64url(tag).base64url(ct)); plaintext
- * passes through.
+ * - The v1 key candidates, in the CLI's own precedence order.
+ * - @remarks Untrimmed secret, then trimmed secret, then the machine fallback -- exactly the three
+ *   derivations the CLI tries before it gives up on a legacy record.
  */
-function decryptCredentialValue(value) {
-	if (!value.startsWith(CREDENTIAL_ENC_PREFIX)) {
+function legacyCredentialKeys() {
+	const fallback = `zcode-credential-fallback:${osPlatform()}:${homedir()}:${safeUserName()}`;
+	const raw = process.env.ZCODE_CREDENTIAL_SECRET;
+	const trimmed = raw?.trim() ?? "";
+	return [...new Set([raw || fallback, trimmed || fallback, fallback])].map((value) =>
+		createHash("sha256").update(value).digest(),
+	);
+}
+
+/** Hex fingerprint of a v2 key -- the CLI embeds sha256(key).hex.slice(0, 24). */
+function credentialKeyFingerprint(key) {
+	return createHash("sha256")
+		.update(key)
+		.digest("hex")
+		.slice(0, CREDENTIAL_KEY_FINGERPRINT_LENGTH);
+}
+
+/**
+ * - Resolves the managed secret a v2 "env" record is encrypted under.
+ * - @returns The secret, or undefined when none is configured or the configuration is ambiguous in
+ *   the way the CLI itself refuses.
+ * - @remarks Mirrors the CLI: the env var and the secret file may not both be set, and a
+ *   _default-path_ secret file must be private on POSIX (an explicitly named one is the caller's
+ *   business). Size is 32..4096 bytes, as used as-is -- never trimmed, because the CLI hashes the
+ *   file contents verbatim.
+ */
+function resolveManagedCredentialSecret() {
+	const preset = process.env.ZCODE_CREDENTIAL_SECRET;
+	const filePath = (process.env.ZCODE_CREDENTIAL_SECRET_FILE ?? "").trim();
+	if (preset !== undefined && preset !== "" && filePath !== "") {
+		return undefined;
+	}
+
+	if (preset !== undefined && preset !== "") {
+		return preset;
+	}
+
+	const explicit = filePath !== "";
+	const candidate = explicit
+		? filePath
+		: path.join(path.dirname(resolveCredentialStorePath()), "credential-secret");
+	try {
+		if (!explicit && process.platform !== "win32") {
+			const mode = statSync(candidate).mode;
+			if ((mode & 0o077) !== 0) {
+				// Group/world access on a default secret file: treat as unavailable.
+				return undefined;
+			}
+		}
+
+		const contents = readFileSync(candidate, "utf8");
+		const bytes = Buffer.byteLength(contents, "utf8");
+		if (bytes >= 32 && bytes <= 4096) {
+			return contents;
+		}
+	} catch {
+		// Missing or unreadable: no managed secret.
+	}
+
+	return undefined;
+}
+
+let keyringModuleCache;
+
+/** Locates the @napi-rs/keyring binding inside the installed ZCode desktop app. */
+function importKeyringModule() {
+	if (keyringModuleCache !== undefined) {
+		return keyringModuleCache;
+	}
+
+	const isWindows = process.platform === "win32";
+	const localAppData = process.env.LocalAppData ?? "";
+	const resourceRoots =
+		isWindows && localAppData !== ""
+			? [path.join(localAppData, "Programs", "ZCode", "resources")]
+			: process.platform === "darwin"
+				? ["/Applications/ZCode.app/Contents/Resources"]
+				: ["/opt/ZCode/resources", "/usr/lib/zcode/resources"];
+	for (const resourceRoot of resourceRoots) {
+		const scopeRoot = path.join(resourceRoot, "app.asar.unpacked", "node_modules", "@napi-rs");
+		if (!existsSync(scopeRoot)) {
+			continue;
+		}
+
+		for (const dir of readdirSync(scopeRoot)) {
+			if (!dir.startsWith("keyring-")) {
+				continue;
+			}
+
+			const directory = path.join(scopeRoot, dir);
+			for (const file of readdirSync(directory)) {
+				if (!file.endsWith(".node")) {
+					continue;
+				}
+
+				try {
+					keyringModuleCache = createRequire(import.meta.url)(path.join(directory, file));
+					return keyringModuleCache;
+				} catch {
+					// Try the next platform binding.
+				}
+			}
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * - Reads the v2 OS-keyring key the CLI and desktop store.
+ * - @returns The 32-byte key, or undefined when the keyring is unavailable.
+ * - @remarks The native binding ships with the ZCode desktop app, which is also the only situation in
+ *   which an "os" record can exist.
+ */
+function readKeyringCredentialKey() {
+	let native;
+	try {
+		native = importKeyringModule();
+	} catch {
+		return undefined;
+	}
+
+	if (native === undefined) {
+		return undefined;
+	}
+
+	const account = createHash("sha256")
+		.update(path.resolve(resolveCredentialStorePath()))
+		.digest("hex");
+	try {
+		const entry = new native.Entry(CREDENTIAL_KEYRING_SERVICE, account);
+		const stored = entry.getPassword();
+		/* The CLI's own shape check: 32 bytes rendered base64url, unpadded. */
+		if (typeof stored !== "string" || !CREDENTIAL_KEYRING_PASSWORD_PATTERN.test(stored)) {
+			return undefined;
+		}
+
+		const key = Buffer.from(stored, "base64url");
+		return key.length === CREDENTIAL_KEY_LENGTH ? key : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** AES-256-GCM open of base64url(iv).base64url(tag).base64url(ct). */
+function openCredentialRecord(payload, key) {
+	const parts = payload.split(".");
+	if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]*$/.test(part))) {
+		throw new Error("malformed encrypted credential");
+	}
+
+	const [iv, tag, data] = parts.map((part) => Buffer.from(part, "base64url"));
+	if (iv.length !== 12 || tag.length !== 16) {
+		throw new Error("malformed encrypted credential");
+	}
+
+	const decipher = createDecipheriv("aes-256-gcm", key, iv);
+	decipher.setAuthTag(tag);
+	return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf-8");
+}
+
+/**
+ * - Decrypts one store value, accepting both record schemes.
+ * - @param value - The raw store value.
+ * - @param v2Keys - Per-scheme v2 key cache, resolved at most once per run.
+ * - @returns The plaintext, or undefined when the record cannot be opened.
+ */
+function decryptCredentialValue(value, v2Keys) {
+	if (value.startsWith(CREDENTIAL_ENC_V1_PREFIX)) {
+		const payload = value.slice(CREDENTIAL_ENC_V1_PREFIX.length);
+		for (const key of legacyCredentialKeys()) {
+			try {
+				return openCredentialRecord(payload, key);
+			} catch {
+				// Try the next v1 derivation.
+			}
+		}
+
+		return undefined;
+	}
+
+	if (!value.startsWith(CREDENTIAL_ENC_V2_PREFIX)) {
 		return value;
 	}
 
-	const [ivPart, tagPart, dataPart] = value.slice(CREDENTIAL_ENC_PREFIX.length).split(".");
-	const decipher = createDecipheriv(
-		"aes-256-gcm",
-		deriveCredentialKey(),
-		Buffer.from(ivPart, "base64url"),
-	);
-	decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
-	return Buffer.concat([
-		decipher.update(Buffer.from(dataPart, "base64url")),
-		decipher.final(),
-	]).toString("utf-8");
+	/* Exactly [scheme, fingerprint, payload] -- the shape the CLI enforces. */
+	const segments = value.slice(CREDENTIAL_ENC_V2_PREFIX.length).split(":");
+	const [scheme, fingerprint, payload] = segments;
+	if (
+		segments.length !== 3 ||
+		(scheme !== "os" && scheme !== "env") ||
+		fingerprint === undefined ||
+		!/^[a-f0-9]{24}$/.test(fingerprint) ||
+		payload === undefined
+	) {
+		return undefined;
+	}
+
+	if (v2Keys[scheme] === undefined) {
+		v2Keys[scheme] =
+			scheme === "os"
+				? readKeyringCredentialKey()
+				: (() => {
+						const secret = resolveManagedCredentialSecret();
+						return secret === undefined
+							? undefined
+							: createHash("sha256").update(secret).digest();
+					})();
+	}
+
+	const key = v2Keys[scheme];
+	if (key === undefined) {
+		return undefined;
+	}
+
+	/* The CLI refuses a record whose embedded fingerprint is not this key's. */
+	if (credentialKeyFingerprint(key) !== fingerprint) {
+		return undefined;
+	}
+
+	try {
+		return openCredentialRecord(payload, key);
+	} catch {
+		return undefined;
+	}
 }
 
 let credentialStoreCache;
@@ -171,12 +404,14 @@ function loadCredentialStore() {
 		return credentialStoreCache;
 	}
 
-	credentialStoreCache = new Map();
+	const store = new Map();
 	const storePath = resolveCredentialStorePath();
 	if (!existsSync(storePath)) {
-		return credentialStoreCache;
+		return store;
 	}
 
+	const v2Keys = {};
+	const undecryptable = [];
 	try {
 		const parsed = JSON.parse(readFileSync(storePath, "utf-8"));
 		if (parsed !== null && typeof parsed === "object") {
@@ -185,18 +420,32 @@ function loadCredentialStore() {
 					continue;
 				}
 
-				try {
-					credentialStoreCache.set(key, decryptCredentialValue(value));
-				} catch {
-					// Undecryptable entry (foreign secret override): skip it.
+				const plaintext = decryptCredentialValue(value, v2Keys);
+				if (plaintext === undefined) {
+					undecryptable.push(key);
+					continue;
 				}
+
+				store.set(key, plaintext);
 			}
 		}
 	} catch (error) {
 		emitNote(`credential store at ${storePath} unreadable: ${error.message}`);
 	}
 
-	return credentialStoreCache;
+	if (undecryptable.length > 0) {
+		/*
+		 * Keys only: a skipped record must never reach the gateway as an api
+		 * key, and the store's values are never printed.
+		 */
+		const shown = undecryptable.slice(0, 3).join(", ");
+		emitNote(
+			`could not decrypt ${undecryptable.length} credential entr(ies) (${shown}${undecryptable.length > 3 ? ", ..." : ""}); ` +
+				"run zcode once as this OS user so the credential key is available",
+		);
+	}
+
+	return store;
 }
 
 function parseArgs(argv) {
@@ -576,7 +825,7 @@ function request(method, parameters, timeoutMs = REQUEST_TIMEOUT_MS) {
 	});
 }
 
-function handleServerRequest(frame) {
+async function handleServerRequest(frame) {
 	const { id, method, params } = frame;
 	if (method === "session/requestRuntimePreferences") {
 		respond(id, RUNTIME_PREFERENCES);
@@ -615,7 +864,7 @@ function handleServerRequest(frame) {
 	}
 
 	if (method === "interaction/requestProviderRuntimeHeaders") {
-		respond(id, resolveProviderRuntimeHeaders(params));
+		respond(id, await resolveProviderRuntimeHeaders(params));
 		return;
 	}
 
@@ -639,7 +888,7 @@ function handleServerRequest(frame) {
  * A non-applied response surfaces as the turn error -32031 with our message,
  * which is the actionable path for a missing plan credential.
  */
-function resolveProviderRuntimeHeaders(params) {
+async function resolveProviderRuntimeHeaders(params) {
 	const accountAccess = params?.accountAccess;
 	const providerId = String(params?.providerId ?? "unknown provider");
 	if (accountAccess?.type !== "zhipu-account") {
@@ -653,7 +902,7 @@ function resolveProviderRuntimeHeaders(params) {
 
 	if (accountAccess.mode === "start-plan") {
 		// The desktop answers start-plan with the zcode JWT from the OAuth token set.
-		const store = loadCredentialStore();
+		const store = await loadCredentialStore();
 		const apiKey = store.get("zcodejwttoken") ?? store.get("oauth:zai:access_token");
 		return finalizeRuntimeHeaders(
 			apiKey,
@@ -665,7 +914,7 @@ function resolveProviderRuntimeHeaders(params) {
 	if (accountAccess.mode === "individual-coding-plan") {
 		// Standalone login persists a per-provider api-key keyed by account identity.
 		const prefix = `account-provider:coding-plan:${providerId}:account:`;
-		const entry = [...loadCredentialStore().entries()].find(
+		const entry = [...(await loadCredentialStore()).entries()].find(
 			([key]) => key.startsWith(prefix) && key.endsWith(":api-key"),
 		);
 		return finalizeRuntimeHeaders(
@@ -1200,7 +1449,19 @@ stdout.on("line", (line) => {
 	}
 
 	if (frame.method !== undefined && frame.id !== undefined) {
-		handleServerRequest(frame);
+		/*
+		 * Handled asynchronously but never dropped: the runtime-header answer
+		 * now resolves the credential store (possibly through the OS keyring)
+		 * while the app-server blocks the model attempt on it. A rejection is
+		 * still answered, so the turn fails loudly instead of hanging until
+		 * its own timeout.
+		 */
+		void handleServerRequest(frame).catch((error) => {
+			respond(frame.id, {
+				errorMessage: `zcode-wrapper: request handler failed: ${error.message}`,
+				headersApplied: false,
+			});
+		});
 		return;
 	}
 

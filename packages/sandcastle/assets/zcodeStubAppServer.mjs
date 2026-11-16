@@ -28,6 +28,18 @@ const seen = [];
 const mode = process.env.STUB_MODE ?? "yolo";
 const failTurn = process.env.STUB_FAIL_TURN === "1";
 const requestPermission = process.env.STUB_REQUEST_PERMISSION === "1";
+/*
+ * Runtime-header probe: ask the wrapper for the model credential the way the
+ * real app-server does before a model attempt, and persist its answer where a
+ * test can inspect it.
+ */
+const requestRuntimeHeaders = process.env.STUB_REQUEST_RUNTIME_HEADERS === "1";
+const runtimeHeadersFile = process.env.STUB_RUNTIME_HEADERS_FILE;
+const runtimeHeadersProvider =
+	process.env.STUB_RUNTIME_HEADERS_PROVIDER ?? "account:zai-start-plan";
+const runtimeHeadersMode = process.env.STUB_RUNTIME_HEADERS_MODE ?? "start-plan";
+const runtimeHeadersType = process.env.STUB_RUNTIME_HEADERS_TYPE ?? "zhipu-account";
+const runtimeHeadersAccountType = process.env.STUB_RUNTIME_HEADERS_ACCOUNT_TYPE ?? "zai";
 const reasoningOnly = process.env.STUB_REASONING_ONLY === "1";
 const reasoningIntervalMs = Number.parseInt(process.env.STUB_REASONING_INTERVAL_MS ?? "250", 10);
 const reasoningDurationMs = Number.parseInt(process.env.STUB_REASONING_DURATION_MS ?? "8000", 10);
@@ -130,6 +142,18 @@ rl.on("line", async (line) => {
 	if (frame.method === undefined) {
 		// Response to one of our client-bound requests.
 		const issuedMethod = issuedRequests.get(frame.id);
+		if (issuedMethod === "interaction/requestProviderRuntimeHeaders") {
+			issuedRequests.delete(frame.id);
+			if (runtimeHeadersFile !== undefined && runtimeHeadersFile !== "") {
+				writeFileSync(
+					runtimeHeadersFile,
+					JSON.stringify(frame.result ?? { error: frame.error }),
+				);
+			}
+
+			return;
+		}
+
 		if (issuedMethod !== undefined) {
 			issuedRequests.delete(frame.id);
 			if (runtimePrefsFile !== undefined) {
@@ -236,6 +260,27 @@ rl.on("line", async (line) => {
 	if (method === "session/send") {
 		reply(id, {});
 		const sessionId = params?.sessionId;
+
+		if (requestRuntimeHeaders) {
+			const requestId = ++nextId;
+			issuedRequests.set(requestId, "interaction/requestProviderRuntimeHeaders");
+			write({
+				id: requestId,
+				method: "interaction/requestProviderRuntimeHeaders",
+				params: {
+					accountAccess: {
+						mode: runtimeHeadersMode,
+						type: runtimeHeadersType,
+						accountType: runtimeHeadersAccountType,
+					},
+					modelSelection: { modelId: "stub-model", providerId: runtimeHeadersProvider },
+					providerId: runtimeHeadersProvider,
+					reason: "model-request",
+					requestId: "00000000-0000-4000-8000-000000000001",
+					sessionId,
+				},
+			});
+		}
 
 		if (reasoningOnly) {
 			/*
