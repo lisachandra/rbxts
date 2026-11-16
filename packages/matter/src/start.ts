@@ -32,15 +32,42 @@ export interface SystemContainer {
 export type SystemEvent = NonNullable<SystemContainer["event"]>;
 export type SystemModule = Record<string, unknown> & { meta: SystemContainer };
 
-export interface DocumentConfig {
+/**
+ * The Dataforge store arm of a {@link DocumentConfig}.
+ *
+ * `collection` is `never` here so a config cannot name both handles: the pair is a discriminated
+ * union, and `{}` is not assignable to either arm.
+ */
+export interface DocumentStoreConfig {
 	/** @deprecated Use `store`. Kept for transitional compatibility. */
-	collection?: Store<any>;
+	collection?: never;
 	/**
 	 * The Dataforge store instance for document persistence. Create one with `create_store()` from
 	 * `@rbxts/dataforge`.
 	 */
-	store?: Store<any>;
+	store: Store<any>;
 }
+
+/**
+ * The deprecated collection arm of a {@link DocumentConfig}.
+ *
+ * `store` is `never` here for the same reason as {@link DocumentStoreConfig}: exactly one handle is
+ * expressible.
+ */
+export interface DocumentCollectionConfig {
+	/** @deprecated Use `store`. Kept for transitional compatibility. */
+	collection: Store<any>;
+	/** Never set alongside `collection`; the union makes the pair unexpressible. */
+	store?: never;
+}
+
+/**
+ * How a game tells Matter where player documents live.
+ *
+ * Exactly one of `store` / `collection` is present, so a config that names neither — which used to
+ * run the no-document flow silently — is a type error rather than a runtime surprise.
+ */
+export type DocumentConfig = DocumentStoreConfig | DocumentCollectionConfig;
 
 export interface PlayerLifecycleHooks {
 	/**
@@ -172,6 +199,28 @@ export function getPlayerLifecycleHooks(): N<PlayerLifecycleHooks> {
 /** Returns the configured document config, if any. */
 export function getDocumentConfig(): N<DocumentConfig> {
 	return runtimeAdapters.document;
+}
+
+/**
+ * Resolves the Dataforge handle a document config names, or `undefined` when none is configured.
+ *
+ * `store` wins over the deprecated `collection` because a config can only carry one — the union
+ * makes the ambiguity unexpressible — and the explicit narrow here is what makes the result total
+ * for a present config. Callers that need a store must still handle the absent-config case.
+ *
+ * @param config - The config to resolve; defaults to the configured adapter.
+ * @returns The store handle, or `undefined` when no document config exists.
+ */
+export function getDocumentStore(config: N<DocumentConfig> = getDocumentConfig()): N<Store<any>> {
+	if (config === undefined) {
+		return undefined;
+	}
+
+	if ("store" in config && config.store !== undefined) {
+		return config.store;
+	}
+
+	return config.collection;
 }
 
 export function findInstanceFromEntity(entityId: AnyEntity): N<Instance> {

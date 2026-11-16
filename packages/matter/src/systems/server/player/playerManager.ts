@@ -32,7 +32,7 @@ import { Components } from "../../../components";
 import { useChange } from "../../../hooks";
 import { useDocument } from "../../../hooks/useDocument";
 import { Message, messaging } from "../../../network";
-import { getDocumentConfig, getPlayerLifecycleHooks } from "../../../start";
+import { getDocumentStore, getPlayerLifecycleHooks } from "../../../start";
 
 const loadingQueue = new Map<Player, boolean>();
 const eventQueue: Array<Callback> = [];
@@ -165,8 +165,7 @@ function defaultPlayerAdded(world: World, player: Player): void {
 	debugPrint(`[playerManager] defaultPlayerAdded start ${player.Name}`);
 
 	const hooks = getPlayerLifecycleHooks();
-	const documentConfig = getDocumentConfig();
-	const dataStore = documentConfig?.store ?? documentConfig?.collection;
+	const dataStore = getDocumentStore();
 
 	debugPrint(`[playerManager] queued sync ${player.Name}`);
 
