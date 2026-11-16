@@ -216,8 +216,10 @@ configureRuntimeAdapters({
 });
 ```
 
-`persistedComponents` is declared on the document config but is not read by anything yet, so it has no
-effect — the `store.documents` middleware is what actually writes to Dataforge.
+The document config names the store only; `collection` is a deprecated alias kept for transitional
+compatibility. Writes reach Dataforge through the store's `documents` middleware — updating
+`store.documents` is the operation, so no separate save call exists and no component list opts a
+component into persistence.
 
 Two hooks are worth knowing before you need them: `onPlayerAdded` **replaces** the entire default
 lifecycle (spawn, document load, component insertion, `Message.Time`), so using it means owning all of

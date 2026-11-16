@@ -122,8 +122,8 @@ configureRuntimeAdapters({ document: { store } });
 ```
 
 The document config accepts only `store`; `collection` is a deprecated alias kept for transitional
-compatibility. Note that `persistedComponents` is declared on the type but never read — it currently has
-no effect, so do not rely on it to wire persistence.
+compatibility. Persistence is not opt-in per component: whatever your game puts into
+`store.documents` is what the middleware writes.
 
 Writes reach the datastore through the store's `documents` middleware, which pushes changed entries into
 their Dataforge profiles — updating `store.documents` is the operation, so no separate save call exists.

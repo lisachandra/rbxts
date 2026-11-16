@@ -36,12 +36,6 @@ export interface DocumentConfig {
 	/** @deprecated Use `store`. Kept for transitional compatibility. */
 	collection?: Store<any>;
 	/**
-	 * Map of component names → document keys for change-triggered persistence.
-	 *
-	 * Default: `{ Hotbar: "hotbar", Inventory: "inventory" }`.
-	 */
-	persistedComponents?: Record<string, string>;
-	/**
 	 * The Dataforge store instance for document persistence. Create one with `create_store()` from
 	 * `@rbxts/dataforge`.
 	 */
