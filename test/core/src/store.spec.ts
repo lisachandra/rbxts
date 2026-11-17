@@ -43,8 +43,9 @@ describe("store documents middleware", () => {
 			.await();
 
 		/*
-		 * Removing the key counts as a difference: the middleware writes the
-		 * removed value (immutably) into the matching dataforge profile.
+		 * The seed above already persisted the document, so this removal asserts the other half of the
+		 * contract: dropping a key from the store must leave the data already written in place rather
+		 * than erasing it.
 		 */
 		await server
 			.update({
@@ -61,6 +62,42 @@ describe("store documents middleware", () => {
 		profile.unload();
 
 		expect(profile.open).toBe(false);
+	});
+
+	it("should persist the new value when a document key changes", async () => {
+		expect.assertions(1);
+
+		/*
+		 * The previous implementation derived its write set from
+		 * `removeValues(oldValue, ...values(newValue))`, which keeps a key only when its value is
+		 * absent from `newValue`. A changed value is therefore never a difference, and every update to
+		 * an existing document was silently dropped — the profile kept whatever it was seeded with.
+		 * Seeding first and then changing the amount is what separates the two behaviors: a single
+		 * update from empty would have been written by both.
+		 */
+		const { store: dfStore } = createTestStore();
+		const profile = dfStore.load("Player_5", [5]).unwrap();
+		store.documents["Player_5"] = profile;
+
+		const server = store.server as unknown as Crate<{
+			documents: Record<string, TestData>;
+		}>;
+
+		await server
+			.update({
+				documents: () => ({ Player_5: { credits: 100, items: ["sword"] } }),
+			})
+			.await();
+
+		await server
+			.update({
+				documents: () => ({ Player_5: { credits: 250, items: ["sword", "shield"] } }),
+			})
+			.await();
+
+		expect(profile.get_data()).toEqual({ credits: 250, items: ["sword", "shield"] });
+
+		profile.unload();
 	});
 });
 

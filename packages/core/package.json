@@ -52,6 +52,10 @@
 			"import": "./out/utils/cframe.luau",
 			"types": "./out/utils/cframe.d.ts"
 		},
+		"./utils/documents": {
+			"import": "./out/utils/documents.luau",
+			"types": "./out/utils/documents.d.ts"
+		},
 		"./utils/color": {
 			"import": "./out/utils/color.luau",
 			"types": "./out/utils/color.d.ts"

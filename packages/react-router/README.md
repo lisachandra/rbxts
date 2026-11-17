@@ -60,8 +60,19 @@ Pushing after going back discards the forward entries, as a browser would. `loca
 `{ path, state }`, and `onChanged` is a `Signal<[string, object]>` firing `(path, state)` — connect to
 it directly when you need to react outside React.
 
-## Not available yet
+## Matching a route pattern
 
-`Path` and `useRouteMatch` exist in the source but are not exported, and the matcher currently throws
-rather than matching — see [#53](https://github.com/lisachandra/rbxts/issues/53) (finding N7). Until
-that is fixed, read `location.path` from `useRouter` and branch on it yourself.
+`Path` and `useRouteMatch` are exported from the package root. A pattern is a path string whose
+`:name` tokens are named captures:
+
+```ts
+import { useRouteMatch } from "@lisachandra/react-router";
+
+const match = useRouteMatch({ exact: true, path: "/users/:id" });
+if (match !== undefined) {
+	Log.Info(`user ${match.id}`); // "/users/42" → { id: "42" }
+}
+```
+
+`exact: true` requires the pattern to consume the whole path, so `/users/42/posts` does not match
+above. `match` returns `undefined` when the path does not match at all.

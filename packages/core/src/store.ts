@@ -5,9 +5,9 @@ import Signal from "@rbxts/lemon-signal";
 import Log from "@rbxts/log";
 import type { AnyEntity, World } from "@rbxts/matter";
 import { RunService, Workspace } from "@rbxts/services";
-import { copyDeep, removeValues, values } from "@rbxts/sift/Dictionary";
+import { copyDeep } from "@rbxts/sift/Dictionary";
 
-import { iterate } from "./utils/type";
+import { documentsToPersist } from "./utils/documents";
 
 /**
  * Data structure for player collections including hotbar and inventory items.
@@ -122,9 +122,11 @@ crate.useDiff((diff) => {
 const documents: Partial<Record<string, Profile<CollectionData>>> = {};
 if (RunService.IsServer()) {
 	(crate as Crate<ServerState>).useMiddleware("documents", (oldValue, newValue) => {
-		const difference = removeValues(oldValue, ...values(newValue));
-
-		for (const [key, data] of iterate(difference)) {
+		/*
+		 * Which keys need writing is decided by `documentsToPersist`, which is where the reasoning
+		 * lives and where a spec can reach it: this branch never runs in the offline emulator.
+		 */
+		for (const [key, data] of documentsToPersist(oldValue, newValue)) {
 			const profile = documents[key];
 			if (!profile) {
 				Log.Warn(`${key} document is modified from the store but it doesn't exist!`);

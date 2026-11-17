@@ -60,10 +60,11 @@ export default defineConfig({
 		coveragePathIgnorePatterns: ["**/*.spec.ts", "**/*.spec.tsx"],
 		mockDataModel: false,
 		/*
-		 * `test/react-router`, `test/react-template`, and `test/types` carry a project but no specs
-		 * yet, and jest exits 1 on "No test files found". Without this, `pnpm test` — the command the
-		 * repo documents as its aggregate check — is red on a clean `main`, which makes it useless
-		 * as a signal. A lane that gains a spec still runs it; the flag only tolerates zero.
+		 * A lane with a project but no specs yet makes jest exit 1 on "No test files found", which
+		 * turns `pnpm test` — the command the repo documents as its aggregate check — red on a clean
+		 * `main` and so useless as a signal. Every lane that exists today has at least one spec; this
+		 * stays as the guard for the next lane that is scaffolded before its first spec is written.
+		 * A lane that has a spec still runs it; the flag only tolerates zero.
 		 */
 		passWithNoTests: true,
 		runInBand: true,
