@@ -1382,10 +1382,15 @@ function finalizeParsedArgs(state: ParsedArgState): CliOptions {
 		if (
 			state.queueApply === true &&
 			state.queueSubcommand !== "bootstrap" &&
-			state.queueSubcommand !== "migrate"
+			state.queueSubcommand !== "migrate" &&
+			/*
+			 * `queue promote --apply` is the bulk form of a single-gate promotion and is documented in
+			 * `help.ts`. This guard was written for the proposal commands and dropped it by omission.
+			 */
+			state.queueSubcommand !== "promote"
 		) {
 			throw new Error(
-				"--apply writes a proposal to the manifest; use it with `queue bootstrap` or `queue migrate`.",
+				"--apply writes a proposal to the manifest; use it with `queue bootstrap`, `queue migrate`, or `queue promote`.",
 			);
 		}
 	}
