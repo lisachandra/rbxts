@@ -10,6 +10,7 @@ import {
 	assertCleanMergeResolution,
 	integrateManifestSource,
 	type MergerDeps,
+	partitionDrift,
 	prepareWorktreeForMerge,
 	quarantineWorktreeDrift,
 } from "./merger.js";
@@ -40,9 +41,11 @@ function fakeDeps(
 			| "isGitlink"
 			| "dirtyPaths"
 			| "abortMerge"
+			| "untrackedPaths"
 			| "mergeInProgress"
 			| "hasUnmergedPaths"
 			| "changedSinceMergeBase"
+			| "submodulePointerMoved"
 		>
 	> = {},
 ): { deps: MergerDeps; gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> } {
@@ -59,6 +62,8 @@ function fakeDeps(
 		hasUnmergedPaths: () => false,
 		isGitlink: () => false,
 		mergeInProgress: () => false,
+		submodulePointerMoved: () => false,
+		untrackedPaths: () => [],
 	};
 
 	const merged: MergerDeps = {
@@ -174,6 +179,39 @@ describe("merger adapter seam", () => {
 		assert.equal(manifest.drift?.paths[0], "AGENTS.md");
 		assert.equal(manifest.drift?.stashCommit, "deadbeef");
 		assert.equal(wroteManifest?.name, "drift");
+	});
+
+	test("should classify a moved submodule pointer as blocking and content dirt as noise", () => {
+		/*
+		 * One definition of drift serves every integration command. A submodule whose recorded
+		 * pointer still matches its checkout is content dirt — build output, a generated lockfile —
+		 * which git merges over and a branch cannot carry. A pointer that moved is a real change no
+		 * source commit accounts for, so it must block like any other tracked edit.
+		 */
+		const worktree = "/tmp/drift-classes";
+
+		const contentOnly = fakeDeps({
+			dirtyPaths: () => ["submodules/nexus-sync"],
+			isGitlink: () => true,
+			submodulePointerMoved: () => false,
+			untrackedPaths: () => ["build/output.log"],
+		});
+		const quiet = partitionDrift(worktree, contentOnly.deps);
+		assert.deepEqual(quiet.blocking, []);
+		assert.deepEqual(quiet.submodules, ["submodules/nexus-sync"]);
+		assert.deepEqual(quiet.untracked, ["build/output.log"]);
+
+		const pointerMoved = fakeDeps({
+			dirtyPaths: () => ["submodules/nexus-sync"],
+			isGitlink: () => true,
+			submodulePointerMoved: () => true,
+		});
+		const moved = partitionDrift(worktree, pointerMoved.deps);
+		assert.deepEqual(moved.blocking, ["submodules/nexus-sync"]);
+		assert.deepEqual(moved.submodules, []);
+
+		const trackedEdit = fakeDeps({ dirtyPaths: () => ["src/a.ts"] });
+		assert.deepEqual(partitionDrift(worktree, trackedEdit.deps).blocking, ["src/a.ts"]);
 	});
 
 	test("should abandon a merge no conflict explains so it cannot read as a conflict", async () => {

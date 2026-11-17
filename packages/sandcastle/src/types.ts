@@ -111,6 +111,14 @@ export interface IntegrationManifest {
 	kind: IntegrationKind;
 	lastError?: string;
 	name: string;
+	/**
+	 * Branch tip the integration review approved, recorded when that phase completes.
+	 *
+	 * A resume that finds HEAD still here skips the review agent: the review's corrections are
+	 * already committed, so re-running it spends a whole review budget to reach the same commit.
+	 * Absent on manifests written before this field existed, which simply review again.
+	 */
+	reviewHead?: string;
 	sources: Array<IntegrationSource>;
 	status: IntegrationStatus;
 	updatedAt: string;

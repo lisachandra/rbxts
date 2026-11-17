@@ -262,6 +262,46 @@ export function dirtyPaths(worktree: string): Array<string> {
 	return porcelainStatusPaths(git(["status", "--porcelain", "--untracked-files=no"], worktree));
 }
 
+/**
+ * - Untracked paths in a worktree, ignoring anything `.gitignore` already covers.
+ * - @param worktree - Worktree to inspect.
+ * - @returns Paths git reports as untracked, or none when git cannot list them.
+ * - @remarks These are not on the branch, so they can never reach a human merge. They are reported
+ *   for context and never block a hand-off: the setup commands create some of them themselves
+ *   (`pnpm install` inside a submodule leaves a lockfile that submodule does not ignore).
+ */
+export function untrackedPaths(worktree: string): Array<string> {
+	const output = gitTry(["ls-files", "--others", "--exclude-standard"], worktree);
+	return output === undefined
+		? []
+		: output
+				.split(/\r?\n/)
+				.map((path) => path.trim())
+				.filter((path) => path !== "");
+}
+
+/**
+ * - Whether a submodule's recorded gitlink points somewhere other than its checked-out commit.
+ * - @param worktree - Worktree containing the submodule.
+ * - @param path - Submodule path, e.g. `submodules/nexus-sync`.
+ * - @returns `true` when the index commit differs from the checked-out HEAD; `false` for content-only
+ *   dirt.
+ * - @remarks This separates "the branch now requires a different submodule commit" — a real change no
+ *   source commit accounts for, which a human must see — from "something inside the submodule is
+ *   dirty", which is build output and generated lock files. Git merges over the latter regardless.
+ */
+export function submodulePointerMoved(worktree: string, path: string): boolean {
+	const recorded = (gitTry(["ls-files", "--stage", "--", path], worktree) ?? "").split(/\s+/)[1];
+	const checkedOut = gitTry(["-C", path, "rev-parse", "HEAD"], worktree);
+	return (
+		recorded !== undefined &&
+		recorded !== "" &&
+		checkedOut !== undefined &&
+		checkedOut !== "" &&
+		recorded !== checkedOut
+	);
+}
+
 /** Paths a source commit changed since its merge base with the worktree HEAD. */
 export function changedSinceMergeBase(worktree: string, commit: string): Array<string> {
 	const base = git(["merge-base", "HEAD", commit], worktree);

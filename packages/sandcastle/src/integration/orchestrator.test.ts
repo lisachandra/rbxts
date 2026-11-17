@@ -203,8 +203,120 @@ describe("orchestrator state machine", () => {
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});
 
-	test("continueIntegration still refuses review drift when tolerance is off", async () => {
+	test("post-review drift is quarantined even when the pre-merge tolerance is off", async () => {
+		/*
+		 * The review agent churns the worktree by construction, so a hand-off that refuses it can
+		 * never finish: the retry re-runs the review and fails on the same surviving file. The
+		 * `quarantineDrift` flag keeps its meaning for the pre-merge phase, where the dirt may be a
+		 * human's in-flight work, and no longer decides whether a finished review may be handed off.
+		 */
 		const name = `orchestrate-strict-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+
+		let stashed = false;
+		const stashCommands: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				if (args[0] === "status") {
+					return stashed ? "" : " M src/a.ts";
+				}
+
+				if (args[0] === "stash") {
+					stashCommands.push([...args]);
+					stashed = true;
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, false, {
+			prepareWorktree: () => undefined,
+			runConflictResolver: async () => undefined,
+			runIntegrationReview: async () => undefined,
+		});
+
+		assert.equal(stashCommands.length, 1, "the drift was stashed rather than fatal");
+		assert.deepEqual(manifest.drift?.paths, ["src/a.ts"]);
+		assert.equal(manifest.status, "ready-for-human-merge");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("hand-off ignores submodule content dirt and untracked paths", async () => {
+		/*
+		 * The exact shape that failed a resume forever: `pnpm setup` runs `pnpm install` inside
+		 * `submodules/nexus-sync`, which leaves a lockfile that submodule does not ignore. The
+		 * recorded pointer is unchanged, so the branch carries nothing — and a fresh worktree's
+		 * build output is untracked anyway.
+		 */
+		const name = `orchestrate-noise-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+
+		let stashed = false;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "status") {
+					return " M submodules/nexus-sync";
+				}
+
+				if (args[0] === "stash") {
+					stashed = true;
+					return "";
+				}
+
+				if (args[0] === "ls-files" && args[1] === "--stage") {
+					return "160000 49b76f2 0\tsubmodules/nexus-sync";
+				}
+
+				if (args[0] === "ls-files" && args[1] === "--others") {
+					return "pnpm-lock.yaml";
+				}
+
+				if (args[0] === "-C") {
+					return "49b76f2";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+			prepareWorktree: () => undefined,
+			runConflictResolver: async () => undefined,
+			runIntegrationReview: async () => undefined,
+		});
+
+		assert.equal(stashed, false, "a branch-invisible difference must not be stashed");
+		assert.equal(manifest.status, "ready-for-human-merge");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a moved submodule pointer blocks the hand-off", async () => {
+		/* Content dirt is noise; pointing the branch at a different submodule commit is not. */
+		const name = `orchestrate-pointer-${Date.now()}`;
 		const worktree = join(integrationsDir, name, "worktree");
 		mkdirSync(worktree, { recursive: true });
 		const manifest = makeManifest(name);
@@ -212,7 +324,19 @@ describe("orchestrator state machine", () => {
 		gitStub({
 			file: (args) => {
 				if (args[0] === "status") {
-					return " M src/a.ts";
+					return " M submodules/nexus-sync";
+				}
+
+				if (args[0] === "ls-files" && args[1] === "--stage") {
+					return "160000 49b76f2 0\tsubmodules/nexus-sync";
+				}
+
+				if (args[0] === "-C") {
+					return "aaaaaaa";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
 				}
 
 				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
@@ -225,15 +349,89 @@ describe("orchestrator state machine", () => {
 
 		await assert.rejects(
 			async () =>
-				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, false, {
+				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 					prepareWorktree: () => undefined,
 					runConflictResolver: async () => undefined,
 					runIntegrationReview: async () => undefined,
 				}),
-			/Integration review left uncommitted changes/,
+			/Could not quarantine every uncommitted change/,
 		);
 
-		assert.equal(manifest.status, "review-failed");
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a resume skips the review when the branch tip is unchanged", async () => {
+		/* The review's corrections are committed; re-running it reaches the same commit for a full budget. */
+		const name = `orchestrate-reviewed-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+		manifest.reviewHead = "deadbeef1234";
+
+		let reviewRan = false;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "status") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+			prepareWorktree: () => undefined,
+			runConflictResolver: async () => undefined,
+			runIntegrationReview: async () => {
+				reviewRan = true;
+			},
+		});
+
+		assert.equal(reviewRan, false, "the approved tip must not be reviewed twice");
+		assert.equal(manifest.status, "ready-for-human-merge");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a completed review stamps the tip so the next resume can skip it", async () => {
+		const name = `orchestrate-stamp-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "status") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+			prepareWorktree: () => undefined,
+			runConflictResolver: async () => undefined,
+			runIntegrationReview: async () => undefined,
+		});
+
+		assert.equal(manifest.reviewHead, "deadbeef1234");
 
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});

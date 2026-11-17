@@ -38,6 +38,7 @@ import { backendSupportsDigest, fileLogging } from "./logging.js";
 import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
 import { completionPromptArgs } from "./prompts/completion.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
+import { setupNoteFor } from "./prompts/setup-note.js";
 import { skillsForPrompt } from "./prompts/skills.js";
 import { saveSession } from "./providers/session-store.js";
 import { locateIssue, readQueueManifest } from "./queue/manifest.js";
@@ -921,15 +922,7 @@ export async function runSingleIssue(
 			 * When setup did fail, the agent gets the failure line up front instead of rediscovering
 			 * it by burning its budget on free diagnostic work.
 			 */
-			sharedArgs.SETUP_NOTE =
-				setupNote === undefined
-					? ""
-					: [
-							"Environment warning — the worktree setup commands FAILED and the run continued anyway:",
-							`    ${setupNote}`,
-							"The environment may be broken. Verify what you depend on before trusting it (builds, tests, node_modules, submodules).",
-							"Do not spend the phase repairing the environment; work around what you can, and report the breakage in your final response.",
-						].join("\n");
+			sharedArgs.SETUP_NOTE = setupNoteFor(setupNote);
 		}
 
 		await executeIssuePhases({

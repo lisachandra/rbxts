@@ -17,6 +17,8 @@ import {
 	hasUnmergedPaths,
 	isGitlink,
 	mergeInProgress,
+	submodulePointerMoved,
+	untrackedPaths,
 } from "../git.js";
 import { config } from "../runtime.js";
 import type {
@@ -71,6 +73,8 @@ export interface MergerDeps {
 	hasUnmergedPaths: (worktree: string) => boolean;
 	isGitlink: (worktree: string, path: string) => boolean;
 	mergeInProgress: (worktree: string) => boolean;
+	submodulePointerMoved: (worktree: string, path: string) => boolean;
+	untrackedPaths: (worktree: string) => Array<string>;
 }
 
 const defaultDeps: MergerDeps = {
@@ -82,6 +86,8 @@ const defaultDeps: MergerDeps = {
 	hasUnmergedPaths,
 	isGitlink,
 	mergeInProgress,
+	submodulePointerMoved,
+	untrackedPaths,
 };
 
 export function resolveMergerDeps(deps?: Partial<MergerDeps>): MergerDeps {
@@ -108,15 +114,41 @@ export function assertCleanMergeResolution(
 	}
 }
 
-/** Split tracked drift into merge-blocking paths and submodule pointers, which git merges over. */
+/**
+ * Classify everything a worktree carries that the branch does not.
+ *
+ * This is the single definition of "drift" the integration commands share. The hand-off gate and
+ * the pre-merge guard both consume it, so they cannot disagree about whether a worktree is clean —
+ * which is what made a resume fail forever on dirt its own classifier called harmless.
+ *
+ * Three classes, in decreasing severity:
+ *
+ * - `blocking` — tracked files with uncommitted edits, plus submodule pointers that moved to a
+ *   different commit. Both are real changes no source commit accounts for.
+ * - `submodules` — submodule content dirt (generated lock files, build output) with the recorded
+ *   pointer unchanged. Git merges over these, and a branch cannot carry them.
+ * - `untracked` — paths git does not track at all, so they can never reach the branch.
+ */
 export function partitionDrift(
 	worktree: string,
 	deps: Partial<MergerDeps> = {},
-): { blocking: Array<string>; submodules: Array<string> } {
+): { blocking: Array<string>; submodules: Array<string>; untracked: Array<string> } {
 	const merged = resolveMergerDeps(deps);
 	const drift = merged.dirtyPaths(worktree);
-	const submodules = drift.filter((path) => merged.isGitlink(worktree, path));
-	return { blocking: drift.filter((path) => !submodules.includes(path)), submodules };
+	const submodules: Array<string> = [];
+	const blocking: Array<string> = [];
+	for (const path of drift) {
+		if (!merged.isGitlink(worktree, path)) {
+			blocking.push(path);
+			continue;
+		}
+
+		// A moved pointer changes what the branch requires; content dirt does not.
+		const target = merged.submodulePointerMoved(worktree, path) ? blocking : submodules;
+		target.push(path);
+	}
+
+	return { blocking, submodules, untracked: merged.untrackedPaths(worktree) };
 }
 
 /**
@@ -190,10 +222,16 @@ export function prepareWorktreeForMerge(
 	manifestWriter: (manifest: IntegrationManifest) => void = writeIntegrationManifest,
 ): void {
 	const merged = resolveMergerDeps(deps);
-	const { blocking, submodules } = partitionDrift(worktree, deps);
+	const { blocking, submodules, untracked } = partitionDrift(worktree, deps);
 	if (submodules.length > 0) {
 		console.warn(
-			`  ⚠ Submodule pointers are dirty but do not block the merge: ${submodules.join(", ")}`,
+			`  ⚠ Submodule content is dirty but the recorded pointers are unchanged, so the merge proceeds: ${submodules.join(", ")}`,
+		);
+	}
+
+	if (untracked.length > 0) {
+		console.warn(
+			`  ⚠ ${String(untracked.length)} untracked path(s) in the worktree; they are not on the branch: ${untracked.join(", ")}`,
 		);
 	}
 
@@ -233,6 +271,7 @@ export type ConflictResolverRunner = (
 	effort: string,
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
+	setupNote?: string,
 ) => Promise<void>;
 
 export interface IntegrateSourceDeps extends Partial<MergerDeps> {
@@ -250,6 +289,7 @@ export async function integrateManifestSource(
 	step?: ResolvedAgentStep,
 	quarantineDrift = false,
 	deps: IntegrateSourceDeps = {},
+	setupNote = "",
 ): Promise<void> {
 	const merged = resolveMergerDeps(deps);
 	const resolver =
@@ -276,7 +316,7 @@ export async function integrateManifestSource(
 		manifest.lastError = `Conflict resolution is still required for ${source.name}.`;
 		manifestWriter(manifest);
 		if (resolver !== undefined) {
-			await resolver(manifest, source, model, effort, agentBackend, step);
+			await resolver(manifest, source, model, effort, agentBackend, step, setupNote);
 		}
 
 		assertCleanMergeResolution(manifest, deps);
@@ -313,7 +353,7 @@ export async function integrateManifestSource(
 			`  Conflict while integrating ${source.name}; invoking resolving-merge-conflicts.`,
 		);
 		if (resolver !== undefined) {
-			await resolver(manifest, source, model, effort, agentBackend, step);
+			await resolver(manifest, source, model, effort, agentBackend, step, setupNote);
 		}
 
 		assertCleanMergeResolution(manifest, deps);

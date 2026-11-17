@@ -18,6 +18,7 @@ import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from ".
 import { backendSupportsDigest, fileLogging } from "../logging.js";
 import { markerPath, runMarkerPhase } from "../markers.js";
 import { queueRulesForPrompt } from "../prompts/queue.js";
+import { setupNoteFor } from "../prompts/setup-note.js";
 import { skillsForPrompt } from "../prompts/skills.js";
 import { saveSession } from "../providers/session-store.js";
 import { runPhaseWithRetry } from "../retry.js";
@@ -61,6 +62,7 @@ export type IntegrationReviewRunner = (
 	effort: string,
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
+	setupNote?: string,
 ) => Promise<void>;
 
 /**
@@ -94,6 +96,7 @@ export async function runConflictResolver(
 	effort: string,
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
+	setupNote = "",
 ): Promise<void> {
 	const worktree = integrationBasePath(manifest);
 	const marker = markerPath(`${manifest.name}.resolve`);
@@ -127,7 +130,7 @@ export async function runConflictResolver(
 						SOURCE_CONTEXT: sourceContext,
 
 						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
-						SETUP_NOTE: "",
+						SETUP_NOTE: setupNote,
 						SOURCE_NAME: source.name,
 					},
 					promptFile: config.prompts.resolveConflicts,
@@ -163,6 +166,7 @@ export async function runIntegrationReview(
 	effort: string,
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
+	setupNote = "",
 ): Promise<void> {
 	const marker = markerPath(`${manifest.name}.review`);
 	const sourceContext = JSON.stringify(manifest.sources, undefined, 2);
@@ -186,7 +190,7 @@ export async function runIntegrationReview(
 						INTEGRATION_NAME: manifest.name,
 						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 
-						SETUP_NOTE: "",
+						SETUP_NOTE: setupNote,
 						SKILLS: skillsForPrompt("review"),
 						SOURCES: sourceContext,
 					},
@@ -268,7 +272,8 @@ export async function continueIntegration(
 	}
 
 	try {
-		merged.prepareWorktree(worktree, ignoreSetup, skipSetup, setupOutput);
+		const setupFailure = merged.prepareWorktree(worktree, ignoreSetup, skipSetup, setupOutput);
+		const setupNote = setupNoteFor(setupFailure);
 		manifest.status = "merging";
 		manifest.lastError = undefined;
 		writeIntegrationManifest(manifest);
@@ -293,6 +298,7 @@ export async function continueIntegration(
 				steps?.resolve,
 				quarantineDrift,
 				{ runConflictResolver: merged.runConflictResolver },
+				setupNote,
 			);
 
 			if (
@@ -311,40 +317,60 @@ export async function continueIntegration(
 		writeIntegrationManifest(manifest);
 		console.log(`  ✓ Merged ${manifest.sources.length} source(s) into ${manifest.branch}.`);
 
-		manifest.status = "reviewing";
-		writeIntegrationManifest(manifest);
-		await merged.runIntegrationReview(
-			manifest,
-			model,
-			effort,
-			agentBackend,
-			steps?.integrationReview,
-		);
+		/*
+		 * A review that already ran to completion and committed its corrections does not need to run
+		 * again merely because the hand-off afterwards failed. `reviewHead` records the branch tip the
+		 * reviewer approved; when a resume finds HEAD still there, the agent phase is work already
+		 * done, and re-running it costs a full review budget to arrive at the same commit.
+		 */
+		const reviewHead = resolveCommit("HEAD", worktree);
+		if (manifest.reviewHead === reviewHead) {
+			console.log(
+				`  ✓ Review already approved this branch tip (${reviewHead}); not re-running it.`,
+			);
+		} else {
+			manifest.status = "reviewing";
+			writeIntegrationManifest(manifest);
+			await merged.runIntegrationReview(
+				manifest,
+				model,
+				effort,
+				agentBackend,
+				steps?.integrationReview,
+				setupNote,
+			);
+			manifest.reviewHead = resolveCommit("HEAD", worktree);
+			writeIntegrationManifest(manifest);
+		}
+
 		assertCleanMergeResolution(manifest);
-		const leftover = git(["status", "--porcelain"], worktree);
-		if (leftover.length > 0) {
-			/*
-			 * The review agent routinely leaves formatting and scratch edits behind. Failing the whole
-			 * hand-off for them is what left an integration aborted with no pull request, so a caller
-			 * that tolerates drift gets the tracked ones stashed and recorded instead.
-			 */
-			if (!quarantineDrift) {
-				throw new Error(
-					"Integration review left uncommitted changes; commit review corrections before handoff.",
-				);
-			}
+		/*
+		 * The hand-off gate asks the same question as the pre-merge guard — "does the branch carry
+		 * changes no source commit accounts for?" — so it consumes `partitionDrift` rather than a raw
+		 * `git status`. A worktree-only difference (untracked build output, a lockfile a setup command
+		 * generated inside a submodule) cannot reach a human merge, and failing the whole hand-off for
+		 * it left compositions unable to finish at all: the retry re-ran the review and failed on the
+		 * same surviving file.
+		 *
+		 * Post-review dirt is agent churn by construction, so it is always quarantined — stashed and
+		 * recorded, never discarded — instead of refusing the hand-off. `quarantineDrift` keeps its
+		 * meaning for the pre-merge phase, where the dirt may be a human's in-flight work.
+		 */
+		const { blocking, submodules, untracked } = partitionDrift(worktree);
+		if (submodules.length > 0) {
+			console.warn(
+				`  ⚠ Submodule content is dirty but the recorded pointers are unchanged, so the branch is unaffected: ${submodules.join(", ")}`,
+			);
+		}
 
-			const { blocking } = partitionDrift(worktree);
-			if (blocking.length > 0) {
-				quarantineWorktreeDrift(manifest, worktree, blocking);
-			}
+		if (blocking.length > 0) {
+			quarantineWorktreeDrift(manifest, worktree, blocking);
+		}
 
-			const untracked = git(["status", "--porcelain"], worktree).length;
-			if (untracked > 0) {
-				console.warn(
-					`  ⚠ ${String(untracked)} untracked path(s) remain in the worktree; they are not on the branch.`,
-				);
-			}
+		if (untracked.length > 0) {
+			console.warn(
+				`  ⚠ ${String(untracked.length)} untracked path(s) remain in the worktree; they are not on the branch: ${untracked.join(", ")}`,
+			);
 		}
 
 		manifest.headCommit = resolveCommit(manifest.branch);
