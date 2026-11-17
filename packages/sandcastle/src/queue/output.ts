@@ -18,7 +18,15 @@ export function emitText(options: CliOptions, line: string): void {
 	}
 }
 
-/** Prints one compact JSON object on stdout. */
-export function emitJson(value: unknown): void {
-	console.log(JSON.stringify(value));
+/**
+ * Prints one JSON value on stdout.
+ *
+ * @param value - The payload.
+ * @param pretty - Indent with two spaces. The document subcommands (`list`, `check`, `graph`, and
+ *   the disabled-queue answer) pass `true` because their stdout is a single object a human may
+ *   read; the JSONL streams leave it off, because one pretty-printed record spans many lines and
+ *   defeats the one-object-per-line contract a consumer parses.
+ */
+export function emitJson(value: unknown, pretty = false): void {
+	console.log(pretty ? JSON.stringify(value, undefined, 2) : JSON.stringify(value));
 }

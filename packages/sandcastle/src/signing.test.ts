@@ -66,6 +66,29 @@ describe("readCommitSigningPolicy", () => {
 		});
 	});
 
+	test("should treat every spelling git reads as true as a policy", () => {
+		/*
+		 * `git config` accepts yes/on/1 for a boolean. Matching the literal "true" read those as
+		 * "not required", which skipped both the signing flag and the verification — so a host that
+		 * spells it `yes` produced unsigned commits the policy exists to refuse.
+		 */
+		for (const spelling of ["true", "yes", "on", "1", "TRUE", "Yes"]) {
+			recordingGit({ config: spelling });
+			assert.equal(
+				readCommitSigningPolicy().required,
+				true,
+				`expected ${spelling} to require a signature`,
+			);
+		}
+	});
+
+	test("should treat a value git would refuse as required rather than unsigned", () => {
+		// Refusing to commit beats committing unsigned, so an unparseable setting fails closed.
+		recordingGit({ config: "maybe" });
+
+		assert.equal(readCommitSigningPolicy().required, true);
+	});
+
 	test("should report not required when commit.gpgsign is unset", () => {
 		// An absent setting is not a policy; treating it as one would fail on every fresh clone.
 		recordingGit({ config: "" });

@@ -1,5 +1,5 @@
 ---
-"@lisachandra/matter": patch
+"@lisachandra/matter": major
 ---
 
 Require exactly one of `store` / `collection` on `DocumentConfig`
@@ -13,9 +13,13 @@ time. It is now a discriminated union: `{ store }` or `{ collection }`, never `{
 because `?: never` is still optional, so the resolver narrows explicitly and documents that a present
 config has exactly one arm.
 
-A config that typechecked before only because it named nothing (or named both) now fails to compile.
-That is the intended break: such a config was already broken at runtime, and `patch` is right because
-nothing that worked stops working.
+## Breaking change
 
-`getDocumentConfig()`'s return type and `RuntimeAdapters.document` are unchanged, and `collection`
-remains a deprecated alias.
+`DocumentConfig` is a published type on a post-1.0 package, so narrowing it is a **major** bump: a
+consumer whose config typechecked because it named neither arm, or both, now fails to compile. Such
+a config was already wrong at runtime — it silently persisted nothing — but the build break is the
+point of the change, and it reaches consumers as a type error, so it cannot ship as a patch.
+
+Nothing else moved. A config that named exactly one arm keeps compiling, `getDocumentConfig()`'s
+return type and `RuntimeAdapters.document` are unchanged, and `collection` remains a deprecated
+alias.

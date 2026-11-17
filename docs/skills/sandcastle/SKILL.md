@@ -151,7 +151,7 @@ never learns about them. When you run any review — a sandcastle phase or a man
    names the batch rather than starting unrelated work, so a follow-up filed without the label
    stalls the queue. These are the only queue writes a review makes — never the `human` array
    (grilling registrations only), and almost never another batch: cross-batch registration is
-   step 1's seam-owning case, only when that batch is not composed, and even then prefer noting
+   the duplicate-search exception above, only when that batch is not composed, and even then prefer noting
    the overlap on the existing member. A follow-up crucial to the batch landing correctly that
    carries a question only a human can answer is the one `ready-for-human` exception: either halt
    the run and surface the question with the issue reference, or register it into the batch — the

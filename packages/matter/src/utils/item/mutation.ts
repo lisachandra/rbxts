@@ -38,8 +38,15 @@ export interface HeldItem {
 /** Why a drop request was refused. */
 export type DropRejection = "amount" | "not-owner" | "missing-item";
 
-/** The lowest `amount` an item message may request. */
-export const MINIMUM_ITEM_AMOUNT = 1;
+/**
+ * The lowest `amount` an item message may request.
+ *
+ * @remarks
+ *   Module-local rather than exported: `isValidItemAmount` is the only reader, and the coding
+ *   standards forbid a top-level numeric export. A caller that needs the number needs the
+ *   predicate.
+ */
+const MINIMUM_ITEM_AMOUNT = 1;
 
 /**
  * Decides whether a requested item amount is legal.

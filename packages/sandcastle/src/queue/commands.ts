@@ -114,7 +114,7 @@ export function queueEnabled(options: CliOptions): boolean {
 function runQueueDisabled(options: CliOptions, context: QueueContext): void {
 	const subcommand = options.queueSubcommand ?? "list";
 	if (options.jsonOut) {
-		context.output.json({ enabled: false, subcommand });
+		context.output.json({ enabled: false, subcommand }, true);
 	}
 
 	if (mutatingQueueSubcommands.has(subcommand)) {
@@ -234,7 +234,7 @@ function liveView(context: QueueContext, strictGates: boolean): QueueView {
 function runQueueList(options: CliOptions, context: QueueContext): void {
 	const view = liveView(context, false);
 	if (options.jsonOut) {
-		context.output.json(view);
+		context.output.json(view, true);
 		return;
 	}
 
@@ -245,7 +245,7 @@ function runQueueCheck(options: CliOptions, context: QueueContext): void {
 	const relaxed = liveView(context, false);
 	const strict = options.queueStrictGates === true ? liveView(context, true) : relaxed;
 	if (options.jsonOut) {
-		context.output.json(strict);
+		context.output.json(strict, true);
 	} else {
 		context.output.line(renderQueueText(strict));
 	}
@@ -361,7 +361,7 @@ function runQueueGraph(options: CliOptions, context: QueueContext): void {
 			break;
 		}
 		case "json": {
-			context.output.json(graph);
+			context.output.json(graph, true);
 			break;
 		}
 		case "mermaid": {

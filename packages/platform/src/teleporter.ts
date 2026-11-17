@@ -87,13 +87,19 @@ const teleportAsync = Promise.promisify(
 	},
 );
 
-/** Reasons why a teleport may be considered invalid. */
+/**
+ * Reasons why a teleport may be considered invalid.
+ *
+ * @remarks
+ *   Vestigial: nothing constructs or returns one. {@link verifyTeleportData} answers with a
+ *   {@link TeleportVerification} object because a caller needs several booleans at once, not a
+ *   single reason. Kept because it is a published export, but do not add members here — a new
+ *   reason belongs on the verification result, where it can actually be observed.
+ */
 export enum TeleportReason {
 	TeleportInvalidData,
 	TeleportInvalidHash,
 	TeleportOldHash,
-	/** The stamp leads the verifier's clock by more than the allowed skew. */
-	TeleportFutureStamp,
 }
 
 /** The caller's own fields, which ride along with the attached `hash` and `stamp`. */
@@ -207,6 +213,14 @@ export function verifyTeleportData(data: unknown, now: number): TeleportVerifica
 	}
 
 	const { hash, stamp, ...payload } = data as PossibleTeleportData;
+	/*
+	 * A plain `===` on the digest, deliberately. A constant-time comparison defends a secret compared
+	 * byte by byte; here the compared value is the MAC, which travels in the token and is already
+	 * known to whoever sent it, and the secret itself is never an operand. Luau also gives an attacker
+	 * no per-byte timer worth modelling over a 64-character string a network round trip dominates. If
+	 * this ever compares a secret-derived value not present in the input, that is when the timing
+	 * argument becomes real.
+	 */
 	const validHash = hash === generateTeleportHash({ ...payload, stamp }, secret);
 	const withinAge = now < stamp + teleportConfig.expiration;
 	const withinSkew = stamp - now <= maximumClockSkew;

@@ -14,11 +14,17 @@ They now take a `QueueContext` — read, fetch, evaluate gates, transact, write,
 once at the CLI edge. `main.ts` passes it explicitly; `runQueueCommand`'s parameter is optional and
 defaults to the same constructor, so the published signature keeps working.
 
-No subcommand, flag, message, exit code, or manifest byte changes. Two suites cross the new seam:
+No subcommand, flag, message, exit code, or byte on stdout changes. Two suites cross the new seam:
 `commands.test.ts` drives `queue check`'s 0/1/2 exit codes, `queue list --json`, and the
 disabled-queue split from canned live state; `ops.test.ts` asserts each mutation as the (message,
 manifest) pair the transaction settled on, replacing a fixture that relocated the manifest by
 mutating the global config and stubbing git.
+
+The `--json` shapes are pinned rather than assumed. `emitJson` gained a `pretty` flag so the document
+subcommands (`list`, `check`, `graph`, and the disabled-queue answer) keep their two-space indent, and
+the JSONL streams keep one compact record per line; the context fake mirrors `emitJson` exactly,
+because a fake that always emitted compact JSON would accept either shape and let the indent disappear
+unnoticed.
 
 Also fixes `queue promote --apply`, which `help.ts` documents and `ops.ts` implements but which
 `cli.ts` refused: the `--apply` guard written for `queue bootstrap` and `queue migrate` did not list

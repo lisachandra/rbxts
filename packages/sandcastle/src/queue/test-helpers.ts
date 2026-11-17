@@ -101,8 +101,17 @@ export function queueContextStub(
 		truncated: options.live?.truncated ?? false,
 	};
 	const output: QueueOutput = {
-		json: (value) => {
-			fake.lines.push({ channel: "line", text: JSON.stringify(value) });
+		/*
+		 * Mirrors `emitJson` exactly, indentation included. A fake that always emitted compact JSON
+		 * would accept a pretty payload and a JSONL record with the same bytes, so a spec could not
+		 * tell the two contracts apart — which is how four document subcommands lost their indent
+		 * unnoticed while a suite asserted "no output change".
+		 */
+		json: (value, pretty) => {
+			fake.lines.push({
+				channel: "line",
+				text: pretty === true ? JSON.stringify(value, undefined, 2) : JSON.stringify(value),
+			});
 		},
 		line: (line) => {
 			fake.lines.push({ channel: "line", text: line });
@@ -128,13 +137,8 @@ export function queueContextStub(
 			fake.persisted.push({ manifest: next, summary });
 			active = next;
 		},
-		publish: (_, next, summary) => {
-			fake.persisted.push({ manifest: next, summary });
-			active = next;
-		},
 		readManifest: () => active,
 		readRawManifest: () => active,
-		readyForAgent: "ready-for-agent",
 		repository: () => options.repository ?? { name: "rbxts", owner: "lisachandra" },
 		transact: (_, transact) => {
 			fake.transactions.push(active);

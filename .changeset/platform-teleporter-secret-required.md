@@ -34,6 +34,10 @@ verification after it, so a teleport in flight across the deploy fails and the p
 `Omit<PossibleTeleportData, "hash" | "stamp">`, which was the empty object type: payload fields were
 not expressible before.
 
+`TeleportReason` is unchanged. It is vestigial — nothing constructs or returns one, and
+`verifyTeleportData` answers with a `TeleportVerification` object instead, because a caller needs
+several booleans at once — but it is a published export and this change leaves it alone.
+
 The verification itself is now `verifyTeleportData(data, now)`, a pure function, with
 `isValidTeleport(player)` the wrapper that reads the player's join data. `signTeleportData(payload,
 stamp)` mints a token without a `TeleportOptions` instance. Both exist because the offline test lane's

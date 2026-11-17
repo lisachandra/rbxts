@@ -109,8 +109,10 @@ So check each new command against this list:
 
 Both halves of the guard story matter: the guard has to _be_ synchronous, and Centurion has to
 _evaluate_ it synchronously. `adminOrDeveloper` is typed to return `boolean`, but a guard whose body
-returns a `Promise` types as `boolean` through a wider signature and executes anyway. A guard-return
-assertion that catches this is tracked in #68; until it lands, the check is a review item.
+returns a `Promise` types as `boolean` through a wider signature and executes anyway. `assertGuardsReturnBoolean`
+in `@lisachandra/platform/centurion/testing` refuses that at construction: it halts on any return that is
+not a `typeof` `"boolean"`, so a `Promise`, `nil`, or table cannot pass as truthy. Call it once in a test
+with every guard you register.
 
 ### Custom argument types
 

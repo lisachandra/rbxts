@@ -334,8 +334,16 @@ export function mergeHeadPath(worktree: string): string {
 
 export const mergeInProgress = (worktree: string): boolean => existsSync(mergeHeadPath(worktree));
 
-export function registeredWorktrees(): Array<RegisteredWorktree> {
-	return git(["worktree", "list", "--porcelain"])
+/**
+ * - Lists the worktrees git has registered for a repository.
+ * - @param cwd - Repository to ask; defaults to this checkout. Pass it when acting on another
+ *   checkout, since the registration list is per-repository.
+ * - @returns Every registered worktree's path and branch, from `git worktree list --porcelain`.
+ * - @remarks The main checkout is in the list too, so a caller asking "did the runner place this?"
+ *   must compare against the exact path it expected rather than treat membership as proof.
+ */
+export function registeredWorktrees(cwd?: string): Array<RegisteredWorktree> {
+	return git(["worktree", "list", "--porcelain"], cwd)
 		.split(/\r?\n\r?\n/)
 		.map((block) => {
 			const pathLine = block.split(/\r?\n/).find((line) => line.startsWith("worktree "));

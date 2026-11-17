@@ -62,6 +62,39 @@ describe("diracAgent", () => {
 		assert.match(resume.command, /'-T' 'x; echo pwned'/);
 	});
 
+	/*
+	 * The provider base URL used to be concatenated into one shell string, where `-p ${provider}`
+	 * with `provider = "-p <url>"` still produced a single `-p`. Building argv instead turns that
+	 * into two arguments — `"-p"`, `"-p <url>"` — and dirac receives its own flag as the value.
+	 * The flag must appear exactly once, with the URL as its own argument.
+	 */
+	test("buildPrintCommand passes the provider base URL once, as its own argument", () => {
+		const agent = diracProvider("m", {
+			env: { OPENAI_API_BASE: "https://router.bynara.id/v1" },
+		});
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: false,
+			prompt: "hi",
+		});
+		const argv = words(command.command);
+
+		const providerFlags = argv.filter((word) => word === "-p");
+		assert.equal(providerFlags.length, 1, `expected one -p, saw ${JSON.stringify(argv)}`);
+
+		const index = argv.indexOf("-p");
+		assert.equal(argv[index + 1], "https://router.bynara.id/v1");
+	});
+
+	test("buildPrintCommand omits the provider flag when no base URL is configured", () => {
+		const agent = diracProvider("m", { env: {} });
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: false,
+			prompt: "hi",
+		});
+
+		assert.ok(!words(command.command).includes("-p"));
+	});
+
 	test("parseStreamLine maps task_started to a session_id event", () => {
 		const agent = diracProvider("m");
 		assert.deepEqual(

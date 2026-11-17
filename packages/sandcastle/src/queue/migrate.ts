@@ -10,8 +10,10 @@
  * fold it performed, the gate and `joins` values it remapped, and — refusing to write until they are
  * supplied — every batch whose v1 entry carried no `mergeName` to inherit a name from.
  *
- * No back-compat read path: `readQueueManifest` rejects a v1 file and names this command, so a
- * consumer either migrates or is told why it cannot read the queue.
+ * Reading is tolerant instead: `readQueueManifest` accepts a v1 file through the same translation
+ * this command writes, so a worktree built before the migration can still read the shared queue.
+ * This command is for writing the v2 form — it prints every change it makes and refuses to write
+ * until the renames it cannot infer are supplied.
  */
 
 import { migrateQueueManifest, type QueueMigrationReport } from "./translate.js";

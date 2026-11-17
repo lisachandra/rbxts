@@ -147,7 +147,7 @@ type PhaseEvaluator = (input: PhaseEvaluationInput) => PhaseEvaluation;
  *   The plan is the artifact, not the state file: a plan on disk from a run whose state was lost
  *   still means design succeeded, and re-planning over it would discard the work.
  */
-function evaluateDesign(input: PhaseEvaluationInput): PhaseEvaluation {
+function evaluateDesignRule(input: PhaseEvaluationInput): PhaseEvaluation {
 	const resolvedPlan = resolvePlanFile(input.planFile, input.worktreePath);
 
 	if (resolvedPlan === undefined || resolvedPlan === "") {
@@ -185,7 +185,7 @@ function evaluateDesign(input: PhaseEvaluationInput): PhaseEvaluation {
 }
 
 /** Implement is done when commits exist and the state says the build passed. */
-function evaluateImplement(input: PhaseEvaluationInput): PhaseEvaluation {
+function evaluateImplementRule(input: PhaseEvaluationInput): PhaseEvaluation {
 	// Design must be done first — the plan travels with the branch, so the worktree wins.
 	const resolvedPlan = resolvePlanFile(input.planFile, input.worktreePath);
 	if (resolvedPlan === undefined) {
@@ -231,7 +231,7 @@ function evaluateImplement(input: PhaseEvaluationInput): PhaseEvaluation {
 }
 
 /** Review is done when `isReviewComplete` says so; it needs implement's commits to exist. */
-function evaluateReview(input: PhaseEvaluationInput): PhaseEvaluation {
+function evaluateReviewRule(input: PhaseEvaluationInput): PhaseEvaluation {
 	if (input.state?.phases.implement.status !== "done") {
 		// Check if there are commits anyway (state might be stale).
 		if (
@@ -260,9 +260,9 @@ function evaluateReview(input: PhaseEvaluationInput): PhaseEvaluation {
  *   input reaches every rule at once. The order is the run order.
  */
 const phaseEvaluators: Record<PhaseName, PhaseEvaluator> = {
-	design: evaluateDesign,
-	implement: evaluateImplement,
-	review: evaluateReview,
+	design: evaluateDesignRule,
+	implement: evaluateImplementRule,
+	review: evaluateReviewRule,
 };
 
 /**
@@ -287,4 +287,92 @@ export function createFreshPhaseEvaluation(): EvaluationResult {
 		},
 		review: "start",
 	};
+}
+
+/**
+ * - Decides the design phase, feeding the reason through `reasons` as it always did.
+ * - @deprecated Use {@link evaluatePhase} with {@link PhaseEvaluationInput}; kept so the published
+ *   signature does not break for a caller that has not moved.
+ * - @param state - The recorded phase state, if any.
+ * - @param planFile - The repo-root plan path.
+ * - @param worktreePath - The issue worktree.
+ * - @param reasons - Out-parameter the reason is written into, keyed `"design"`.
+ * - @returns The phase decision.
+ * - @remarks A thin adapter over the table's `design` row: it fills `input` from the four arguments
+ *   and copies the reason out, so there is one implementation of the rule either way.
+ */
+export function evaluateDesign(
+	state: undefined | PhaseState,
+	planFile: string,
+	worktreePath: string,
+	reasons: Record<PhaseName, string>,
+): PhaseDecision {
+	const evaluation = evaluateDesignRule({
+		baseRef: "",
+		issueNumber: "",
+		planFile,
+		state,
+		worktreePath,
+	});
+	reasons.design = evaluation.reason;
+	return evaluation.decision;
+}
+
+/**
+ * - Decides the implement phase through the four-argument form.
+ * - @deprecated Use {@link evaluatePhase} with {@link PhaseEvaluationInput}.
+ * - @param state - The recorded phase state, if any.
+ * - @param planFile - The repo-root plan path.
+ * - @param worktreePath - The issue worktree.
+ * - @param issueNumber - The issue whose plan is expected.
+ * - @param baseRef - The ref new commits are counted against.
+ * - @param reasons - Out-parameter the reason is written into, keyed `"implement"`.
+ * - @returns The phase decision.
+ */
+export function evaluateImplement(
+	state: undefined | PhaseState,
+	planFile: string,
+	worktreePath: string,
+	issueNumber: string,
+	baseRef: string,
+	reasons: Record<PhaseName, string>,
+): PhaseDecision {
+	const evaluation = evaluateImplementRule({
+		baseRef,
+		issueNumber,
+		planFile,
+		state,
+		worktreePath,
+	});
+	reasons.implement = evaluation.reason;
+	return evaluation.decision;
+}
+
+/**
+ * - Decides the review phase through the original five-argument form.
+ * - @deprecated Use {@link evaluatePhase} with {@link PhaseEvaluationInput}; kept so the published
+ *   signature does not break for a caller that has not moved.
+ * - @param state - The recorded phase state, if any.
+ * - @param issueNumber - Unused; retained so the arity matches the published signature.
+ * - @param baseRef - The ref new commits are counted against.
+ * - @param worktreePath - The issue worktree.
+ * - @param reasons - Out-parameter the reason is written into, keyed `"review"`.
+ * - @returns The phase decision.
+ */
+export function evaluateReview(
+	state: undefined | PhaseState,
+	issueNumber: string,
+	baseRef: string,
+	worktreePath: string,
+	reasons: Record<PhaseName, string>,
+): PhaseDecision {
+	const evaluation = evaluateReviewRule({
+		baseRef,
+		issueNumber,
+		planFile: "",
+		state,
+		worktreePath,
+	});
+	reasons.review = evaluation.reason;
+	return evaluation.decision;
 }

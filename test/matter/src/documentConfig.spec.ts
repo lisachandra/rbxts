@@ -1,4 +1,5 @@
 import type { CollectionData } from "@lisachandra/core/store";
+import type { DocumentConfig } from "@lisachandra/matter";
 import { configureRuntimeAdapters, getDocumentConfig, getDocumentStore } from "@lisachandra/matter";
 import dataforge from "@rbxts/dataforge";
 import { describe, expect, it } from "@rbxts/jest-globals";

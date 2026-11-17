@@ -38,8 +38,8 @@ import { profileForLane } from "./profile.js";
 
 /** How one queue invocation prints. */
 export interface QueueOutput {
-	/** A machine payload on stdout, for `--json`. */
-	json(value: unknown): void;
+	/** A machine payload on stdout, for `--json`. `pretty` matches the document subcommands. */
+	json(value: unknown, pretty?: boolean): void;
 	/** A human line: stdout, or stderr when `--json` owns stdout. */
 	line(line: string): void;
 	/** A problem report, always on stderr, so `--json` consumers never parse it as payload. */
@@ -93,20 +93,10 @@ export interface QueueContext {
 	 * @param summary - Imperative subject for the commit.
 	 */
 	overwrite(options: CliOptions, manifest: QueueManifest, summary: string): void;
-	/**
-	 * Writes a settled manifest and publishes it: location notice, then the opt-in commit.
-	 *
-	 * @param options - Parsed CLI options; the commit policy is read from them.
-	 * @param manifest - The manifest the transaction settled on.
-	 * @param summary - Imperative subject for the commit.
-	 */
-	publish(options: CliOptions, manifest: QueueManifest, summary: string): void;
 	/** Reads the manifest the commands act on. */
 	readManifest(): QueueManifest;
 	/** Reads any manifest version verbatim, which is what `queue migrate` needs. */
 	readRawManifest(): unknown;
-	/** The label that marks an issue as ready for an agent. */
-	readonly readyForAgent: string;
 	/** The `owner/name` the graph links against. */
 	repository(): { readonly name: string; readonly owner: string };
 	/** One read → mutate → write cycle under the manifest lock. */
@@ -154,8 +144,8 @@ export function createQueueContext(options: CliOptions): QueueContext {
 		},
 		manifestPath: () => queueManifestPath(),
 		output: {
-			json: (value) => {
-				emitJson(value);
+			json: (value, pretty) => {
+				emitJson(value, pretty === true);
 			},
 			// Bound to the invocation's `--json`, so the layer never asks where a line goes.
 			line: (line) => {
@@ -181,12 +171,8 @@ export function createQueueContext(options: CliOptions): QueueContext {
 				release();
 			}
 		},
-		publish: (current, manifest, summary) => {
-			publishQueueManifest(current, manifest, summary);
-		},
 		readManifest: () => readQueueManifest(),
 		readRawManifest: () => readRawQueueManifest(queueManifestPath()),
-		readyForAgent: config.labels.readyForAgent,
 		repository: () => resolveRepositoryIdentifiers(),
 		transact: (current, transact) => transactQueueManifest(current, transact),
 	};

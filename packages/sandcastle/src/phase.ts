@@ -32,7 +32,10 @@ export interface PhaseAttempt {
 	logPath: string;
 	/** Absolute path of the completion marker this attempt must create last. */
 	marker: string;
-	/** Agent display name, e.g. `designer #425`; also the label retry log lines use. */
+	/**
+	 * Agent display name, e.g. `designer #425`. Retry log lines use {@link runPhase}'s `label`, not
+	 * this.
+	 */
 	name: string;
 	/**
 	 * Prompt arguments, without `COMPLETION`.

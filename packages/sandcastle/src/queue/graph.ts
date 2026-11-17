@@ -488,8 +488,15 @@ export function laneRanks(
 		}
 
 		if (visiting.has(own)) {
-			/* Unreachable for a well-formed condensation; a hard stop rather than a hang. */
-			return 0;
+			/*
+			 * Unreachable by construction: `cycleGroups` collapses every mutually-reachable set, so the
+			 * graph the walk sees is a condensation and has no cycle left to re-enter. Throwing rather
+			 * than returning a rank keeps that invariant honest — a silent 0 would rank a real cycle as
+			 * "runs first" and hide the bug in the drawing instead of in this function.
+			 */
+			throw new Error(
+				`queue graph: rank walk re-entered ${own}, so the cycle groups were not a condensation`,
+			);
 		}
 
 		visiting.add(own);

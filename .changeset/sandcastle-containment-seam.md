@@ -42,3 +42,10 @@ deletes a junction itself without walking into its target, which is why it exist
 `PrintCommand` and every public signature are unchanged apart from the guard's new required
 precondition. An operator-authored manifest that was silently accepted can now throw; that is the
 fix, and it is why this is a patch rather than a silent behaviour change.
+
+The guard answers containment only, not ownership. "Did the runner place this worktree?" stays with
+the family that can answer it — `selectIssueWorktrees` by equality with `worktreePathForBranch`,
+`integrationBasePath` by the manifest it refuses without — because re-deriving it at the delete would
+make every hand-built fixture register with git first and still prove nothing the caller did not
+already know. `registeredWorktrees` gained an optional `cwd` so a caller acting on another checkout
+asks that checkout, which is the part of the ownership question the seam could cheaply own.

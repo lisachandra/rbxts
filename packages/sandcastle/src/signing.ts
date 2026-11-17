@@ -54,7 +54,19 @@ export function readCommitSigningPolicy(cwd = repoRoot): CommitSigningPolicy {
 		return { required: false, source: "commit.gpgsign is unset" };
 	}
 
-	return { required: configured === "true", source: `commit.gpgsign=${configured}` };
+	/*
+	 * Git reads this as a boolean, not as the literal string "true": `yes`, `on`, `1` and an empty
+	 * value are all true, and only `false`/`no`/`off`/`0` are false. Matching the literal `"true"` read
+	 * a host that spells it `yes` as "not required", which then skipped both the signing flag and the
+	 * post-commit verification — the silent-unsigned outcome this policy exists to prevent. An
+	 * unrecognized value is treated as required, because refusing to commit beats committing unsigned.
+	 */
+	const explicitlyFalse = new Set(["0", "false", "no", "off"]);
+
+	return {
+		required: !explicitlyFalse.has(configured.toLowerCase()),
+		source: `commit.gpgsign=${configured}`,
+	};
 }
 
 /**

@@ -391,7 +391,8 @@ export function unlinkWorktreeLinks(worktreePath: string): number {
  *   placed?" is a separate question each family already answers before reaching here:
  *   `selectIssueWorktrees` requires equality with `worktreePathForBranch`, and
  *   `integrationBasePath` reads the manifest that records the path. Re-asking it at the delete
- *   would need a `cwd`-aware `registeredWorktrees`, which this change does not add.
+ *   would make every hand-built fixture register with git first, to re-derive a proof the caller
+ *   holds — so the ownership question stays with the family that knows how to ask it.
  * @param worktreePath - The directory about to be removed.
  * @param cwd - Repository the caller is acting on; defaults to this checkout.
  * @throws {Error} When the path is outside both the worktrees and integrations roots.

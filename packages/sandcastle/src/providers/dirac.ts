@@ -51,8 +51,7 @@ export function diracProvider(
 	},
 ): AgentProvider {
 	// oxlint-disable-next-line typescript/prefer-optional-chain -- Access with index string for env
-	let provider = (options?.env ?? {}).OPENAI_API_BASE ?? "";
-	provider = provider ? `-p ${provider}` : "";
+	const providerBase = (options?.env ?? {}).OPENAI_API_BASE ?? "";
 
 	return {
 		captureSessions: false,
@@ -81,8 +80,8 @@ export function diracProvider(
 
 			args.push("--api-error-max-retries", "0");
 
-			if (provider !== "") {
-				args.push("-p", provider);
+			if (providerBase !== "") {
+				args.push("-p", providerBase);
 			}
 
 			args.push("-m", model);

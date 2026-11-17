@@ -191,6 +191,13 @@ jobs:
           pnpm -r --filter '!@lisachandra/sandcastle' --stream --workspace-concurrency=1 \
             test --coverageReporters json-summary --coverageReporters json | tee test_results.txt
           pnpm --filter @lisachandra/sandcastle test | tee -a test_results.txt
+
+      - name: Test the repository scripts
+        # `scripts/*.test.mjs` are node:test suites (`scaffoldCoverage`, `hoistPaths`) that the
+        # recursive package run above never reaches: they belong to no workspace package, so only
+        # the root `test:scripts` script executes them. Without this step the scaffold coverage gate
+        # ran in no workflow at all, and a scaffold that stopped generating a bundle shipped green.
+        run: pnpm test:scripts
         env:
           ROBLOX_OPEN_CLOUD_API_KEY: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY }}
           ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}

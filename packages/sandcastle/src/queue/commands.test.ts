@@ -122,6 +122,20 @@ describe("queue list", () => {
 		assert.equal(view.sequences[0]?.status, "READY");
 	});
 
+	test("should indent the document payload, which a human reads as one object", () => {
+		/*
+		 * The document subcommands print a single object a reader may page through, so their stdout is
+		 * indented — and the JSONL streams (`queue run`, `queue bootstrap`) are not, because one record
+		 * per line is the contract there. The two shapes are asserted together so a change that flattens
+		 * the first or indents the second fails here rather than in a consumer.
+		 */
+		const stub = fakeQueueContext(cleanManifest(), { live: { issues: { 10: {}, 11: {} } } });
+
+		runQueueCommand(parseArgs(["queue", "list", "--json"]), stub.context);
+
+		assert.match(stub.fake.lines[0]?.text ?? "", /\n {2}"/u, "the payload is indented");
+	});
+
 	test("should render the human view when --json is absent", () => {
 		const stub = fakeQueueContext(cleanManifest(), { live: { issues: { 10: {}, 11: {} } } });
 

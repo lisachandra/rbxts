@@ -1,10 +1,14 @@
 /*
  * Queue manifest translation: v1 -> v2, as data.
  *
- * Lives apart from both readers because `readQueueManifest` needs it and `migrate.ts` imports
- * `manifest.ts` for the schema — calling across would close a module cycle. Exactly one
- * implementation is deliberate: a worktree built before the migration still reads the shared queue
- * file with its older code, and a second translation is a second thing that can disagree.
+ * Lives apart from the command that writes it because two callers share it: `readQueueManifest`
+ * translates a v1 file on read, and `queue migrate` writes the v2 form. The dependency is one-way in
+ * the sense that matters — `manifest.ts` imports this module for the translation, and this module
+ * imports only the schema and types from `manifest.ts`, never its readers. So the translation holds
+ * no repository state of its own and cannot recurse back into a manifest read.
+ *
+ * Exactly one implementation is deliberate: a worktree built before the migration still reads the
+ * shared queue file with its older code, and a second translation is a second thing that can disagree.
  */
 
 import { existsSync, readFileSync } from "node:fs";
