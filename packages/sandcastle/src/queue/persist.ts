@@ -99,6 +99,27 @@ export function commitQueueManifest(summary: string, options: CliOptions): void 
 }
 
 /**
+ * - Writes a settled manifest and publishes it: location notice, then the opt-in commit.
+ * - @param options - Parsed CLI options; the commit policy is read from them.
+ * - @param manifest - The manifest to write.
+ * - @param summary - Imperative subject for the commit (`place #42 in the queue`).
+ * - @remarks The write is unconditional here; whether there _is_ a write is the caller's decision,
+ *   because the no-op rule is "the transaction returned the manifest it was given". `queue migrate`
+ *   shares this tail so its write, location notice, and commit cannot drift from a mutation's.
+ */
+export function publishQueueManifest(
+	options: CliOptions,
+	manifest: QueueManifest,
+	summary: string,
+): void {
+	writeQueueManifest(manifest);
+	notifyQueueLocation(options);
+	if (queueCommitEnabled(options)) {
+		commitQueueManifest(summary, options);
+	}
+}
+
+/**
  * - Runs one manifest transaction under the manifest lock.
  * - @param options - Parsed CLI options; `--dry-run` computes the mutation without writing.
  * - @param transact - Pure mutation applied to the manifest read inside the lock.
@@ -124,11 +145,7 @@ export function transactQueueManifest(
 		const current = readQueueManifest();
 		const { message, next, summary } = transact(current);
 		if (next !== current) {
-			writeQueueManifest(next);
-			notifyQueueLocation(options);
-			if (queueCommitEnabled(options)) {
-				commitQueueManifest(summary, options);
-			}
+			publishQueueManifest(options, next, summary);
 		}
 
 		if (message !== undefined) {

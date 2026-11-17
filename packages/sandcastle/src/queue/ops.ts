@@ -6,31 +6,26 @@
  * another terminal — cannot lose each other's changes. Message text is produced *inside* the
  * transaction because only it sees the manifest that was actually read: "Moved (was sequence "U2"
  * (position 2))" is placement history, and placement history is what makes a queue auditable.
+ *
+ * Every collaborator — the reader, the live fetch, the lock-holding transaction, the writer, the
+ * printer — arrives on the {@link QueueContext}, so a suite drives a mutation against an in-memory
+ * manifest and asserts the (message, manifest) pair the transaction settled on.
  */
 
 import type { CliOptions } from "../cli.js";
 import { currentSandcastleIssue } from "../git.js";
-import { config } from "../runtime.js";
 import { isIssueComplete, readState } from "../state.js";
 import { batchNameForScope, promotableGates, scopeOf } from "./bootstrap.js";
-import { fetchLiveQueueState, type LiveIssue, type LiveQueueState } from "./live.js";
-import { acquireQueueLock, manifestLockName } from "./lock.js";
+import type { QueueContext } from "./context.js";
+import type { LiveIssue, LiveQueueState } from "./live.js";
 import {
 	describePlacement,
 	locateIssue,
 	type QueueManifest,
-	queueManifestPath,
 	queueManifestVersion,
-	readQueueManifest,
 	referencedIssues,
-	writeQueueManifest,
 } from "./manifest.js";
-import {
-	migrateQueueManifest,
-	parseMigrationAssigns,
-	readRawQueueManifest,
-	renderQueueMigration,
-} from "./migrate.js";
+import { migrateQueueManifest, parseMigrationAssigns, renderQueueMigration } from "./migrate.js";
 import {
 	addRule,
 	addToSequence,
@@ -45,13 +40,6 @@ import {
 	redefinitionDispatchConflict,
 	removeIssue,
 } from "./mutations.js";
-import { emitText } from "./output.js";
-import {
-	commitQueueManifest,
-	notifyQueueLocation,
-	queueCommitEnabled,
-	transactQueueManifest,
-} from "./persist.js";
 
 function requireIssueNumber(options: CliOptions, subcommand: string): string {
 	if (options.issueNumber === undefined || options.issueNumber === "") {
@@ -62,7 +50,7 @@ function requireIssueNumber(options: CliOptions, subcommand: string): string {
 }
 
 /** Places an issue into a batch, a gate, or the human bucket, reporting the move. */
-export function runQueueAdd(options: CliOptions): void {
+export function runQueueAdd(options: CliOptions, context: QueueContext): void {
 	const issue = requireIssueNumber(options, "add");
 	/*
 	 * An agent registering a follow-up from inside a member worktree may anchor it only after its
@@ -85,7 +73,7 @@ export function runQueueAdd(options: CliOptions): void {
 		);
 	}
 
-	transactQueueManifest(options, (manifest) => {
+	context.transact(options, (manifest) => {
 		const previous = locateIssue(manifest, issue);
 		const next =
 			options.queueSequence === undefined
@@ -129,14 +117,14 @@ export function runQueueAdd(options: CliOptions): void {
 }
 
 /** Creates, replaces, or deletes a batch definition. */
-export function runQueueSequence(options: CliOptions): void {
+export function runQueueSequence(options: CliOptions, context: QueueContext): void {
 	const name = options.integrationName ?? "";
 	if (name === "") {
 		throw new Error("queue sequence requires --name <batch-name>");
 	}
 
 	if (options.queueDelete === true) {
-		transactQueueManifest(options, (manifest) => ({
+		context.transact(options, (manifest) => ({
 			message: `  ✓ Deleted sequence "${name}"`,
 			next: deleteSequence(manifest, name),
 			summary: `delete sequence "${name}"`,
@@ -149,7 +137,7 @@ export function runQueueSequence(options: CliOptions): void {
 	}
 
 	const memberCount = options.issueNumbers.length;
-	transactQueueManifest(options, (manifest) => {
+	context.transact(options, (manifest) => {
 		const previous = manifest.sequences.find((entry) => entry.name === name);
 		if (previous !== undefined) {
 			const conflict = redefinitionDispatchConflict({
@@ -181,7 +169,7 @@ export function runQueueSequence(options: CliOptions): void {
 }
 
 /** Adds or replaces a same-file serialization rule; `--delete` retires one. */
-export function runQueueRule(options: CliOptions): void {
+export function runQueueRule(options: CliOptions, context: QueueContext): void {
 	if (options.queueDelete === true) {
 		if (options.issueNumbers.length === 0 && options.integrationName === undefined) {
 			throw new Error("queue rule --delete requires --name <R#> or --issues <a,b>.");
@@ -194,7 +182,7 @@ export function runQueueRule(options: CliOptions): void {
 		const label =
 			options.integrationName ??
 			(options.issueNumbers.length > 0 ? `(${options.issueNumbers.join(",")})` : "");
-		transactQueueManifest(options, (manifest) => {
+		context.transact(options, (manifest) => {
 			const removed = matchingRules(manifest, params);
 			const next = deleteRule(manifest, params);
 			const described = removed
@@ -222,7 +210,7 @@ export function runQueueRule(options: CliOptions): void {
 	}
 
 	const family = options.issueNumbers.join(", ");
-	transactQueueManifest(options, (manifest) => ({
+	context.transact(options, (manifest) => ({
 		message: `  ✓ Serialization rule for (${family}): ${options.reason ?? ""}`,
 		next: addRule(manifest, {
 			issues: options.issueNumbers,
@@ -234,9 +222,9 @@ export function runQueueRule(options: CliOptions): void {
 }
 
 /** Removes an issue from every placement. */
-export function runQueueRemove(options: CliOptions): void {
+export function runQueueRemove(options: CliOptions, context: QueueContext): void {
 	const issue = requireIssueNumber(options, "remove");
-	transactQueueManifest(options, (manifest) => ({
+	context.transact(options, (manifest) => ({
 		message: `  ✓ Removed #${issue} from the queue manifest`,
 		next: removeIssue(manifest, issue),
 		summary: `remove #${issue} from the queue`,
@@ -268,13 +256,10 @@ function closedIssues(manifest: QueueManifest, live: LiveQueueState): Array<stri
  *   fetched before the lock so the critical section stays short; the closed set is recomputed from
  *   the manifest the transaction reads.
  */
-export function runQueuePrune(options: CliOptions): void {
-	const live = fetchLiveQueueState({
-		numbers: referencedIssues(readQueueManifest()),
-		readyLabel: config.labels.readyForAgent,
-	});
+export function runQueuePrune(options: CliOptions, context: QueueContext): void {
+	const live = context.fetchLive(context.readManifest());
 
-	transactQueueManifest(options, (manifest) => {
+	context.transact(options, (manifest) => {
 		const closed = closedIssues(manifest, live);
 		if (closed.length === 0) {
 			return {
@@ -340,14 +325,11 @@ function describeGate(state: LiveIssue | undefined): string {
  * - @remarks Promotion is the CLI exit from a gate: without it the only way out was to remove the
  *   issue and re-add it into a sequence, which threw away the gate's recorded reason.
  */
-export function runQueuePromote(options: CliOptions): void {
-	const live = fetchLiveQueueState({
-		numbers: referencedIssues(readQueueManifest()),
-		readyLabel: config.labels.readyForAgent,
-	});
+export function runQueuePromote(options: CliOptions, context: QueueContext): void {
+	const live = context.fetchLive(context.readManifest());
 
 	if (options.queueApply === true) {
-		transactQueueManifest(options, (manifest) => {
+		context.transact(options, (manifest) => {
 			const promotions = promotableGates({ live, manifest });
 			if (promotions.length === 0) {
 				return {
@@ -375,7 +357,7 @@ export function runQueuePromote(options: CliOptions): void {
 	}
 
 	const issue = requireIssueNumber(options, "promote");
-	transactQueueManifest(options, (manifest) => {
+	context.transact(options, (manifest) => {
 		const entry = manifest.gated.find((candidate) => candidate.issue === issue);
 		if (entry === undefined) {
 			throw new Error(`Issue #${issue} is not gated; nothing to promote.`);
@@ -403,26 +385,29 @@ export function runQueuePromote(options: CliOptions): void {
  * - Translates a v1 queue manifest into v2, or reports what the translation would do.
  * - @param options - Parsed CLI options; `--assign <old>=<new>` names batches v1 left unnamed, and
  *   `--apply` writes the result (default: print and exit).
+ * - @param context - The injected collaborators.
  * - @throws {Error} When the manifest is unreadable or a batch has no name to migrate to.
  * - @remarks The one command that reads a v1 file: `readQueueManifest` refuses it by name, so this
- *   takes the manifest lock directly rather than going through `transactQueueManifest`.
+ *   takes the raw read and the lock-holding overwrite from the context instead of a transaction.
  */
-export function runQueueMigrate(options: CliOptions): void {
-	const path = queueManifestPath();
-	const raw = readRawQueueManifest(path);
+export function runQueueMigrate(options: CliOptions, context: QueueContext): void {
+	const path = context.manifestPath();
+	const raw = context.readRawManifest();
 	if (raw === undefined) {
-		emitText(options, `  ⏭ No queue manifest at ${path}; nothing to migrate.`);
+		context.output.line(`  ⏭ No queue manifest at ${path}; nothing to migrate.`);
 		return;
 	}
 
 	if ((raw as { version?: unknown }).version === queueManifestVersion) {
-		emitText(options, `  ✓ Queue manifest is already version ${String(queueManifestVersion)}.`);
+		context.output.line(
+			`  ✓ Queue manifest is already version ${String(queueManifestVersion)}.`,
+		);
 		return;
 	}
 
 	const report = migrateQueueManifest(raw, parseMigrationAssigns(options.queueAssigns));
 	for (const line of renderQueueMigration(report)) {
-		emitText(options, line);
+		context.output.line(line);
 	}
 
 	if (report.unmapped.length > 0) {
@@ -432,28 +417,19 @@ export function runQueueMigrate(options: CliOptions): void {
 	}
 
 	if (options.queueApply !== true) {
-		emitText(options, "  (proposal only — pass --apply to write it)");
+		context.output.line("  (proposal only — pass --apply to write it)");
 		return;
 	}
 
 	if (options.dryRun) {
-		emitText(options, "  (dry run — manifest not written)");
+		context.output.line("  (dry run — manifest not written)");
 		return;
 	}
 
-	const release = acquireQueueLock({ name: manifestLockName });
-	try {
-		writeQueueManifest(report.manifest, path);
-	} finally {
-		release();
-	}
-
-	emitText(options, `  ✓ Migrated ${path} to version ${String(queueManifestVersion)}.`);
-	notifyQueueLocation(options);
-	if (queueCommitEnabled(options)) {
-		commitQueueManifest(
-			`migrate the queue manifest to v${String(queueManifestVersion)}`,
-			options,
-		);
-	}
+	context.overwrite(
+		options,
+		report.manifest,
+		`migrate the queue manifest to v${String(queueManifestVersion)}`,
+	);
+	context.output.line(`  ✓ Migrated ${path} to version ${String(queueManifestVersion)}.`);
 }

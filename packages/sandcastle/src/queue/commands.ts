@@ -5,18 +5,21 @@
  * GitHub state and render the view; mutations live in `ops.ts`; dispatch lives in `run.ts`. `check`
  * exits 1 on drift and 2 when `--strict-gates` finds a stale gate, so the freshness pass is
  * scriptable while a stale gate stays a distinct failure.
+ *
+ * Every collaborator arrives on the {@link QueueContext}: this module names none of the real
+ * modules' readers, fetchers, printers, or exit, so a suite can drive a whole subcommand from canned
+ * live state and assert the printed line, the exit code, and the manifest it asked to write.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
 import type { CliOptions } from "../cli.js";
-import { config, io, repoRoot } from "../runtime.js";
+import { config, repoRoot } from "../runtime.js";
 import { runQueueCancel } from "./cancel.js";
-import { inspectChainSequences } from "./chain.js";
 import { runQueueClean } from "./clean.js";
 import { upsertGraphComment } from "./comment.js";
-import { sequenceGateNames, unmetIntegrationGates } from "./gates.js";
+import { createQueueContext, type QueueContext } from "./context.js";
 import {
 	buildQueueGraph,
 	renderQueueAscii,
@@ -24,8 +27,6 @@ import {
 	renderQueueMermaid,
 } from "./graph.js";
 import { runQueueLand } from "./land.js";
-import { fetchLiveQueueState, resolveRepositoryIdentifiers } from "./live.js";
-import { readQueueManifest, referencedIssues } from "./manifest.js";
 import {
 	runQueueAdd,
 	runQueueMigrate,
@@ -35,7 +36,6 @@ import {
 	runQueueRule,
 	runQueueSequence,
 } from "./ops.js";
-import { emitText } from "./output.js";
 import { computeQueueView, type QueueView, renderQueueText } from "./render.js";
 import { runQueueBootstrap, runQueueRun } from "./run.js";
 import { isLoopbackHost, openBrowser, startQueueServer } from "./serve.js";
@@ -102,17 +102,19 @@ const mutatingQueueSubcommands: ReadonlySet<QueueSubcommand> = new Set([
  * - @param options - Parsed CLI options; `--queue` / `--no-queue` override the repository setting.
  * - @returns `true` unless the repository disabled the queue with `queue.enabled: false`.
  * - @remarks Consumers with no queue workflow set `queue.enabled: false` and never see a gate they
- *   cannot satisfy; the prompt contract is injected by `prompts/queue.ts` for the same reason.
+ *   cannot satisfy; the prompt contract is injected by `prompts/queue.ts` for the same reason. This
+ *   stays a standalone helper because `cli.ts` and the dispatch path ask the same question without
+ *   a context in hand; {@link QueueContext.enabled} is the same answer for callers that have one.
  */
 export function queueEnabled(options: CliOptions): boolean {
 	return options.queueEnabled ?? config.queue.enabled;
 }
 
 /** Explains why a queue command is a no-op — or refuses — in a repository that disabled it. */
-function runQueueDisabled(options: CliOptions): void {
+function runQueueDisabled(options: CliOptions, context: QueueContext): void {
 	const subcommand = options.queueSubcommand ?? "list";
 	if (options.jsonOut) {
-		console.log(JSON.stringify({ enabled: false, subcommand }, undefined, 2));
+		context.output.json({ enabled: false, subcommand });
 	}
 
 	if (mutatingQueueSubcommands.has(subcommand)) {
@@ -121,7 +123,7 @@ function runQueueDisabled(options: CliOptions): void {
 		);
 	}
 
-	console.log("  ⏭ Queue workflow disabled (queue.enabled: false); nothing to check.");
+	context.output.line("  ⏭ Queue workflow disabled (queue.enabled: false); nothing to check.");
 }
 
 /**
@@ -132,24 +134,29 @@ function runQueueDisabled(options: CliOptions): void {
  *   behind — a lock file, a lease ref on `origin` — and none of that stops existing because the
  *   repository turned the workflow off. Reporting "nothing to check" there would be false, and the
  *   residue would keep a later re-enable from dispatching.
+ * @param options - The parsed CLI options.
+ * @param context - The collaborators; defaults to {@link createQueueContext} for this invocation.
  */
-export function runQueueCommand(options: CliOptions): void | Promise<void> {
+export function runQueueCommand(
+	options: CliOptions,
+	context: QueueContext = createQueueContext(options),
+): void | Promise<void> {
 	if (options.queueSubcommand === "cancel") {
 		if (!runQueueCancel(options)) {
-			io.exit(1);
+			context.exit(1);
 		}
 
 		return;
 	}
 
-	if (!queueEnabled(options)) {
-		runQueueDisabled(options);
+	if (!context.enabled(options)) {
+		runQueueDisabled(options, context);
 		return;
 	}
 
 	switch (options.queueSubcommand) {
 		case "add": {
-			runQueueAdd(options);
+			runQueueAdd(options, context);
 			break;
 		}
 		case "bootstrap": {
@@ -157,7 +164,7 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 			break;
 		}
 		case "check": {
-			runQueueCheck(options);
+			runQueueCheck(options, context);
 			break;
 		}
 		case "clean": {
@@ -165,98 +172,97 @@ export function runQueueCommand(options: CliOptions): void | Promise<void> {
 			break;
 		}
 		case "graph": {
-			runQueueGraph(options);
+			runQueueGraph(options, context);
 			break;
 		}
 		case "land": {
 			return runQueueLand(options);
 		}
 		case "list": {
-			runQueueList(options);
+			runQueueList(options, context);
 			break;
 		}
 		case "migrate": {
-			runQueueMigrate(options);
+			runQueueMigrate(options, context);
 			break;
 		}
 		case "promote": {
-			runQueuePromote(options);
+			runQueuePromote(options, context);
 			break;
 		}
 		case "prune": {
-			runQueuePrune(options);
+			runQueuePrune(options, context);
 			break;
 		}
 		case "remove": {
-			runQueueRemove(options);
+			runQueueRemove(options, context);
 			break;
 		}
 		case "rule": {
-			runQueueRule(options);
+			runQueueRule(options, context);
 			break;
 		}
 		case "run": {
 			return runQueueRun(options);
 		}
 		case "sequence": {
-			runQueueSequence(options);
+			runQueueSequence(options, context);
 			break;
 		}
 		case "serve": {
-			return runQueueServe(options);
+			return runQueueServe(options, context);
 		}
 	}
 }
 
-function liveView(strictGates: boolean): QueueView {
-	const manifest = readQueueManifest();
-	const live = fetchLiveQueueState({
-		numbers: referencedIssues(manifest),
-		readyLabel: config.labels.readyForAgent,
+function liveView(context: QueueContext, strictGates: boolean): QueueView {
+	const manifest = context.readManifest();
+	const live = context.fetchLive(manifest);
+	const view = computeQueueView(manifest, live, {
+		gates: context.gates(manifest),
+		strictGates,
 	});
-	const gates = unmetIntegrationGates({ names: sequenceGateNames(manifest) });
-	const view = computeQueueView(manifest, live, { gates, strictGates });
 	/*
 	 * Chain containment is git state, which `computeQueueView` (pure over the manifest and GitHub)
 	 * cannot see. A break here names members whose branches fell out of run order — usually a
 	 * follow-up inserted ahead of members that had already run.
 	 */
-	view.drift.push(...inspectChainSequences(manifest));
+	view.drift.push(...context.chainDrift(manifest));
 	return view;
 }
 
-function runQueueList(options: CliOptions): void {
-	const view = liveView(false);
+function runQueueList(options: CliOptions, context: QueueContext): void {
+	const view = liveView(context, false);
 	if (options.jsonOut) {
-		console.log(JSON.stringify(view, undefined, 2));
+		context.output.json(view);
 		return;
 	}
 
-	console.log(renderQueueText(view));
+	context.output.line(renderQueueText(view));
 }
 
-function runQueueCheck(options: CliOptions): void {
-	const relaxed = liveView(false);
-	const strict = options.queueStrictGates === true ? liveView(true) : relaxed;
+function runQueueCheck(options: CliOptions, context: QueueContext): void {
+	const relaxed = liveView(context, false);
+	const strict = options.queueStrictGates === true ? liveView(context, true) : relaxed;
 	if (options.jsonOut) {
-		console.log(JSON.stringify(strict, undefined, 2));
+		context.output.json(strict);
 	} else {
-		console.log(renderQueueText(strict));
+		context.output.line(renderQueueText(strict));
 	}
 
 	if (relaxed.drift.length > 0) {
-		console.error(
+		context.output.problem(
 			`  ✗ Queue drift: ${relaxed.drift.length} problem(s). Resolve before firing.`,
 		);
-		io.exit(1);
+		context.exit(1);
 	}
 
 	if (strict.drift.length > relaxed.drift.length) {
-		console.error("  ✗ Stale gates: promote or re-gate the issues listed above.");
-		io.exit(2);
+		context.output.problem("  ✗ Stale gates: promote or re-gate the issues listed above.");
+		context.exit(2);
 	}
 
-	console.log("  ✓ No queue drift.");
+	context.output.line("  ✓ No queue drift.");
 }
 
 /** `--json` asks for the machine payload, exactly as `--format json` does. */
@@ -290,19 +296,23 @@ function writeGraphPage(path: string, contents: string): string {
  * this is the one to explore - layers toggle, a batch opens, and the detail panel reads the raw
  * view instead of a summary of it. Loopback only, read-only, and never a manifest write.
  */
-async function runQueueServe(options: CliOptions): Promise<void> {
+async function runQueueServe(options: CliOptions, context: QueueContext): Promise<void> {
 	const server = await startQueueServer({
 		host: options.queueHost,
 		port: options.queuePort,
+		/*
+		 * The page asks for the same view `queue list` prints — through the same context — so a batch
+		 * cannot read READY in one rendering and GATED in the other.
+		 */
+		view: (strictGates) => liveView(context, strictGates),
 	});
-	emitText(options, `  ✓ Queue graph on ${server.url} (Ctrl+C stops it)`);
+	context.output.line(`  ✓ Queue graph on ${server.url} (Ctrl+C stops it)`);
 	/*
 	 * `--host` is the deliberate opt-out of loopback, so leaving it is reported rather than refused:
 	 * the flag exists for a reason, but exposing the queue to the network should never be silent.
 	 */
 	if (!isLoopbackHost(server.host)) {
-		emitText(
-			options,
+		context.output.line(
 			`  ⚠ Bound to ${server.host}, not loopback: the queue page is reachable from the network.`,
 		);
 	}
@@ -314,9 +324,9 @@ async function runQueueServe(options: CliOptions): Promise<void> {
 	await server.closed;
 }
 
-function runQueueGraph(options: CliOptions): void {
-	const view = liveView(false);
-	const identifiers = resolveRepositoryIdentifiers();
+function runQueueGraph(options: CliOptions, context: QueueContext): void {
+	const view = liveView(context, false);
+	const identifiers = context.repository();
 	const graph = buildQueueGraph(view, {
 		generatedAt: new Date().toISOString(),
 		repository: identifiers,
@@ -326,7 +336,7 @@ function runQueueGraph(options: CliOptions): void {
 	if (options.queueWrite !== undefined || options.queueComment !== undefined) {
 		const markdown = renderQueueMarkdown(graph, { issues: expanded });
 		if (options.queueWrite !== undefined) {
-			emitText(options, `  ✓ Wrote ${writeGraphPage(options.queueWrite, markdown)}`);
+			context.output.line(`  ✓ Wrote ${writeGraphPage(options.queueWrite, markdown)}`);
 		}
 
 		if (options.queueComment !== undefined) {
@@ -336,7 +346,7 @@ function runQueueGraph(options: CliOptions): void {
 				repository: `${identifiers.owner}/${identifiers.name}`,
 			});
 			const verb = outcome === "created" ? "Posted" : "Updated";
-			emitText(options, `  ✓ ${verb} the queue graph on #${options.queueComment}`);
+			context.output.line(`  ✓ ${verb} the queue graph on #${options.queueComment}`);
 		}
 
 		return;
@@ -344,15 +354,15 @@ function runQueueGraph(options: CliOptions): void {
 
 	switch (graphFormat(options)) {
 		case "ascii": {
-			console.log(renderQueueAscii(graph));
+			context.output.line(renderQueueAscii(graph));
 			break;
 		}
 		case "json": {
-			console.log(JSON.stringify(graph, undefined, 2));
+			context.output.json(graph);
 			break;
 		}
 		case "mermaid": {
-			console.log(renderQueueMermaid(graph, { issues: expanded }));
+			context.output.line(renderQueueMermaid(graph, { issues: expanded }));
 			break;
 		}
 	}

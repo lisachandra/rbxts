@@ -1,88 +1,97 @@
+/*
+ * `queue ops` — the mutations, asserted as (message, resulting manifest) pairs.
+ *
+ * A mutation's contract is that pair: the line the operator reads and the manifest the transaction
+ * settled on. Asserting a helper call instead would only re-test the pure mutations that
+ * `mutations.test.ts` already covers, and asserting a file on disk would need the whole process
+ * pointed at a different manifest — which is what this suite used to do, and what the injected
+ * context exists to stop.
+ *
+ * The refusals — gated, blocked, mid-chain — stay here because they are the mutation's own
+ * guardrails: they run *inside* the transaction, against the manifest it just read, which is the
+ * only place the check cannot race a concurrent writer.
+ */
+
 import assert from "node:assert/strict";
-import { readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test } from "vitest";
 
 import { parseArgs } from "../cli.js";
-import { config, io } from "../runtime.js";
 import { writeState } from "../state.js";
 import {
 	cleanupIssueArtifacts,
 	makeState,
 	registerTestHooks,
-	tmpRoot,
 	uniqueIssue,
 } from "../test-helpers.js";
-import { manifestLockName, queueLockPath } from "./lock.js";
-import { emptyQueueManifest, type QueueManifest, writeQueueManifest } from "./manifest.js";
-import { runQueueAdd, runQueueRule, runQueueSequence } from "./ops.js";
+import { emptyQueueManifest, type QueueManifest } from "./manifest.js";
+import { runQueueAdd, runQueuePromote, runQueueRule, runQueueSequence } from "./ops.js";
+import { fakeQueueContext, humanText, type QueueContextStub } from "./test-helpers.js";
 
 registerTestHooks();
 
-const primary = join(tmpRoot, "ops-primary");
-const relativeManifest = "sandcastle.queue.ops.json";
-const manifestPath = join(primary, relativeManifest);
-
-/** Stubs `git rev-parse` so the manifest resolves into the test checkout, and captures output. */
-function stage(manifest: QueueManifest): { done: () => void; lines: Array<string> } {
-	rmSync(manifestPath, { force: true });
-	rmSync(queueLockPath(manifestLockName), { force: true });
-	config.queue.file = relativeManifest;
-	config.queue.commit = false;
-	config.queue.lease = "off";
-	writeQueueManifest(manifest, manifestPath);
-	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
-		const argv = Array.isArray(args) ? args.map(String) : [];
-		if (command === "git" && argv[0] === "rev-parse") {
-			return join(primary, ".git");
-		}
-
-		throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
-	}) as typeof io.execFileSync;
-
-	const lines: Array<string> = [];
-	const original = console.log;
-	console.log = (...args: ReadonlyArray<unknown>) => {
-		lines.push(args.map(String).join(" "));
-	};
-
-	return {
-		done: (): void => {
-			console.log = original;
-		},
-		lines,
-	};
+/** A manifest with one batch, for the specs that need a placement to exist already. */
+function withSequence(issues: ReadonlyArray<string>, name = "progression-work"): QueueManifest {
+	return { ...emptyQueueManifest(), sequences: [{ issues: [...issues], name }] };
 }
 
-function written(): QueueManifest {
-	return JSON.parse(readFileSync(manifestPath, "utf-8")) as QueueManifest;
+/** The single batch's member order, which is what most specs assert. */
+function members(stub: QueueContextStub): ReadonlyArray<string> {
+	return stub.current().sequences[0]?.issues ?? [];
 }
 
 describe("queue ops", () => {
-	/** Stubs the checkout so `currentSandcastleIssue` resolves to the given member, if any. */
-	function stubMemberWorktree(issue: string | undefined): void {
-		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
-			const argv = Array.isArray(args) ? args.map(String) : [];
-			if (command === "git" && argv[0] === "branch" && argv[1] === "--show-current") {
-				return issue === undefined ? "main" : `sandcastle/issue-${issue}`;
-			}
+	test("queue add places an issue and reports the placement", () => {
+		const issue = uniqueIssue();
+		const stub = fakeQueueContext(withSequence(["100"]));
 
-			if (command === "git" && argv[0] === "rev-parse") {
-				return join(primary, ".git");
-			}
+		runQueueAdd(
+			parseArgs(["queue", "add", "--issue", issue, "--sequence", "progression-work"]),
+			stub.context,
+		);
 
-			throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
-		}) as typeof io.execFileSync;
-	}
+		assert.deepEqual(members(stub), ["100", issue]);
+		assert.match(humanText(stub.fake), new RegExp(`✓ Placed #${issue} → `, "u"));
+		assert.equal(stub.fake.persisted.length, 1, "exactly one manifest write");
+		assert.equal(
+			stub.fake.persisted[0]?.summary,
+			`place #${issue} in the queue`,
+			"the commit subject says what happened",
+		);
+	});
 
-	test("runQueueAdd refuses an insertion ahead of a completed member", () => {
+	test("queue add reports where an already-placed issue came from", () => {
+		/*
+		 * Placement history is the reason the message is built inside the transaction rather than by the
+		 * caller: only the manifest that was read knows where the issue used to be. A `human` entry is the
+		 * case that can move — a sequence member must be removed first, so `addToSequence` refuses it —
+		 * which makes this the branch where the "was …" clause is actually reachable.
+		 */
+		const issue = uniqueIssue();
+		const stub = fakeQueueContext({
+			...emptyQueueManifest(),
+			human: [{ issue, reason: "needs a decision" }],
+			sequences: [{ issues: ["100"], name: "progression-work" }],
+		});
+
+		runQueueAdd(
+			parseArgs(["queue", "add", "--issue", issue, "--sequence", "progression-work"]),
+			stub.context,
+		);
+
+		assert.match(humanText(stub.fake), /Moved \(was human\)/u);
+		assert.deepEqual(members(stub), ["100", issue]);
+		assert.equal(
+			stub.current().human.length,
+			0,
+			"the human entry moved, rather than being copied",
+		);
+	});
+
+	test("queue add refuses an insertion ahead of a completed member", () => {
 		const anchor = uniqueIssue();
 		const completed = uniqueIssue();
 		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [anchor, completed], name: "progression-work" }],
-		});
+		const stub = fakeQueueContext(withSequence([anchor, completed]));
 		// Complete: the dispatcher reuse-chains this member's pre-insertion branch, bypassing the newcomer.
 		writeState(
 			makeState(completed, {
@@ -106,18 +115,19 @@ describe("queue ops", () => {
 						"--after",
 						anchor,
 					]),
+					stub.context,
 				);
 			}, /already completed/u);
 
-			// The refusal aborts the transaction: the manifest on disk is unchanged.
-			assert.deepEqual(written().sequences[0]?.issues, [anchor, completed]);
+			// The refusal aborts the transaction: nothing was persisted.
+			assert.deepEqual(stub.fake.persisted, []);
+			assert.deepEqual(members(stub), [anchor, completed]);
 		} finally {
-			output.done();
 			cleanupIssueArtifacts(completed);
 		}
 	});
 
-	test("runQueueAdd allows inserting ahead of a dispatched-but-incomplete member", () => {
+	test("queue add allows inserting ahead of a dispatched-but-incomplete member", () => {
 		/*
 		 * Live dispatch re-reads the batch order before each member, so the insertion dispatches in
 		 * the same run — what a review registering a follow-up after its own in-flight issue needs.
@@ -125,10 +135,7 @@ describe("queue ops", () => {
 		const anchor = uniqueIssue();
 		const inFlight = uniqueIssue();
 		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [anchor, inFlight], name: "progression-work" }],
-		});
+		const stub = fakeQueueContext(withSequence([anchor, inFlight]));
 		// A state file exists (dispatched), but the phases are unfinished — not reuse-eligible.
 		writeState(makeState(inFlight));
 
@@ -144,109 +151,54 @@ describe("queue ops", () => {
 					"--after",
 					anchor,
 				]),
+				stub.context,
 			);
 
-			assert.deepEqual(written().sequences[0]?.issues, [anchor, newcomer, inFlight]);
+			assert.deepEqual(members(stub), [anchor, newcomer, inFlight]);
 		} finally {
-			output.done();
 			cleanupIssueArtifacts(inFlight);
 		}
 	});
 
-	test("runQueueAdd refuses an agent anchoring --after at a member that is not its own", () => {
-		const anchor = uniqueIssue();
-		const own = uniqueIssue();
-		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [anchor, own], name: "progression-work" }],
-		});
-		stubMemberWorktree(own);
-
-		try {
-			assert.throws(
-				() => {
-					runQueueAdd(
-						parseArgs([
-							"queue",
-							"add",
-							"--issue",
-							newcomer,
-							"--sequence",
-							"progression-work",
-							"--after",
-							anchor,
-						]),
-					);
-				},
-				new RegExp(`not your own issue \\(#${own}\\)`, "u"),
-			);
-
-			// The refusal happens before the transaction: the manifest on disk is unchanged.
-			assert.deepEqual(written().sequences[0]?.issues, [anchor, own]);
-		} finally {
-			output.done();
-		}
-	});
-
-	test("runQueueAdd allows an agent anchoring --after at its own issue", () => {
-		const own = uniqueIssue();
-		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [own], name: "progression-work" }],
-		});
-		stubMemberWorktree(own);
-
-		try {
-			runQueueAdd(
-				parseArgs([
-					"queue",
-					"add",
-					"--issue",
-					newcomer,
-					"--sequence",
-					"progression-work",
-					"--after",
-					own,
-				]),
-			);
-
-			assert.deepEqual(written().sequences[0]?.issues, [own, newcomer]);
-			assert.ok(output.lines.some((line) => line.includes(`#${newcomer}`)));
-		} finally {
-			output.done();
-		}
-	});
-
-	test("runQueueAdd appends to the tail even when earlier members were dispatched", () => {
+	test("queue add appends to the tail even when earlier members were dispatched", () => {
 		const first = uniqueIssue();
 		const second = uniqueIssue();
 		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [first, second], name: "progression-work" }],
-		});
+		const stub = fakeQueueContext(withSequence([first, second]));
 		writeState(makeState(first));
 		writeState(makeState(second));
 
 		try {
 			runQueueAdd(
 				parseArgs(["queue", "add", "--issue", newcomer, "--sequence", "progression-work"]),
+				stub.context,
 			);
 
 			// A tail append chains the last member's branch; no dispatched member sits behind it.
-			assert.deepEqual(written().sequences[0]?.issues, [first, second, newcomer]);
-			assert.ok(output.lines.some((line) => line.includes(`#${newcomer}`)));
+			assert.deepEqual(members(stub), [first, second, newcomer]);
 		} finally {
-			output.done();
 			cleanupIssueArtifacts(first);
 			cleanupIssueArtifacts(second);
 		}
 	});
 
-	test("runQueueRule --delete retires every rule with the name and prints what it removed", () => {
-		const output = stage({
+	test("queue add with no placement is a no-op the transaction does not write", () => {
+		/*
+		 * `--gated` with no reason still places the issue in the gated bucket, so the genuinely empty
+		 * mutation is removing something that is not there. Whatever the route, "returned the manifest
+		 * it was given" must mean "wrote nothing" — that is the rule that keeps `queue prune` from
+		 * dirtying a clean checkout.
+		 */
+		const stub = fakeQueueContext(emptyQueueManifest());
+
+		assert.throws(() => {
+			runQueueAdd(parseArgs(["queue", "add"]), stub.context);
+		}, /requires --issue/u);
+		assert.deepEqual(stub.fake.transactions, [], "the refusal is before the transaction");
+	});
+
+	test("queue rule --delete retires every rule with the name and prints what it removed", () => {
+		const stub = fakeQueueContext({
 			...emptyQueueManifest(),
 			sequences: [{ issues: ["1"], name: "U2" }],
 			serialized: [
@@ -256,46 +208,32 @@ describe("queue ops", () => {
 			],
 		});
 
-		try {
-			runQueueRule(parseArgs(["queue", "rule", "--delete", "--name", "R2"]));
+		runQueueRule(parseArgs(["queue", "rule", "--delete", "--name", "R2"]), stub.context);
 
-			assert.deepEqual(written().serialized, [{ issues: ["1", "2"], reason: "unnamed" }]);
-			assert.ok(
-				output.lines.some((line) =>
-					line.includes(
-						"Retired 2 serialization rule(s): R2 (295, 386), R2 (432, 292, 293)",
-					),
-				),
-			);
-		} finally {
-			output.done();
-		}
+		assert.deepEqual(stub.current().serialized, [{ issues: ["1", "2"], reason: "unnamed" }]);
+		assert.match(
+			humanText(stub.fake),
+			/Retired 2 serialization rule\(s\): R2 \(295, 386\), R2 \(432, 292, 293\)/u,
+		);
 	});
 
-	test("runQueueRule --delete with an unknown rule fails naming it and writes nothing", () => {
-		const output = stage({
+	test("queue rule --delete with an unknown rule fails naming it and writes nothing", () => {
+		const stub = fakeQueueContext({
 			...emptyQueueManifest(),
 			sequences: [{ issues: ["1"], name: "U2" }],
 			serialized: [{ issues: ["1", "2"], name: "R2", reason: "same file" }],
 		});
 
-		try {
-			assert.throws(() => {
-				runQueueRule(parseArgs(["queue", "rule", "--delete", "--name", "R9"]));
-			}, /No serialization rule matches name "R9"/u);
-			assert.equal(written().serialized.length, 1);
-		} finally {
-			output.done();
-		}
+		assert.throws(() => {
+			runQueueRule(parseArgs(["queue", "rule", "--delete", "--name", "R9"]), stub.context);
+		}, /No serialization rule matches name "R9"/u);
+		assert.deepEqual(stub.fake.persisted, []);
 	});
 
-	test("runQueueSequence refuses a redefinition that moves a dispatched member", () => {
+	test("queue sequence refuses a redefinition that moves a dispatched member", () => {
 		const first = uniqueIssue();
 		const second = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [first, second], name: "progression-work" }],
-		});
+		const stub = fakeQueueContext(withSequence([first, second]));
 		writeState(makeState(first));
 
 		try {
@@ -309,25 +247,23 @@ describe("queue ops", () => {
 						"--issues",
 						`${second},${first}`,
 					]),
+					stub.context,
 				);
 			}, /moves it behind/u);
 
-			// The refusal aborts the transaction: the manifest on disk keeps the run order.
-			assert.deepEqual(written().sequences[0]?.issues, [first, second]);
+			// The refusal aborts the transaction: the run order is unchanged.
+			assert.deepEqual(members(stub), [first, second]);
+			assert.deepEqual(stub.fake.persisted, []);
 		} finally {
-			output.done();
 			cleanupIssueArtifacts(first);
 		}
 	});
 
-	test("runQueueSequence appends new work after the dispatched prefix", () => {
+	test("queue sequence appends new work after the dispatched prefix", () => {
 		const first = uniqueIssue();
 		const second = uniqueIssue();
 		const newcomer = uniqueIssue();
-		const output = stage({
-			...emptyQueueManifest(),
-			sequences: [{ issues: [first, second], name: "progression-work" }],
-		});
+		const stub = fakeQueueContext(withSequence([first, second]));
 		writeState(makeState(first));
 		writeState(makeState(second));
 
@@ -341,14 +277,88 @@ describe("queue ops", () => {
 					"--issues",
 					`${first},${second},${newcomer}`,
 				]),
+				stub.context,
 			);
 
-			assert.deepEqual(written().sequences[0]?.issues, [first, second, newcomer]);
-			assert.ok(output.lines.some((line) => line.includes("Defined sequence")));
+			assert.deepEqual(members(stub), [first, second, newcomer]);
+			assert.match(humanText(stub.fake), /Defined sequence/u);
 		} finally {
-			output.done();
 			cleanupIssueArtifacts(first);
 			cleanupIssueArtifacts(second);
 		}
+	});
+
+	test("queue promote refuses a gate whose blocker is still open, naming it", () => {
+		const issue = uniqueIssue();
+		const blocker = uniqueIssue();
+		const stub = fakeQueueContext(
+			{
+				...emptyQueueManifest(),
+				gated: [{ issue, joins: "progression-work", reason: "needs the surface work" }],
+			},
+			{ live: { issues: { [issue]: { openBlockers: [blocker] } } } },
+		);
+
+		assert.throws(
+			() => {
+				runQueuePromote(parseArgs(["queue", "promote", "--issue", issue]), stub.context);
+			},
+			new RegExp(`not promotable yet \\(blocked by open #${blocker}\\)`, "u"),
+		);
+
+		// A refused gate writes nothing: the gate's recorded reason survives for the next attempt.
+		assert.deepEqual(stub.fake.persisted, []);
+		assert.equal(stub.current().gated[0]?.reason, "needs the surface work");
+	});
+
+	test("queue promote --apply promotes exactly the promotable gates", () => {
+		const ready = uniqueIssue();
+		const blocked = uniqueIssue();
+		const blocker = uniqueIssue();
+		const stub = fakeQueueContext(
+			{
+				...emptyQueueManifest(),
+				gated: [
+					{ issue: ready, joins: "progression-work", reason: "waiting on the review" },
+					{ issue: blocked, joins: "progression-work", reason: `waiting on #${blocker}` },
+				],
+			},
+			{ live: { issues: { [blocked]: { openBlockers: [blocker] }, [ready]: {} } } },
+		);
+
+		runQueuePromote(parseArgs(["queue", "promote", "--apply"]), stub.context);
+
+		assert.deepEqual(
+			stub.current().sequences,
+			[{ issues: [ready], name: "progression-work" }],
+			"only the resolved gate moved",
+		);
+		assert.equal(stub.current().gated.length, 1, "the blocked gate is still gated");
+		assert.equal(stub.current().gated[0]?.issue, blocked);
+		assert.match(humanText(stub.fake), new RegExp(`Promoted 1 gate\\(s\\): #${ready} → `, "u"));
+	});
+
+	test("queue promote --apply with nothing promotable is a no-op the transaction does not write", () => {
+		const issue = uniqueIssue();
+		const stub = fakeQueueContext(
+			{
+				...emptyQueueManifest(),
+				gated: [{ issue, reason: "needs a decision" }],
+			},
+			{
+				live: {
+					issues: { [issue]: { found: false } },
+				},
+			},
+		);
+
+		runQueuePromote(parseArgs(["queue", "promote", "--apply"]), stub.context);
+
+		assert.match(humanText(stub.fake), /Nothing to promote/u);
+		assert.deepEqual(
+			stub.fake.persisted,
+			[],
+			"an unchanged manifest is not written, so a clean checkout stays clean",
+		);
 	});
 });

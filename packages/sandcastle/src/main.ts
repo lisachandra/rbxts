@@ -33,6 +33,7 @@ import {
 } from "./integrations.js";
 import { runAll, runSingleIssue } from "./issue.js";
 import { runQueueCommand } from "./queue/commands.js";
+import { createQueueContext } from "./queue/context.js";
 import { printQueueDivergence } from "./queue/land.js";
 import { io, normalizedPath, worktreePathForBranch } from "./runtime.js";
 import { runSequentialIssues } from "./sequential.js";
@@ -166,7 +167,12 @@ export async function main(): Promise<void> {
 	}
 
 	if (options.command === "queue") {
-		await runQueueCommand(options);
+		/*
+		 * The composition root: the queue layer's real collaborators are named here, once. The parameter
+		 * is optional so programmatic callers of `runQueueCommand` keep working, but this entry point
+		 * passes it explicitly so the wiring is visible rather than inferred from a default.
+		 */
+		await runQueueCommand(options, createQueueContext(options));
 		return;
 	}
 
