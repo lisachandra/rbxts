@@ -48,6 +48,10 @@
 			"import": "./out/centurion/guards.luau",
 			"types": "./out/centurion/guards.d.ts"
 		},
+		"./centurion/testing": {
+			"import": "./out/centurion/testing.luau",
+			"types": "./out/centurion/testing.d.ts"
+		},
 		"./centurion/commands": {
 			"import": "./out/centurion/commands/init.luau",
 			"types": "./out/centurion/commands/index.d.ts"
