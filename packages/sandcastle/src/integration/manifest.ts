@@ -9,10 +9,12 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve as pathResolve } from "node:path";
+import { dirname, isAbsolute, resolve as pathResolve } from "node:path";
+import { z } from "zod";
 
+import { assertWithin } from "../containment.js";
 import { commitExists, git, gitTry, issueBranch, resolveCommit } from "../git.js";
-import { config, integrationsDir, stateRoot } from "../runtime.js";
+import { config, integrationsDir, logsDir, stateRoot } from "../runtime.js";
 import { getLatestReviewMarker, isReviewComplete, readState } from "../state.js";
 import type {
 	IntegrationKind,
@@ -39,16 +41,108 @@ export const integrationBranch = (name: string): string => `sandcastle/integrati
  */
 export const integrationNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
-export function integrationManifestPath(name: string): string {
-	return pathResolve(integrationsDir, name, "manifest.json");
-}
-
 export function assertIntegrationName(name: string): void {
 	if (!integrationNamePattern.test(name)) {
 		throw new Error(
 			`Invalid integration name ${JSON.stringify(name)}; use letters, numbers, ., _, or -`,
 		);
 	}
+}
+
+/**
+ * - Absolute path of an integration's `manifest.json`.
+ * - @param name - Integration name.
+ * - @returns `<integrationsDir>/<name>/manifest.json`.
+ * - @throws {Error} When `name` is not an integration name, or the result is not inside the
+ *   integrations directory.
+ * - @remarks The pattern already implies containment; the check is here because this is one of the
+ *   four sinks a name reaches, and the seam's contract is that a path builder refuses rather than
+ *   trusting whatever validation happened earlier.
+ */
+export function integrationManifestPath(name: string): string {
+	assertIntegrationName(name);
+	return assertWithin(
+		integrationsDir,
+		pathResolve(integrationsDir, name, "manifest.json"),
+		"integration manifest",
+	);
+}
+
+/**
+ * - Absolute path of an integration's agent log.
+ * - @param name - Integration name.
+ * - @returns `<logsDir>/integration-<name>.log`.
+ * - @throws {Error} When `name` is not an integration name, or the result is not inside the logs
+ *   directory.
+ * - @remarks The log is appended to by the resolve and review agents, so a name that escapes turns an
+ *   agent's output into a write anywhere the runner can reach. Both call sites share this one
+ *   builder so they cannot disagree about the name.
+ */
+export function integrationLogPath(name: string): string {
+	assertIntegrationName(name);
+	return assertWithin(
+		logsDir,
+		pathResolve(logsDir, `integration-${name}.log`),
+		"integration log",
+	);
+}
+
+const integrationSourceSchema = z.object({
+	branch: z.string().min(1),
+	commit: z.string().min(1),
+	issue: z.string().optional(),
+	name: z.string().min(1),
+	order: z.number(),
+});
+
+const integrationManifestSchema = z
+	.object({
+		allowUnreviewed: z.boolean().optional(),
+		base: z.object({ commit: z.string(), ref: z.string().min(1) }),
+		branch: z.string().min(1),
+		createdAt: z.string().min(1),
+		currentSource: z.number().optional(),
+		headCommit: z.string().optional(),
+		kind: z.enum(["issues", "integrations"]),
+		lastError: z.string().optional(),
+		/*
+		 * A name is a path segment in four places — the manifest's own directory, the marker, the review
+		 * log, and the worktree — so it is validated as a branch-safe name here rather than at each sink.
+		 * The CLI argument already went through this pattern; the gap was that file content did not.
+		 */
+		name: z.string().regex(integrationNamePattern, "must be an integration name"),
+		reviewHead: z.string().optional(),
+		sources: z.array(integrationSourceSchema),
+		status: z.enum([
+			"created",
+			"merging",
+			"aborted",
+			"blocked",
+			"reviewing",
+			"integrated",
+			"review-passed",
+			"review-failed",
+			"preflight-failed",
+			"ready-for-human-merge",
+			"conflict-resolution-required",
+		]),
+		updatedAt: z.string().min(1),
+		/*
+		 * Relative, because it is resolved against the integrations root. An absolute value used to
+		 * replace the root entirely — `path.resolve(stateRoot, "C:/Windows")` is `C:Windows` — which put
+		 * an arbitrary directory in reach of `removeWorktree`.
+		 */
+		worktree: z.string().refine((value) => !isAbsolute(value), "must be a relative path"),
+	})
+	.passthrough();
+
+function firstIssueMessage(error: z.ZodError): string {
+	const issue = error.issues[0];
+	if (issue === undefined) {
+		return "unknown schema error";
+	}
+
+	return `${issue.path.join(".") || "(root)"}: ${issue.message}`;
 }
 
 export function readIntegrationManifest(
@@ -60,11 +154,21 @@ export function readIntegrationManifest(
 		return undefined;
 	}
 
+	let raw: unknown;
 	try {
-		return JSON.parse(fs.readFileSync(path, "utf-8")) as IntegrationManifest;
+		raw = JSON.parse(fs.readFileSync(path, "utf-8"));
 	} catch {
 		throw new Error(`Integration manifest is invalid: ${path}`);
 	}
+
+	const parsed = integrationManifestSchema.safeParse(raw);
+	if (!parsed.success) {
+		throw new Error(
+			`Integration manifest is invalid: ${path} (${firstIssueMessage(parsed.error)})`,
+		);
+	}
+
+	return parsed.data as IntegrationManifest;
 }
 
 export function writeIntegrationManifest(
@@ -112,7 +216,23 @@ export function integrationBasePath(
 ): string {
 	const recorded = manifest.worktree;
 	if (recorded !== undefined && recorded !== "") {
-		return pathResolve(stateRoot, recorded);
+		/*
+		 * Inside *this* integration's own directory, not merely somewhere under the integrations root.
+		 * The wider root would let one integration's manifest point at a sibling's worktree, so
+		 * cleaning `a` would delete `b` — a containment check that passes while the redirect it exists
+		 * to stop still happens. An absolute value replaces the root in `path.resolve`; the schema
+		 * refuses one on read, so this is the second lock on the same door, and the one that also
+		 * catches a relative path climbing out with `..`.
+		 */
+		return assertWithin(
+			assertWithin(
+				integrationsDir,
+				pathResolve(integrationsDir, manifest.name),
+				"integration directory",
+			),
+			pathResolve(stateRoot, recorded),
+			"integration worktree",
+		);
 	}
 
 	return integrationWorktreePath(manifest.name, fs);

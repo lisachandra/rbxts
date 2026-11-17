@@ -13,6 +13,7 @@ import { dirname, resolve as pathResolve } from "node:path";
 
 import { createAgent, scopeForMarkerPath } from "./agent.js";
 import { CancelError, cancellation } from "./cancel.js";
+import { assertWithin } from "./containment.js";
 import { completionRules } from "./prompts/completion.js";
 import { ConfigReloadError, resolveReloadCheckMs } from "./reload.js";
 import { config, stateRoot } from "./runtime.js";
@@ -22,9 +23,19 @@ export function markersDir(): string {
 	return pathResolve(stateRoot, config.dir, "markers");
 }
 
-/** Absolute host path for a scoped completion marker, e.g. `<scope>.completed`. */
+/**
+ * - Absolute host path for a scoped completion marker, e.g. `<scope>.completed`.
+ * - @param scope - Run scope, e.g. `341.implement` or `integration-wave-1.resolve`.
+ * - @returns The marker path under the markers directory.
+ * - @throws {Error} When `scope` would place the marker outside the markers directory.
+ * - @remarks The scope is built from an issue number or an integration name, and both can reach here
+ *   as file content. `clearMarker` deletes the result, so a scope of `../../x` would delete a file
+ *   outside the markers tree; the containment check is what makes the builder's own output the only
+ *   thing that can be cleared.
+ */
 export function markerPath(scope: string): string {
-	return pathResolve(markersDir(), `${scope}.completed`);
+	const directory = markersDir();
+	return assertWithin(directory, pathResolve(directory, `${scope}.completed`), "marker");
 }
 
 /** Create the markers directory and delete any stale marker at `path`. */

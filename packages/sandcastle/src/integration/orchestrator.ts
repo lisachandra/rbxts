@@ -11,7 +11,6 @@
  */
 
 import { existsSync, rmSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
 
 import type { SetupOutput } from "../config.js";
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
@@ -22,7 +21,7 @@ import { setupNoteFor } from "../prompts/setup-note.js";
 import { skillsForPrompt } from "../prompts/skills.js";
 import { saveSession } from "../providers/session-store.js";
 import { runPhaseWithRetry } from "../retry.js";
-import { config, io, logsDir } from "../runtime.js";
+import { config, io } from "../runtime.js";
 import { runSessioned } from "../session-resume.js";
 import type {
 	AgentBackend,
@@ -38,6 +37,7 @@ import {
 	assertIntegrationName,
 	createIntegrationManifest,
 	integrationBasePath,
+	integrationLogPath,
 	integrationManifestPath,
 	readIntegrationManifest,
 	resolveExistingIntegrationSource,
@@ -143,15 +143,12 @@ export async function runConflictResolver(
 						}),
 					runOptions: {
 						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(
-							pathResolve(logsDir, `integration-${manifest.name}.log`),
-							{
-								digest: backendSupportsDigest(resolveBackend),
-								onSessionCaptured: (sessionId) =>
-									saveSession(scope, { backend: resolveBackend, sessionId }),
-								sessionCapture: capture,
-							},
-						),
+						logging: fileLogging(integrationLogPath(manifest.name), {
+							digest: backendSupportsDigest(resolveBackend),
+							onSessionCaptured: (sessionId) =>
+								saveSession(scope, { backend: resolveBackend, sessionId }),
+							sessionCapture: capture,
+						}),
 					},
 				}),
 			),
@@ -204,15 +201,12 @@ export async function runIntegrationReview(
 						}),
 					runOptions: {
 						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(
-							pathResolve(logsDir, `integration-${manifest.name}.log`),
-							{
-								digest: backendSupportsDigest(reviewBackend),
-								onSessionCaptured: (sessionId) =>
-									saveSession(scope, { backend: reviewBackend, sessionId }),
-								sessionCapture: capture,
-							},
-						),
+						logging: fileLogging(integrationLogPath(manifest.name), {
+							digest: backendSupportsDigest(reviewBackend),
+							onSessionCaptured: (sessionId) =>
+								saveSession(scope, { backend: reviewBackend, sessionId }),
+							sessionCapture: capture,
+						}),
 					},
 				}),
 			),

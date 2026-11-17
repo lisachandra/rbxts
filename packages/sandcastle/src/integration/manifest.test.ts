@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
-import { integrationsDir } from "../runtime.js";
+import { integrationsDir, logsDir } from "../runtime.js";
 import { registerTestHooks } from "../test-helpers.js";
 import type { IntegrationManifest } from "../types.js";
 import {
@@ -10,6 +11,7 @@ import {
 	createIntegrationManifest,
 	integrationBasePath,
 	integrationBranch,
+	integrationLogPath,
 	integrationManifestPath,
 	type ManifestFs,
 	readIntegrationManifest,
@@ -48,6 +50,10 @@ function memoryFs(): {
 	};
 }
 
+/**
+ * A manifest fixture. `worktree` is relative because the schema requires it: a recorded path is
+ * resolved against the integrations root, and an absolute value would replace that root.
+ */
 function manifestFor(
 	name: string,
 	overrides: Partial<IntegrationManifest> = {},
@@ -61,7 +67,7 @@ function manifestFor(
 		sources: [],
 		status: "created",
 		updatedAt: "2026-01-01T00:00:00.000Z",
-		worktree: integrationBasePath({ name } as IntegrationManifest),
+		worktree: `.sandcastle/integrations/${name}/${name}`,
 		...overrides,
 	};
 }
@@ -263,5 +269,155 @@ describe("integration manifest seam", () => {
 		});
 		assert.equal(existing.commit, "2222222");
 		assert.equal(existing.name, "wave-1");
+	});
+});
+
+/*
+ * The manifest is written by whatever ran last in a worktree, and the agent inside one can write it
+ * too: `sharedStateRoot` sends a linked worktree's state paths to the primary checkout, so an agent
+ * there authors the same `.sandcastle/integrations/` tree the operator later cleans. Every field
+ * below therefore reaches a recursive delete, and each check is on the read.
+ */
+describe("integration manifest containment", () => {
+	test("should refuse a manifest whose worktree is absolute", () => {
+		const { fs } = memoryFs();
+		const absolute = join(integrationsDir, "wave-1", "elsewhere");
+		writeIntegrationManifest(manifestFor("wave-1", { worktree: absolute }), fs);
+
+		assert.throws(
+			() => readIntegrationManifest("wave-1", fs),
+			(error: Error) => {
+				assert.match(error.message, /Integration manifest is invalid/u);
+				assert.match(error.message, /worktree/u);
+				assert.match(error.message, /relative/u);
+
+				return true;
+			},
+			"an absolute path replaces the root in path.resolve, so it cannot be recorded",
+		);
+	});
+
+	test("should refuse a manifest whose name is not an integration name", () => {
+		/*
+		 * Written as raw JSON, not through `writeIntegrationManifest`: the write path already refuses
+		 * this name, and the read must too. The file this guards against is one a hand edit or an
+		 * agent wrote, which never passed the write path at all.
+		 */
+		const { fs } = memoryFs();
+		fs.writeFileSync(
+			integrationManifestPath("wave-1"),
+			JSON.stringify(manifestFor("wave-1", { name: "../../evil" })),
+			"utf-8",
+		);
+
+		assert.throws(
+			() => readIntegrationManifest("wave-1", fs),
+			(error: Error) => {
+				assert.match(error.message, /Integration manifest is invalid/u);
+				assert.match(error.message, /name/u);
+
+				return true;
+			},
+			"the name is a path segment in four places, so file content needs the CLI's pattern",
+		);
+	});
+
+	test("should refuse a manifest missing a required field, naming it", () => {
+		const { fs } = memoryFs();
+		const missing = { ...manifestFor("wave-1") } as Partial<IntegrationManifest>;
+		delete missing.status;
+		fs.writeFileSync(integrationManifestPath("wave-1"), JSON.stringify(missing), "utf-8");
+
+		assert.throws(
+			() => readIntegrationManifest("wave-1", fs),
+			(error: Error) => {
+				assert.match(error.message, /Integration manifest is invalid/u);
+				assert.match(error.message, /status/u);
+
+				return true;
+			},
+			"a missing field would otherwise reach a path as undefined",
+		);
+	});
+
+	test("should refuse a worktree that escapes into a sibling integration", () => {
+		/*
+		 * The check that has to be the integration's own directory rather than the integrations root:
+		 * containment in the root passes here, and the redirect the seam exists to stop still happens.
+		 */
+		assert.throws(
+			() =>
+				integrationBasePath(
+					manifestFor("wave-1", {
+						worktree: ".sandcastle/integrations/wave-2/wave-2",
+					}),
+				),
+			(error: Error) => {
+				assert.match(error.message, /not inside/u);
+				assert.match(error.message, /wave-2/u);
+
+				return true;
+			},
+		);
+	});
+
+	test("should refuse a worktree that climbs out with ..", () => {
+		assert.throws(
+			() =>
+				integrationBasePath(
+					manifestFor("wave-1", {
+						worktree: ".sandcastle/integrations/wave-1/../../../elsewhere",
+					}),
+				),
+			/not inside/u,
+		);
+	});
+
+	test("should keep resolving a worktree this runner wrote", () => {
+		// The positive half: the guard has to admit the paths createIntegrationManifest writes.
+		const created = createIntegrationManifest("wave-4", "issues", "main", [], true, {
+			fs: memoryFs().fs,
+			git: () => "",
+			gitTry: () => undefined,
+			resolveCommit: () => "abc1234",
+		});
+
+		assert.equal(
+			integrationBasePath(created, { existsSync: () => false }),
+			join(integrationsDir, "wave-4", "wave-4"),
+		);
+	});
+});
+
+describe("integration path builders", () => {
+	test("should refuse an integration name that resolves outside its root", () => {
+		for (const build of [integrationManifestPath, integrationLogPath]) {
+			assert.throws(() => build("../evil"), /Invalid integration name/u);
+			assert.throws(() => build("wave-1/../../evil"), /Invalid integration name/u);
+		}
+	});
+
+	test("should build both paths inside their own roots", () => {
+		assert.equal(
+			integrationManifestPath("wave-1"),
+			join(integrationsDir, "wave-1", "manifest.json"),
+		);
+		assert.equal(integrationLogPath("wave-1"), join(logsDir, "integration-wave-1.log"));
+	});
+
+	test("should create nothing outside the roots for an escaping name", () => {
+		/*
+		 * The property, not the throw: a name that would escape must leave the filesystem untouched.
+		 * The builder is the only thing that could create it, and it refuses before the write.
+		 */
+		const escape = "../escaped-integration";
+		const outside = join(integrationsDir, "..", "escaped-integration");
+
+		assert.throws(() => integrationManifestPath(escape), /Invalid integration name/u);
+		assert.equal(
+			existsSync(outside),
+			false,
+			"nothing was created outside the integrations root",
+		);
 	});
 });
