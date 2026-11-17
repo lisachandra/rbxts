@@ -82,6 +82,13 @@ export interface QueueGraph {
 	generatedAt: string;
 	/** Issues that are never queued; they need a human decision session. */
 	human: QueueView["human"];
+	/**
+	 * Parallel dispatch ranks, present only when the repository runs more than one batch at a time.
+	 *
+	 * Absent for a serial queue on purpose: a serial run has no lanes, and drawing them would
+	 * describe a schedule the dispatcher will never produce.
+	 */
+	lanes?: QueueGraphLanes;
 	nodes: Array<QueueGraphNode>;
 	/** `owner/name`, so a rendering can link the issues it names. */
 	repository: { name: string; owner: string };
@@ -91,8 +98,49 @@ export interface QueueGraph {
 	updated: string;
 }
 
+/** One parallel rank: batches that may be in flight at the same time. */
+export interface QueueLaneRank {
+	/** Batch names, in run order within the rank. */
+	batches: Array<string>;
+	/** Zero-based rank; every batch in it may run at once. */
+	index: number;
+}
+
+/** The parallel-lane view of a graph, present only when `queue.parallel` allows it. */
+export interface QueueGraphLanes {
+	/**
+	 * Profile name per lane slot, in slot order.
+	 *
+	 * Empty means `agents.catalog` is empty, in which case `queue run --parallel` refuses rather
+	 * than falling back to `agents.default` — so the graph names no profile either, and the render
+	 * says which prerequisite is missing instead of promising a model no lane would run.
+	 */
+	profiles: Array<string>;
+	/** Ranks in dispatch order. */
+	ranks: Array<QueueLaneRank>;
+	/**
+	 * Rank 0's batches paired with the slot each would take.
+	 *
+	 * Exact, unlike later ranks: slots are handed out in fire order, so the first `parallel`
+	 * batches occupy slots `0..parallel-1` and nothing else can interleave with them. Which slot
+	 * frees first after that is a runtime fact, so later ranks name their slot set rather than
+	 * pretending to know.
+	 */
+	slots: Array<{ batch: string; slot: number }>;
+}
+
 export interface QueueGraphOptions {
 	generatedAt: string;
+	/** Parallel limit from `queue.parallel`; `<= 1` (or absent) leaves `lanes` unset. */
+	parallel?: number;
+	/**
+	 * Profile name per lane slot, from `agents.catalog`.
+	 *
+	 * The caller resolves these with `profileForLane`, the same function the pool uses, so the plan
+	 * and the dispatcher cannot disagree about which model a slot runs — including the wrap when
+	 * the catalog is shorter than the parallel limit.
+	 */
+	profiles?: ReadonlyArray<string>;
 	repository: { name: string; owner: string };
 }
 
@@ -344,13 +392,14 @@ function ruleEdges(
  */
 export function buildQueueGraph(view: QueueView, options: QueueGraphOptions): QueueGraph {
 	const nodes = view.sequences.map((sequence) => nodeFor(sequence));
-	return {
-		edges: [
-			...orderEdges(nodes),
-			...gateEdges(nodes),
-			...ruleEdges(nodes, view.rules),
-			...blockerEdges(nodes),
-		],
+	const edges = [
+		...orderEdges(nodes),
+		...gateEdges(nodes),
+		...ruleEdges(nodes, view.rules),
+		...blockerEdges(nodes),
+	];
+	const graph: QueueGraph = {
+		edges,
 		gated: view.gated,
 		generatedAt: options.generatedAt,
 		human: view.human,
@@ -358,6 +407,200 @@ export function buildQueueGraph(view: QueueView, options: QueueGraphOptions): Qu
 		repository: options.repository,
 		rules: view.rules,
 		updated: view.updated,
+	};
+	const lanes = laneSection(nodes, edges, options);
+	if (lanes !== undefined) {
+		graph.lanes = lanes;
+	}
+
+	return graph;
+}
+
+/** Edge kinds that stop two batches being in flight together, as `selectNextBatch` decides. */
+const barrierKinds: ReadonlySet<QueueGraphEdgeKind> = new Set<QueueGraphEdgeKind>(["gate", "rule"]);
+
+/**
+ * - Groups batches into the ranks a parallel dispatcher could actually run together.
+ * - @param nodes - The graph's batch nodes, in manifest order.
+ * - @param edges - Every edge the graph carries; only `gate` and `rule` rank.
+ * - @returns One rank per dispatch step, each listing its batches in manifest order.
+ * - @remarks The rule set is `selectNextBatch`'s, not the web layout's: an unmet `after` gate and an
+ *   `R<n>` violation are the only things that keep two batches apart. Run order, member position,
+ *   and live blockers are not barriers — a batch whose only obstacle is a live blocker is still
+ *   READY-adjacent for scheduling purposes, and treating the arrow as a lane would describe a wait
+ *   the dispatcher never performs.
+ *
+ *   A gate on an integration no batch produces still ranks its consumer, because the wait is real
+ *   even when the producer is not in this manifest.
+ */
+export function laneRanks(
+	nodes: ReadonlyArray<QueueGraphNode>,
+	edges: ReadonlyArray<QueueGraphEdge>,
+): Array<QueueLaneRank> {
+	/** Batch id -> the batches it waits on through a barrier edge. */
+	const waitsOn = new Map<string, Array<string>>();
+	for (const node of nodes) {
+		waitsOn.set(node.id, []);
+	}
+
+	for (const edge of edges) {
+		if (!barrierKinds.has(edge.kind)) {
+			continue;
+		}
+
+		waitsOn.get(edge.to)?.push(edge.from);
+	}
+
+	/*
+	 * An `after` cycle is not drift today, so a manifest that contains one must still render — and
+	 * "must not hang" is the whole requirement on it. Recursion would hang, and a back edge counted as
+	 * a barrier would rank the cycle's members differently depending on which one the walk started
+	 * from. Both are wrong about the schedule: batches that wait on each other never fire at all, so
+	 * they belong in one rank, unordered among themselves.
+	 */
+	const group = cycleGroups(nodes, waitsOn);
+
+	/** Group -> the ids it waits on. A self-edge or an intra-group edge is not a wait. */
+	const groupWaitsOn = new Map<string, Set<string>>();
+	for (const node of nodes) {
+		const own = group.get(node.id) ?? node.id;
+		const waits = groupWaitsOn.get(own);
+		for (const dependency of waitsOn.get(node.id) ?? []) {
+			if (group.get(dependency) === own) {
+				continue;
+			}
+
+			if (waits === undefined) {
+				groupWaitsOn.set(own, new Set([dependency]));
+			} else {
+				waits.add(dependency);
+			}
+		}
+	}
+
+	const computed = new Map<string, number>();
+	const visiting = new Set<string>();
+
+	const rankOf = (own: string): number => {
+		const known = computed.get(own);
+		if (known !== undefined) {
+			return known;
+		}
+
+		if (visiting.has(own)) {
+			/* Unreachable for a well-formed condensation; a hard stop rather than a hang. */
+			return 0;
+		}
+
+		visiting.add(own);
+		let rank = 0;
+		for (const dependency of groupWaitsOn.get(own) ?? []) {
+			const producer = group.get(dependency);
+			// An external integration is a wait with no producer left in the manifest.
+			rank = Math.max(rank, producer === undefined ? 1 : rankOf(producer) + 1);
+		}
+
+		visiting.delete(own);
+		computed.set(own, rank);
+		return rank;
+	};
+
+	const byRank = new Map<number, QueueLaneRank>();
+	for (const node of nodes) {
+		const index = rankOf(group.get(node.id) ?? node.id);
+		const existing = byRank.get(index);
+		if (existing === undefined) {
+			byRank.set(index, { batches: [node.id], index });
+			continue;
+		}
+
+		existing.batches.push(node.id);
+	}
+
+	return [...byRank.values()].sort((left, right) => left.index - right.index);
+}
+
+/**
+ * - The batches that can never be ordered against each other, as id -> group.
+ * - @param nodes - Batch nodes, in manifest order.
+ * - @param waitsOn - Barrier edges, as "this batch waits for these".
+ * - @returns A group id per batch; batches outside any cycle keep their own id.
+ * - @remarks Reachability closure rather than a strongly-connected-components algorithm: a queue has
+ *   tens of batches, and "they can reach each other" is the definition of the property that matters
+ *   here, in a few lines a reader can check.
+ */
+function cycleGroups(
+	nodes: ReadonlyArray<QueueGraphNode>,
+	waitsOn: ReadonlyMap<string, ReadonlyArray<string>>,
+): Map<string, string> {
+	const reach = new Map<string, Set<string>>();
+	for (const node of nodes) {
+		const seen = new Set<string>();
+		const stack = [...(waitsOn.get(node.id) ?? [])];
+		while (stack.length > 0) {
+			const next = stack.pop();
+			if (next === undefined || seen.has(next)) {
+				continue;
+			}
+
+			seen.add(next);
+			stack.push(...(waitsOn.get(next) ?? []));
+		}
+
+		reach.set(node.id, seen);
+	}
+
+	const groups = new Map<string, string>();
+	for (const node of nodes) {
+		if (groups.has(node.id)) {
+			continue;
+		}
+
+		groups.set(node.id, node.id);
+		for (const other of nodes) {
+			if (other.id === node.id || groups.has(other.id)) {
+				continue;
+			}
+
+			if (
+				reach.get(node.id)?.has(other.id) === true &&
+				reach.get(other.id)?.has(node.id) === true
+			) {
+				groups.set(other.id, node.id);
+			}
+		}
+	}
+
+	return groups;
+}
+
+/**
+ * - The lane section, or nothing when the queue runs one batch at a time.
+ * - @param nodes - Batch nodes.
+ * - @param edges - Graph edges.
+ * - @param options - Caller options; `parallel` and `profiles` decide whether lanes are drawn.
+ * - @returns The lanes payload, or `undefined` to leave `QueueGraph.lanes` unset.
+ * - @remarks Two batches is the minimum a lane view can say anything about: with fewer, every rank is
+ *   rank 0 and the section would restate the node list. `parallel <= 1` is a serial dispatch by
+ *   definition, so it has no lanes at all.
+ */
+function laneSection(
+	nodes: ReadonlyArray<QueueGraphNode>,
+	edges: ReadonlyArray<QueueGraphEdge>,
+	options: QueueGraphOptions,
+): undefined | QueueGraphLanes {
+	const parallel = options.parallel ?? 1;
+	if (parallel <= 1 || nodes.length < 2) {
+		return undefined;
+	}
+
+	const ranks = laneRanks(nodes, edges);
+	const opening = ranks[0]?.batches ?? [];
+	return {
+		/* Already one name per slot: the caller asks `profileForLane` rather than slicing the catalog. */
+		profiles: [...(options.profiles ?? [])].slice(0, parallel),
+		ranks,
+		slots: opening.slice(0, parallel).map((batch, slot) => ({ batch, slot })),
 	};
 }
 
@@ -497,12 +740,47 @@ export interface QueueMermaidOptions {
 }
 
 /**
+ * - The one-line title of a rank's subgraph, naming the profiles its batches would draw.
+ * - @param lanes - The graph's lane payload.
+ * - @param rank - The rank to label.
+ * - @returns Text for a Mermaid subgraph title, before escaping.
+ * - @remarks Only rank 0 can name which lane runs which batch: slots are handed out in fire order,
+ *   and which one frees first afterwards is a runtime fact. Later ranks therefore name the slot
+ *   set, not a pairing.
+ */
+function rankTitle(lanes: QueueGraphLanes, rank: QueueLaneRank): string {
+	const position = `rank ${String(rank.index + 1)}`;
+	if (lanes.profiles.length === 0) {
+		/* `queue run --parallel` refuses without a catalog, so the graph names the missing piece. */
+		return `${position} · no agents.catalog`;
+	}
+
+	if (rank.index === 0 && lanes.slots.length > 0) {
+		const pairs = lanes.slots
+			.map(({ batch, slot }) =>
+				`${batch} lane ${String(slot + 1)} ${lanes.profiles[slot] ?? ""}`.trimEnd(),
+			)
+			.join(", ");
+		return `${position} · ${pairs}`;
+	}
+
+	const set = lanes.profiles.length === 1 ? "lane 1" : `lanes 1-${String(lanes.profiles.length)}`;
+	return `${position} · ${set} ${lanes.profiles.join(", ")}`;
+}
+
+/**
  * - Renders the queue as a Mermaid `flowchart`, which GitHub draws natively in files and comments.
  * - @param graph - Payload from {@link buildQueueGraph}.
  * - @param options - `issues` expands each batch into a subgraph of its member issues.
  * - @returns A complete `flowchart LR` block, without a Markdown fence.
  * - @remarks Issue numbers stay inside the node labels: GitHub strips `click` links from Mermaid, so
  *   a link in the diagram would silently disappear.
+ *
+ *   When the graph carries lanes, each rank becomes a subgraph so the diagram cannot claim a serial
+ *   chain where the dispatcher runs batches together. Only in the compact rendering: `issues` already
+ *   nests one subgraph per batch, and a second level of nesting is the one thing Mermaid's layout
+ *   handles badly. The expanded diagram is the composition view, and the Markdown page below still
+ *   carries the ranks.
  * - @example
  *
  *   ```mermaid
@@ -514,8 +792,47 @@ export interface QueueMermaidOptions {
  */
 export function renderQueueMermaid(graph: QueueGraph, options: QueueMermaidOptions = {}): string {
 	const expanded = options.issues === true;
+	const lanes = expanded ? undefined : graph.lanes;
+	/** Batch -> the rank it belongs to, so the declaration loop knows when to open a subgraph. */
+	const rankOfBatch = new Map<string, number>();
+	for (const rank of lanes?.ranks ?? []) {
+		for (const batch of rank.batches) {
+			rankOfBatch.set(batch, rank.index);
+		}
+	}
+
 	const lines: Array<string> = ["flowchart LR"];
+	/** Rank whose subgraph is open, if any. */
+	let openRank: number | undefined;
+	const closeRank = (): void => {
+		if (openRank === undefined) {
+			return;
+		}
+
+		lines.push("  end");
+		openRank = undefined;
+	};
+
 	for (const node of graph.nodes) {
+		const rank = rankOfBatch.get(node.id);
+		if (lanes !== undefined && rank !== undefined) {
+			if (openRank !== rank) {
+				closeRank();
+				const entry = lanes.ranks[rank];
+				const title =
+					entry === undefined ? `rank ${String(rank + 1)}` : rankTitle(lanes, entry);
+				lines.push(
+					`  subgraph rank_${String(rank)}["${escapeLabel(title)}"]`,
+					"    direction LR",
+				);
+				openRank = rank;
+			}
+
+			lines.push(`    ${mermaidId(node.id)}["${mermaidNodeLabel(node)}"]`);
+			continue;
+		}
+
+		closeRank();
 		if (expanded && node.issues.length > 0) {
 			lines.push(
 				`  subgraph ${mermaidId(node.id)}["${mermaidNodeLabel(node)}"]`,
@@ -533,6 +850,8 @@ export function renderQueueMermaid(graph: QueueGraph, options: QueueMermaidOptio
 
 		lines.push(`  ${mermaidId(node.id)}["${mermaidNodeLabel(node)}"]`);
 	}
+
+	closeRank();
 
 	for (const name of externalSources(graph)) {
 		lines.push(`  ${mermaidId(name)}(["${escapeLabel(name)}<br/>integration"])`);
@@ -638,6 +957,71 @@ const legendLines: ReadonlyArray<string> = [
 ];
 
 /**
+ * - The lane block both human renderings print, or nothing for a serial queue.
+ * - @param lanes - The graph's lane payload.
+ * - @param format - `md` for the page, `text` for the terminal.
+ * - @returns Lines to append, empty when there are no lanes.
+ * - @remarks The rank list is the payload's own, so the page cannot disagree with `queue graph
+ *   --json` about which batches share a step.
+ */
+function laneLines(lanes: QueueGraphLanes, format: "md" | "text"): Array<string> {
+	if (format === "md") {
+		const lines = ["", "**Parallel lanes**", ""];
+		if (lanes.profiles.length === 0) {
+			lines.push(
+				"- No profile per lane: `agents.catalog` is empty, and `queue run --parallel` refuses without one.",
+			);
+			return lines;
+		}
+
+		for (const rank of lanes.ranks) {
+			const batches = rank.batches.join(", ");
+			const where =
+				rank.index === 0 && lanes.slots.length > 0
+					? ` (${lanes.slots
+							.map(({ batch, slot }) => `${batch} in lane ${String(slot + 1)}`)
+							.join(", ")})`
+					: "";
+			lines.push(`- rank ${String(rank.index + 1)}: ${batches}${where}`);
+		}
+
+		const lanesNamed = lanes.profiles
+			.map((profile, slot) => `lane ${String(slot + 1)} runs \`${profile}\``)
+			.join("; ");
+		lines.push(
+			"",
+			`${lanesNamed}. Only rank 1's pairing is fixed: slots are handed out in fire order, so later ranks take whichever lane frees first.`,
+		);
+		return lines;
+	}
+
+	const lines = ["", "  Parallel lanes:"];
+	if (lanes.profiles.length === 0) {
+		lines.push(
+			"    no profile per lane: agents.catalog is empty, so --parallel refuses to run",
+		);
+		return lines;
+	}
+
+	for (const rank of lanes.ranks) {
+		const where =
+			rank.index === 0 && lanes.slots.length > 0
+				? ` (${lanes.slots
+						.map(({ batch, slot }) => `${batch} in lane ${String(slot + 1)}`)
+						.join(", ")})`
+				: "";
+		lines.push(`    rank ${String(rank.index + 1)}: ${rank.batches.join(", ")}${where}`);
+	}
+
+	lines.push(
+		`    lane profiles: ${lanes.profiles
+			.map((profile, slot) => `${String(slot + 1)}=${profile}`)
+			.join(" ")}`,
+	);
+	return lines;
+}
+
+/**
  * - Renders the queue graph as the Markdown page `queue graph --write` and `--comment` publish.
  * - @param graph - Payload from {@link buildQueueGraph}.
  * - @param options - `issues` expands each batch into a subgraph of its member issues.
@@ -661,6 +1045,10 @@ export function renderQueueMarkdown(graph: QueueGraph, options: QueueMermaidOpti
 		"",
 		...legendLines,
 	];
+
+	if (graph.lanes !== undefined) {
+		lines.push(...laneLines(graph.lanes, "md"));
+	}
 
 	if (graph.rules.length > 0) {
 		lines.push("", "**Serialization rules**", "");
@@ -740,6 +1128,10 @@ export function renderQueueAscii(graph: QueueGraph): string {
 		for (const note of node.notes) {
 			lines.push(`         · ${note}`);
 		}
+	}
+
+	if (graph.lanes !== undefined) {
+		lines.push(...laneLines(graph.lanes, "text"));
 	}
 
 	const rendered = graph.edges.filter((edge) => edge.kind !== "order");

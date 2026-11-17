@@ -220,3 +220,73 @@ describe("the disabled-queue check", () => {
 		);
 	});
 });
+
+describe("queue graph", () => {
+	/** Two unconstrained batches, which is the fewest that can share a lane. */
+	function parallelManifest(): QueueManifest {
+		return {
+			...emptyQueueManifest(),
+			sequences: [
+				{ issues: ["10"], name: "A" },
+				{ issues: ["11"], name: "B" },
+			],
+		};
+	}
+
+	/** `queue graph --json`'s payload, parsed. */
+	function graphPayload(
+		manifest: QueueManifest,
+		lanes: { parallel: number; profiles: Array<string> },
+	): { lanes?: { profiles: Array<string>; ranks: Array<{ batches: Array<string> }> } } {
+		const stub = fakeQueueContext(manifest, { lanes, live: { issues: { 10: {}, 11: {} } } });
+
+		runQueueCommand(parseArgs(["queue", "graph", "--json"]), stub.context);
+
+		assert.equal(stub.fake.lines.length, 1, "--json emits exactly one payload");
+		return JSON.parse(stub.fake.lines[0]?.text ?? "{}") as ReturnType<typeof graphPayload>;
+	}
+
+	test("should draw lanes from the context's parallel setting and profiles", () => {
+		const payload = graphPayload(parallelManifest(), {
+			parallel: 2,
+			profiles: ["sonnet", "flash"],
+		});
+
+		assert.deepEqual(payload.lanes?.profiles, ["sonnet", "flash"]);
+		assert.deepEqual(payload.lanes?.ranks, [{ batches: ["A", "B"], index: 0 }]);
+	});
+
+	test("should carry no lanes when the context reports a serial queue", () => {
+		const payload = graphPayload(parallelManifest(), { parallel: 1, profiles: ["sonnet"] });
+
+		assert.equal(payload.lanes, undefined);
+	});
+
+	test("should print the lanes in the terminal preview when the queue is parallel", () => {
+		const stub = fakeQueueContext(parallelManifest(), {
+			lanes: { parallel: 2, profiles: ["sonnet", "flash"] },
+			live: { issues: { 10: {}, 11: {} } },
+		});
+
+		runQueueCommand(parseArgs(["queue", "graph", "--format", "ascii"]), stub.context);
+
+		const preview = humanText(stub.fake);
+		assert.ok(preview.includes("  Parallel lanes:"), preview);
+		assert.ok(preview.includes("lane profiles: 1=sonnet 2=flash"), preview);
+	});
+
+	test("should put the lanes in the Mermaid diagram, which is the default rendering", () => {
+		const stub = fakeQueueContext(parallelManifest(), {
+			lanes: { parallel: 2, profiles: ["sonnet", "flash"] },
+			live: { issues: { 10: {}, 11: {} } },
+		});
+
+		runQueueCommand(parseArgs(["queue", "graph"]), stub.context);
+
+		const mermaid = humanText(stub.fake);
+		assert.ok(
+			mermaid.includes('subgraph rank_0["rank 1 · A lane 1 sonnet, B lane 2 flash"]'),
+			mermaid,
+		);
+	});
+});

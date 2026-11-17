@@ -4,8 +4,10 @@ import { describe, test } from "vitest";
 import { registerTestHooks } from "../test-helpers.js";
 import {
 	buildQueueGraph,
+	laneRanks,
 	type QueueGraph,
 	queueGraphCommentMarker,
+	type QueueGraphLanes,
 	renderQueueAscii,
 	renderQueueMarkdown,
 	renderQueueMermaid,
@@ -62,6 +64,51 @@ function edgesOf(graph: QueueGraph, kind: QueueGraph["edges"][number]["kind"]): 
 		.filter((edge) => edge.kind === kind)
 		.map((edge) => `${edge.from}>${edge.to}`);
 }
+
+/** Every issue a manifest references, as live state, so nothing reads as not scanned. */
+function stateFor(overrides: Partial<QueueManifest>): LiveQueueState {
+	const numbers = new Set<string>();
+	for (const sequence of overrides.sequences ?? []) {
+		for (const number of sequence.issues) {
+			numbers.add(number);
+		}
+	}
+
+	for (const entry of overrides.gated ?? []) {
+		numbers.add(entry.issue);
+	}
+
+	return live(...[...numbers].map((number) => issue(number)));
+}
+
+/** The graph a parallel rendering test starts from: the same view plus `queue.parallel`. */
+function graphWithLanes(
+	overrides: Partial<QueueManifest>,
+	parallel: number,
+	profiles: ReadonlyArray<string>,
+): QueueGraph {
+	return buildQueueGraph(computeQueueView(manifest(overrides), stateFor(overrides)), {
+		generatedAt: "2026-02-02T00:00:00.000Z",
+		parallel,
+		profiles,
+		repository: { name: "rbxts", owner: "lisachandra" },
+	});
+}
+
+/** The lane payload a spec asserts on, failing loudly when the graph decided not to draw lanes. */
+function lanesOf({ lanes }: QueueGraph): QueueGraphLanes {
+	assert.ok(lanes !== undefined, "expected the graph to carry lanes");
+	return lanes;
+}
+
+/** A three-batch manifest with no constraint between any pair. */
+const unconstrained: Partial<QueueManifest> = {
+	sequences: [
+		{ issues: ["1"], name: "A" },
+		{ issues: ["2"], name: "B" },
+		{ issues: ["3"], name: "C" },
+	],
+};
 
 describe("queue graph payload", () => {
 	test("the spine is one order edge per consecutive batch", () => {
@@ -315,5 +362,269 @@ describe("queue graph renderings", () => {
 		);
 		assert.ok(preview.includes("  Edges (run order is the list above):"), preview);
 		assert.ok(preview.includes("gate     audio-seam-work → V after audio-seam-work"), preview);
+	});
+});
+
+describe("queue graph lanes", () => {
+	test("a serial queue carries no lanes at all", () => {
+		const graph = graphWithLanes(unconstrained, 1, ["sonnet", "flash"]);
+
+		assert.equal(graph.lanes, undefined);
+	});
+
+	test("a parallel queue with one batch carries no lanes: there is no second batch to share", () => {
+		const graph = graphWithLanes({ sequences: [{ issues: ["1"], name: "A" }] }, 3, ["sonnet"]);
+
+		assert.equal(graph.lanes, undefined);
+	});
+
+	test("unconstrained batches share rank 0, and their slots are the fire order", () => {
+		const lanes = lanesOf(graphWithLanes(unconstrained, 2, ["sonnet", "flash"]));
+
+		assert.deepEqual(lanes.ranks, [{ batches: ["A", "B", "C"], index: 0 }]);
+		assert.deepEqual(lanes.slots, [
+			{ batch: "A", slot: 0 },
+			{ batch: "B", slot: 1 },
+		]);
+		assert.deepEqual(lanes.profiles, ["sonnet", "flash"]);
+	});
+
+	test("an unmet after gate is a barrier: the consumer lands one rank later", () => {
+		const lanes = lanesOf(
+			graphWithLanes(
+				{
+					sequences: [
+						{ issues: ["1"], name: "producer" },
+						{ after: "producer", issues: ["2"], name: "consumer" },
+					],
+				},
+				2,
+				["sonnet", "flash"],
+			),
+		);
+
+		assert.deepEqual(lanes.ranks, [
+			{ batches: ["producer"], index: 0 },
+			{ batches: ["consumer"], index: 1 },
+		]);
+	});
+
+	test("a serialization rule is a barrier even though neither batch waits on the other", () => {
+		const lanes = lanesOf(
+			graphWithLanes(
+				{
+					sequences: [
+						{ issues: ["1"], name: "A" },
+						{ issues: ["2"], name: "B" },
+					],
+					serialized: [{ issues: ["1", "2"], name: "R9", reason: "same seam" }],
+				},
+				2,
+				["sonnet"],
+			),
+		);
+
+		assert.deepEqual(lanes.ranks, [
+			{ batches: ["A"], index: 0 },
+			{ batches: ["B"], index: 1 },
+		]);
+	});
+
+	test("a live blocker is not a barrier: the dispatcher reads it as GATED, not as a lane", () => {
+		const graph = buildQueueGraph(
+			computeQueueView(
+				manifest({
+					sequences: [
+						{ issues: ["1"], name: "A" },
+						{ issues: ["2"], name: "B" },
+					],
+				}),
+				live(issue("1"), issue("2", { openBlockers: ["1"] })),
+			),
+			{
+				generatedAt: "2026-02-02T00:00:00.000Z",
+				parallel: 2,
+				profiles: ["sonnet"],
+				repository: { name: "rbxts", owner: "lisachandra" },
+			},
+		);
+
+		assert.deepEqual(edgesOf(graph, "blocker"), ["A>B"]);
+		assert.deepEqual(lanesOf(graph).ranks, [{ batches: ["A", "B"], index: 0 }]);
+	});
+
+	test("run order is not a barrier either: adjacent batches still share a rank", () => {
+		const lanes = lanesOf(graphWithLanes(unconstrained, 3, ["sonnet"]));
+
+		assert.equal(lanes.ranks.length, 1);
+	});
+
+	test("ranks are the longest path, so a chain of gates counts every link", () => {
+		const lanes = lanesOf(
+			graphWithLanes(
+				{
+					sequences: [
+						{ issues: ["1"], name: "one" },
+						{ after: "one", issues: ["2"], name: "two" },
+						{ after: "two", issues: ["3"], name: "three" },
+					],
+				},
+				3,
+				["sonnet"],
+			),
+		);
+
+		assert.deepEqual(lanes.ranks, [
+			{ batches: ["one"], index: 0 },
+			{ batches: ["two"], index: 1 },
+			{ batches: ["three"], index: 2 },
+		]);
+	});
+
+	test("a gate on an integration no batch produces is still a wait, so its consumer ranks later", () => {
+		const lanes = lanesOf(
+			graphWithLanes(
+				{
+					sequences: [
+						{ issues: ["1"], name: "A" },
+						{ after: "elsewhere-work", issues: ["2"], name: "V" },
+					],
+				},
+				2,
+				["sonnet"],
+			),
+		);
+
+		assert.deepEqual(lanes.ranks, [
+			{ batches: ["A"], index: 0 },
+			{ batches: ["V"], index: 1 },
+		]);
+	});
+
+	test("a cyclic after chain ranks each batch once, in one rank, instead of recursing forever", () => {
+		const ranks = laneRanks(
+			[{ after: "B", id: "A" } as never, { after: "A", id: "B" } as never],
+			[
+				{ from: "B", kind: "gate", to: "A" },
+				{ from: "A", kind: "gate", to: "B" },
+			] as never,
+		);
+
+		/*
+		 * One rank at index 0, not one rank at index 1: a cycle means neither batch ever fires, so
+		 * counting the back edge as a wait would rank the deadlock behind a barrier that does not exist
+		 * and shift every downstream rank with it.
+		 */
+		assert.deepEqual(ranks, [{ batches: ["A", "B"], index: 0 }]);
+	});
+
+	test("a cycle's members do not drag a batch that only waits on the cycle into their rank", () => {
+		const ranks = laneRanks(
+			[
+				{ after: "B", id: "A" } as never,
+				{ after: "A", id: "B" } as never,
+				{ after: "A", id: "C" } as never,
+			],
+			[
+				{ from: "B", kind: "gate", to: "A" },
+				{ from: "A", kind: "gate", to: "B" },
+				{ from: "A", kind: "gate", to: "C" },
+			] as never,
+		);
+
+		assert.deepEqual(ranks, [
+			{ batches: ["A", "B"], index: 0 },
+			{ batches: ["C"], index: 1 },
+		]);
+	});
+
+	test("the Mermaid diagram groups each rank into its own subgraph", () => {
+		const graph = graphWithLanes(
+			{
+				sequences: [
+					{ issues: ["1"], name: "A" },
+					{ issues: ["2"], name: "B" },
+					{ after: "A", issues: ["3"], name: "C" },
+				],
+			},
+			2,
+			["sonnet", "flash"],
+		);
+
+		const mermaid = renderQueueMermaid(graph);
+		assert.ok(
+			mermaid.includes('  subgraph rank_0["rank 1 · A lane 1 sonnet, B lane 2 flash"]'),
+			mermaid,
+		);
+		assert.ok(mermaid.includes("    A["), mermaid);
+		assert.ok(mermaid.includes("    B["), mermaid);
+		assert.ok(
+			mermaid.includes('  subgraph rank_1["rank 2 · lanes 1-2 sonnet, flash"]'),
+			mermaid,
+		);
+		assert.ok(mermaid.includes("    C["), mermaid);
+	});
+
+	test("--issues keeps the composition diagram and leaves the ranks to the page", () => {
+		const graph = graphWithLanes(unconstrained, 2, ["sonnet", "flash"]);
+
+		const mermaid = renderQueueMermaid(graph, { issues: true });
+		assert.ok(!mermaid.includes("subgraph rank_0"), mermaid);
+		assert.ok(mermaid.includes('  subgraph A["A<br/>1 issue · READY"]'), mermaid);
+	});
+
+	test("the Markdown page states which lane runs each profile and that only rank 1 is fixed", () => {
+		const graph = graphWithLanes(unconstrained, 2, ["sonnet", "flash"]);
+
+		const page = renderQueueMarkdown(graph);
+		assert.ok(page.includes("**Parallel lanes**"), page);
+		assert.ok(page.includes("- rank 1: A, B, C (A in lane 1, B in lane 2)"), page);
+		assert.ok(page.includes("lane 1 runs `sonnet`; lane 2 runs `flash`"), page);
+		assert.ok(page.includes("Only rank 1's pairing is fixed"), page);
+	});
+
+	test("a parallel queue with no catalog says so instead of naming a profile", () => {
+		const graph = graphWithLanes(unconstrained, 2, []);
+
+		const mermaid = renderQueueMermaid(graph);
+		assert.ok(mermaid.includes('subgraph rank_0["rank 1 · no agents.catalog"]'), mermaid);
+		assert.ok(!mermaid.includes("agents.default"), mermaid);
+
+		const page = renderQueueMarkdown(graph);
+		assert.ok(page.includes("`agents.catalog` is empty"), page);
+		assert.ok(!page.includes("lane 1 runs"), page);
+
+		const preview = renderQueueAscii(graph);
+		assert.ok(preview.includes("no profile per lane"), preview);
+	});
+
+	test("the terminal preview lists the ranks before the edge list", () => {
+		const graph = graphWithLanes(
+			{
+				sequences: [
+					{ issues: ["1"], name: "A" },
+					{ after: "A", issues: ["2"], name: "B" },
+				],
+			},
+			2,
+			["sonnet", "flash"],
+		);
+
+		const preview = renderQueueAscii(graph);
+		const lanesAt = preview.indexOf("  Parallel lanes:");
+		const edgesAt = preview.indexOf("  Edges (run order is the list above):");
+		assert.ok(lanesAt !== -1, preview);
+		assert.ok(edgesAt !== -1, preview);
+		assert.ok(lanesAt < edgesAt, preview);
+		assert.ok(preview.includes("    rank 1: A (A in lane 1)"), preview);
+		assert.ok(preview.includes("    rank 2: B"), preview);
+		assert.ok(preview.includes("    lane profiles: 1=sonnet 2=flash"), preview);
+	});
+
+	test("a serial page is byte-identical whether or not profiles are offered", () => {
+		const serial = renderQueueMarkdown(graphFor(unconstrained, stateFor(unconstrained)));
+
+		const page = renderQueueMarkdown(graphWithLanes(unconstrained, 1, ["sonnet"]));
+		assert.equal(page, serial);
 	});
 });

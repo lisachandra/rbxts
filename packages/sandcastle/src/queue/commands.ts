@@ -327,8 +327,11 @@ async function runQueueServe(options: CliOptions, context: QueueContext): Promis
 function runQueueGraph(options: CliOptions, context: QueueContext): void {
 	const view = liveView(context, false);
 	const identifiers = context.repository();
+	const { parallel, profiles } = context.lanes();
 	const graph = buildQueueGraph(view, {
 		generatedAt: new Date().toISOString(),
+		parallel,
+		profiles,
 		repository: identifiers,
 	});
 	const expanded = options.queueExpandIssues === true;

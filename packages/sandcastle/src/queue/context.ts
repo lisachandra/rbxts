@@ -34,6 +34,7 @@ import {
 import { readRawQueueManifest } from "./migrate.js";
 import { emitJson } from "./output.js";
 import { publishQueueManifest, type QueueTransaction, transactQueueManifest } from "./persist.js";
+import { profileForLane } from "./profile.js";
 
 /** How one queue invocation prints. */
 export interface QueueOutput {
@@ -65,6 +66,16 @@ export interface QueueContext {
 	fetchLive(manifest: QueueManifest): LiveQueueState;
 	/** Why each declared run-order gate is unmet; an absent name means safe to fire. */
 	gates(manifest: QueueManifest): ReadonlyMap<string, string>;
+	/**
+	 * The parallel-dispatch shape: `queue.parallel` and the profile each lane slot runs.
+	 *
+	 * @remarks
+	 *   Resolved through `profileForLane`, the same function the pool calls, so the graph names the
+	 *   model a slot would actually run — including the wrap when the catalog is shorter than the
+	 *   limit. `profiles` is empty when `agents.catalog` is, because dispatch then refuses
+	 *   `--parallel` rather than inventing a default.
+	 */
+	lanes(): { parallel: number; profiles: Array<string> };
 	/** The manifest path, for the messages that name where the queue lives. */
 	manifestPath(): string;
 	/** How this invocation prints. */
@@ -124,6 +135,23 @@ export function createQueueContext(options: CliOptions): QueueContext {
 				readyLabel: config.labels.readyForAgent,
 			}),
 		gates: (manifest) => unmetIntegrationGates({ names: sequenceGateNames(manifest) }),
+		lanes: () => {
+			const { parallel } = config.queue;
+			/*
+			 * `profileForLane` rather than `catalog.slice(0, parallel)`: a two-profile catalog at
+			 * `--parallel 4` wraps to sonnet, flash, sonnet, flash, and the graph would otherwise
+			 * claim slots 3 and 4 run nothing.
+			 */
+			const profiles: Array<string> = [];
+			for (let slot = 0; slot < parallel; slot++) {
+				const profile = profileForLane(config.agents.catalog, slot);
+				if (profile !== undefined) {
+					profiles.push(profile.name);
+				}
+			}
+
+			return { parallel, profiles };
+		},
 		manifestPath: () => queueManifestPath(),
 		output: {
 			json: (value) => {

@@ -83,6 +83,7 @@ export function queueContextStub(
 	manifest: QueueManifest,
 	options: {
 		gates?: ReadonlyMap<string, string>;
+		lanes?: { parallel: number; profiles: Array<string> };
 		live?: FakeLive;
 		repository?: { name: string; owner: string };
 	} = {},
@@ -120,6 +121,7 @@ export function queueContextStub(
 		},
 		fetchLive: () => live,
 		gates: () => options.gates ?? new Map<string, string>(),
+		lanes: () => options.lanes ?? { parallel: 1, profiles: [] },
 		manifestPath: () => "sandcastle.queue.json",
 		output,
 		overwrite: (_, next, summary) => {
