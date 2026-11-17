@@ -166,4 +166,33 @@ describe("adminOrDeveloper", () => {
 
 		expect(context.getReply()?.text).toContain("Tester");
 	});
+
+	it("should deny a member whose role reads empty mid-session", () => {
+		expect.assertions(3);
+
+		/*
+		 * The guard holds no role cache of its own — it reads `GetRoleInGroup` on every call, so the
+		 * only staleness it inherits is the engine's local cache. That distinction is what the
+		 * `adminOrDeveloper` remarks describe: a demotion is not *observed* until replication reaches
+		 * the client, but once the read returns empty the very next command is denied.
+		 */
+		resetConfiguration();
+		let role = "Developer";
+		const player = {
+			GetRoleInGroup: () => role,
+			Name: "Tester",
+			UserId: 1,
+		} as unknown as Player;
+
+		const admitted = contextFor(player);
+
+		expect(adminOrDeveloper(admitted)).toBe(true);
+
+		// ...the player leaves the group and the next read is empty.
+		role = "";
+		const denied = contextFor(player);
+
+		expect(adminOrDeveloper(denied)).toBe(false);
+		expect(denied.getReply()?.text).toContain("Tester");
+	});
 });

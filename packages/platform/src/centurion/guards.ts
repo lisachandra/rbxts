@@ -117,8 +117,14 @@ export function configureCenturionUsers(userIds: Array<number>): void {
  * @remarks
  *   New admin commands must use this guard (or {@link authorize} behind it) and must not hand-roll a
  *   role check. The role read is the synchronous `GetRoleInGroup`, because centurion's
- *   `CommandGuard` is typed `(context) => boolean`; see the follow-up issue about
- *   `GetRoleInGroupAsync` for the stale-role window that leaves.
+ *   `CommandGuard` is typed `(context) => boolean`. That read is the engine's local cache rather
+ *   than a fresh query: a role change replicates to the client that asked, so the value is stale
+ *   until the next update reaches it — in practice bounded by a rejoin. A player demoted or removed
+ *   from the group therefore keeps admin for that window. The window closes only with
+ *   `GetRoleInGroupAsync`, which a synchronous guard cannot await: centurion runs guards as `if not
+ *   guard(context) then return nil end`, so a `Promise` return is truthy and the command proceeds —
+ *   an await here would widen access rather than narrow it. #68 tracks the assertion that catches
+ *   such a guard and the upstream ask that would remove the window.
  * @param context - The command context, providing the executor and error reporting.
  * @returns `true` if the executor has an allowed user ID or role; otherwise `false` and an error is
  *   reported to the context.
