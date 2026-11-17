@@ -85,13 +85,13 @@ describe("queue prompt rules", () => {
 		});
 	});
 
-	test("sends a follow-up to the batch that owns the seam, not the running one", () => {
+	test("searches for duplicates but keeps the follow-up in the running batch", () => {
 		withQueueEnabled(true, () => {
 			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
 
-			assert.match(rules, /Find out who owns the seam/u);
-			assert.match(rules, /the work belongs to that batch/u);
-			assert.match(rules, /quote the search you ran/u);
+			assert.match(rules, /That search is for duplicates, not placement/u);
+			assert.match(rules, /reference that member instead/u);
+			assert.match(rules, /almost never in another batch/u);
 		});
 	});
 
@@ -115,7 +115,7 @@ describe("queue prompt rules", () => {
 
 	test("checks for a duplicate before filing a second issue", () => {
 		withQueueEnabled(true, () => {
-			assert.match(queueRulesForPrompt(), /register that number instead of/u);
+			assert.match(queueRulesForPrompt(), /reference that number instead of/u);
 		});
 	});
 
@@ -128,12 +128,42 @@ describe("queue prompt rules", () => {
 		});
 	});
 
-	test("prefers a gate when the finding outgrows the batch it came from", () => {
+	test("an outgrown finding is left unplaced for the human's queue-shaping pass, not gated", () => {
 		withQueueEnabled(true, () => {
-			assert.match(
-				queueRulesForPrompt({ batch: "audio-seam-work" }),
-				/tail growing faster than the head/u,
-			);
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /tail growing faster than the head/u);
+			assert.match(rules, /leaving it unplaced for the human's queue-shaping pass/u);
+			assert.doesNotMatch(rules, /--gated/u);
+		});
+	});
+
+	test("registration is the running batch's to take: almost never another batch, never the human array", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /Never the `human` array/u);
+			assert.match(rules, /Almost never another batch/u);
+			assert.match(rules, /seam-owning case/u);
+		});
+	});
+
+	test("a crucial follow-up carrying a human question halts, or registers ready-for-human into the batch", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ batch: "audio-seam-work" });
+
+			assert.match(rules, /crucial to the\s+batch landing correctly/u);
+			assert.match(rules, /either halt the run/u);
+			assert.match(rules, /blocked by mechanism rather than hope/u);
+		});
+	});
+
+	test("a composed batch leaves placement to the human's queue-shaping pass", () => {
+		withQueueEnabled(true, () => {
+			const rules = queueRulesForPrompt({ composed: true });
+
+			assert.match(rules, /queue-shaping pass/u);
+			assert.doesNotMatch(rules, /--gated/u);
 		});
 	});
 
