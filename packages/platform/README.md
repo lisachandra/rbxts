@@ -212,3 +212,19 @@ const { success, validHash, unexpired } = isValidTeleport(player);
 `teleport` retries up to `attempts` times, waiting `retry_delay` between tries. Keep the secret out of
 source — read it from configuration — since anyone holding it can mint valid teleport data.
 
+The secret is **required**: `isValidTeleport` halts, naming `configureTeleportSecret`, if none has been
+configured, and `configureTeleportSecret` refuses a blank or whitespace-only value where you call it. A
+place that never configured one used to verify tokens anyway, against `sha256(stamp)` — a hash anyone
+can compute.
+
+`serializeTeleportData` signs a canonical rendering of the **whole payload**, not just `stamp`, so any
+field you add is authenticated. Two consequences worth knowing:
+
+- The stamp's window is two-sided. A token older than `expiration` is rejected, and so is one whose
+  stamp leads the receiving server's clock by more than 60 seconds, even when the signature is correct.
+- Any change to a payload field invalidates the token. Mint a new one rather than patching a minted
+  token in place.
+
+The verification is available without a `Player` as `verifyTeleportData(data, now)`, and a token can be
+minted without a `TeleportOptions` instance as `signTeleportData(payload, stamp)`. `isValidTeleport` is
+the thin wrapper that reads the player's join data, so a test can drive the checks directly.
