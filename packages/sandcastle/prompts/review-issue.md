@@ -34,6 +34,7 @@ Treat them as guidance; repository instructions, issue acceptance criteria, and 
 - Are the plan's open questions resolved? If the plan flagged a decision the designer couldn't make, decide it now.
 - If the implementer skipped, misread, or partially completed a slice, fix it on this branch.
 - Correct every finding whose fix is small, safe, and inside this issue's blast radius — a missing test, an unhandled case, a wrong guard, a stale doc line — then re-run validation and commit it. A review that files what it could have fixed leaves the branch less correct than it found it.
+- Run validation in its checking form: `pnpm lint`, `pnpm typecheck`, `pnpm test`, as the repository defines them. Where `AGENTS.md` lists a write-mode command among its verification steps (`lint:fix` and the like), use the checking form here instead — this phase validates what the branch contains, it does not reformat what it does not. Do not run any command that rewrites tracked files across the repository. If a formatter genuinely must run, pass it the paths this review changed and commit the result with the fix it belongs to. Churn left uncommitted here travels into the integration worktree and blocks the next merge; churn committed into this branch pollutes the batch instead.
 - Register what is left over: "Follow-up issue registration" below is the contract, and a finding listed only in the comment does not count as registered.
 
 ### Contract conformance

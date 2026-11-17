@@ -9,7 +9,7 @@ file logging that carries the session id, retry transient failures while resumin
 refuse to call the attempt finished unless the marker exists: the three issue phases, the integration conflict
 resolver, and the integration review. They now share `runPhase`.
 
-The seam takes a *builder* rather than an attempt object. `reloader.step("design")` and
+The seam takes a _builder_ rather than an attempt object. `reloader.step("design")` and
 `watchStep(reloader, "design")` must be evaluated inside the retry closure: a config reload aborts the
 attempt, and the restart has to see the new selection with a watcher baselined on it. Reading them once would
 freeze the model at the first attempt, which is the exact failure the reload path exists to prevent.

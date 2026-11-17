@@ -30,8 +30,8 @@ Read the source manifests and relevant commit history when needed.
 2. Read the relevant project instructions and primary source files for each conflict.
 3. Resolve every conflict without leaving conflict markers.
 4. Stage the resolved files and complete the merge commit with `git merge --continue` or an equivalent commit.
-5. Run the narrowest relevant validation available.
-6. Verify `git diff --name-only --diff-filter=U` prints no paths.
+5. Run the narrowest relevant validation available — in its checking form (`pnpm lint`, not `lint:fix`; a scoped build, not one that regenerates sources).
+6. Verify `git status` shows no tracked file modified outside the merge, and `git diff --name-only --diff-filter=U` prints no paths. This worktree outlives the batch, so a file you leave dirty here is what the next merge refuses with "local changes would be overwritten". A tool that insists on writing: run it in check mode, or commit its output as part of the resolution if it genuinely belongs to the conflict.
 
 The orchestration will verify the merge commit and preserve the worktree if you cannot finish.
 

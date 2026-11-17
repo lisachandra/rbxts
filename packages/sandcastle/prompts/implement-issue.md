@@ -51,6 +51,8 @@ Before each commit, follow AGENTS.md verification policies.
 
 Fix what this issue touches; report pre-existing build or lint errors in unrelated files in the issue comment and leave those files alone.
 
+Where those policies name a write-mode formatter (`lint:fix` and the like), prefer the checking form (`pnpm lint`) unless the change needs formatting, and then scope it to the files this issue touched. A repo-wide `lint:fix` reformats whatever else the branch's base left behind, which turns one issue's diff into a batch-wide one — and in an integration worktree the uncommitted remainder blocks the next source's merge.
+
 Before the final commit, re-read the acceptance criteria of any closed ticket the modules you touched cite. If your implementation contradicts one, stop and report it in the issue comment instead of committing.
 
 ## GitHub issue updates
