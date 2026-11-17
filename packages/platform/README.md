@@ -88,6 +88,30 @@ before the guard and store the result.
 For anything beyond the shipped guard, `authorize(input, policy)` and `createAuthorizationPolicy(roles,
 userIds)` are pure functions, so a policy can be tested without a running server.
 
+### The convention is not enforced
+
+Nothing rejects an unguarded command — not Centurion, not this package, not a lint rule. The guard
+ships here and every bundled command uses it, but that is a reference implementation, not a control:
+a consumer must not infer that an authorisation check exists because one is exported. **A command you
+add is open until you add the guard.**
+
+So check each new command against this list:
+
+1. It carries `@Guard(adminOrDeveloper)`, or a guard built on `authorize` /
+   `createAuthorizationPolicy`.
+2. That guard returns a `boolean` synchronously, and a test drives it with a fake player — the
+   registry-config spec is the pattern.
+3. If it is meant to be runnable by anyone, that is a deliberate decision and worth a comment saying
+   so; `help`-style commands are the only ones that usually qualify.
+4. Its argument list cannot be used to write arbitrary data — inspect the four bundled commands
+   (`kick`, `set`, `teleport`, `document`) before adding one that mutates state.
+5. It appears in this README's command table, or is explicitly marked internal.
+
+Both halves of the guard story matter: the guard has to _be_ synchronous, and Centurion has to
+_evaluate_ it synchronously. `adminOrDeveloper` is typed to return `boolean`, but a guard whose body
+returns a `Promise` types as `boolean` through a wider signature and executes anyway. A guard-return
+assertion that catches this is tracked in #68; until it lands, the check is a review item.
+
 ### Custom argument types
 
 ```ts
@@ -122,17 +146,22 @@ configureRuntimeAdapters({ document: { store } });
 ```
 
 The document config accepts only `store`; `collection` is a deprecated alias kept for transitional
-compatibility. Persistence is not opt-in per component: whatever your game puts into
-`store.documents` is what the middleware writes.
+compatibility. Which key you pass is the invariant in #26: it decides both the handle the middleware
+writes through and what a test store has to provide. Persistence is not opt-in per component: whatever
+your game puts into `store.documents` is what the middleware writes.
 
 Writes reach the datastore through the store's `documents` middleware, which pushes changed entries into
 their Dataforge profiles — updating `store.documents` is the operation, so no separate save call exists.
+Only entries whose contents changed are written, so re-assigning an unchanged document is not a write.
 
 ### Nothing validates on load
 
-`createDataStoreValidator<T>()` builds a Boba validator, but **no part of the load path calls it**.
-Whatever shape is in the datastore is what your game receives. Validation used to happen when Lapis
-backed the collection; that left with the Dataforge migration and nothing replaced it.
+**No validation runs on the load path.** `createDataStoreValidator<T>()` builds a Boba validator, but
+nothing calls it: whatever shape is in the datastore is what your game receives.
+
+Validation used to happen when Lapis backed the collection. It left with the Dataforge migration in #11,
+and nothing replaced it — `createDataStoreValidator` stayed exported but unconnected, which is the part
+that misleads: an exported validator reads like an installed one.
 
 So validate where you consume the document, and decide the failure policy yourself — reject the player,
 reset to the template, or quarantine the record:
@@ -182,3 +211,4 @@ const { success, validHash, unexpired } = isValidTeleport(player);
 
 `teleport` retries up to `attempts` times, waiting `retry_delay` between tries. Keep the secret out of
 source — read it from configuration — since anyone holding it can mint valid teleport data.
+
