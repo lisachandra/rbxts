@@ -2,7 +2,9 @@
  * Codex provider adapter.
  *
  * Delegates to `io.codex`, capping "max" effort down to "xhigh" (the CLI's
- * highest supported level) and disabling session capture.
+ * highest supported level). Session capture is upstream's default: upstream owns
+ * the session files and gates resume on its own `findByIdOnHost` precheck, while
+ * sandcastle keeps only the id, per phase scope, in its own store.
  */
 
 import type { AgentProvider } from "@ai-hero/sandcastle";
@@ -19,7 +21,6 @@ export function codexProvider(model: string, effort: SandcastleEffort): AgentPro
 	}
 
 	return io.codex(model, {
-		captureSessions: false,
 		effort: resolvedEffort as "low" | "high" | "xhigh" | "medium",
 	});
 }
