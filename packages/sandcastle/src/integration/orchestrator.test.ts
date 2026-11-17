@@ -401,6 +401,241 @@ describe("orchestrator state machine", () => {
 		rmSync(join(integrationsDir, name), { force: true, recursive: true });
 	});
 
+	test("a rejected integration review leaves the manifest at review-failed", async () => {
+		/*
+		 * The review is the one phase whose failure is not a merge question, so the status must say so:
+		 * "review-failed" tells an operator the branch integrated and the review did not, which is what
+		 * a re-run resumes from. Reporting "blocked" or leaving "reviewing" behind would send them
+		 * looking at a merge that already succeeded.
+		 */
+		const name = `orchestrate-review-fail-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+		const rejection = new Error("the reviewer rejected the branch");
+
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base") {
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "abcdef1234567";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		await assert.rejects(
+			async () =>
+				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+					prepareWorktree: () => undefined,
+					runConflictResolver: async () => undefined,
+					runIntegrationReview: async () => {
+						throw rejection;
+					},
+				}),
+			/the reviewer rejected the branch/,
+		);
+
+		assert.equal(manifest.status, "review-failed", "a merge that succeeded is not 'blocked'");
+		assert.equal(
+			manifest.lastError,
+			String(rejection),
+			"and the reason survives for the operator",
+		);
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a conflict resolver that leaves the merge unfinished does not advance the offset", async () => {
+		/*
+		 * `currentSource` is the resume offset. Advancing it when the source's commit is still not an
+		 * ancestor would make the next resume skip the source that never merged — silently dropping
+		 * work from the composition while every later source merges on top of a branch missing it.
+		 */
+		const name = `orchestrate-resolve-fail-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+
+		let resolverRan = false;
+		let unmergedReads = 0;
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					// Not an ancestor, and it stays that way: git cannot answer, so `gitTry` sees a failure.
+					return undefined;
+				}
+
+				if (args[0] === "merge") {
+					throw new Error("CONFLICT (content): merge conflict in src/a.ts");
+				}
+
+				if (args[0] === "diff" && args.includes("--diff-filter=U")) {
+					// Conflicted while the resolver works, clean once it has "finished".
+					unmergedReads += 1;
+					return unmergedReads === 1 ? "src/a.ts" : "";
+				}
+
+				return "";
+			},
+		});
+
+		await assert.rejects(
+			async () =>
+				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+					prepareWorktree: () => undefined,
+					runConflictResolver: async () => {
+						resolverRan = true;
+					},
+					runIntegrationReview: async () => undefined,
+				}),
+			/Conflict resolver did not complete the merge for issue-1\./,
+		);
+
+		assert.equal(resolverRan, true, "the resolver was invoked before the source was refused");
+		assert.equal(
+			manifest.currentSource,
+			0,
+			"the offset still names the source that did not merge",
+		);
+		assert.equal(manifest.status, "conflict-resolution-required");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a merge over overlapping drift is refused as blocked, not as a conflict", async () => {
+		/*
+		 * Dirt that the incoming source would overwrite is a pre-merge refusal, and the distinction
+		 * matters: "blocked" says nothing was attempted and git is clean, while
+		 * "conflict-resolution-required" would send a resolver after a conflict that does not exist.
+		 */
+		const name = `orchestrate-drift-refused-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+
+		const mergeCalls: Array<Array<string>> = [];
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					return undefined;
+				}
+
+				if (args[0] === "merge-base") {
+					return "base0000";
+				}
+
+				/*
+				 * The unmerged-paths probe shares `--name-only`, so it has to be answered first or the
+				 * refusal would be reclassified as an open conflict.
+				 */
+				if (args[0] === "diff" && args.includes("--diff-filter=U")) {
+					return "";
+				}
+
+				if (args[0] === "diff" && args[1] === "--name-only") {
+					return "src/a.ts";
+				}
+
+				if (args[0] === "status") {
+					return " M src/a.ts";
+				}
+
+				if (args[0] === "ls-files") {
+					return "";
+				}
+
+				if (args[0] === "merge") {
+					mergeCalls.push([...args]);
+					return "";
+				}
+
+				return "";
+			},
+		});
+
+		await assert.rejects(
+			async () =>
+				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, false, {
+					prepareWorktree: () => undefined,
+					runConflictResolver: async () => undefined,
+					runIntegrationReview: async () => undefined,
+				}),
+			/would overwrite[\s\S]*--quarantine-drift/u,
+		);
+
+		assert.deepEqual(mergeCalls, [], "the merge was never attempted");
+		assert.equal(manifest.status, "blocked", "no conflict exists to resolve");
+		assert.equal(manifest.currentSource, 0);
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
+	test("a resume from a non-zero offset does not re-integrate the sources before it", async () => {
+		/*
+		 * The offset is the crash-safe continuation: sources before it merged and were recorded. Asking
+		 * git about them again is at best wasted work and at worst re-merges a source onto a branch that
+		 * already carries it, which git reports as a conflict the resolver then has to unpick.
+		 */
+		const name = `orchestrate-resume-${Date.now()}`;
+		const worktree = join(integrationsDir, name, "worktree");
+		mkdirSync(worktree, { recursive: true });
+		const manifest = makeManifest(name);
+		manifest.sources.push({
+			branch: "sandcastle/issue-2",
+			commit: "3333333",
+			issue: "2",
+			name: "issue-2",
+			order: 2,
+		});
+		manifest.currentSource = 1;
+
+		const queried: Array<string> = [];
+		gitStub({
+			file: (args) => {
+				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+					queried.push(String(args[2]));
+					return "";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--verify") {
+					return "deadbeef1234";
+				}
+
+				if (args[0] === "rev-parse" && args[1] === "--git-dir") {
+					return ".git";
+				}
+
+				return "";
+			},
+		});
+
+		let reviewed = 0;
+		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
+			prepareWorktree: () => undefined,
+			runConflictResolver: async () => undefined,
+			runIntegrationReview: async () => {
+				reviewed += 1;
+			},
+		});
+
+		assert.equal(queried.includes("2222222"), false, "source 0 merged before the crash");
+		assert.equal(queried.includes("3333333"), true, "the stored offset merged source 1");
+		assert.equal(manifest.currentSource, 2);
+		assert.equal(reviewed, 1);
+		assert.equal(manifest.status, "ready-for-human-merge");
+
+		rmSync(join(integrationsDir, name), { force: true, recursive: true });
+	});
+
 	test("a completed review stamps the tip so the next resume can skip it", async () => {
 		const name = `orchestrate-stamp-${Date.now()}`;
 		const worktree = join(integrationsDir, name, "worktree");
