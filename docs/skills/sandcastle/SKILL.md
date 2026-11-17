@@ -122,17 +122,16 @@ Two modes, one per question.
 The most common failure mode is a review that finds extra work, files issues, and stops; the queue
 never learns about them. When you run any review — a sandcastle phase or a manual `/code-review`:
 
-1. Find out who owns the seam before you file anything. Search the manifest for the files and
-   modules the finding names — `queue list`, then the member bodies of every batch that mentions
-   them. When another batch already has a member naming those files or that subsystem, the work
-   belongs to **that** batch: register it there, or `--gated --reason "belongs to <batch>"` when
-   that batch cannot take it. Appending it to the batch you are running is how two batches come to
-   build the same thing twice — say which batch owns it, and quote the search you ran.
+1. Search the manifest for the files and modules the finding names before you file anything —
+   `queue list`, then the member bodies of every batch that mentions them. When another batch
+   already has a member doing that exact work, do not file a second ticket: reference that member
+   instead. That search is for duplicates, not placement — the follow-up belongs in the batch you
+   are running (step 4), almost never in another batch.
 2. Fix it here when you can. A correction that is small, safe, and inside the reviewed work's blast
    radius belongs on the branch, not in a new issue; a review that files what it could have fixed
    leaves the branch less correct than it found it. A finding that needs a subsystem the reviewed
-   issue never touched is not a follow-up to that issue: it is a new ticket, owned by the batch
-   that owns that subsystem.
+   issue never touched is not a follow-up to that issue: it is a new ticket — file it and register
+   it in this batch (step 4), naming the subsystem it needs.
 3. File each remaining follow-up as a GitHub issue (conventional title, milestone, labels,
    parent/blocker edges per `docs/agents/issue-tracker.md`). When the finding — or the fix — would
    change a contract another ticket owns (a closed decision, an acceptance criterion, a documented
@@ -147,21 +146,26 @@ never learns about them. When you run any review — a sandcastle phase or a man
    Anchoring at any other member from a worktree is refused, and an insertion ahead of a member
    that already completed is refused everywhere: that member is reuse-chained on its
    pre-insertion branch and would silently bypass the newcomer. Omitting `--after` appends to the
-   tail, which is always safe), or `--gated
---reason` / `--human --reason`. Add an `R<n>` rule for a new same-file collision.
-   Prefer continuing a running batch over parking the work: `--sequence <that batch>` appends the
-   follow-up to its tail, and `queue run` picks the member up live — skipping the members that
-   already passed review and chaining their branch as the new member's base — so the follow-up
-   continues inside the same invocation. A tail growing faster than the head is work being
-   discovered rather than sliced: when a
-   finding is more than a review-sized change and touches a module the issue never named, prefer
-   `--gated` over appending it. The new issue must already carry
-   `ready-for-agent`: a member without it reads GATED, and the run stops and names the batch rather
-   than starting unrelated work, so a follow-up filed without the label stalls the queue.
+   tail, which is always safe). Add an `R<n>` rule for a new same-file collision. The new issue
+   must already carry `ready-for-agent`: a member without it reads GATED, and the run stops and
+   names the batch rather than starting unrelated work, so a follow-up filed without the label
+   stalls the queue. These are the only queue writes a review makes — never the `human` array
+   (grilling registrations only), and almost never another batch: cross-batch registration is
+   step 1's seam-owning case, only when that batch is not composed, and even then prefer noting
+   the overlap on the existing member. A follow-up crucial to the batch landing correctly that
+   carries a question only a human can answer is the one `ready-for-human` exception: either halt
+   the run and surface the question with the issue reference, or register it into the batch — the
+   batch reads GATED at that member and stops there, blocked by mechanism rather than hope.
    A batch that is **already composed** cannot take a new member — `queue land`
    refuses a hand-off whose composition predates the tail rather than shipping a PR that closes an
-   issue it does not carry — so that follow-up goes into another batch, or behind `--gated`.
-5. Run `pnpm sandcastle queue check` and get **no drift**. With `queue.commit: true` the mutating
+   issue it does not carry — so file the issue, name the intended batch in its body, and leave
+   placement to the human's queue-shaping pass. A tail growing faster than the head is work being
+   discovered rather than sliced: when a finding is more than a review-sized change and touches a
+   module the issue never named, prefer leaving it unplaced for that pass over appending it — the
+   drift flag in `queue check` is the honest backlog signal.
+5. Run `pnpm sandcastle queue check`. Every drift it reports is either fixed by your registration
+   or is the unplaced backlog you deliberately left for the human's queue-shaping pass — say which
+   in the comment. With `queue.commit: true` the mutating
    commands commit the manifest themselves (never push); otherwise commit it, so the registration
    survives the worktree it was made in.
 
