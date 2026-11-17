@@ -31,6 +31,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -48,10 +52,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [{ name: "ecs" }], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
@@ -96,6 +96,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "0";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -113,10 +117,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "0";
 				}
 
 				return "";
@@ -155,6 +155,10 @@ describe("orchestration with heavy stubs", () => {
 		let setupCalls = 0;
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "2";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -173,10 +177,6 @@ describe("orchestration with heavy stubs", () => {
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
 					setupCalls += 1;
 					return "";
-				}
-
-				if (command.includes("rev-list")) {
-					return "2";
 				}
 
 				if (command.includes("gh issue view")) {
@@ -205,6 +205,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -222,10 +226,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
@@ -290,6 +290,10 @@ describe("orchestration with heavy stubs", () => {
 		const gitCalls: Array<Array<string>> = [];
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				gitCalls.push([...args]);
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
@@ -322,10 +326,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return "";
@@ -400,6 +400,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				gitCalls.push([...args]);
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
@@ -423,10 +427,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return "";
@@ -493,6 +493,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -510,10 +514,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
@@ -567,6 +567,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -584,10 +588,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
@@ -649,6 +649,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -666,10 +670,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("fetch-places") || command.includes("pnpm setup")) {
@@ -756,6 +756,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -769,10 +773,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return "";
@@ -848,6 +848,10 @@ describe("orchestration with heavy stubs", () => {
 
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -861,10 +865,6 @@ describe("orchestration with heavy stubs", () => {
 			sync: (command) => {
 				if (command.includes("gh issue view")) {
 					return JSON.stringify({ labels: [], title: "Test issue title" });
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return "";

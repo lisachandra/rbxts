@@ -23,7 +23,7 @@ import { assertZcodeModelSelectable } from "./providers/zcode-preflight.js";
 import { zcodeProvider } from "./providers/zcode.js";
 import type { AgentBackend, SandcastleEffort } from "./types.js";
 
-export { fetchIssueLabels, issueMetadata, issueView } from "./issue-metadata.js";
+export { fetchIssueLabels, isIssueNumber, issueMetadata, issueView } from "./issue-metadata.js";
 export { queueRulesForPrompt } from "./prompts/queue.js";
 export { skillsForPrompt, uniqueSkills } from "./prompts/skills.js";
 export { diracProvider as diracAgent, scopeForMarkerPath } from "./providers/dirac.js";

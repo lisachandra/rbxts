@@ -11,17 +11,13 @@
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
+import { toShellCommand } from "../child-process.js";
 import { packageRoot } from "../runtime.js";
 
 /** Protocol line printed by `assets/agent-wrapper.sh` after a marker-backed run finishes. */
 export const MARKER_PROTOCOL_LINE = '{"sandcastleMarker":"completed"}';
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
-
-/** Single-quote a value for use inside a `bash` command string. */
-export function shellEscape(value: string): string {
-	return `'${value.replace(/'/g, "'\\''")}'`;
-}
 
 export function withMarkerCompletion(inner: AgentProvider, markerPath: string): AgentProvider {
 	const markerEnv = {
@@ -47,9 +43,20 @@ export function withMarkerCompletion(inner: AgentProvider, markerPath: string): 
 		buildPrintCommand(options): PrintCommand {
 			const innerCommand = inner.buildPrintCommand(options);
 			const useStdin = innerCommand.stdin !== undefined;
-			const command = `bash ${shellEscape(wrapperPath)}${useStdin ? " --stdin" : ""} -- ${shellEscape(innerCommand.command)}`;
+			const args = [
+				wrapperPath,
+				...(useStdin ? ["--stdin"] : []),
+				"--",
+				innerCommand.command,
+			];
 			return {
-				command,
+				/*
+				 * `toShellCommand` quotes the inner command as one argument, so the wrapper receives
+				 * it as a single argv entry and passes it on without re-evaluating it. The pre-`--`
+				 * arguments are flags the wrapper parses itself, which is why they stay separate
+				 * rather than being folded into the payload.
+				 */
+				command: toShellCommand({ args, file: "bash" }),
 				stdin: options.prompt,
 			};
 		},

@@ -35,9 +35,9 @@ describe("zcodeAgent", () => {
 			prompt: "hi",
 		});
 		assert.match(command.command, /zcodeWrapper\.mjs/);
-		assert.match(command.command, /--mode yolo/);
-		assert.match(command.command, /--model "prov\/model-x"/);
-		assert.match(command.command, /--reasoning-effort high/);
+		assert.match(command.command, /'--mode' 'yolo'/);
+		assert.match(command.command, /'--model' 'prov\/model-x'/);
+		assert.match(command.command, /'--reasoning-effort' 'high'/);
 		assert.equal(command.stdin, "hi");
 	});
 
@@ -48,7 +48,19 @@ describe("zcodeAgent", () => {
 			prompt: "hi",
 			resumeSession: "session-42",
 		});
-		assert.match(command.command, /--resume-session session-42/);
+		assert.match(command.command, /'--resume-session' 'session-42'/);
+	});
+
+	test("buildPrintCommand keeps a hostile session id inside its own argument", () => {
+		const agent = zcodeAgent("prov/model-x");
+		const command = agent.buildPrintCommand({
+			dangerouslySkipPermissions: true,
+			prompt: "hi",
+			resumeSession: "x; echo pwned",
+		});
+
+		// Quoting keeps the metacharacters inside the value, so the wrapper sees one argument.
+		assert.match(command.command, /'--resume-session' 'x; echo pwned'/);
 	});
 
 	test("buildPrintCommand omits the resume flag when no session is set", () => {

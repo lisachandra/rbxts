@@ -58,6 +58,10 @@ describe("sequential issue workflow", () => {
 		const codes = stubExit();
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				calls.push([...args]);
 				if (args[0] === "show-ref") {
 					return "";
@@ -82,10 +86,6 @@ describe("sequential issue workflow", () => {
 					return JSON.stringify({
 						comments: [{ body: "Sandcastle-Review: APPROVED" }],
 					});
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("gh issue view")) {
@@ -142,6 +142,10 @@ describe("sequential issue workflow", () => {
 		const codes = stubExit();
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "worktree" && args[1] === "list") {
 					return `worktree ${worktree}\nbranch refs/heads/sandcastle/issue-${issue}\n`;
 				}
@@ -161,10 +165,6 @@ describe("sequential issue workflow", () => {
 					return JSON.stringify({
 						comments: [{ body: "Sandcastle-Review: BLOCKED" }],
 					});
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				if (command.includes("gh issue view")) {
@@ -216,6 +216,10 @@ describe("sequential issue workflow", () => {
 		stubExit();
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				calls.push([...args]);
 				// The local branch is gone; only `origin/<branch>` resolves.
 				if (
@@ -240,10 +244,6 @@ describe("sequential issue workflow", () => {
 					return JSON.stringify({
 						comments: [{ body: "Sandcastle-Review: APPROVED" }],
 					});
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return JSON.stringify({ labels: [], title: "title" });
@@ -449,6 +449,10 @@ describe("chain rewind guard", () => {
 		const memberFull = `refs/heads/sandcastle/issue-${member}^\{commit\}`;
 		gitStub({
 			file: (args) => {
+				if (args[0] === "rev-list") {
+					return "1";
+				}
+
 				if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
 					// The base commit is not an ancestor of the reused tip: the chain rewinds.
 					throw new Error("not an ancestor");
@@ -477,10 +481,6 @@ describe("chain rewind guard", () => {
 					return JSON.stringify({
 						comments: [{ body: "Sandcastle-Review: APPROVED" }],
 					});
-				}
-
-				if (command.includes("rev-list")) {
-					return "1";
 				}
 
 				return "";

@@ -168,18 +168,25 @@ export function ensureLocalBranch(branch: string, cwd = repoRoot): boolean {
  */
 export function countNewCommits(worktreePath: string, baseRef: string): number {
 	try {
-		const output = io
-			.execSync(
-				`git rev-list --count HEAD --not ${baseRef} -- . ":(exclude)${config.dir}/plans"`,
-				{
-					cwd: worktreePath,
-					encoding: "utf-8",
-					stdio: ["pipe", "pipe", "pipe"],
-					timeout: 5000,
-				},
-			)
-			.toString()
-			.trim();
+		/*
+		 * argv, not a shell string: this was the only git call in the package that interpolated
+		 * `baseRef` into a command it then handed to a shell, and `baseRef` can come from `--base`,
+		 * the config, or a state file that carries whatever an earlier run wrote. `--` separates the
+		 * ref from the path so a ref that looks like a path is not read as one.
+		 */
+		const output = git(
+			[
+				"rev-list",
+				"--count",
+				"HEAD",
+				"--not",
+				baseRef,
+				"--",
+				".",
+				`:(exclude)${config.dir}/plans`,
+			],
+			worktreePath,
+		);
 		return Number(output);
 	} catch {
 		return 0;

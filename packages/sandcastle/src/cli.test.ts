@@ -132,6 +132,41 @@ describe("commaSeparated / parseArgs", () => {
 		});
 	});
 
+	test("parseArgs refuses a base ref or model that is not a token", () => {
+		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
+			/*
+			 * Both values reach a child process. The provider seam quotes them now, so this is not the
+			 * only defence — but a value with shell metacharacters in it is a mistake, and reporting it
+			 * here is better than a puzzling git failure later.
+			 */
+			for (const base of ["main; rm -rf /", "$(git rev-parse HEAD)", "main branch", "-f"]) {
+				assert.throws(
+					() => parseArgs(["--issue", "1", "--base", base]),
+					/--base requires a git ref/,
+					`accepted base ${JSON.stringify(base)}`,
+				);
+			}
+
+			for (const model of ["m; rm -rf /", "$(whoami)", "model name", "--yolo"]) {
+				assert.throws(
+					() => parseArgs(["--issue", "1", "--model", model]),
+					/--model requires a model id/,
+					`accepted model ${JSON.stringify(model)}`,
+				);
+			}
+
+			// The shapes real refs and model ids take still parse.
+			assert.equal(
+				parseArgs(["--issue", "1", "--base", "sandcastle/issue-9"]).base,
+				"sandcastle/issue-9",
+			);
+			assert.equal(
+				parseArgs(["--issue", "1", "--model", "prov/model-x"]).model,
+				"prov/model-x",
+			);
+		});
+	});
+
 	test("parseArgs enforces command exclusivity and worktree rules", () => {
 		withEnv({ DIRAC_SANDCASTLE_MODEL: "m" }, () => {
 			assert.throws(

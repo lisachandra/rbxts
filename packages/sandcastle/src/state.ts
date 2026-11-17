@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 
-import { issueView } from "./agent.js";
+import { isIssueNumber, issueView } from "./agent.js";
 import { escapeRegExp } from "./config.js";
 import { countBranchCommits } from "./git.js";
 import { config, io, repoRoot, stateDir } from "./runtime.js";
@@ -127,6 +127,14 @@ export function isIssueComplete(issueNumber: string): boolean {
 export type ReviewMarker = "BLOCKED" | "APPROVED";
 
 export function getLatestReviewMarker(issueNumber: string): undefined | ReviewMarker {
+	/*
+	 * Same boundary as `issueMetadata`: the configured command template is operator config, the issue
+	 * number is caller data, and only a digit string may be substituted into it.
+	 */
+	if (!isIssueNumber(issueNumber)) {
+		return undefined;
+	}
+
 	const output = io
 		.execSync(`${issueView(issueNumber)} --json comments`, {
 			cwd: repoRoot,

@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { describe, test } from "vitest";
 
 import { evaluateDesign, evaluateImplement, evaluatePhases, evaluateReview } from "./evaluate.js";
-import { io } from "./runtime.js";
 import {
 	cleanupIssueArtifacts,
 	makeState,
 	plansDir,
 	registerTestHooks,
 	stubExecSync,
+	stubGitRevList,
 	tmpRoot,
 	uniqueIssue,
 	writePlan,
@@ -99,9 +99,14 @@ describe("phase evaluation", () => {
 		assert.match(reasons.implement, /worktree does not exist/);
 
 		mkdirSync(worktree, { recursive: true });
-		io.execSync = () => {
+		/*
+		 * `countNewCommits` reads commits through argv (`git rev-list …`), not a shell string, so the
+		 * stub has to answer `execFileSync`. Answering `execSync` here would leave every worktree
+		 * reading as "0 new commits" and the assertions below would pass for the wrong reason.
+		 */
+		stubGitRevList(() => {
 			throw new Error("git failed");
-		};
+		});
 
 		assert.equal(
 			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
@@ -109,7 +114,7 @@ describe("phase evaluation", () => {
 		);
 		assert.match(reasons.implement, /no new commits/);
 
-		stubExecSync("2");
+		stubGitRevList("2");
 		assert.equal(
 			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
 			"start",
@@ -144,7 +149,7 @@ describe("phase evaluation", () => {
 		assert.equal(evaluateReview(undefined, issue, "main", worktree, reasons), "skip");
 
 		mkdirSync(worktree, { recursive: true });
-		stubExecSync("1");
+		stubGitRevList("1");
 		assert.equal(evaluateReview(undefined, issue, "main", worktree, reasons), "start");
 
 		const implementDone = makeState(issue, { implement: "done" });

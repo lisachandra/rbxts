@@ -4,6 +4,16 @@ import { describe, test } from "vitest";
 import { registerTestHooks } from "../test-helpers.js";
 import { diracProvider, scopeForMarkerPath } from "./dirac.js";
 
+/**
+ * Splits a command into words, stripping the seam’s single quotes.
+ *
+ * Assertions decode rather than match the formatted string: what matters is the argv the wrapper
+ * receives, not the quoting the seam happens to emit.
+ */
+function words(command: string): Array<string> {
+	return command.split(" ").map((word) => word.replaceAll(/^'|'$/g, ""));
+}
+
 registerTestHooks();
 
 describe("diracAgent", () => {
@@ -14,13 +24,19 @@ describe("diracAgent", () => {
 			prompt: "hi",
 			resumeSession: "1792827434130",
 		});
-		assert.match(resume.command, / -T 1792827434130/);
+		const argv = words(resume.command);
+		const resumeIndex = argv.indexOf("-T");
+
+		// `-T` takes the captured id as its own argument, and the id is not re-parsed.
+		assert.notEqual(resumeIndex, -1, `no -T in ${JSON.stringify(argv)}`);
+		assert.equal(argv[resumeIndex + 1], "1792827434130");
+		assert.ok(argv.includes("--reasoning-effort"));
 
 		const fresh = agent.buildPrintCommand({
 			dangerouslySkipPermissions: true,
 			prompt: "hi",
 		});
-		assert.doesNotMatch(fresh.command, / -T /);
+		assert.ok(!words(fresh.command).includes("-T"));
 	});
 
 	test("buildPrintCommand keeps effort and model flags on resume", () => {
@@ -30,8 +46,20 @@ describe("diracAgent", () => {
 			prompt: "hi",
 			resumeSession: "t-1",
 		});
-		assert.match(resume.command, /--reasoning-effort max/);
-		assert.match(resume.command, /-m "glm-5"/);
+		assert.deepEqual(words(resume.command).slice(-2), ["-m", "glm-5"]);
+		assert.match(resume.command, /'--reasoning-effort' 'max'/);
+	});
+
+	test("buildPrintCommand keeps a hostile session id inside its own argument", () => {
+		const agent = diracProvider("m");
+		const resume = agent.buildPrintCommand({
+			dangerouslySkipPermissions: true,
+			prompt: "hi",
+			resumeSession: "x; echo pwned",
+		});
+
+		// The metacharacters are quoted, so `-T` still receives exactly one argument.
+		assert.match(resume.command, /'-T' 'x; echo pwned'/);
 	});
 
 	test("parseStreamLine maps task_started to a session_id event", () => {

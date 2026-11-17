@@ -410,6 +410,25 @@ function isCliCommand(value: string): value is CliCommand {
 
 type ArgHandler = (state: ParsedArgState, next: string | undefined, index: number) => number;
 
+/**
+ * The shape `--model` accepts: a token, optionally scoped with `/`.
+ *
+ * @remarks
+ *   Refuses anything a shell or a provider's argument parser would treat specially. A leading `-`
+ *   is excluded in particular: a dash-prefixed value is read as an option before any quoting can
+ *   help, and zcode's `parseArgs` ignores unknown flags.
+ */
+const MODEL_PATTERN = /^(?!-)[A-Za-z0-9._:/-]+$/;
+
+/**
+ * The shape `--base` accepts: a git ref, optionally namespaced with `/`.
+ *
+ * @remarks
+ *   A leading `-` is excluded by the alphabet, so a ref cannot be read as an option by `git` even
+ *   before the `--` separator does its work.
+ */
+const GIT_REF_PATTERN = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+
 function setStepModel(
 	state: ParsedArgState,
 	step: AgentPhaseName,
@@ -479,7 +498,16 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		return index + 1;
 	},
 	"--base": (state, next, index) => {
-		state.base = next ?? state.base;
+		/*
+		 * A base ref is handed to `git`, may come from a state file, and is the value that used to be
+		 * interpolated into a shell string. Requiring a git-ref shape rejects the metacharacters a
+		 * shell would act on, so a mistake is reported here instead of at a git failure later.
+		 */
+		if (next === undefined || !GIT_REF_PATTERN.test(next)) {
+			throw new Error("--base requires a git ref (letters, digits, . _ / -)");
+		}
+
+		state.base = next;
 		return index + 1;
 	},
 	"--batch": (state, next, index) => {
@@ -618,6 +646,15 @@ const valueArgHandlers: Record<string, ArgHandler> = {
 		return index + 1;
 	},
 	"--model": (state, next, index) => {
+		/*
+		 * A model id reaches a provider command. Providers quote their arguments now, so this is not
+		 * the only defence — but a model id is a token by construction, so a value that is not one is
+		 * a mistake worth reporting at the CLI boundary rather than deep in a provider.
+		 */
+		if (next === undefined || !MODEL_PATTERN.test(next)) {
+			throw new Error("--model requires a model id (letters, digits, . _ : / -)");
+		}
+
 		state.model = next;
 		return index + 1;
 	},

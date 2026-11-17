@@ -12,6 +12,21 @@ import { config, io, repoRoot } from "./runtime.js";
 
 const issueViewCommand = config.issueCommand;
 
+/** An issue number, the one thing interpolated into the configured `gh` command. */
+const ISSUE_NUMBER_PATTERN = /^\d+$/;
+
+/**
+ * - Reports whether a value is an issue number.
+ * - @param value - The candidate issue number.
+ * - @returns `true` when the value is all digits.
+ * - @remarks `config.issueCommand` is operator configuration, so the command template itself is
+ *   trusted. The issue number is not: it can come from an argument or a state file, and it is the
+ *   only value substituted into that template.
+ */
+export function isIssueNumber(value: string): boolean {
+	return ISSUE_NUMBER_PATTERN.test(value);
+}
+
 export interface IssueMetadata {
 	labels: Array<string>;
 	title: string;
@@ -36,6 +51,10 @@ const defaultGhRunner: GhRunner = (cmd: string) =>
  *   `gh` throws or returns malformed data.
  */
 export function issueMetadata(issueNumber: string, gh: GhRunner = defaultGhRunner): IssueMetadata {
+	if (!isIssueNumber(issueNumber)) {
+		return { labels: [], title: "(could not fetch)" };
+	}
+
 	try {
 		const output = gh(`${issueView(issueNumber)} --json title,labels`);
 		const payload = JSON.parse(output) as {

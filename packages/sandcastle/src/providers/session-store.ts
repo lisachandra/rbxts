@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve as pathResolve } from "node:path";
 
+import { isValidSessionId } from "../child-process.js";
 import { config, stateRoot } from "../runtime.js";
 
 /** A captured agent session for one phase scope. */
@@ -40,7 +41,11 @@ export function sessionFilePath(scope: string): string {
  * - @param session - Backend and session id to store; `sessionId` must be set.
  */
 export function saveSession(scope: string, session: { backend: string; sessionId: string }): void {
-	if (session.sessionId === "") {
+	/*
+	 * The store is the last gate before an id reaches a provider command. Capture already rejects a
+	 * non-conforming id; this covers an id written by an older build or edited on disk.
+	 */
+	if (!isValidSessionId(session.sessionId)) {
 		return;
 	}
 
@@ -76,7 +81,8 @@ export function loadSession(scope: string): undefined | StoredSession {
 			parsed !== null &&
 			typeof (parsed as StoredSession).backend === "string" &&
 			typeof (parsed as StoredSession).sessionId === "string" &&
-			(parsed as StoredSession).sessionId !== ""
+			// Reads as well as writes: a store file is plain JSON on disk.
+			isValidSessionId((parsed as StoredSession).sessionId)
 		) {
 			return parsed as StoredSession;
 		}

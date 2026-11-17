@@ -14,7 +14,7 @@ import {
 	resolveCommit,
 } from "./git.js";
 import { io } from "./runtime.js";
-import { gitStub, registerTestHooks, stubExecSync, tmpRoot } from "./test-helpers.js";
+import { gitStub, registerTestHooks, tmpRoot } from "./test-helpers.js";
 
 registerTestHooks();
 
@@ -74,30 +74,36 @@ describe("git helpers with stubs", () => {
 	});
 
 	test("countNewCommits returns 0 on failure", () => {
-		io.execSync = () => {
-			throw new Error("bad");
-		};
+		gitStub({
+			file: () => {
+				throw new Error("bad");
+			},
+		});
 
 		assert.equal(countNewCommits(tmpRoot, "main"), 0);
 
-		stubExecSync("4");
+		gitStub({ file: () => "4" });
 		assert.equal(countNewCommits(tmpRoot, "main"), 4);
 	});
 
-	test("countNewCommits excludes the plans path so a plan-only branch counts 0", () => {
+	test("countNewCommits passes the base ref as argv and excludes the plans path", () => {
 		/*
 		 * The design phase commits the plan, so without the exclusion a plan-only branch would read as
 		 * implemented work and start a review of nothing.
+		 *
+		 * The ref is asserted as an argument rather than as part of a command string: that is what
+		 * stops a base ref read from a state file from changing the command at all.
 		 */
-		let captured = "";
-		io.execSync = ((command: string) => {
-			captured = String(command);
+		let captured: ReadonlyArray<string> = [];
+		io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+			assert.equal(command, "git");
+			captured = Array.isArray(args) ? args : [];
 			return "0";
-		}) as unknown as typeof io.execSync;
+		}) as unknown as typeof io.execFileSync;
 
 		assert.equal(countNewCommits(tmpRoot, "main"), 0);
-		assert.match(captured, /rev-list --count HEAD --not main/u);
-		assert.match(captured, /:\(exclude\)\.sandcastle\/plans/u);
+		assert.ok(captured.includes("main"));
+		assert.ok(captured.some((arg) => arg === ":(exclude).sandcastle/plans"));
 	});
 });
 

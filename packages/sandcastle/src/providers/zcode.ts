@@ -9,6 +9,7 @@
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
+import { toShellCommand } from "../child-process.js";
 import { packageRoot } from "../runtime.js";
 import { sandcastleSessionStorage } from "./session-storage.js";
 
@@ -23,11 +24,6 @@ export function zcodeProvider(
 	},
 ): AgentProvider {
 	const wrapperPath = `${packageRoot}/assets/zcodeWrapper.mjs`.replaceAll("\\", "/");
-	const modelFlag = model.trim() !== "" ? ` --model ${JSON.stringify(model.trim())}` : "";
-	const effortFlag =
-		options?.effort !== undefined && options.effort !== ""
-			? ` --reasoning-effort ${options.effort}`
-			: "";
 
 	return {
 		captureSessions: false,
@@ -39,16 +35,35 @@ export function zcodeProvider(
 			: {}),
 
 		buildPrintCommand({ dangerouslySkipPermissions, prompt, resumeSession }): PrintCommand {
+			const args: Array<string> = [wrapperPath];
+
 			/*
 			 * @ai-hero's run() always passes dangerouslySkipPermissions: true; the
 			 * yolo mode maps to it, while the fallback keeps zcode's default build mode.
 			 */
-			const modeFlag = dangerouslySkipPermissions ? " --mode yolo" : "";
+			if (dangerouslySkipPermissions) {
+				args.push("--mode", "yolo");
+			}
+
+			if (model.trim() !== "") {
+				args.push("--model", model.trim());
+			}
+
+			if (options?.effort !== undefined && options.effort !== "") {
+				args.push("--reasoning-effort", options.effort);
+			}
+
 			// The wrapper maps --resume-session to the app-server's session/resume.
-			const resumeFlag =
-				resumeSession !== undefined ? ` --resume-session ${resumeSession}` : "";
+			if (resumeSession !== undefined) {
+				args.push("--resume-session", resumeSession);
+			}
+
+			/*
+			 * `toShellCommand` quotes every argument, so neither the model nor a captured session id
+			 * can end its own argument or be read as another flag.
+			 */
 			return {
-				command: `node ${wrapperPath}${modeFlag}${modelFlag}${effortFlag}${resumeFlag}`,
+				command: toShellCommand({ args, file: "node" }),
 				stdin: prompt,
 			};
 		},

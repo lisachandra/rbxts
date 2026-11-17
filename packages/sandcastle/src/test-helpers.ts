@@ -191,6 +191,23 @@ export function stubExecSync(result: string): void {
 	io.execSync = (() => result) as unknown as typeof io.execSync;
 }
 
+/**
+ * - Stubs `git rev-list --count` as `countNewCommits` calls it, through argv.
+ * - @param result - Commit count to report, or a thunk that throws to simulate git failing.
+ * - @remarks `countNewCommits` runs git without a shell, so it reaches `io.execFileSync`; a test that
+ *   stubs only `io.execSync` reads every worktree as having no commits and can pass by accident.
+ */
+export function stubGitRevList(result: string | (() => string)): void {
+	io.execFileSync = ((command: string, args?: string | ReadonlyArray<string>) => {
+		const argv = Array.isArray(args) ? args.map(String) : [];
+		if (command !== "git" || argv[0] !== "rev-list") {
+			throw new Error(`unexpected execFileSync: ${command} ${argv.join(" ")}`);
+		}
+
+		return typeof result === "function" ? result() : result;
+	}) as unknown as typeof io.execFileSync;
+}
+
 export function stubRun(result: Record<string, unknown>, markers: Array<string> = []): void {
 	io.run = (async () => {
 		for (const marker of markers) {

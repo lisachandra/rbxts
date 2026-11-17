@@ -9,6 +9,8 @@
  * for. Parsing stays stream-local: callers own where the id is persisted.
  */
 
+import { isValidSessionId } from "../child-process.js";
+
 /** Parses dirac/zcode stdout lines and remembers the announced session id. */
 export interface SessionCapture {
 	/** Feed one raw stdout line; JSONL lines that announce a session id update the capture. */
@@ -71,12 +73,24 @@ export function createSessionCapture(): SessionCapture {
 			}
 
 			if (isDiracTaskStarted(parsed)) {
-				captured = parsed.taskId as string;
+				const taskId = parsed.taskId as string;
+				if (isValidSessionId(taskId)) {
+					captured = taskId;
+				}
+
 				return;
 			}
 
 			if (isZcodeSessionId(parsed)) {
-				captured = parsed.sessionId as string;
+				const sessionId = parsed.sessionId as string;
+				/*
+				 * Rejected rather than laundered: the id came from the agent's own stdout, so a value
+				 * that is not a token is a value a hostile or broken agent chose. Dropping it means the
+				 * next attempt starts a fresh session instead of replaying an attacker-shaped argument.
+				 */
+				if (isValidSessionId(sessionId)) {
+					captured = sessionId;
+				}
 			}
 		},
 		sessionId(): string | undefined {

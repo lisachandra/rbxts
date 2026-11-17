@@ -8,6 +8,7 @@
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
+import { toShellCommand } from "../child-process.js";
 import { packageRoot } from "../runtime.js";
 import { sandcastleSessionStorage } from "./session-storage.js";
 
@@ -48,20 +49,39 @@ export function diracProvider(
 			: {}),
 
 		buildPrintCommand({ dangerouslySkipPermissions, prompt, resumeSession }): PrintCommand {
-			const yoloFlag = dangerouslySkipPermissions ? " -y" : "";
-			const effortFlag =
-				options?.effort !== undefined && options.effort !== ""
-					? ` --reasoning-effort ${options.effort}`
-					: "";
-			// dirac resumes a task by id with `-T <taskId>` (see dirac's cli/src/index.ts).
-			const resumeFlag = resumeSession !== undefined ? ` -T ${resumeSession}` : "";
 			const wrapperPath = `${packageRoot}/assets/dirac-wrapper.sh`.replaceAll("\\", "/");
+			const args: Array<string> = [wrapperPath, "--json"];
+
+			if (dangerouslySkipPermissions) {
+				args.push("-y");
+			}
+
+			if (options?.effort !== undefined && options.effort !== "") {
+				args.push("--reasoning-effort", options.effort);
+			}
+
+			// dirac resumes a task by id with `-T <taskId>` (see dirac's cli/src/index.ts).
+			if (resumeSession !== undefined) {
+				args.push("-T", resumeSession);
+			}
+
+			args.push("--api-error-max-retries", "0");
+
+			if (provider !== "") {
+				args.push("-p", provider);
+			}
+
+			args.push("-m", model);
+
 			return {
 				/*
 				 * The wrapper captures stdin to a temp file and passes it as a CLI
 				 * argument with stdin from /dev/null, avoiding Ink's raw-mode error.
+				 *
+				 * Quoting is not this file's job: `toShellCommand` quotes every argument, so neither
+				 * the model nor a captured session id can end its own argument.
 				 */
-				command: `bash ${wrapperPath} --json${yoloFlag}${effortFlag}${resumeFlag} --api-error-max-retries 0 ${provider} -m ${JSON.stringify(model)}`,
+				command: toShellCommand({ args, file: "bash" }),
 				stdin: prompt,
 			};
 		},
