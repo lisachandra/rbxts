@@ -49,7 +49,7 @@ for (const directory of targets) {
 	const result = spawnSync(
 		"lune",
 		["run", "scripts/luau/scaffoldContainers.luau", project, outDirectory],
-		{ encoding: "utf8", shell: process.platform === "win32" },
+		{ encoding: "utf8" },
 	);
 	const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trimEnd();
 	if (output !== "") {console.log(output);}

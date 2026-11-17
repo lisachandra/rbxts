@@ -1,6 +1,10 @@
 [tools]
 "github:luau-lang/lute" = "1.0.0"
 "github:rojo-rbx/rojo" = "7.7.0"
+# lune serialises the emulator scaffolds (`pnpm ui:templates`), which `pnpm setup` runs. It went
+# unpinned, so a runner had whatever the machine carried — and CI could not generate the bundles at
+# all, which is how the test job came to skip a build step it needs.
+"github:lune-org/lune" = "0.11.1"
 gh = "2.103.3"
 jq = "1.8.2"
 pnpm = "12.19.0"
