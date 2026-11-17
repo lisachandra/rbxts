@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, test } from "vitest";
 
 import { integrationsDir } from "../runtime.js";
-import { registerTestHooks } from "../test-helpers.js";
+import { emptyRun, registerTestHooks } from "../test-helpers.js";
 import type { IntegrationManifest } from "../types.js";
 import { integrationBasePath, integrationBranch } from "./manifest.js";
 import {
@@ -300,6 +300,7 @@ describe("merger adapter seam", () => {
 				...ancestor.deps,
 				runConflictResolver: async () => {
 					resolverRuns += 1;
+					return emptyRun();
 				},
 			},
 		);
@@ -372,6 +373,7 @@ describe("merger adapter seam", () => {
 					resolverAfterFailure += 1;
 					// The resolver cleans the unmerged paths so the clean-resolution check passes.
 					conflicted = false;
+					return emptyRun();
 				},
 			},
 		);

@@ -34,8 +34,8 @@ import {
 	resolveCommit,
 } from "./git.js";
 import { issueMetadata } from "./issue-metadata.js";
-import { backendSupportsDigest, fileLogging } from "./logging.js";
-import { clearMarker, markerExists, markerPath, runMarkerPhase } from "./markers.js";
+import { clearMarker, markerExists, markerPath } from "./markers.js";
+import { runPhase } from "./phase.js";
 import { completionPromptArgs } from "./prompts/completion.js";
 import { queueRulesForPrompt } from "./prompts/queue.js";
 import { setupNoteFor } from "./prompts/setup-note.js";
@@ -134,7 +134,10 @@ function queueBatchForIssue(issueNumber: string): string | undefined {
 	}
 }
 
-async function runDesignPhase(params: {
+/** What one issue phase needs from the driver, shared by all three. */
+interface IssuePhaseContext {
+	/** `--base-ref`, when the caller supplied one; review falls back to it for its commit count. */
+	baseRef?: string;
 	issueLabels: Array<string>;
 	issueNumber: string;
 	logPath: string;
@@ -148,54 +151,178 @@ async function runDesignPhase(params: {
 	session: PhaseSession;
 	sharedArgs: SharedPromptArgs;
 	state: PhaseState;
-}): Promise<void> {
-	console.log(`\n── Phase 1: Design (issue #${params.issueNumber}) ──`);
-	const marker = markerPath(`${params.issueNumber}.design`);
-	const scope = params.session.scope ?? `${params.issueNumber}.design`;
+}
 
-	await runPhaseWithRetry(() => {
-		/*
-		 * Read inside the attempt, never captured outside it: a reload aborts the attempt with
-		 * ConfigReloadError, and the retry closure is the one place that must then see the new
-		 * selection. `runSessioned` takes the backend so a stale session is not resumed across a
-		 * backend change — which a reload refuses anyway, but the resumed backend is what gates it.
-		 */
-		const step = params.reloader.step("design");
-		return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
-			runMarkerPhase({
-				agentBackend: step.agentBackend,
-				effort: step.effort,
-				marker,
-				model: step.model,
-				name: `designer #${params.issueNumber}`,
-				promptArgs: {
-					...params.sharedArgs,
-					SESSION_NOTE: params.session.notes.design,
-					SKILLS: skillsForPrompt("design", params.issueLabels),
-				},
-				promptFile: config.prompts.plan,
-				run: params.sandbox.run,
-				runOptions: {
-					...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-					logging: fileLogging(params.logPath, {
-						digest: backendSupportsDigest(step.agentBackend),
-						onSessionCaptured: (sessionId) =>
-							saveSession(scope, { backend: step.agentBackend, sessionId }),
-						sessionCapture: capture,
-					}),
-				},
-				...(params.session.scope !== undefined
-					? { sessionScope: params.session.scope }
-					: {}),
-				watchConfig: watchStep(params.reloader, "design"),
-			}),
-		);
-	}, "design");
+/**
+ * One issue phase, as data.
+ *
+ * - `promptFile` is read at run time rather than captured: a config reload can point it somewhere
+ *   else, and the retry that follows the abort must use the new value.
+ * - `record` owns both the state write and the completion line, so "the phase finished" is one
+ *   decision in one place instead of a `updatePhase` plus a `console.log` that can drift apart.
+ */
+interface IssuePhaseDef {
+	/** Runs after the phase when it ran, and on the skip path where today's driver did. */
+	after?(context: IssuePhaseContext): void;
+	/** Extra prompt args beyond the shared ones — the review phase's queue rules. */
+	extraPromptArgs?(context: IssuePhaseContext): Record<string, string>;
+	label: string;
+	name: PhaseName;
+	/** 1-based position, for the "Phase N: X" heading. */
+	position: number;
+	promptFile(): string;
+	record(context: IssuePhaseContext, result: SandboxRunResult): void;
+	/** Agent role in the display name, e.g. `designer #425`. */
+	role: string;
+	/**
+	 * A precondition the phase itself owns, beyond its evaluation decision.
+	 *
+	 * Review is the only user: it has nothing to look at when implement produced no commits, and
+	 * that is review's business rather than the loop's.
+	 */
+	shouldRun?(
+		context: IssuePhaseContext,
+		decision: PhaseDecision,
+	): { run: true } | { record(): void; run: false };
+}
 
-	recordPhaseConfig(params.state, params.reloader);
-	updatePhase(params.state, "design", "done");
-	commitPlan(params.sandbox.worktreePath, params.issueNumber);
-	console.log("  ✓ Design phase complete.");
+/** The three phases, in the order they run. The loop walks this; nothing else knows the order. */
+const issuePhaseDefs: ReadonlyArray<IssuePhaseDef> = [
+	{
+		after: (context) => {
+			/*
+			 * The design marker and the design plan are separate artifacts, and the marker is the only
+			 * one the runner verifies. A plan written anywhere but the worktree path therefore counted
+			 * as a finished design: implement was skipped for a missing plan, review had no commits to
+			 * read, and the run failed blaming review. Refuse the hand-off here instead, naming the
+			 * one path the implementer will open.
+			 */
+			const repoPlanPath = pathResolve(plansDir, `${context.issueNumber}.md`);
+			if (
+				context.state.phases.design.status === "done" &&
+				resolvePlanFile(repoPlanPath, context.sandbox.worktreePath) === undefined
+			) {
+				throw new Error(
+					`Design completed but no plan was found at ${worktreePlanPath(
+						context.sandbox.worktreePath,
+						context.issueNumber,
+					)} or ${repoPlanPath}. Write the plan to the worktree path, then resume.`,
+				);
+			}
+		},
+		label: "Design",
+		name: "design",
+		position: 1,
+		promptFile: () => config.prompts.plan,
+		record: (context) => {
+			recordPhaseConfig(context.state, context.reloader);
+			updatePhase(context.state, "design", "done");
+			commitPlan(context.sandbox.worktreePath, context.issueNumber);
+			console.log("  ✓ Design phase complete.");
+		},
+		role: "designer",
+	},
+	{
+		label: "Implement",
+		name: "implement",
+		position: 2,
+		promptFile: () => config.prompts.implement,
+		record: (context, result) => {
+			/*
+			 * Combined, not replaced: the sandbox reports only the commits made during this run, so a
+			 * re-run that finds the work already on the branch would otherwise blank the record of the
+			 * run that did it and leave the issue looking unfinished.
+			 */
+			const commits = unionCommits(
+				recordedCommits(context.state),
+				result.commits.map((commit) => commit.sha),
+			);
+			updatePhase(context.state, "implement", "done", { buildPassed: true, commits });
+			console.log(
+				result.commits.length === 0 && commits.length > 0
+					? `  ✓ Implement phase complete. No new commits; ${String(commits.length)} already on the branch.`
+					: `  ✓ Implement phase complete. Commits: ${String(commits.length)}`,
+			);
+		},
+		role: "implementer",
+	},
+	{
+		extraPromptArgs: (context) => ({
+			QUEUE_RULES: queueRulesForPrompt({ batch: queueBatchForIssue(context.issueNumber) }),
+		}),
+		label: "Review",
+		name: "review",
+		position: 3,
+		promptFile: () => config.prompts.review,
+		record: (context) => {
+			recordPhaseConfig(context.state, context.reloader);
+			updatePhase(context.state, "review", "done", { commentPosted: true });
+			console.log("  ✓ Review phase complete.");
+		},
+		role: "reviewer",
+		shouldRun: (context, decision) => {
+			const hasCommits =
+				countNewCommits(
+					context.sandbox.worktreePath,
+					context.state.base?.ref ?? context.baseRef ?? config.baseBranch,
+				) > 0;
+			return hasCommits || decision === "force"
+				? { run: true }
+				: {
+						record: () => {
+							console.log("\n  ⏭ Skipping review — no commits produced.");
+							/*
+							 * `noCommits` is what makes the skip terminal: review had nothing to look at, so
+							 * the issue is finished rather than unfinished. Recording the reason is
+							 * load-bearing — `skipped` on its own is also the fresh-state value, and
+							 * treating that as reviewed would let a run that died between implement and
+							 * review pass as complete.
+							 */
+							updatePhase(context.state, "review", "skipped", { noCommits: true });
+						},
+						run: false,
+					};
+		},
+	},
+];
+
+/**
+ * - Runs one issue phase through {@link runPhase}.
+ * - @param def - Which phase, and what it does after the attempt.
+ * - @param context - The driver's state and collaborators.
+ * - @returns The sandbox run result.
+ * - @remarks The attempt is rebuilt per attempt rather than captured, so the selection and the config
+ *   watcher are read after a reload rather than before it — the property `reloader` exists to
+ *   provide.
+ */
+async function runIssuePhase(
+	def: IssuePhaseDef,
+	context: IssuePhaseContext,
+): Promise<SandboxRunResult> {
+	console.log(`
+── Phase ${String(def.position)}: ${def.label} (issue #${context.issueNumber}) ──`);
+	const result = await runPhase(def.name, () => {
+		const selection = context.reloader.step(def.name);
+		return {
+			logPath: context.logPath,
+			marker: markerPath(`${context.issueNumber}.${def.name}`),
+			name: `${def.role} #${context.issueNumber}`,
+			promptArgs: {
+				...context.sharedArgs,
+				...def.extraPromptArgs?.(context),
+				SESSION_NOTE: context.session.notes[def.name],
+				SKILLS: skillsForPrompt(def.name, context.issueLabels),
+			},
+			promptFile: def.promptFile(),
+			run: context.sandbox.run,
+			scope: context.session.scope ?? `${context.issueNumber}.${def.name}`,
+			selection,
+			...(context.session.scope === undefined ? {} : { sessionScope: context.session.scope }),
+			watchConfig: watchStep(context.reloader, def.name),
+		};
+	});
+	def.record(context, result);
+	return result;
 }
 
 /**
@@ -282,150 +409,6 @@ export function commitPlan(worktreePath: string, issueNumber: string): void {
 				`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "${subject}"\`).`,
 		);
 	}
-}
-
-async function runImplementPhase(params: {
-	issueLabels: Array<string>;
-	issueNumber: string;
-	logPath: string;
-	/** Live config follower; each attempt re-reads its step so a reload takes effect on restart. */
-	reloader: ConfigReloader;
-	sandbox: {
-		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
-	};
-	/** Shared session scope and prompt note; split mode leaves both defaulted. */
-	session: PhaseSession;
-	sharedArgs: SharedPromptArgs;
-	state: PhaseState;
-}): Promise<void> {
-	console.log(`\n── Phase 2: Implement (issue #${params.issueNumber}) ──`);
-	const marker = markerPath(`${params.issueNumber}.implement`);
-	const scope = params.session.scope ?? `${params.issueNumber}.implement`;
-
-	const implResult = await runPhaseWithRetry(() => {
-		const step = params.reloader.step("implement");
-		return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
-			runMarkerPhase({
-				agentBackend: step.agentBackend,
-				effort: step.effort,
-				marker,
-				model: step.model,
-				name: `implementer #${params.issueNumber}`,
-				promptArgs: {
-					...params.sharedArgs,
-					SESSION_NOTE: params.session.notes.implement,
-					SKILLS: skillsForPrompt("implement", params.issueLabels),
-				},
-				promptFile: config.prompts.implement,
-				run: params.sandbox.run,
-				runOptions: {
-					...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-					logging: fileLogging(params.logPath, {
-						digest: backendSupportsDigest(step.agentBackend),
-						onSessionCaptured: (sessionId) =>
-							saveSession(scope, { backend: step.agentBackend, sessionId }),
-						sessionCapture: capture,
-					}),
-				},
-				...(params.session.scope !== undefined
-					? { sessionScope: params.session.scope }
-					: {}),
-				watchConfig: watchStep(params.reloader, "implement"),
-			}),
-		);
-	}, "implement");
-
-	/*
-	 * Combined, not replaced: the sandbox reports only the commits made during this run, so a re-run
-	 * that finds the work already on the branch would otherwise blank the record of the run that did
-	 * it and leave the issue looking unfinished.
-	 */
-	const commits = unionCommits(
-		recordedCommits(params.state),
-		implResult.commits.map((commit) => commit.sha),
-	);
-	updatePhase(params.state, "implement", "done", {
-		buildPassed: true,
-		commits,
-	});
-	console.log(
-		implResult.commits.length === 0 && commits.length > 0
-			? `  ✓ Implement phase complete. No new commits; ${String(commits.length)} already on the branch.`
-			: `  ✓ Implement phase complete. Commits: ${String(commits.length)}`,
-	);
-}
-
-async function runReviewPhase(params: {
-	evalReview: PhaseDecision;
-	hasCommits: boolean;
-	issueLabels: Array<string>;
-	issueNumber: string;
-	logPath: string;
-	/** Live config follower; each attempt re-reads its step so a reload takes effect on restart. */
-	reloader: ConfigReloader;
-	sandbox: {
-		run: (runOptions: SandboxRunOptions) => Promise<SandboxRunResult>;
-	};
-	/** Shared session scope and prompt note; split mode leaves both defaulted. */
-	session: PhaseSession;
-	sharedArgs: SharedPromptArgs;
-	state: PhaseState;
-}): Promise<void> {
-	if (params.hasCommits || params.evalReview === "force") {
-		console.log(`\n── Phase 3: Review (issue #${params.issueNumber}) ──`);
-		const marker = markerPath(`${params.issueNumber}.review`);
-		const scope = params.session.scope ?? `${params.issueNumber}.review`;
-
-		await runPhaseWithRetry(() => {
-			const step = params.reloader.step("review");
-			return runSessioned({ backend: step.agentBackend, scope }, ({ capture, resumed }) =>
-				runMarkerPhase({
-					agentBackend: step.agentBackend,
-					effort: step.effort,
-					marker,
-					model: step.model,
-					name: `reviewer #${params.issueNumber}`,
-					promptArgs: {
-						...params.sharedArgs,
-						QUEUE_RULES: queueRulesForPrompt({
-							batch: queueBatchForIssue(params.issueNumber),
-						}),
-						SESSION_NOTE: params.session.notes.review,
-						SKILLS: skillsForPrompt("review", params.issueLabels),
-					},
-					promptFile: config.prompts.review,
-					run: params.sandbox.run,
-					runOptions: {
-						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(params.logPath, {
-							digest: backendSupportsDigest(step.agentBackend),
-							onSessionCaptured: (sessionId) =>
-								saveSession(scope, { backend: step.agentBackend, sessionId }),
-							sessionCapture: capture,
-						}),
-					},
-					...(params.session.scope !== undefined
-						? { sessionScope: params.session.scope }
-						: {}),
-					watchConfig: watchStep(params.reloader, "review"),
-				}),
-			);
-		}, "review");
-
-		recordPhaseConfig(params.state, params.reloader);
-		updatePhase(params.state, "review", "done", { commentPosted: true });
-		console.log("  ✓ Review phase complete.");
-		return;
-	}
-
-	console.log("\n  ⏭ Skipping review — no commits produced.");
-	/*
-	 * `noCommits` is what makes the skip terminal: review had nothing to look at, so the issue is
-	 * finished rather than unfinished. Recording the reason is load-bearing — `skipped` on its own is
-	 * also the fresh-state value, and treating that as reviewed would let a run that died between
-	 * implement and review pass as complete.
-	 */
-	updatePhase(params.state, "review", "skipped", { noCommits: true });
 }
 
 function createOrLoadIssueState(params: {
@@ -630,87 +613,53 @@ async function executeIssuePhases(params: ExecuteIssuePhasesParams): Promise<voi
 		steps: params.steps,
 	});
 	if (session.scope !== undefined) {
-		console.log(`\n▶ Single session: design → implement → review (#${params.issueNumber})`);
+		console.log(`
+▶ Single session: design → implement → review (#${params.issueNumber})`);
 	}
 
-	if (params.eval_.design !== "skip") {
-		params.attempted.add("design");
-		await runDesignPhase({
-			issueLabels: params.issueLabels,
-			issueNumber: params.issueNumber,
-			logPath: params.logPath,
-			reloader: params.reloader,
-			sandbox: params.sandbox,
-			session,
-			sharedArgs: params.sharedArgs,
-			state: params.state,
-		});
-	} else {
-		console.log("\n── Phase 1: Design — SKIPPED ──");
-	}
+	const context: IssuePhaseContext = {
+		...(params.options?.baseRef === undefined || params.options.baseRef === ""
+			? {}
+			: { baseRef: params.options.baseRef }),
+		issueLabels: params.issueLabels,
+		issueNumber: params.issueNumber,
+		logPath: params.logPath,
+		reloader: params.reloader,
+		sandbox: params.sandbox,
+		session,
+		sharedArgs: params.sharedArgs,
+		state: params.state,
+	};
 
-	/*
-	 * The design marker and the design plan are separate artifacts, and the marker is the only
-	 * one the runner verifies. A plan written anywhere but the worktree path therefore counted
-	 * as a finished design: implement was skipped for a missing plan, review had no commits to
-	 * read, and the run failed blaming review. Refuse the hand-off here instead, naming the one
-	 * path the implementer will open.
-	 */
-	const repoPlanPath = pathResolve(plansDir, `${params.issueNumber}.md`);
-	if (
-		params.state.phases.design.status === "done" &&
-		resolvePlanFile(repoPlanPath, params.sandbox.worktreePath) === undefined
-	) {
-		throw new Error(
-			`Design completed but no plan was found at ${worktreePlanPath(
-				params.sandbox.worktreePath,
-				params.issueNumber,
-			)} or ${repoPlanPath}. Write the plan to the worktree path, then resume.`,
-		);
-	}
+	for (const def of issuePhaseDefs) {
+		/*
+		 * Design keeps the pre-flight answer, and that is load-bearing: a fresh `--issue N` (no
+		 * `--resume`, no `--phase`) starts from `createFreshPhaseEvaluation`, so it re-plans even when
+		 * a plan file is still on disk from an earlier run. Re-deriving design's answer from on-disk
+		 * state would skip that re-plan and quietly turn a fresh run into a resume.
+		 *
+		 * Every later phase is re-evaluated instead: design produces the plan implement needs and
+		 * implement produces the commits review needs, so an answer computed before the run started is
+		 * not a valid one for the phase that follows it.
+		 */
+		const decision =
+			def.name === "design" ? params.eval_.design : reEvaluatePhase(params, def.name);
+		if (decision === "skip") {
+			console.log(`
+── Phase ${String(def.position)}: ${def.label} — SKIPPED ──`);
+			def.after?.(context);
+			continue;
+		}
 
-	// Re-evaluate implement after design: a resumed run may have just produced the plan.
-	const implementDecision = reEvaluatePhase(params, "implement");
-	if (implementDecision !== "skip") {
-		params.attempted.add("implement");
-		await runImplementPhase({
-			issueLabels: params.issueLabels,
-			issueNumber: params.issueNumber,
-			logPath: params.logPath,
-			reloader: params.reloader,
-			sandbox: params.sandbox,
-			session,
-			sharedArgs: params.sharedArgs,
-			state: params.state,
-		});
-	} else {
-		console.log("\n── Phase 2: Implement — SKIPPED ──");
-	}
+		const gate = def.shouldRun?.(context, decision) ?? { run: true };
+		if (!gate.run) {
+			gate.record();
+			continue;
+		}
 
-	const hasCommits =
-		countNewCommits(
-			params.sandbox.worktreePath,
-			params.state.base?.ref ?? params.options?.baseRef ?? config.baseBranch,
-		) > 0;
-
-	// Re-evaluate review after implement: a resumed run may have just produced commits.
-	const reviewDecision = reEvaluatePhase(params, "review");
-	if (reviewDecision !== "skip") {
-		params.attempted.add("review");
-		await runReviewPhase({
-			evalReview: reviewDecision,
-			hasCommits,
-			issueLabels: params.issueLabels,
-			issueNumber: params.issueNumber,
-			logPath: params.logPath,
-			reloader: params.reloader,
-			sandbox: params.sandbox,
-			session,
-			sharedArgs: params.sharedArgs,
-			state: params.state,
-		});
-	} else {
-		console.log("\n── Phase 3: Review — SKIPPED ──");
+		params.attempted.add(def.name);
+		await runIssuePhase(def, context);
+		def.after?.(context);
 	}
 
 	if (

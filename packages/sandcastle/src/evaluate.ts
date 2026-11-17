@@ -31,11 +31,22 @@ export function evaluatePhases(
 	 * finished phase now. The parameter stays because callers pass it and this is a package export.
 	 */
 	void models;
-	const planFile = pathResolve(repoRoot, config.dir, "plans", `${issueNumber}.md`);
-	const worktreePath = opts.worktree ?? worktreePathForBranch(issueBranch(issueNumber));
-	const state = readState(issueNumber);
-	const baseRef = opts.baseRef ?? state?.base?.ref ?? config.baseBranch;
+	const input: PhaseEvaluationInput = {
+		baseRef: "",
+		issueNumber,
+		planFile: pathResolve(repoRoot, config.dir, "plans", `${issueNumber}.md`),
+		state: readState(issueNumber),
+		worktreePath: opts.worktree ?? worktreePathForBranch(issueBranch(issueNumber)),
+	};
+	input.baseRef = opts.baseRef ?? input.state?.base?.ref ?? config.baseBranch;
+
 	const reasons: Record<PhaseName, string> = { design: "", implement: "", review: "" };
+	/** Runs one rule through the table and records its reason in place. */
+	const decide = (phase: PhaseName): PhaseDecision => {
+		const evaluation = evaluatePhase(phase, input);
+		reasons[phase] = evaluation.reason;
+		return evaluation.decision;
+	};
 
 	// If --phase is specified, only evaluate that phase; skip the others.
 	if (opts.phase) {
@@ -45,15 +56,7 @@ export function evaluatePhases(
 			reasons,
 			review: "skip",
 		};
-		result[opts.phase] = evaluateSinglePhase(
-			opts.phase,
-			issueNumber,
-			state,
-			planFile,
-			worktreePath,
-			baseRef,
-			reasons,
-		);
+		result[opts.phase] = decide(opts.phase);
 		if (opts.force === true || opts.force === opts.phase) {
 			result[opts.phase] = "force";
 			reasons[opts.phase] = "forced by --force flag";
@@ -62,36 +65,11 @@ export function evaluatePhases(
 		return result;
 	}
 
-	// Full evaluation of all three phases.
 	const result: EvaluationResult = {
-		design: evaluateSinglePhase(
-			"design",
-			issueNumber,
-			state,
-			planFile,
-			worktreePath,
-			baseRef,
-			reasons,
-		),
-		implement: evaluateSinglePhase(
-			"implement",
-			issueNumber,
-			state,
-			planFile,
-			worktreePath,
-			baseRef,
-			reasons,
-		),
+		design: decide("design"),
+		implement: decide("implement"),
 		reasons,
-		review: evaluateSinglePhase(
-			"review",
-			issueNumber,
-			state,
-			planFile,
-			worktreePath,
-			baseRef,
-			reasons,
-		),
+		review: decide("review"),
 	};
 
 	// Apply --force override.
@@ -109,28 +87,6 @@ export function evaluatePhases(
 	}
 
 	return result;
-}
-
-function evaluateSinglePhase(
-	phase: PhaseName,
-	issueNumber: string,
-	state: undefined | PhaseState,
-	planFile: string,
-	worktreePath: string,
-	baseRef: string,
-	reasons: Record<PhaseName, string>,
-): PhaseDecision {
-	switch (phase) {
-		case "design": {
-			return evaluateDesign(state, planFile, worktreePath, reasons);
-		}
-		case "implement": {
-			return evaluateImplement(state, planFile, worktreePath, issueNumber, baseRef, reasons);
-		}
-		case "review": {
-			return evaluateReview(state, issueNumber, baseRef, worktreePath, reasons);
-		}
-	}
 }
 
 /**
@@ -165,123 +121,159 @@ export function resolvePlanFile(planFile: string, worktreePath: string): string 
 	return existsSync(planFile) ? planFile : undefined;
 }
 
-export function evaluateDesign(
-	state: undefined | PhaseState,
-	planFile: string,
-	worktreePath: string,
-	reasons: Record<PhaseName, string>,
-): PhaseDecision {
-	const resolvedPlan = resolvePlanFile(planFile, worktreePath);
+/** Everything one phase's skip/start decision reads. */
+export interface PhaseEvaluationInput {
+	baseRef: string;
+	issueNumber: string;
+	/** Repo-root plan path; the worktree copy wins when it exists. */
+	planFile: string;
+	state: undefined | PhaseState;
+	worktreePath: string;
+}
+
+/** One phase's decision and the sentence that explains it. */
+export interface PhaseEvaluation {
+	decision: PhaseDecision;
+	reason: string;
+}
+
+/** A decision rule: read the input, answer, and let the caller record the reason. */
+type PhaseEvaluator = (input: PhaseEvaluationInput) => PhaseEvaluation;
+
+/**
+ * Design is done when a plan exists and looks like one.
+ *
+ * @remarks
+ *   The plan is the artifact, not the state file: a plan on disk from a run whose state was lost
+ *   still means design succeeded, and re-planning over it would discard the work.
+ */
+function evaluateDesign(input: PhaseEvaluationInput): PhaseEvaluation {
+	const resolvedPlan = resolvePlanFile(input.planFile, input.worktreePath);
 
 	if (resolvedPlan === undefined || resolvedPlan === "") {
-		reasons.design = "plan file does not exist";
-		return "start";
+		return { decision: "start", reason: "plan file does not exist" };
 	}
 
 	try {
 		const content = readFileSync(resolvedPlan, "utf-8").trim();
 		if (content.length === 0) {
-			reasons.design = "plan file is empty";
-			return "start";
+			return { decision: "start", reason: "plan file is empty" };
 		}
 
 		// Check for expected structure — at minimum a heading.
 		if (!content.includes("#") && !content.includes("##")) {
-			reasons.design = "plan file has no headings (possibly malformed)";
-			return "start";
+			return {
+				decision: "start",
+				reason: "plan file has no headings (possibly malformed)",
+			};
 		}
 	} catch {
-		reasons.design = "plan file unreadable";
-		return "start";
+		return { decision: "start", reason: "plan file unreadable" };
 	}
 
-	// Plan file exists and looks valid.
-	if (state?.phases.design.status === "done") {
-		reasons.design = `plan file exists at ${resolvedPlan} and design phase marked done`;
-		return "skip";
+	if (input.state?.phases.design.status === "done") {
+		return {
+			decision: "skip",
+			reason: `plan file exists at ${resolvedPlan} and design phase marked done`,
+		};
 	}
 
-	reasons.design = `plan file exists at ${resolvedPlan} (state file missing or incomplete)`;
-	return "skip";
+	return {
+		decision: "skip",
+		reason: `plan file exists at ${resolvedPlan} (state file missing or incomplete)`,
+	};
 }
 
-export function evaluateImplement(
-	state: undefined | PhaseState,
-	planFile: string,
-	worktreePath: string,
-	issueNumber: string,
-	baseRef: string,
-	reasons: Record<PhaseName, string>,
-): PhaseDecision {
+/** Implement is done when commits exist and the state says the build passed. */
+function evaluateImplement(input: PhaseEvaluationInput): PhaseEvaluation {
 	// Design must be done first — the plan travels with the branch, so the worktree wins.
-	const resolvedPlan = resolvePlanFile(planFile, worktreePath);
+	const resolvedPlan = resolvePlanFile(input.planFile, input.worktreePath);
 	if (resolvedPlan === undefined) {
 		/*
 		 * Name both paths a plan could have been at. The old one-liner said only "does not exist",
 		 * which reads as harmless next to a design phase that just reported success — so a plan
 		 * written to a third path looked like a normal continuation instead of the bug it was.
 		 */
-		reasons.implement = `blocked — no plan at ${worktreePlanPath(worktreePath, issueNumber)} or ${planFile}`;
-		return "skip";
+		return {
+			decision: "skip",
+			reason: `blocked — no plan at ${worktreePlanPath(input.worktreePath, input.issueNumber)} or ${input.planFile}`,
+		};
 	}
 
-	// Check if worktree exists.
-	if (!existsSync(worktreePath)) {
-		reasons.implement = "worktree does not exist";
-		return "start";
+	if (!existsSync(input.worktreePath)) {
+		return { decision: "start", reason: "worktree does not exist" };
 	}
 
-	// Check for commits beyond the base branch.
-	const newCommits = countNewCommits(worktreePath, baseRef);
+	const newCommits = countNewCommits(input.worktreePath, input.baseRef);
 	if (newCommits === 0) {
-		reasons.implement = "no new commits in worktree";
-		return "start";
+		return { decision: "start", reason: "no new commits in worktree" };
 	}
 
-	// Check if build passes.
-	if (state?.phases.implement.status === "done") {
-		reasons.implement = `${newCommits} commits, build previously passed`;
-		return "skip";
+	if (input.state?.phases.implement.status === "done") {
+		return {
+			decision: "skip",
+			reason: `${String(newCommits)} commits, build previously passed`,
+		};
 	}
 
-	// State says failed — restart.
-	if (state?.phases.implement.status === "failed") {
-		reasons.implement = `previous attempt failed: ${state.lastError ?? "unknown error"}`;
-		return "start";
+	if (input.state?.phases.implement.status === "failed") {
+		return {
+			decision: "start",
+			reason: `previous attempt failed: ${input.state.lastError ?? "unknown error"}`,
+		};
 	}
 
 	// No state file but commits exist — likely a partial run.
-	reasons.implement = `${newCommits} commits exist but no state record`;
-	return "start";
+	return {
+		decision: "start",
+		reason: `${String(newCommits)} commits exist but no state record`,
+	};
 }
 
-export function evaluateReview(
-	state: undefined | PhaseState,
-	_issueNumber: string,
-	baseRef: string,
-	worktreePath: string,
-	reasons: Record<PhaseName, string>,
-): PhaseDecision {
-	// Implement must have produced commits.
-	if (state?.phases.implement.status !== "done") {
+/** Review is done when `isReviewComplete` says so; it needs implement's commits to exist. */
+function evaluateReview(input: PhaseEvaluationInput): PhaseEvaluation {
+	if (input.state?.phases.implement.status !== "done") {
 		// Check if there are commits anyway (state might be stale).
-		if (!existsSync(worktreePath) || countNewCommits(worktreePath, baseRef) === 0) {
-			reasons.review = "blocked — implementation has no commits";
-			return "skip";
+		if (
+			!existsSync(input.worktreePath) ||
+			countNewCommits(input.worktreePath, input.baseRef) === 0
+		) {
+			return { decision: "skip", reason: "blocked — implementation has no commits" };
 		}
 
-		reasons.review = "implementation has commits (state file missing)";
-		return "start";
+		return { decision: "start", reason: "implementation has commits (state file missing)" };
 	}
 
 	// Already reviewed — or skipped because there was nothing to review.
-	if (isReviewComplete(state)) {
-		reasons.review = "review already completed";
-		return "skip";
+	if (isReviewComplete(input.state)) {
+		return { decision: "skip", reason: "review already completed" };
 	}
 
-	reasons.review = "implementation done, review needed";
-	return "start";
+	return { decision: "start", reason: "implementation done, review needed" };
+}
+
+/**
+ * The three phases' decision rules.
+ *
+ * @remarks
+ *   A table rather than a `switch`, so adding a phase-shaped step is a row and a change to a shared
+ *   input reaches every rule at once. The order is the run order.
+ */
+const phaseEvaluators: Record<PhaseName, PhaseEvaluator> = {
+	design: evaluateDesign,
+	implement: evaluateImplement,
+	review: evaluateReview,
+};
+
+/**
+ * - Decides whether one phase should run, and why.
+ * - @param phase - Which phase.
+ * - @param input - The on-disk facts every rule reads.
+ * - @returns The decision and its one-sentence reason.
+ * - @remarks Pure; callers do the I/O of gathering `input` and the policy of `--force`.
+ */
+export function evaluatePhase(phase: PhaseName, input: PhaseEvaluationInput): PhaseEvaluation {
+	return phaseEvaluators[phase](input);
 }
 
 export function createFreshPhaseEvaluation(): EvaluationResult {

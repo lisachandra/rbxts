@@ -10,19 +10,18 @@
  * preparation seam that delegates to `setupWorktree`.
  */
 
+import type { SandboxRunResult } from "@ai-hero/sandcastle";
+
 import { existsSync, rmSync } from "node:fs";
 
 import type { SetupOutput } from "../config.js";
 import { git, gitTry, hasUnmergedPaths, mergeInProgress, resolveCommit } from "../git.js";
-import { backendSupportsDigest, fileLogging } from "../logging.js";
-import { markerPath, runMarkerPhase } from "../markers.js";
+import { markerPath } from "../markers.js";
+import { runPhase } from "../phase.js";
 import { queueRulesForPrompt } from "../prompts/queue.js";
 import { setupNoteFor } from "../prompts/setup-note.js";
 import { skillsForPrompt } from "../prompts/skills.js";
-import { saveSession } from "../providers/session-store.js";
-import { runPhaseWithRetry } from "../retry.js";
 import { config, io } from "../runtime.js";
-import { runSessioned } from "../session-resume.js";
 import type {
 	AgentBackend,
 	AgentPhaseName,
@@ -63,7 +62,7 @@ export type IntegrationReviewRunner = (
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
 	setupNote?: string,
-) => Promise<void>;
+) => Promise<SandboxRunResult>;
 
 /**
  * Prepare an integration worktree before agents run, delegating to the shared `setupWorktree`
@@ -88,7 +87,13 @@ export function prepareIntegrationWorktree(
 	});
 }
 
-/** Resolve a merge conflict on the integration worktree via the resolving-merge-conflicts agent. */
+/**
+ * Resolve a merge conflict on the integration worktree via the resolving-merge-conflicts agent.
+ *
+ * @returns The sandbox run result. Nothing in the orchestrator reads it — the resolver's success is
+ *   its marker and the clean merge that follows — but returning it is what makes this the same
+ *   contract as every other phase rather than a second one that happens to look similar.
+ */
 export async function runConflictResolver(
 	manifest: IntegrationManifest,
 	source: IntegrationSource,
@@ -97,9 +102,8 @@ export async function runConflictResolver(
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
 	setupNote = "",
-): Promise<void> {
+): Promise<SandboxRunResult> {
 	const worktree = integrationBasePath(manifest);
-	const marker = markerPath(`${manifest.name}.resolve`);
 	const sourceContext = JSON.stringify(
 		{
 			base: manifest.base,
@@ -111,52 +115,38 @@ export async function runConflictResolver(
 		undefined,
 		2,
 	);
-	const resolveBackend = step?.agentBackend ?? agentBackend;
-	const resolveEffort = step?.effort ?? effort;
-	const resolveModel = step?.model ?? model;
 	const scope = `${manifest.name}.resolve`;
-	await runPhaseWithRetry(
-		() =>
-			runSessioned({ backend: resolveBackend, scope }, ({ capture, resumed }) =>
-				runMarkerPhase({
-					agentBackend: resolveBackend,
-					effort: resolveEffort,
-					marker,
-					model: resolveModel,
-					name: `resolve ${manifest.name} <- ${source.name}`,
-					promptArgs: {
-						INTEGRATION_NAME: manifest.name,
-						SKILLS: "- resolving-merge-conflicts",
-						SOURCE_CONTEXT: sourceContext,
+	return runPhase(`resolve ${manifest.name}`, () => ({
+		logPath: integrationLogPath(manifest.name),
+		marker: markerPath(`${manifest.name}.resolve`),
+		name: `resolve ${manifest.name} <- ${source.name}`,
+		promptArgs: {
+			INTEGRATION_NAME: manifest.name,
+			SKILLS: "- resolving-merge-conflicts",
+			SOURCE_CONTEXT: sourceContext,
 
-						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
-						SETUP_NOTE: setupNote,
-						SOURCE_NAME: source.name,
-					},
-					promptFile: config.prompts.resolveConflicts,
-					run: (options) =>
-						io.run({
-							...options,
-							branchStrategy: { type: "head" },
-							cwd: worktree,
-							sandbox: sandboxProvider,
-						}),
-					runOptions: {
-						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(integrationLogPath(manifest.name), {
-							digest: backendSupportsDigest(resolveBackend),
-							onSessionCaptured: (sessionId) =>
-								saveSession(scope, { backend: resolveBackend, sessionId }),
-							sessionCapture: capture,
-						}),
-					},
-				}),
-			),
-		`resolve ${manifest.name}`,
-	);
+			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
+			SETUP_NOTE: setupNote,
+			SOURCE_NAME: source.name,
+		},
+		promptFile: config.prompts.resolveConflicts,
+		run: (options) =>
+			io.run({
+				...options,
+				branchStrategy: { type: "head" },
+				cwd: worktree,
+				sandbox: sandboxProvider,
+			}),
+		scope,
+		selection: resolveStep(step, { agentBackend, effort, model }),
+	}));
 }
 
-/** Run the integration review agent pass and record its marker. */
+/**
+ * Run the integration review agent pass and record its marker.
+ *
+ * @returns The sandbox run result, for the same reason as {@link runConflictResolver}.
+ */
 export async function runIntegrationReview(
 	manifest: IntegrationManifest,
 	model: string,
@@ -164,53 +154,55 @@ export async function runIntegrationReview(
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
 	setupNote = "",
-): Promise<void> {
-	const marker = markerPath(`${manifest.name}.review`);
-	const sourceContext = JSON.stringify(manifest.sources, undefined, 2);
-	const reviewBackend = step?.agentBackend ?? agentBackend;
-	const reviewEffort = step?.effort ?? effort;
-	const reviewModel = step?.model ?? model;
+): Promise<SandboxRunResult> {
 	const scope = `${manifest.name}.review`;
-	await runPhaseWithRetry(
-		() =>
-			runSessioned({ backend: reviewBackend, scope }, ({ capture, resumed }) =>
-				runMarkerPhase({
-					agentBackend: reviewBackend,
-					effort: reviewEffort,
-					marker,
-					model: reviewModel,
-					name: `review integration ${manifest.name}`,
-					promptArgs: {
-						BASE_COMMIT: manifest.base.commit,
-						BASE_REF: manifest.base.ref,
-						BRANCH: manifest.branch,
-						INTEGRATION_NAME: manifest.name,
-						QUEUE_RULES: queueRulesForPrompt({ composed: true }),
+	return runPhase(`review integration ${manifest.name}`, () => ({
+		logPath: integrationLogPath(manifest.name),
+		marker: markerPath(`${manifest.name}.review`),
+		name: `review integration ${manifest.name}`,
+		promptArgs: {
+			BASE_COMMIT: manifest.base.commit,
+			BASE_REF: manifest.base.ref,
+			BRANCH: manifest.branch,
+			INTEGRATION_NAME: manifest.name,
+			QUEUE_RULES: queueRulesForPrompt({ composed: true }),
 
-						SETUP_NOTE: setupNote,
-						SKILLS: skillsForPrompt("review"),
-						SOURCES: sourceContext,
-					},
-					promptFile: config.prompts.reviewIntegration,
-					run: (options) =>
-						io.run({
-							...options,
-							branchStrategy: { type: "head" },
-							cwd: integrationBasePath(manifest),
-							sandbox: sandboxProvider,
-						}),
-					runOptions: {
-						...(resumed !== undefined ? { resumeSession: resumed.sessionId } : {}),
-						logging: fileLogging(integrationLogPath(manifest.name), {
-							digest: backendSupportsDigest(reviewBackend),
-							onSessionCaptured: (sessionId) =>
-								saveSession(scope, { backend: reviewBackend, sessionId }),
-							sessionCapture: capture,
-						}),
-					},
-				}),
-			),
-		`review integration ${manifest.name}`,
+			SETUP_NOTE: setupNote,
+			SKILLS: skillsForPrompt("review"),
+			SOURCES: JSON.stringify(manifest.sources, undefined, 2),
+		},
+		promptFile: config.prompts.reviewIntegration,
+		run: (options) =>
+			io.run({
+				...options,
+				branchStrategy: { type: "head" },
+				cwd: integrationBasePath(manifest),
+				sandbox: sandboxProvider,
+			}),
+		scope,
+		selection: resolveStep(step, { agentBackend, effort, model }),
+	}));
+}
+
+/**
+ * - The selection an integration phase runs with.
+ * - @param step - A resolved step, when the caller has one.
+ * - @param fallback - The three loose values a caller without a step passes instead.
+ * - @returns The step to use.
+ * - @remarks A resolved step wins whole rather than field by field: the caller either has the
+ *   resolution or it does not, and merging half of one with half of the fallback describes a
+ *   selection no configuration produced.
+ */
+function resolveStep(
+	step: undefined | ResolvedAgentStep,
+	fallback: { agentBackend: AgentBackend; effort: string; model: string },
+): ResolvedAgentStep {
+	return (
+		step ?? {
+			agentBackend: fallback.agentBackend,
+			effort: fallback.effort as ResolvedAgentStep["effort"],
+			model: fallback.model,
+		}
 	);
 }
 

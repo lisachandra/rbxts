@@ -3,7 +3,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
-import { gitStub, integrationsDir, registerTestHooks } from "../test-helpers.js";
+import { emptyRun, gitStub, integrationsDir, registerTestHooks } from "../test-helpers.js";
 import type { IntegrationManifest } from "../types.js";
 import type { SetupWorktreeOptions } from "../worktree.js";
 import { continueIntegration, prepareIntegrationWorktree } from "./orchestrator.js";
@@ -112,9 +112,11 @@ describe("orchestrator state machine", () => {
 			},
 			runConflictResolver: async () => {
 				conflictResolverRan = true;
+				return emptyRun();
 			},
 			runIntegrationReview: async () => {
 				reviewRan = true;
+				return emptyRun();
 			},
 		};
 
@@ -191,8 +193,8 @@ describe("orchestrator state machine", () => {
 
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
-			runIntegrationReview: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
+			runIntegrationReview: async () => emptyRun(),
 		});
 
 		assert.equal(stashCommands.length, 1, "the drift was stashed rather than fatal");
@@ -243,8 +245,8 @@ describe("orchestrator state machine", () => {
 
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, false, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
-			runIntegrationReview: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
+			runIntegrationReview: async () => emptyRun(),
 		});
 
 		assert.equal(stashCommands.length, 1, "the drift was stashed rather than fatal");
@@ -304,8 +306,8 @@ describe("orchestrator state machine", () => {
 
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
-			runIntegrationReview: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
+			runIntegrationReview: async () => emptyRun(),
 		});
 
 		assert.equal(stashed, false, "a branch-invisible difference must not be stashed");
@@ -351,8 +353,8 @@ describe("orchestrator state machine", () => {
 			async () =>
 				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 					prepareWorktree: () => undefined,
-					runConflictResolver: async () => undefined,
-					runIntegrationReview: async () => undefined,
+					runConflictResolver: async () => emptyRun(),
+					runIntegrationReview: async () => emptyRun(),
 				}),
 			/Could not quarantine every uncommitted change/,
 		);
@@ -389,9 +391,10 @@ describe("orchestrator state machine", () => {
 
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
 			runIntegrationReview: async () => {
 				reviewRan = true;
+				return emptyRun();
 			},
 		});
 
@@ -436,7 +439,7 @@ describe("orchestrator state machine", () => {
 			async () =>
 				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 					prepareWorktree: () => undefined,
-					runConflictResolver: async () => undefined,
+					runConflictResolver: async () => emptyRun(),
 					runIntegrationReview: async () => {
 						throw rejection;
 					},
@@ -494,8 +497,9 @@ describe("orchestrator state machine", () => {
 					prepareWorktree: () => undefined,
 					runConflictResolver: async () => {
 						resolverRan = true;
+						return emptyRun();
 					},
-					runIntegrationReview: async () => undefined,
+					runIntegrationReview: async () => emptyRun(),
 				}),
 			/Conflict resolver did not complete the merge for issue-1\./,
 		);
@@ -566,8 +570,8 @@ describe("orchestrator state machine", () => {
 			async () =>
 				continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, false, {
 					prepareWorktree: () => undefined,
-					runConflictResolver: async () => undefined,
-					runIntegrationReview: async () => undefined,
+					runConflictResolver: async () => emptyRun(),
+					runIntegrationReview: async () => emptyRun(),
 				}),
 			/would overwrite[\s\S]*--quarantine-drift/u,
 		);
@@ -621,9 +625,10 @@ describe("orchestrator state machine", () => {
 		let reviewed = 0;
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
 			runIntegrationReview: async () => {
 				reviewed += 1;
+				return emptyRun();
 			},
 		});
 
@@ -662,8 +667,8 @@ describe("orchestrator state machine", () => {
 
 		await continueIntegration(manifest, "m", "low", "dirac", false, false, undefined, true, {
 			prepareWorktree: () => undefined,
-			runConflictResolver: async () => undefined,
-			runIntegrationReview: async () => undefined,
+			runConflictResolver: async () => emptyRun(),
+			runIntegrationReview: async () => emptyRun(),
 		});
 
 		assert.equal(manifest.reviewHead, "deadbeef1234");

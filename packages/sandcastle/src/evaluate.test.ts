@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
-import { evaluateDesign, evaluateImplement, evaluatePhases, evaluateReview } from "./evaluate.js";
+import { evaluatePhase, evaluatePhases, type PhaseEvaluationInput } from "./evaluate.js";
 import {
 	cleanupIssueArtifacts,
 	makeState,
@@ -18,6 +18,72 @@ import {
 
 registerTestHooks();
 
+/**
+ * The evaluation input for one phase, with the fields a given spec does not care about defaulted.
+ *
+ * The three rules are driven through `evaluatePhase` rather than three exported functions: the
+ * suite is driven by that table, which is what makes "a change to a shared input reaches every
+ * phase" provable rather than asserted.
+ */
+function inputFor(
+	fields: Partial<PhaseEvaluationInput> & Pick<PhaseEvaluationInput, "planFile" | "worktreePath">,
+): PhaseEvaluationInput {
+	return {
+		baseRef: "main",
+		issueNumber: "0",
+		state: undefined,
+		...fields,
+	};
+}
+
+/** Design's decision and reason for the call shape the specs below use. */
+function design(
+	state: PhaseEvaluationInput["state"],
+	planFile: string,
+	worktreePath: string,
+	reasons: Record<string, string>,
+): string {
+	const evaluation = evaluatePhase("design", inputFor({ planFile, state, worktreePath }));
+	reasons.design = evaluation.reason;
+	return evaluation.decision;
+}
+
+/** Implement's decision and reason. */
+function implement(
+	state: PhaseEvaluationInput["state"],
+	planFile: string,
+	worktreePath: string,
+	issueNumber: string,
+	reasons: Record<string, string>,
+): string {
+	const evaluation = evaluatePhase(
+		"implement",
+		inputFor({ issueNumber, planFile, state, worktreePath }),
+	);
+	reasons.implement = evaluation.reason;
+	return evaluation.decision;
+}
+
+/** Review's decision and reason. */
+function review(
+	state: PhaseEvaluationInput["state"],
+	issueNumber: string,
+	worktreePath: string,
+	reasons: Record<string, string>,
+): string {
+	const evaluation = evaluatePhase(
+		"review",
+		inputFor({
+			issueNumber,
+			planFile: join(plansDir, `${issueNumber}.md`),
+			state,
+			worktreePath,
+		}),
+	);
+	reasons.review = evaluation.reason;
+	return evaluation.decision;
+}
+
 describe("phase evaluation", () => {
 	test("evaluateDesign handles missing, empty, malformed, and valid plans", () => {
 		const issue = uniqueIssue();
@@ -25,23 +91,23 @@ describe("phase evaluation", () => {
 		const worktree = join(tmpRoot, `wt-${issue}`);
 		const reasons = { design: "", implement: "", review: "" };
 
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "start");
+		assert.equal(design(undefined, planFile, worktree, reasons), "start");
 		assert.match(reasons.design, /does not exist/);
 
 		writePlan(issue, "   ");
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "start");
+		assert.equal(design(undefined, planFile, worktree, reasons), "start");
 		assert.match(reasons.design, /empty/);
 
 		writePlan(issue, "no headings here");
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "start");
+		assert.equal(design(undefined, planFile, worktree, reasons), "start");
 		assert.match(reasons.design, /no headings/);
 
 		writePlan(issue, "# Plan\n\nDo the thing.");
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "skip");
+		assert.equal(design(undefined, planFile, worktree, reasons), "skip");
 		assert.match(reasons.design, /missing or incomplete/);
 
 		const state = makeState(issue, { design: "done" });
-		assert.equal(evaluateDesign(state, planFile, worktree, reasons), "skip");
+		assert.equal(design(state, planFile, worktree, reasons), "skip");
 		assert.match(reasons.design, /marked done/);
 
 		cleanupIssueArtifacts(issue);
@@ -64,16 +130,16 @@ describe("phase evaluation", () => {
 		writeFileSync(worktreePlan, "no headings", "utf-8");
 
 		// The worktree copy is the one read, and it is malformed — so design must start.
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "start");
+		assert.equal(design(undefined, planFile, worktree, reasons), "start");
 		assert.match(reasons.design, /no headings/);
 
 		writeFileSync(worktreePlan, "# Branch plan\n\nCurrent.", "utf-8");
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "skip");
+		assert.equal(design(undefined, planFile, worktree, reasons), "skip");
 		assert.match(reasons.design, new RegExp(issue, "u"));
 
 		// With no worktree copy, the repo-root plan still answers (a --phase run before any commit).
 		rmSync(worktreePlan, { force: true });
-		assert.equal(evaluateDesign(undefined, planFile, worktree, reasons), "skip");
+		assert.equal(design(undefined, planFile, worktree, reasons), "skip");
 		assert.match(reasons.design, /missing or incomplete/);
 
 		rmSync(worktree, { force: true, recursive: true });
@@ -86,16 +152,10 @@ describe("phase evaluation", () => {
 		const worktree = join(tmpRoot, `wt-impl-${issue}`);
 		const reasons = { design: "", implement: "", review: "" };
 
-		assert.equal(
-			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
-			"skip",
-		);
+		assert.equal(implement(undefined, planFile, worktree, issue, reasons), "skip");
 
 		writePlan(issue, "# Plan");
-		assert.equal(
-			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
-			"start",
-		);
+		assert.equal(implement(undefined, planFile, worktree, issue, reasons), "start");
 		assert.match(reasons.implement, /worktree does not exist/);
 
 		mkdirSync(worktree, { recursive: true });
@@ -108,17 +168,11 @@ describe("phase evaluation", () => {
 			throw new Error("git failed");
 		});
 
-		assert.equal(
-			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
-			"start",
-		);
+		assert.equal(implement(undefined, planFile, worktree, issue, reasons), "start");
 		assert.match(reasons.implement, /no new commits/);
 
 		stubGitRevList("2");
-		assert.equal(
-			evaluateImplement(undefined, planFile, worktree, issue, "main", reasons),
-			"start",
-		);
+		assert.equal(implement(undefined, planFile, worktree, issue, reasons), "start");
 		assert.match(reasons.implement, /no state record/);
 
 		/*
@@ -127,14 +181,11 @@ describe("phase evaluation", () => {
 		 * being available — redid work that had already passed review. Only `--force` re-runs now.
 		 */
 		const done = makeState(issue, { implement: "done", model: "old" });
-		assert.equal(evaluateImplement(done, planFile, worktree, issue, "main", reasons), "skip");
+		assert.equal(implement(done, planFile, worktree, issue, reasons), "skip");
 		assert.match(reasons.implement, /build previously passed/);
 
 		const failed = makeState(issue, { implement: "failed" });
-		assert.equal(
-			evaluateImplement(failed, planFile, worktree, issue, "main", reasons),
-			"start",
-		);
+		assert.equal(implement(failed, planFile, worktree, issue, reasons), "start");
 		assert.match(reasons.implement, /previous attempt failed/);
 
 		cleanupIssueArtifacts(issue);
@@ -146,17 +197,17 @@ describe("phase evaluation", () => {
 		const worktree = join(tmpRoot, `wt-review-${issue}`);
 		const reasons = { design: "", implement: "", review: "" };
 
-		assert.equal(evaluateReview(undefined, issue, "main", worktree, reasons), "skip");
+		assert.equal(review(undefined, issue, worktree, reasons), "skip");
 
 		mkdirSync(worktree, { recursive: true });
 		stubGitRevList("1");
-		assert.equal(evaluateReview(undefined, issue, "main", worktree, reasons), "start");
+		assert.equal(review(undefined, issue, worktree, reasons), "start");
 
 		const implementDone = makeState(issue, { implement: "done" });
-		assert.equal(evaluateReview(implementDone, issue, "main", worktree, reasons), "start");
+		assert.equal(review(implementDone, issue, worktree, reasons), "start");
 
 		const reviewDone = makeState(issue, { implement: "done", review: "done" });
-		assert.equal(evaluateReview(reviewDone, issue, "main", worktree, reasons), "skip");
+		assert.equal(review(reviewDone, issue, worktree, reasons), "skip");
 
 		rmSync(worktree, { force: true, recursive: true });
 	});

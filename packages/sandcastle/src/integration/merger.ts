@@ -9,6 +9,8 @@
  * and drift branches without a live repo.
  */
 
+import type { SandboxRunResult } from "@ai-hero/sandcastle";
+
 import {
 	changedSinceMergeBase,
 	git as defaultGit,
@@ -284,7 +286,7 @@ export type ConflictResolverRunner = (
 	agentBackend: AgentBackend,
 	step?: ResolvedAgentStep,
 	setupNote?: string,
-) => Promise<void>;
+) => Promise<SandboxRunResult>;
 
 export interface IntegrateSourceDeps extends Partial<MergerDeps> {
 	runConflictResolver?: ConflictResolverRunner;
@@ -308,7 +310,7 @@ export async function integrateManifestSource(
 		deps.runConflictResolver ??
 		((async (...args: Parameters<ConflictResolverRunner>) => {
 			const { runConflictResolver } = await import("./orchestrator.js");
-			await runConflictResolver(...args);
+			return runConflictResolver(...args);
 		}) as ConflictResolverRunner);
 	const manifestWriter =
 		deps.writeIntegrationManifest ??

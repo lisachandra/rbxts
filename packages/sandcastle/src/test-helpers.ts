@@ -7,6 +7,8 @@
  */
 
 /* oxlint-disable typescript/no-unnecessary-condition -- Tests intentionally inspect optional persisted state fields */
+import type { SandboxRunResult } from "@ai-hero/sandcastle";
+
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -206,6 +208,17 @@ export function stubGitRevList(result: string | (() => string)): void {
 
 		return typeof result === "function" ? result() : result;
 	}) as unknown as typeof io.execFileSync;
+}
+
+/**
+ * - A sandbox result for a phase double that ran and changed nothing.
+ * - @returns A result with no iterations, output, or commits.
+ * - @remarks Phase doubles used to return `Promise<void>`, which made every adapter free to drop the
+ *   result. The seam returns it now, so a double says "ran, produced nothing" explicitly rather
+ *   than relying on `undefined`.
+ */
+export function emptyRun(): SandboxRunResult {
+	return { commits: [], iterations: [], stdout: "" };
 }
 
 export function stubRun(result: Record<string, unknown>, markers: Array<string> = []): void {
