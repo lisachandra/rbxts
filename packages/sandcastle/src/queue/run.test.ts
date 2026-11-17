@@ -3,13 +3,13 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
-import { cancellation, cancelledExitCode } from "../cancel.js";
+import { CancelError, cancellation, cancelledExitCode } from "../cancel.js";
 import type { CliOptions } from "../cli.js";
 import { parseArgs } from "../cli.js";
 import { config, io } from "../runtime.js";
 import { writeState } from "../state.js";
 import { cleanupIssueArtifacts, makeState, registerTestHooks, tmpRoot } from "../test-helpers.js";
-import { queueLockPath, runLockName } from "./lock.js";
+import { batchLockName, queueLockPath, runLockName } from "./lock.js";
 import {
 	emptyQueueManifest,
 	type QueueManifest,
@@ -719,6 +719,47 @@ describe("queue run dispatch", () => {
  * cases drive the shared singleton freely.
  */
 describe("cancelling a run", () => {
+	test("the first signal says how to hard-kill a wedged run", async () => {
+		/*
+		 * The message is the only place an operator learns the escape hatch exists, and it is printed on
+		 * the *first* signal: the second exits immediately, so a hint printed there would race the exit
+		 * it describes.
+		 *
+		 * Fired from inside the dispatch for two reasons: the handler is disposed when the run returns —
+		 * that per-invocation lifetime is deliberate — and mid-batch is the one moment an operator can
+		 * press it with work in flight. The signal goes through the installed listener rather than
+		 * `process.emit`, so the run's own handler receives it and nothing else in the suite does.
+		 */
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		let fired = 0;
+
+		/*
+		 * `run` captures stdout itself, so the message is asserted from its `output`: stubbing
+		 * `console.log` again here would replace that capture rather than add to it.
+		 */
+		const result = await run(["queue", "run"], {
+			dispatch: () => {
+				const handler = process.listeners("SIGINT").at(-1);
+				if (typeof handler !== "function") {
+					throw new Error("a run must install a SIGINT handler");
+				}
+
+				handler("SIGINT");
+				fired += 1;
+				return Promise.resolve(["5"]);
+			},
+			reject: true,
+		});
+
+		assert.equal(fired, 1, "the batch ran with a handler installed for it");
+		assert.match(
+			result.output,
+			/Ctrl\+C again to hard-kill/u,
+			`the first signal must name the escape hatch; saw ${JSON.stringify(result.output)}`,
+		);
+		assert.deepEqual(codes, [cancelledExitCode], "and the run still stops itself");
+	});
+
 	test("a cancel before the first batch exits 130 and dispatches nothing", async () => {
 		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
 		cancellation.request();
@@ -847,5 +888,72 @@ describe("cancelling a run", () => {
 
 		assert.equal(landed, 0, "a cancelled run must not push branches or open pull requests");
 		assert.deepEqual(codes, [cancelledExitCode]);
+	});
+
+	test("a cancelled dispatch exits 130, not 1 through the generic failure path", async () => {
+		/*
+		 * The production dispatch is `runSequentialIssues`, and a member cancelled mid-run throws
+		 * `CancelError` out of it. Letting that reach the caller as an ordinary error exited 1 through
+		 * `main`'s catch, which a script reads as "the queue failed" — the one thing a cancellation is
+		 * not. The run must report the cancelled summary, so the exit code says "an operator stopped
+		 * this", and no land may happen after it.
+		 */
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		let landed = 0;
+
+		await run(["queue", "run", "--land"], {
+			dispatch: () => {
+				cancellation.request();
+				return Promise.reject(new CancelError());
+			},
+			land: () => {
+				landed += 1;
+				return Promise.resolve({ ok: true });
+			},
+			reject: true,
+		});
+
+		assert.deepEqual(codes, [cancelledExitCode]);
+		assert.equal(landed, 0, "a cancelled run lands nothing");
+	});
+
+	test("a failed dispatch still rejects, so the exit stays 1 rather than 130", async () => {
+		/*
+		 * The counter-case that keeps the one above honest: an ordinary failure must not be read as a
+		 * cancellation, or a broken member would look like an operator's choice and stop the queue
+		 * silently. It also proves the run lock came back — throwing rather than `io.exit` is what lets
+		 * the `finally` release it.
+		 */
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+		const failure = new Error("Sequential workflow failed: #5 (failed)");
+
+		await assert.rejects(
+			run(["queue", "run"], { dispatch: () => Promise.reject(failure), reject: false }),
+			/Sequential workflow failed/u,
+		);
+
+		assert.deepEqual(codes, [], "the failure is the caller's to report, not this loop's exit");
+		assert.equal(existsSync(queueLockPath(runLockName)), false);
+	});
+
+	test("a cancel that lands under --once still releases the batch lock", async () => {
+		/*
+		 * The batch lock is per-invocation and belongs to the `--once` path, so it is the one held while
+		 * a cancelled dispatch unwinds. A `process.exit` in the cancel path would skip this `finally`,
+		 * which is how a lock outlived its run for fourteen hours.
+		 */
+		const { codes } = stage([{ issues: ["5"], name: "U2" }], [makeIssue(5)]);
+
+		await run(["queue", "run", "--name", "U2", "--once"], {
+			dispatch: () => {
+				cancellation.request();
+				return Promise.reject(new CancelError());
+			},
+			reject: true,
+		});
+
+		assert.deepEqual(codes, [cancelledExitCode]);
+		assert.equal(existsSync(queueLockPath(runLockName)), false);
+		assert.equal(existsSync(queueLockPath(batchLockName("U2"))), false);
 	});
 });

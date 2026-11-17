@@ -18,7 +18,7 @@
  * `--no-resume` forces a clean re-run of every member.
  */
 
-import { cancellation, cancelledExitCode, installCancelHandlers } from "../cancel.js";
+import { CancelError, cancellation, cancelledExitCode, installCancelHandlers } from "../cancel.js";
 import type { CliOptions } from "../cli.js";
 import type { AgentProfile } from "../config.js";
 import { config, io } from "../runtime.js";
@@ -450,13 +450,33 @@ async function runQueueOnce(options: CliOptions, dispatch: QueueDispatch): Promi
 
 	const release = acquireQueueLock({ name: batchLockName(name) });
 	try {
-		const processed = await dispatch(
-			name,
-			sequence.issues,
-			resolved,
-			options.noResume !== true,
-			options.maxIssues,
-		);
+		let processed: ReadonlyArray<string>;
+		try {
+			processed = await dispatch(
+				name,
+				sequence.issues,
+				resolved,
+				options.noResume !== true,
+				options.maxIssues,
+			);
+		} catch (err) {
+			/*
+			 * A cancelled lane exits 130 rather than propagating as a failure. The parent reads a zero
+			 * exit as "this batch is finished" and would land it, and it reads a throw as a broken batch;
+			 * neither is what an operator's stop means. Same rule as the serial loop, and the `finally`
+			 * below is why the batch lock comes back either way.
+			 */
+			if (err instanceof CancelError || cancellation.requested()) {
+				if (options.jsonOut === true) {
+					emitJson({ batch: name, cancelled: true, issues: [], kind: "once" });
+				}
+
+				io.exit(cancelledExitCode);
+			}
+
+			throw err;
+		}
+
 		/*
 		 * A cancelled lane exits 130 rather than 0. The parent reads a zero exit as "this batch is
 		 * finished", so reporting success here would let a cancelled batch be landed.
@@ -740,7 +760,12 @@ function reportQueueRun(options: CliOptions, summary: QueueRunSummary): void {
 	io.exit(summary.failures.length > 0 ? 2 : 1);
 }
 
-/** The dispatch loop itself, with the lock already held, reporting what it did. */
+/**
+ * The dispatch loop itself, with the lock already held, reporting what it did.
+ *
+ * @rejects {Error} Whatever a dispatch throws that is not a cancellation; a cancelled dispatch is
+ *   reported in the summary instead, so the caller can exit `130` rather than `1`.
+ */
 async function runQueueLoop(
 	options: CliOptions,
 	chain: undefined | QueueChain,
@@ -947,13 +972,36 @@ async function runQueueLoop(
 		 * registering a follow-up) are dispatched by the same call, so the processed list — not the
 		 * fire-time order — is what the `seen` set and the budget count.
 		 */
-		const processed = await dispatch(
-			decision.name,
-			decision.issues,
-			options,
-			resume,
-			maxIssues - dispatched,
-		);
+		let processed: ReadonlyArray<string>;
+		try {
+			processed = await dispatch(
+				decision.name,
+				decision.issues,
+				options,
+				resume,
+				maxIssues - dispatched,
+			);
+		} catch (err) {
+			/*
+			 * A cancelled dispatch reports cancellation, not a failure.
+			 *
+			 * This is the production path: `runSequentialIssues` throws `CancelError` out of the member
+			 * the signal aborted. Letting it reach the caller as an ordinary error printed a dispatch
+			 * failure and exited 1, so `Ctrl+C` was indistinguishable from a broken batch to whatever
+			 * scripted the run, and the operator's own stop read as the queue's fault. Returning the
+			 * cancelled summary lets the one place that decides an exit code say `130` and skip the
+			 * hand-off, exactly as a cancel between batches already does.
+			 *
+			 * The flag alone is not the test: a dispatch can abort without throwing, and a member can
+			 * throw something else after the signal landed.
+			 */
+			if (err instanceof CancelError || cancellation.requested()) {
+				return { cancelled: true, failures, nothingToRun: false };
+			}
+
+			throw err;
+		}
+
 		lastBatch = decision.name;
 
 		for (const issue of processed) {
