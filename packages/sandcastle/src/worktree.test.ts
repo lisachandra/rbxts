@@ -16,12 +16,15 @@ import { afterEach, describe, test } from "vitest";
 import { config, io, normalizedPath, sharedStateRoot, worktreePathForBranch } from "./runtime.js";
 import { gitStub, registerTestHooks, tmpRoot } from "./test-helpers.js";
 import {
+	assertRemovableWorktree,
+	cmdQuote,
 	completeWorktreeRemoval,
 	ensurePersistentWorktree,
 	linkSymlinks,
 	prepareIssueWorktree,
 	pruneWorktreeRegistrations,
 	removeWorktree,
+	rmdirArgs,
 	setupDirectories,
 	setupLogPath,
 	setupWorktree,
@@ -949,5 +952,160 @@ describe("junction-safe worktree removal", () => {
 			normalizedPath(root),
 			"the primary checkout resolves to itself",
 		);
+	});
+});
+
+/*
+ * `execFileSync` does not invoke a shell, but `cmd.exe` re-parses everything after `/c`. A bare path
+ * containing `&` therefore splits the command, and the remainder runs at the operator's privilege.
+ * The assertion is on the argument, never on a spawned process, so it means the same on both hosts.
+ */
+describe("cmd quoting for the Windows delete", () => {
+	test("should quote a path containing &, a space, and a caret", () => {
+		const quoted = cmdQuote("C:\\work\\a & b ^ c\\wt");
+
+		assert.equal(quoted, '"C:\\work\\a & b ^^ c\\wt"', "quoted, and every caret doubled");
+		assert.equal(
+			quoted.startsWith('"') && quoted.endsWith('"'),
+			true,
+			"the wrapping quotes are what defuse &, |, >, and <",
+		);
+	});
+
+	test("should leave a plain path quoted but otherwise unchanged", () => {
+		assert.equal(cmdQuote("C:\\work\\wt"), '"C:\\work\\wt"');
+	});
+
+	test("should not let a quote in the name escape the wrapping", () => {
+		/*
+		 * A name cannot contain `"` on Windows, so this is belt-and-braces: the property is that the
+		 * first and last characters are the quoting pair and nothing interior can terminate it early.
+		 */
+		const quoted = cmdQuote('C:\\work\\a"b');
+		assert.equal(quoted.startsWith('"'), true);
+		assert.equal(quoted.endsWith('"'), true);
+		assert.equal(quoted.slice(1, -1).includes('"'), true, "interior quotes are left as data");
+	});
+
+	test("should pass cmd the quoted path, not the bare one", () => {
+		/*
+		 * The call-site assertion, and it spawns nothing: `rmdirArgs` is the exact list `cmd` receives,
+		 * so this runs the same on a host without `cmd.exe`. Testing `cmdQuote` alone leaves the sink
+		 * free to stop using it — which is the regression that passed a mutated build.
+		 */
+		const worktreePath = "C:\\work\\a & b ^ c";
+		const args = rmdirArgs(worktreePath);
+
+		assert.deepEqual(args.slice(0, 4), ["/c", "rmdir", "/s", "/q"], "the delete is unchanged");
+		assert.equal(args[4], cmdQuote(worktreePath), "the sink received the quoted form");
+		assert.notEqual(args[4], worktreePath, "the bare path would let & split the command");
+		assert.equal(
+			args.some((argument) => argument === worktreePath),
+			false,
+			"and the bare path appears nowhere in the argv",
+		);
+	});
+});
+
+describe("the delete guard", () => {
+	/** A throwaway repo, so the roots are the ones git reports rather than this checkout's. */
+	function makeOwnedRepo(name: string): string {
+		const root = resolve(tmpRoot, "guard-repo", name);
+		rmSync(root, { force: true, recursive: true });
+		mkdirSync(root, { recursive: true });
+		createdDirs.push(root);
+		const git = (args: ReadonlyArray<string>, cwd = root): void => {
+			execFileSync("git", [...args], { cwd, stdio: "pipe" });
+		};
+
+		git(["init", "-q", "-b", "main"]);
+		git(["config", "commit.gpgsign", "false"]);
+		git(["config", "user.email", "[REDACTED_EMAIL]"]);
+		git(["config", "user.name", "Test"]);
+		writeFileSync(join(root, "README.md"), "x", "utf-8");
+		git(["add", "README.md"]);
+		git(["commit", "-q", "-m", "init"]);
+		return root;
+	}
+
+	test("should refuse a path outside the runner's directories", () => {
+		const root = makeOwnedRepo("outside");
+		const outside = join(root, "not-the-runner's");
+		mkdirSync(outside, { recursive: true });
+
+		assert.throws(
+			() => {
+				assertRemovableWorktree(outside, root);
+			},
+			(error: Error) => {
+				assert.match(error.message, /Refusing to remove/u);
+				assert.match(error.message, /not-the-runner's/u);
+
+				return true;
+			},
+		);
+	});
+
+	test("should refuse the repository root itself", () => {
+		const root = makeOwnedRepo("repo-root");
+
+		assert.throws(() => {
+			assertRemovableWorktree(root, root);
+		}, /Refusing to remove/u);
+	});
+
+	test("should refuse a prefix sibling of the worktrees directory", () => {
+		const root = makeOwnedRepo("prefix-sibling");
+		const sibling = join(root, config.dir, "worktrees-evil", "wt");
+
+		assert.throws(() => {
+			assertRemovableWorktree(sibling, root);
+		}, /Refusing to remove/u);
+	});
+
+	test("should admit a worktree and an integration worktree", () => {
+		const root = makeOwnedRepo("admit");
+		const worktree = join(root, config.dir, "worktrees", "sandcastle-issue-1");
+		const integration = join(root, config.dir, "integrations", "wave-1", "wave-1");
+		mkdirSync(worktree, { recursive: true });
+		mkdirSync(integration, { recursive: true });
+
+		assert.doesNotThrow(() => {
+			assertRemovableWorktree(worktree, root);
+		});
+		assert.doesNotThrow(() => {
+			assertRemovableWorktree(integration, root);
+		});
+	});
+
+	test("removeWorktree deletes nothing when the guard refuses", () => {
+		/*
+		 * The property, not the throw: a refused removal must leave the target on disk. A manifest
+		 * field and queue state both reach this call, and the step below it is a recursive delete.
+		 */
+		const root = makeOwnedRepo("refuses-before-delete");
+		const target = join(root, "unrelated");
+		mkdirSync(target, { recursive: true });
+		writeFileSync(join(target, "keep.md"), "# keep", "utf-8");
+
+		assert.throws(() => {
+			removeWorktree(target, { cwd: root, force: true });
+		}, /Refusing to remove/u);
+
+		assert.equal(existsSync(join(target, "keep.md")), true, "the target survived");
+	});
+
+	test("completeWorktreeRemoval deletes nothing when the guard refuses", () => {
+		// Exported, and its `rmSync` branch is reachable directly, so it asserts the guard too.
+		const root = makeOwnedRepo("complete-refuses");
+		const target = join(root, "unrelated");
+		mkdirSync(target, { recursive: true });
+		writeFileSync(join(target, "keep.md"), "# keep", "utf-8");
+
+		assert.throws(() => {
+			completeWorktreeRemoval(target, { cwd: root, force: true });
+		}, /Refusing to remove/u);
+
+		assert.equal(existsSync(join(target, "keep.md")), true, "the target survived");
 	});
 });

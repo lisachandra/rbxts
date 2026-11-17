@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test } from "vitest";
+import { afterEach, describe, test } from "vitest";
 
 import type { CliOptions } from "../cli.js";
-import { worktreePathForBranch } from "../runtime.js";
-import { gitStub, registerTestHooks, tmpRoot } from "../test-helpers.js";
+import { worktreePathForBranch, worktreesDir } from "../runtime.js";
+import { gitStub, registerTestHooks } from "../test-helpers.js";
 import {
 	type CleanSelections,
 	removeIssueWorktree,
@@ -16,6 +16,15 @@ import type { LiveIssue, LiveQueueState } from "./live.js";
 import { emptyQueueManifest, type QueueManifest } from "./manifest.js";
 
 registerTestHooks();
+
+/** Fixture directories this file creates inside the runner's real worktrees root. */
+const createdDirs: Array<string> = [];
+
+afterEach(() => {
+	for (const dir of createdDirs.splice(0)) {
+		rmSync(dir, { force: true, recursive: true });
+	}
+});
 
 const off: CleanSelections = {
 	all: false,
@@ -235,10 +244,20 @@ describe("queue clean --push-and-delete", () => {
 	/**
 	 * A real (empty) directory: `removable` reads it as clean and the removal path runs for real,
 	 * rather than short-circuiting on a path that is already gone.
+	 *
+	 * It lives under the real worktrees directory, not `.tmp`: removal refuses anything outside the
+	 * directories the runner owns, which is the property this fixture would otherwise sidestep. The
+	 * suite removes what it creates, so the runner's own root is left as it was found.
 	 */
 	function candidate(number: string) {
-		const path = join(tmpRoot, "push-and-delete", number);
+		const parent = join(worktreesDir, "clean-test-push-and-delete");
+		const path = join(parent, number);
 		mkdirSync(path, { recursive: true });
+		// The parent, not the leaf: the removal under test deletes the leaf itself.
+		if (!createdDirs.includes(parent)) {
+			createdDirs.push(parent);
+		}
+
 		/*
 		 * A worktree carries a `.git` marker file; without it the directory is not a worktree git can
 		 * remove, and the removal takes the plain-delete path instead.

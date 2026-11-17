@@ -24,6 +24,7 @@ import {
 import { basename, dirname, resolve as pathResolve, relative } from "node:path";
 
 import type { SetupOutput } from "./config.js";
+import { within } from "./containment.js";
 import {
 	checkoutBranch,
 	countStaleCommits,
@@ -42,6 +43,7 @@ import {
 	normalizedPath,
 	plansDir,
 	repoRoot,
+	sharedStateRoot,
 	stateDir,
 	worktreePathForBranch,
 	worktreesDir,
@@ -376,21 +378,62 @@ export function unlinkWorktreeLinks(worktreePath: string): number {
 }
 
 /**
+ * Refuses a path that is not inside the state directories the owning repository's runner writes.
+ *
+ * @remarks
+ *   The question is containment, asked against the repository that owns the removal rather than
+ *   against this process: the roots are derived from `sharedStateRoot(cwd)` exactly as
+ *   `worktreesDir` is, so a caller acting on another checkout gets that checkout's directories.
+ *   Both roots are accepted because one function serves both worktree families, and they are the
+ *   only directories the runner creates and later deletes. Asking it here is what makes a poisoned
+ *   manifest field harmless instead of a way to delete an arbitrary directory. Containment is
+ *   necessary but not sufficient, and this checks only containment. "Is it a worktree the runner
+ *   placed?" is a separate question each family already answers before reaching here:
+ *   `selectIssueWorktrees` requires equality with `worktreePathForBranch`, and
+ *   `integrationBasePath` reads the manifest that records the path. Re-asking it at the delete
+ *   would need a `cwd`-aware `registeredWorktrees`, which this change does not add.
+ * @param worktreePath - The directory about to be removed.
+ * @param cwd - Repository the caller is acting on; defaults to this checkout.
+ * @throws {Error} When the path is outside both the worktrees and integrations roots.
+ */
+export function assertRemovableWorktree(worktreePath: string, cwd = repoRoot): void {
+	const root = sharedStateRoot(cwd);
+	const owned = [
+		pathResolve(root, config.dir, "worktrees"),
+		pathResolve(root, config.dir, "integrations"),
+	];
+	if (owned.some((directory) => within(directory, worktreePath))) {
+		return;
+	}
+
+	throw new Error(
+		`Refusing to remove ${JSON.stringify(worktreePath)}: not inside ${owned.map((directory) => JSON.stringify(directory)).join(" or ")}.`,
+	);
+}
+
+/**
  * Removes a worktree without following the links this runner placed inside it.
  *
  * @remarks
  *   Always unlinks first: git's own removal walks junctions and empties their targets, which
  *   destroyed the primary checkout's plans in the incident this guards against. The unlink step is
  *   best-effort — a failure there is logged and git still runs, since refusing to remove would leak
- *   the worktree forever and the links are what make removal dangerous, not the removal itself.
+ *   the worktree forever and the links are what make removal dangerous, not the removal itself. The
+ *   path is checked against the directories the runner owns before anything is deleted. This is a
+ *   required precondition rather than an option: the callers reach here from manifest fields and
+ *   queue state, which an agent inside a worktree can write, and the step below is a recursive
+ *   delete.
  * @param worktreePath - Worktree to remove.
  * @param options - `force` passes `--force` to git (dirty or mid-merge worktrees); `cwd` locates
  *   the repository that owns the worktree, defaulting to this checkout.
+ * @throws {Error} When `worktreePath` is not inside the worktrees or integrations root.
  */
 export function removeWorktree(
 	worktreePath: string,
 	options: { cwd?: string; force?: boolean } = {},
 ): void {
+	assertRemovableWorktree(worktreePath, options.cwd);
+
 	const cwd = options.cwd ?? repoRoot;
 	if (removeWithRmdir(worktreePath)) {
 		// The directory is gone; git only has to forget the registration it still holds.
@@ -412,13 +455,15 @@ export function removeWorktree(
  * - Finishes a removal whose directory is still on disk.
  * - @param worktreePath - Worktree to finish removing.
  * - @param options - `force` passes `--force` to git; `cwd` locates the owning repository.
+ * - @throws {Error} When `worktreePath` is not inside the worktrees or integrations root of `cwd`.
  * - @remarks A partial delete can take the worktree's `.git` file with it and leave everything else —
  *   exactly what a killed `rmdir` leaves behind. `git worktree remove` then refuses the path
  *   outright ("cannot remove working tree: '<path>/.git' does not exist"), so the removal can never
  *   complete and every retry repeats the same work. With the marker gone the directory is no longer
  *   a worktree as far as git is concerned, so it is deleted directly and the prune forgets the
  *   registration. Exported only so the missing-`.git` branch can be pinned by a test;
- *   `removeWorktree` is the sole production caller.
+ *   `removeWorktree` is the sole production caller. It asserts the delete guard itself as well,
+ *   because it is exported and the recursive `rmSync` below is reachable from it directly.
  *
  * @internal
  */
@@ -426,6 +471,8 @@ export function completeWorktreeRemoval(
 	worktreePath: string,
 	options: { cwd?: string; force?: boolean } = {},
 ): void {
+	assertRemovableWorktree(worktreePath, options.cwd);
+
 	const cwd = options.cwd ?? repoRoot;
 	if (existsSync(pathResolve(worktreePath, ".git"))) {
 		git(
@@ -455,6 +502,36 @@ export function pushThenRemoveWorktree(branch: string, worktreePath: string): vo
 }
 
 /**
+ * Quotes a path so `cmd.exe` cannot re-parse it into a second command.
+ *
+ * @remarks
+ *   `execFileSync` is not a shell, but `cmd.exe` re-parses everything after `/c`. With a bare path,
+ *   a directory whose name contains `&` splits the command and the remainder executes at the
+ *   operator's privilege. Between double quotes those characters lose their meaning; `^` is the
+ *   quoting character itself, so it is doubled and cannot escape the closing quote.
+ * @param worktreePath - A directory path, which may contain `&`, `|`, `>`, or `^`.
+ * @returns The path wrapped in double quotes, with every `^` doubled.
+ * @internal
+ */
+export function cmdQuote(worktreePath: string): string {
+	return `"${worktreePath.replace(/\^/gu, "^^")}"`;
+}
+
+/**
+ * The argv handed to `cmd.exe` for a `rmdir /s /q`.
+ *
+ * @remarks
+ *   Exported so a spec can assert the argument `cmd` receives without spawning one, and so that
+ *   assertion runs identically on a host that has no `cmd.exe`.
+ * @param worktreePath - Directory to delete.
+ * @returns The full argument list, path last and quoted.
+ * @internal
+ */
+export function rmdirArgs(worktreePath: string): Array<string> {
+	return ["/c", "rmdir", "/s", "/q", cmdQuote(worktreePath)];
+}
+
+/**
  * - Deletes a directory with Windows' own `rmdir /s /q`.
  * - @param worktreePath - Directory to delete.
  * - @returns True when the directory is gone afterwards.
@@ -476,7 +553,7 @@ function removeWithRmdir(worktreePath: string): boolean {
 	}
 
 	try {
-		io.execFileSync("cmd", ["/c", "rmdir", "/s", "/q", worktreePath], {
+		io.execFileSync("cmd", rmdirArgs(worktreePath), {
 			stdio: ["ignore", "ignore", "ignore"],
 			timeout: rmdirTimeoutMs,
 		});
