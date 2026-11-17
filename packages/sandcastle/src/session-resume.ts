@@ -158,13 +158,21 @@ export function endSessionedAttempt(
 }
 
 /**
- * Whether an error means the resumed session id was rejected (dirac prints "Task not found: <id>";
- * zcode's session/resume fails on unknown sessions, and its schema rejects malformed resume params
- * — e.g. an unexpected root key — with "Invalid params — (root): Unrecognized key: ...").
+ * Whether an error means the resumed session id was rejected.
+ *
+ * @remarks
+ *   Each backend says it differently, and the two groups are distinct: `dirac` prints "Task not
+ *   found: <id>"; `zcode`'s session/resume fails on unknown sessions, and its schema rejects
+ *   malformed resume params — e.g. an unexpected root key — with "Invalid params — (root):
+ *   Unrecognized key: ..."; and for `pi`, `codex`, and `claude-code` the refusal comes from
+ *   upstream's own precheck before anything is spawned: `resumeSession "<id>" not found`, with or
+ *   without the expected session path appended. "not found" alone is deliberately not a pattern. A
+ *   missing binary or a missing git object says nothing about the session, and clearing the store
+ *   for one would throw away a resumable id.
  */
 export function isStaleSessionError(err: unknown): boolean {
 	const message = String(err).toLowerCase();
-	return /task not found|session not found|unknown session|no such session|invalid params|unrecognized key/.test(
+	return /task not found|session not found|resumesession .+ not found|unknown session|no such session|invalid params|unrecognized key/.test(
 		message,
 	);
 }

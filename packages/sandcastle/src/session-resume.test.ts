@@ -169,6 +169,35 @@ describe("session resume", () => {
 		assert.equal(isStaleSessionError(new Error("HTTP 500 upstream exploded")), false);
 	});
 
+	test("isStaleSessionError matches upstream's own not-found refusal", () => {
+		/*
+		 * The precheck upstream runs before spawning anything throws this shape for pi, codex, and
+		 * claude-code, in both sandbox modes. Without the pattern the phase retry treats the refusal as
+		 * transient and offers the same pruned id forever — the exact loop the stale-clear exists to
+		 * break.
+		 */
+		assert.equal(
+			isStaleSessionError(
+				new Error(
+					'resumeSession "0199c0ffee" not found under /home/agent/.pi/agent/sessions',
+				),
+			),
+			true,
+		);
+		assert.equal(
+			isStaleSessionError(
+				new Error(
+					'resumeSession "0199c0ffee" not found: expected session file at /home/agent/.claude/projects/x/0199c0ffee.jsonl',
+				),
+			),
+			true,
+		);
+
+		// "not found" on its own is not a session verdict: a missing binary must not clear the store.
+		assert.equal(isStaleSessionError(new Error("bash: pi: command not found")), false);
+		assert.equal(isStaleSessionError(new Error("git: file not found")), false);
+	});
+
 	test("resume temp dir helper is exercised (store lives in stateRoot)", () => {
 		/*
 		 * The store path comes from stateRoot, not tmp; the temp dir helper keeps
