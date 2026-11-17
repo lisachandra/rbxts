@@ -20,6 +20,9 @@
 								"$path": "../../packages/react-template/out"
 							}
 						},
+						"@flamework": {
+							"$path": "node_modules/@flamework"
+						},
 						"@rbxts-js": {
 							"$path": "node_modules/@rbxts-js"
 						},
