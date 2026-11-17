@@ -57,7 +57,7 @@ export interface DocumentStoreConfig {
 export interface DocumentCollectionConfig {
 	/** @deprecated Use `store`. Kept for transitional compatibility. */
 	collection: Store<any>;
-	/** Never set alongside `collection`; the union makes the pair unexpressible. */
+	/** Never set alongside `collection`: the union admits one handle, not both. */
 	store?: never;
 }
 
@@ -205,8 +205,8 @@ export function getDocumentConfig(): N<DocumentConfig> {
  * Resolves the Dataforge handle a document config names, or `undefined` when none is configured.
  *
  * `store` wins over the deprecated `collection` because a config can only carry one — the union
- * makes the ambiguity unexpressible — and the explicit narrow here is what makes the result total
- * for a present config. Callers that need a store must still handle the absent-config case.
+ * rules out the ambiguity — and the explicit narrow here is what makes the result total for a
+ * present config. Callers that need a store must still handle the absent-config case.
  *
  * @param config - The config to resolve; defaults to the configured adapter.
  * @returns The store handle, or `undefined` when no document config exists.

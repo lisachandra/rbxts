@@ -7,6 +7,7 @@ import { catcher, getHumanoid } from "@lisachandra/core/utils/main";
  * synchronizes item data across players and the game state.
  */
 import type { Crate } from "@rbxts/crate";
+import Log from "@rbxts/log";
 import type { AnyEntity, DebugWidgets, SystemStruct, World } from "@rbxts/matter";
 import { equals } from "@rbxts/sift/Array";
 import {
@@ -19,16 +20,13 @@ import {
 } from "@rbxts/sift/Dictionary";
 
 import type { ChangeRecord } from "../../../components";
-import { Components, isComponent } from "../../../components";
+import { Components } from "../../../components";
 import { useMessage } from "../../../hooks";
 import { Message, messaging } from "../../../network";
 import { getItemTool } from "../../../utils/item/lookup";
-import { getItemFromGUID, moveItem, removeItem, spawnItem } from "../../../utils/item/state";
-import {
-	encodeItemPointer,
-	itemEntityId as itemPointerEntityId,
-	parseItemPointer,
-} from "../../../utils/itemPointer";
+import { cleanItemPointers, getHeldItem, validateDropRequest } from "../../../utils/item/mutation";
+import { moveItem, removeItem, spawnItem } from "../../../utils/item/state";
+import { encodeItemPointer } from "../../../utils/itemPointer";
 
 const loadTimeout = 30;
 const maxItems = 65535;
@@ -82,14 +80,18 @@ function moveItemTo(
 	guid: string,
 	destination: boolean,
 ): N<ServerState["itemPointers"]> {
-	const pointer = parseItemPointer(itemPointers[guid]);
-	if (pointer === undefined) {
+	const held = getHeldItem(world, itemPointers, guid);
+	if (held === undefined) {
+		/*
+		 * A live pointer is not evidence the item exists. Asserting here used to dereference
+		 * `undefined`, which threw out of `system()` and discarded every other player's queued
+		 * packet for the frame.
+		 */
+		Log.Warn(`[itemManager] rejected MoveItem for guid ${guid}: the owner no longer holds it`);
 		return;
 	}
 
-	const { container: location, entityId: pointerEntityId } = pointer;
-	const item = getItemFromGUID(world, guid)!;
-
+	const { container: location, entityId: pointerEntityId, item } = held;
 	const arrival = destination ? "Inventory" : "Hotbar";
 
 	if (arrival === location || (arrival === "Hotbar" && !getItemTool(item.id))) {
@@ -124,12 +126,17 @@ function dropItem(
 	guid: string,
 	amount: number,
 ): N<ServerState["itemPointers"]> {
-	const pointerEntityId = itemPointerEntityId(itemPointers[guid]);
-	if (pointerEntityId !== entityId) {
+	const rejection = validateDropRequest(world, itemPointers, entityId, guid, amount);
+	if (rejection !== undefined) {
+		Log.Warn(`[itemManager] rejected DropItem for guid ${guid}: ${rejection}`);
 		return;
 	}
 
-	const item = removeItem(world, guid, amount)!;
+	const item = removeItem(world, guid, amount);
+	if (item === undefined) {
+		return;
+	}
+
 	const cf = humanoid.RootPart!.CFrame.mul(new CFrame(0, 0, -1));
 
 	const spawnedEntityId = spawnItem(world, item, cf);
@@ -170,22 +177,7 @@ function cleanupItemPointers(
 	record: ChangeRecord<ItemRelatedComponents>,
 	itemPointers: ServerState["itemPointers"],
 ): ServerState["itemPointers"] {
-	let moved: N<boolean>;
-
-	if (isComponent(record.old, "Items")) {
-		record.old.model.Destroy();
-		({
-			old: { moved },
-		} = record);
-	}
-
-	if (!(moved ?? false)) {
-		return filter(itemPointers, (_, key) => {
-			return record.old!.items.some((item) => key !== item.guid);
-		}) as Record<string, string>;
-	}
-
-	return itemPointers;
+	return cleanItemPointers(record, itemPointers) as ServerState["itemPointers"];
 }
 
 function determineItemPointer(entityId: AnyEntity, name: "Items" | "Hotbar" | "Inventory"): string {

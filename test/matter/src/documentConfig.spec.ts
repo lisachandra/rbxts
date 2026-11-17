@@ -52,7 +52,7 @@ describe("documentConfig union", () => {
 		expect.assertions(1);
 
 		const dfStore = createStore("BothHandles");
-		// @ts-expect-error - `store?: never` / `collection?: never` make the pair unexpressible
+		// @ts-expect-error - `store?: never` / `collection?: never` together reject both handles
 		const both: DocumentConfig = { collection: dfStore, store: dfStore };
 
 		expect(both).toBeDefined();

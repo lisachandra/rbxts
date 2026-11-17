@@ -49,6 +49,10 @@
 			"import": "./out/utils/item/lookup.luau",
 			"types": "./out/utils/item/lookup.d.ts"
 		},
+		"./utils/item/mutation": {
+			"import": "./out/utils/item/mutation.luau",
+			"types": "./out/utils/item/mutation.d.ts"
+		},
 		"./utils/item/state": {
 			"import": "./out/utils/item/state.luau",
 			"types": "./out/utils/item/state.d.ts"
