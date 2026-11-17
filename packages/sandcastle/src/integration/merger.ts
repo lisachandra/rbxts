@@ -21,6 +21,7 @@ import {
 	untrackedPaths,
 } from "../git.js";
 import { config } from "../runtime.js";
+import { assertCommitSigned, readCommitSigningPolicy, signingArgs } from "../signing.js";
 import type {
 	AgentBackend,
 	IntegrationManifest,
@@ -66,6 +67,13 @@ function currentSourceName(manifest: IntegrationManifest): string {
 export interface MergerDeps {
 	/** Best-effort `git merge --abort`; a refused merge must not survive as a phantom conflict. */
 	abortMerge: (worktree: string) => void;
+	/**
+	 * Refuses a commit whose signature does not satisfy a required signing policy.
+	 *
+	 * A dependency rather than a direct import for the same reason `git` is: the merger must be
+	 * drivable from a stub with no repository behind it, and a signature check needs one.
+	 */
+	assertCommitSigned: typeof assertCommitSigned;
 	changedSinceMergeBase: (worktree: string, commit: string) => Array<string>;
 	dirtyPaths: (worktree: string) => Array<string>;
 	git: (args: ReadonlyArray<string>, cwd?: string) => string;
@@ -73,12 +81,15 @@ export interface MergerDeps {
 	hasUnmergedPaths: (worktree: string) => boolean;
 	isGitlink: (worktree: string, path: string) => boolean;
 	mergeInProgress: (worktree: string) => boolean;
+	/** Reads the effective `commit.gpgsign` policy for the repository holding the commit. */
+	readCommitSigningPolicy: typeof readCommitSigningPolicy;
 	submodulePointerMoved: (worktree: string, path: string) => boolean;
 	untrackedPaths: (worktree: string) => Array<string>;
 }
 
 const defaultDeps: MergerDeps = {
 	abortMerge,
+	assertCommitSigned,
 	changedSinceMergeBase,
 	dirtyPaths,
 	git: defaultGit,
@@ -86,6 +97,7 @@ const defaultDeps: MergerDeps = {
 	hasUnmergedPaths,
 	isGitlink,
 	mergeInProgress,
+	readCommitSigningPolicy,
 	submodulePointerMoved,
 	untrackedPaths,
 };
@@ -107,10 +119,10 @@ export function assertCleanMergeResolution(
 	}
 
 	if (merged.mergeInProgress(worktree)) {
-		merged.git(
-			["commit", ...hookFlags(), "-m", mergeSubject(currentSourceName(manifest))],
-			worktree,
-		);
+		const subject = mergeSubject(currentSourceName(manifest));
+		const policy = merged.readCommitSigningPolicy(worktree);
+		merged.git(["commit", ...signingArgs(policy), ...hookFlags(), "-m", subject], worktree);
+		merged.assertCommitSigned(subject, policy, worktree);
 	}
 }
 
@@ -323,9 +335,19 @@ export async function integrateManifestSource(
 		return;
 	}
 
+	const policy = merged.readCommitSigningPolicy(worktree);
+	const subject = mergeSubject(source.name);
 	try {
 		merged.git(
-			["merge", "--no-ff", ...hookFlags(), source.commit, "-m", mergeSubject(source.name)],
+			[
+				"merge",
+				"--no-ff",
+				...signingArgs(policy),
+				...hookFlags(),
+				source.commit,
+				"-m",
+				subject,
+			],
 			worktree,
 		);
 	} catch (err) {
@@ -357,5 +379,13 @@ export async function integrateManifestSource(
 		}
 
 		assertCleanMergeResolution(manifest, deps);
+		return;
 	}
+
+	/*
+	 * Verified outside the `catch`: an unsigned commit is not a merge that failed. Inside, it would be
+	 * read as a conflict when unmerged paths happen to exist, or reported as git refusing to commit
+	 * when they do not — and then swallowed by a resume that finds the commit already made.
+	 */
+	merged.assertCommitSigned(subject, policy, worktree);
 }

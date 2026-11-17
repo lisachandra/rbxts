@@ -47,6 +47,12 @@ import { runPhaseWithRetry } from "./retry.js";
 import { config, io, logsDir, plansDir, stateDir, worktreePathForBranch } from "./runtime.js";
 import { runSessioned } from "./session-resume.js";
 import {
+	assertCommitSigned,
+	readCommitSigningPolicy,
+	signingArgs,
+	UnsignedCommitError,
+} from "./signing.js";
+import {
 	isReviewComplete,
 	readState,
 	recordedCommits,
@@ -218,13 +224,22 @@ function recordPhaseConfig(state: PhaseState, reloader: ConfigReloader): void {
  *   was designed to do, so a later batch member chaining this branch can read it, and a reset that
  *   drops the worktree does not take the plan with it. A distinct unprefixed path is staged
  *   explicitly so an agent's unrelated dirty edits are never swept into this commit.
+ *
+ *   An unsigned commit under a host that requires signatures is the one failure that is **not**
+ *   best-effort. It rethrows: the commit exists and is missing what the host policy demands, and a
+ *   warning here leaves exactly the history that cost a rewrite, to be discovered when someone
+ *   finally notices it on `main`. Signing is asked for on the argv and then verified, because a flag
+ *   asks git to sign and only `%G?` says whether it did.
+ *
+ * @internal
  */
-function commitPlan(worktreePath: string, issueNumber: string): void {
+export function commitPlan(worktreePath: string, issueNumber: string): void {
 	const relative = `${config.dir}/plans/${issueNumber}.md`;
 	if (!existsSync(pathResolve(worktreePath, relative))) {
 		return;
 	}
 
+	const subject = `docs(sandcastle): add plan for #${issueNumber}`;
 	try {
 		/*
 		 * --porcelain prints nothing for an *ignored* untracked path, which is indistinguishable
@@ -247,11 +262,10 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 			return;
 		}
 
+		const policy = readCommitSigningPolicy(worktreePath);
 		git(["add", "-f", "--", relative], worktreePath);
-		git(
-			["commit", "-m", `docs(sandcastle): add plan for #${issueNumber}`, "--", relative],
-			worktreePath,
-		);
+		git(["commit", ...signingArgs(policy), "-m", subject, "--", relative], worktreePath);
+		assertCommitSigned(subject, policy, worktreePath);
 		console.log(`  ✓ Committed the plan to ${issueBranch(issueNumber)}.`);
 		if (ignored) {
 			console.warn(
@@ -259,9 +273,13 @@ function commitPlan(worktreePath: string, issueNumber: string): void {
 			);
 		}
 	} catch (err) {
+		if (err instanceof UnsignedCommitError) {
+			throw err;
+		}
+
 		console.warn(
 			`  ⚠ Could not commit the plan for #${issueNumber}: ${String(err)}\n` +
-				`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "docs(sandcastle): add plan for #${issueNumber}"\`).`,
+				`    Commit it yourself (\`git -C ${worktreePath} add -f -- ${relative} && git -C ${worktreePath} commit -m "${subject}"\`).`,
 		);
 	}
 }

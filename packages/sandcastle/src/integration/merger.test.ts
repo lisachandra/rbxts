@@ -44,14 +44,17 @@ function fakeDeps(
 			| "untrackedPaths"
 			| "mergeInProgress"
 			| "hasUnmergedPaths"
+			| "assertCommitSigned"
 			| "changedSinceMergeBase"
 			| "submodulePointerMoved"
+			| "readCommitSigningPolicy"
 		>
 	> = {},
 ): { deps: MergerDeps; gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> } {
 	const gitCalls: Array<{ args: ReadonlyArray<string>; cwd?: string }> = [];
 	const deps: MergerDeps = {
 		abortMerge: () => undefined,
+		assertCommitSigned: () => undefined,
 		changedSinceMergeBase: () => [],
 		dirtyPaths: () => [],
 		git: (args, cwd) => {
@@ -62,6 +65,7 @@ function fakeDeps(
 		hasUnmergedPaths: () => false,
 		isGitlink: () => false,
 		mergeInProgress: () => false,
+		readCommitSigningPolicy: () => ({ required: false, source: "commit.gpgsign is unset" }),
 		submodulePointerMoved: () => false,
 		untrackedPaths: () => [],
 	};

@@ -15,6 +15,12 @@
 import type { CliOptions } from "../cli.js";
 import { git, gitTry, mergeInProgress, primaryRepoRoot } from "../git.js";
 import { config } from "../runtime.js";
+import {
+	assertCommitSigned,
+	readCommitSigningPolicy,
+	signingArgs,
+	UnsignedCommitError,
+} from "../signing.js";
 import { manifestLockName, withQueueLock } from "./lock.js";
 import {
 	inPrimaryWorktree,
@@ -77,10 +83,17 @@ export function commitQueueManifest(summary: string, options: CliOptions): void 
 	}
 
 	try {
+		const policy = readCommitSigningPolicy(root);
+		const subject = `chore(queue): ${summary}`;
 		git(["add", "--", path], root);
-		git(["commit", "-m", `chore(queue): ${summary}`, "--", path], root);
-		console.log(`  ✓ Committed queue manifest to ${branch} (chore(queue): ${summary})`);
+		git(["commit", ...signingArgs(policy), "-m", subject, "--", path], root);
+		assertCommitSigned(subject, policy, root);
+		console.log(`  ✓ Committed queue manifest to ${branch} (${subject})`);
 	} catch (err) {
+		if (err instanceof UnsignedCommitError) {
+			throw err;
+		}
+
 		console.warn(`  ⚠ Could not commit the queue manifest: ${String(err)}`);
 	}
 }
