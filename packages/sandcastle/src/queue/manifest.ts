@@ -29,8 +29,9 @@ import { z } from "zod";
 import { primaryRepoRoot } from "../git.js";
 import { integrationNamePattern } from "../integration/manifest.js";
 import { config, normalizedPath, repoRoot } from "../runtime.js";
+import { migrateQueueManifest } from "./translate.js";
 
-/** Manifest schema version; v1 manifests must be migrated with `sandcastle queue migrate`. */
+/** Manifest schema version; v1 files are translated on read and written out by `queue migrate`. */
 export const queueManifestVersion = 2;
 
 const issueNumberSchema = z.string().regex(/^\d+$/u, "must be a numeric GitHub issue number");
@@ -156,10 +157,17 @@ export function unknownGateTargets(
  * Reads the queue manifest, returning an empty manifest when the file does not exist yet.
  *
  * @remarks
- *   A v1 manifest fails with the migration command rather than a schema message: the rename
- *   (`mergeName` -> `name`, `afterMerge` -> `after`) has exactly one supported translation.
+ *   A v1 file is read through {@link migrateQueueManifest}, the same translation `queue migrate`
+ *   writes with — a read never writes, so `updatedAt` in the returned object is regenerated and the
+ *   file is untouched until `queue migrate --apply`. Reading it tolerantly is not optional in
+ *   practice: the manifest resolves against the primary checkout, so a worktree built before the
+ *   migration reads the shared v2 file with its older code, and refusing it would make `queue list`
+ *   and `queue check` fail in exactly the worktrees most in need of them. A v1 batch with no
+ *   integration name cannot be translated without guessing, so it is refused by name with the
+ *   `--assign` instruction.
  * @param path - Explicit manifest path; defaults to the configured `queue.file`.
- * @throws {Error} When the file exists but is v1, fails schema validation, or repeats a batch name.
+ * @throws {Error} When the file exists but is unreadable, fails schema validation, or repeats a
+ *   batch name.
  */
 export function readQueueManifest(path: string = queueManifestPath()): QueueManifest {
 	if (!existsSync(path)) {
@@ -178,9 +186,7 @@ export function readQueueManifest(path: string = queueManifestPath()): QueueMani
 			? (raw as { version: unknown }).version
 			: undefined;
 	if (version === 1) {
-		throw new Error(
-			`Queue manifest at ${path} is version 1; run \`pnpm sandcastle queue migrate --apply\` to move it to version ${String(queueManifestVersion)}.`,
-		);
+		return readVersionOneManifest(raw, path);
 	}
 
 	const parsed = queueManifestSchema.safeParse(raw);
@@ -196,6 +202,32 @@ export function readQueueManifest(path: string = queueManifestPath()): QueueMani
 	}
 
 	return parsed.data;
+}
+
+/**
+ * Translates a v1 manifest on read, refusing one that cannot be translated unambiguously.
+ *
+ * @param raw - The parsed v1 file.
+ * @param path - The file's path, for the error message.
+ * @returns The v2 equivalent.
+ * @throws {Error} When a batch has no integration name or the translation is not valid v2.
+ */
+function readVersionOneManifest(raw: unknown, path: string): QueueManifest {
+	const migrated = migrateQueueManifest(raw);
+	if (migrated.unmapped.length > 0) {
+		throw new Error(
+			`Queue manifest at ${path} is version 1 and batch(es) ${migrated.unmapped.join(", ")} have no integration name; run \`pnpm sandcastle queue migrate --apply --assign <old>=<name>\` to name them.`,
+		);
+	}
+
+	const duplicates = duplicateSequenceNames(migrated.manifest.sequences);
+	if (duplicates.length > 0) {
+		throw new Error(
+			`Queue manifest at ${path} repeats batch name(s): ${duplicates.join(", ")}. A batch name is an integration; fold the duplicates into one batch.`,
+		);
+	}
+
+	return migrated.manifest;
 }
 
 /** Writes the manifest, stamping `updatedAt` with the current time. */

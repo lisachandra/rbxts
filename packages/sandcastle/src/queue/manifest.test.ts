@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "vitest";
 
@@ -145,6 +145,106 @@ describe("queue manifest", () => {
 		assert.throws(() => {
 			readQueueManifest(path);
 		}, /is invalid: gated\.0\.reason/u);
+	});
+
+	test("readQueueManifest translates a version 1 manifest instead of refusing it", () => {
+		/*
+		 * The manifest resolves against the primary checkout, so a worktree built before the migration
+		 * reads the shared v2 file with older code. The read has to translate, or `queue list` and
+		 * `queue check` fail in exactly the worktrees that need them most.
+		 */
+		const path = manifestPath("v1.json");
+		const raw = {
+			gated: [{ issue: "30", joins: "V", reason: "needs the Studio Sound instance" }],
+			human: [],
+			sequences: [
+				{
+					afterMerge: "audio-seam-work",
+					issues: ["10", "11"],
+					mergeName: "audio-work",
+					name: "U",
+				},
+			],
+			serialized: [],
+			version: 1,
+		};
+		writeFileSync(path, JSON.stringify(raw), "utf-8");
+
+		const read = readQueueManifest(path);
+
+		assert.equal(read.version, 2);
+		// `mergeName` becomes the batch name, and `afterMerge` becomes `after`.
+		assert.deepEqual(read.sequences, [
+			{ after: "audio-seam-work", issues: ["10", "11"], name: "audio-work" },
+		]);
+		// `joins` naming a v1 short code is remapped too, or the gate would point at nothing.
+		assert.deepEqual(read.gated, [
+			{ issue: "30", joins: "V", reason: "needs the Studio Sound instance" },
+		]);
+	});
+
+	test("a version 1 read does not write the file", () => {
+		const path = manifestPath("v1-readonly.json");
+		const raw = {
+			gated: [],
+			human: [],
+			sequences: [{ issues: ["10"], mergeName: "audio-work", name: "U" }],
+			serialized: [],
+			version: 1,
+		};
+		const original = JSON.stringify(raw);
+		writeFileSync(path, original, "utf-8");
+
+		readQueueManifest(path);
+
+		// `queue migrate --apply` is the write path; a read leaves the file byte-identical.
+		assert.equal(readFileSync(path, "utf-8"), original);
+	});
+
+	test("readQueueManifest refuses a version 1 batch that has no integration name", () => {
+		const path = manifestPath("v1-unmapped.json");
+		writeFileSync(
+			path,
+			JSON.stringify({
+				gated: [],
+				human: [],
+				sequences: [{ issues: ["10"], name: "U3" }],
+				serialized: [],
+				version: 1,
+			}),
+			"utf-8",
+		);
+
+		/*
+		 * Nothing in the file says which integration `U3` becomes, and guessing would silently point
+		 * the batch at a branch that may not be its own. The error names the flag that answers it.
+		 */
+		assert.throws(() => {
+			readQueueManifest(path);
+		}, /batch\(es\) U3 have no integration name.*--assign/u);
+	});
+
+	test("readQueueManifest translates a version 1 fold into one batch", () => {
+		const path = manifestPath("v1-fold.json");
+		writeFileSync(
+			path,
+			JSON.stringify({
+				gated: [],
+				human: [],
+				sequences: [
+					{ issues: ["10"], mergeName: "audio-work", name: "U" },
+					{ issues: ["11"], mergeName: "audio-work", name: "V" },
+				],
+				serialized: [],
+				version: 1,
+			}),
+			"utf-8",
+		);
+
+		// Two v1 batches naming one integration is a fold, and v2 requires unique batch names.
+		assert.deepEqual(readQueueManifest(path).sequences, [
+			{ issues: ["10", "11"], name: "audio-work" },
+		]);
 	});
 
 	test("referencedIssues collects every number from all sections without duplicates", () => {
