@@ -55,6 +55,33 @@ export function resolveBackendEffort(effort: string, backend?: AgentBackend): Sa
 	return backend === "dirac" || backend === "claude-code" ? "max" : "xhigh";
 }
 
+/**
+ * - Builds the provider for one phase, marker completion included.
+ * - @param backend - Which CLI drives the phase.
+ * - @param model - Model id, in the backend's own namespace.
+ * - @param effort - Workflow effort level; each adapter maps it to what its CLI accepts.
+ * - @param markerPath - Completion marker the attempt must create.
+ * - @param options.scope - Marker scope for the session store. Supplying it is what enables resume,
+ *   and it is only meaningful for `dirac` and `zcode`: upstream gates `resumeSession` on the
+ *   provider shipping `sessionStorage`, and only those two adapters build one. Asking for a single
+ *   session on any other backend is refused elsewhere rather than quietly degrading here.
+ * - @returns The backend's provider, wrapped in {@link withMarkerCompletion}.
+ * - @remarks Two levels of mapping happen on the way in, and they are not interchangeable. This
+ *   function resolves the effort once and each adapter then performs its own translation (`max` →
+ *   `xhigh` for pi/codex, clamp to `high` for copilot, dropped for cursor/opencode). Which value
+ *   each one receives:
+ *
+ *   - `pi`, `codex`, `zcode` get `resolveBackendEffort`'s answer, because their adapters assume it.
+ *   - `dirac` also gets the resolved value, and for dirac that resolution is identity in effect: `max`
+ *     stays `max`, since its CLI supports the level natively.
+ *   - `claude-code`, `copilot`, `cursor`, `opencode` get the raw `effort`, because none of them caps
+ *     `max` through `resolveBackendEffort` — copilot clamps to `high` inside its own adapter, and the
+ *     other two discard the level with a warning.
+ *
+ *   `zcode` is checked before its provider is built: {@link assertZcodeModelSelectable} rejects a
+ *   model the configured provider catalogs do not offer, so a typo fails before a run rather than
+ *   inside one.
+ */
 export function createAgent(
 	backend: AgentBackend,
 	model: string,

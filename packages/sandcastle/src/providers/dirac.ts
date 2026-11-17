@@ -1,10 +1,4 @@
-/*
- * Dirac provider adapter.
- *
- * Raw dirac provider. All completion/marker concerns live in
- * `withMarkerCompletion`, so this provider only parses dirac's stream events
- * and builds the dirac CLI command via `assets/dirac-wrapper.sh`.
- */
+/* Dirac provider adapter: dirac's CLI command and JSON stream. */
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
@@ -27,6 +21,26 @@ export function scopeForMarkerPath(markerPath: string): string {
 		.replace(/\.completed$/, "");
 }
 
+/**
+ * - The raw dirac provider.
+ * - @param model - Model id passed to the dirac CLI as `-m`.
+ * - @param options.effort - Reasoning effort, forwarded as `--reasoning-effort` when set and
+ *   non-empty. Dirac supports `max` natively, so nothing is clamped here.
+ * - @param options.env - Environment for the run. `OPENAI_API_BASE`, when present and non-empty, is
+ *   also passed as the CLI's `-p` provider flag.
+ * - @param options.scope - Marker scope for the session store; supplying it is what enables resume,
+ *   because upstream gates `resumeSession` on the provider shipping `sessionStorage`.
+ * - @returns A provider that speaks dirac's JSON stream.
+ * - @remarks All completion and marker concerns live in `withMarkerCompletion`, so this provider only
+ *   builds the command and parses events. `--api-error-max-retries 0` is deliberate: retries belong
+ *   to `runPhaseWithRetry`, which can resume the captured session, and letting the CLI retry inside
+ *   one attempt hides the failure from the retry policy. A resumed run passes the task id via
+ *   `-T`.
+ *
+ *   The first stream line is `{"type":"task_started","taskId"}`; it is surfaced as a `session_id`
+ *   event so upstream records the id and a later attempt can resume it. Reasoning and known noise
+ *   (retry notices, workspace stdout dumps, rules JSON) are dropped from the text stream.
+ */
 export function diracProvider(
 	model: string,
 	options?: {

@@ -1,11 +1,4 @@
-/*
- * zcode provider adapter.
- *
- * Raw zcode provider. All completion/marker concerns live in
- * `withMarkerCompletion`, so this provider only parses the flat JSONL stream
- * emitted by `assets/zcodeWrapper.mjs` (which speaks the ZCode Protocol to
- * `zcode app-server`) and builds the wrapper command.
- */
+/* zcode provider adapter: the wrapper command and its flat JSONL stream. */
 
 import type { AgentProvider, PrintCommand } from "@ai-hero/sandcastle";
 
@@ -15,6 +8,27 @@ import { sandcastleSessionStorage } from "./session-storage.js";
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 
+/**
+ * - The raw zcode provider.
+ * - @param model - Model id passed to the wrapper as `--model`; whitespace-only means "let zcode
+ *   choose".
+ * - @param options.effort - Reasoning effort, forwarded as `--reasoning-effort` when set and
+ *   non-empty. zcode registers its own level names (`low|high|max` for glm/deepseek); callers are
+ *   expected to have mapped the workflow level through `resolveBackendEffort`, which turns `xhigh`
+ *   into `high` here.
+ * - @param options.scope - Marker scope for the session store; supplying it is what enables resume.
+ * - @returns A provider that speaks the zcode wrapper's flat JSONL stream.
+ * - @remarks The command runs `assets/zcodeWrapper.mjs` under `node`, because the wrapper speaks the
+ *   ZCode Protocol to `zcode app-server` and re-emits it as JSONL. `--mode yolo` is passed only
+ *   when `dangerouslySkipPermissions` is set; otherwise zcode's default build mode applies.
+ *   `--resume-session` maps to the app-server's `session/resume`.
+ *
+ *   Every argument goes through `toShellCommand`, so neither the model nor a captured session id can
+ *   terminate its own argument or be read as another flag. That matters more here than for the other
+ *   adapters: the session id comes from a previous run's stream.
+ *
+ *   `env` is empty on purpose — zcode reads its own OAuth credentials, so there is nothing to inject.
+ */
 export function zcodeProvider(
 	model: string,
 	options?: {
