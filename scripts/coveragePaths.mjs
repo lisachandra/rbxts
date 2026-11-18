@@ -14,13 +14,16 @@
  * Why a lane cannot report, keyed by lane name.
  *
  * A lane is measured by the presence of its summary, never by this table: the report is the only
- * evidence that probes were actually placed, and six lanes declared a project plus
+ * evidence that probes were actually placed, and the lanes declared projects plus
  * `collectCoverage: true` while emitting nothing. This map only supplies the sentence a human reads
  * about a lane with no summary; a lane listed here that starts reporting is treated as measured.
  *
- * The six package lanes share one cause: each mounts its package's compiled output through a
- * `$path` that leaves the lane's own instrumented frame, so no probes are placed there. That is a
- * harness limit, not a missing spec — see `#15` and `docs/agents/coverage.md`.
+ * All seven share one cause: each mounts its package's compiled output through a `$path` that
+ * leaves the lane's own instrumented frame, so no probes are placed there. That is a harness limit,
+ * not a missing spec — see `#15` and `docs/agents/coverage.md`. (`ui` carried a different sentence
+ * until its first specs landed in 2026-11-18; the specs ran, still emitted nothing, and the cause
+ * turned out to be the same mount as the other lanes, so the sentence was corrected rather than
+ * kept as history.)
  */
 export const UNMEASURED_REASONS = new Map([
 	["core", "package output mounted outside the lane's instrumented frame"],
@@ -28,7 +31,7 @@ export const UNMEASURED_REASONS = new Map([
 	["platform", "package output mounted outside the lane's instrumented frame"],
 	["react-router", "package output mounted outside the lane's instrumented frame"],
 	["react-template", "package output mounted outside the lane's instrumented frame"],
-	["ui", "declares a project with no specs"],
+	["ui", "package output mounted outside the lane's instrumented frame"],
 ]);
 
 /*

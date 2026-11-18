@@ -25,6 +25,16 @@ feature — record it here rather than hiding it in a skipped test.
 - `ReflectionService:GetClasses()` — `scripts/emulator/reflection.json`
   supplies a static copy for staging (see `scripts/emulator/README.md`).
 - Studio-only services and the DataModel services that back them.
+- **DataModel instance-lifecycle signals.** `Workspace.DescendantAdded` and
+  `Workspace.DescendantRemoving` connect without error but never fire when an
+  instance is parented or unparented in a spec. This is why `useStream`
+  (`packages/matter/src/hooks/useStream.ts`) has no spec: its whole contract
+  is "yield an event when an instance carrying the attribute enters the
+  workspace", and the entering never happens. A Studio lane run is the only
+  way to exercise it. The same gap covers `ChildAdded`, `AncestryChanged`
+  and friends — a spec that needs them should go to `reeParityPaths` only
+  if it aborts the run; if it merely cannot observe the event, say so in
+  its header comment like `useStream`'s would.
 - **A serverDataModel.** ree's `--mode play|edit` boots a _client_ context:
   `RunService:IsClient()` is `true` and `IsServer()` is `false` in both modes,
   and `--player` does not change it. The emulator backend hardcodes
@@ -68,9 +78,13 @@ Recorded 2026-11-11 by running every project on the emulator lane.
 | `test/platform/src/documentCommand.spec.ts` | Run yields with no output — the command calls `waitForDocument`, which fatals off-server                         | `RunService:IsServer()`                                                 | Yes — a server context in ree |
 | `test/demo/src/client/ui/app.spec.tsx`      | `attempt to index nil with 'query'` — `store.world` is nil                                                       | a Matter world, which only a bootstrap creates; the spec never runs one | No — spec-level setup         |
 
-Everything else passes, including all 11 `test/matter` specs, the demo
-server document spec, and the logger suites.
+Not in the table, because there is nothing to exclude: a spec for `useStream`
+(`packages/matter/src/hooks/useStream.ts`) cannot be written on this lane at
+all. `Workspace.DescendantAdded` connects but never fires (see the
+instance-lifecycle gap above), so the stream-in path has no observable. It
+needs the Studio lane.
 
-`test/ui` has no spec files at all (its `src/` is empty), so its `test`
-script reports "No test files found". That is a missing suite, not a lane
-failure — it needs its own specs.
+Everything else passes. The counts move as suites land: `test/matter` is at
+20 files / 138 tests, `test/ui` went from zero specs to six files / 77 tests
+(2026-11-18), and `test/core` and `test/platform` cover their respective
+surfaces.
