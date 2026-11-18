@@ -311,6 +311,16 @@ function getHotReloadSystem(module: ModuleScript): N<AnySystem> {
 
 export interface StartOptions {
 	containers?: Array<Instance>;
+	/**
+	 * The container scan's selection verdict, when a boundary has one.
+	 *
+	 * @remarks
+	 *   Without this, a development hot-reload scan schedules _every_ module it finds under the
+	 *   containers, regardless of which systems the role's module walk selected. A scanned module
+	 *   whose ORIGINAL module's `meta` is not in this set is skipped: its clone is never required
+	 *   and it is never scheduled (#665).
+	 */
+	filterSystems?: Array<AnySystem>;
 	systems?: Array<AnySystem>;
 }
 
@@ -331,6 +341,11 @@ export function start(options: StartOptions = {}): {
 
 	const hotReloadSystems = new Array<AnySystem>();
 	const staticSystems = options.systems ?? [];
+	/**
+	 * The boundary's selection verdict, when it carried one. `undefined` means "no verdict": the
+	 * scan schedules whatever it finds, which is the production-shaped behaviour.
+	 */
+	const { filterSystems } = options;
 	const systemsByModule = new Map<ModuleScript, AnySystem>();
 	let isBootstrappingHotReload = false;
 
@@ -345,6 +360,22 @@ export function start(options: StartOptions = {}): {
 		const loadModule = (module: ModuleScript, context: Context): void => {
 			if (!shouldHotReloadModule(module)) {
 				return;
+			}
+
+			if (filterSystems !== undefined) {
+				/*
+				 * Identity anchor: the ORIGINAL module's require result is the same table the boundary's
+				 * modules walk collected, so its `meta` is either in the selection or not. Requiring the
+				 * original is a cache hit - the barrel already required it - whereas requiring the scan's
+				 * clone would execute fresh module code for a system that must not run (#665).
+				 */
+				const [ok, original] = pcall(() => require(context.originalModule));
+				const originalMeta =
+					ok && typeIs(original, "table") ? (original as SystemModule).meta : undefined;
+
+				if (originalMeta === undefined || !filterSystems.includes(originalMeta as never)) {
+					return;
+				}
 			}
 
 			const system = getHotReloadSystem(module);

@@ -67,6 +67,15 @@ export interface BootstrapOptions {
  */
 export interface BootstrapBoundary {
 	containers: Array<Instance>;
+	/**
+	 * The container scan's selection verdict, when the boundary has one.
+	 *
+	 * @remarks
+	 *   Set only in the development hot-reload context with `modules` provided (#665): the Rewire
+	 *   scan schedules systems there, so the modules walk's verdict rides the boundary for
+	 *   `start()` to enforce. Absent in production, where the walk is itself the schedule.
+	 */
+	filterSystems?: Array<AnySystem>;
 	mode: "production" | "development";
 	systems: Array<AnySystem>;
 }
@@ -119,17 +128,41 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 	}
 
 	// 2. Auto-collected systems from Flamework barrel modules
-	if (options.modules && !hotReloadEnabled) {
-		if (options.modules.shared) {
-			for (const s of findSystems(options.modules.shared)) {
-				allSystems.push(s);
+	/*
+	 * The modules walk's verdict for the container scan: set only in the development hot-reload
+	 * context with `modules` provided (#665). In production the walk IS the schedule; in the
+	 * development hot-reload context the Rewire scan schedules instead, so the walk's selected
+	 * systems ride the boundary as the verdict that scan must obey.
+	 */
+	let permittedSystems: undefined | Array<AnySystem>;
+	if (options.modules) {
+		if (!hotReloadEnabled) {
+			if (options.modules.shared) {
+				for (const s of findSystems(options.modules.shared)) {
+					allSystems.push(s);
+				}
 			}
-		}
 
-		const scopeModule = options.modules[scope];
-		if (scopeModule) {
-			for (const s of findSystems(scopeModule)) {
-				allSystems.push(s);
+			const scopeModule = options.modules[scope];
+			if (scopeModule) {
+				for (const s of findSystems(scopeModule)) {
+					allSystems.push(s);
+				}
+			}
+		} else {
+			permittedSystems = new Array<AnySystem>();
+
+			if (options.modules.shared) {
+				for (const s of findSystems(options.modules.shared, [])) {
+					permittedSystems.push(s);
+				}
+			}
+
+			const scopeModule = options.modules[scope];
+			if (scopeModule) {
+				for (const s of findSystems(scopeModule, [])) {
+					permittedSystems.push(s);
+				}
 			}
 		}
 	}
@@ -182,7 +215,7 @@ export function resolveBoundary(options: BootstrapOptions = {}): BootstrapBounda
 		}
 	}
 
-	return { containers, mode, systems: allSystems };
+	return { containers, filterSystems: permittedSystems, mode, systems: allSystems };
 }
 
 /**
@@ -209,6 +242,7 @@ export function bootstrap(options: BootstrapOptions = {}): BootstrapResult {
 
 	const runtime = start({
 		containers: boundary.containers,
+		filterSystems: boundary.filterSystems,
 		systems: boundary.systems,
 	});
 
