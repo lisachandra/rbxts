@@ -1058,6 +1058,9 @@ importers:
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
+      '@rbxts/tether':
+        specifier: 'catalog:'
+        version: 1.4.17(patch_hash=83ca3e72b16bf11c9f59fdfae1041d4c5d1c9c7d98f8c8f12ea6ceb1dc552544)
       '@rbxts/types':
         specifier: 'catalog:'
         version: 1.0.925
