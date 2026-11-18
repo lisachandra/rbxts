@@ -58,6 +58,17 @@ export default defineConfig({
 		clearMocks: true,
 		collectCoverage: true,
 		coveragePathIgnorePatterns: ["**/*.spec.ts", "**/*.spec.tsx"],
+		/*
+		 * `json-summary` is what `pnpm coverage` reads, so the config writes it rather than leaving it
+		 * to a CI flag. With the flag only, a local `pnpm test` wrote `lcov.info` and left the summary
+		 * untouched, and `pnpm coverage` then passed its floors against whatever number an earlier
+		 * instrumented run — or CI — had left behind. The gate has to read a report the run in front of
+		 * it just wrote.
+		 *
+		 * `json` keeps the per-file detail the summary flattens; `lcov` is what editors consume; `text`
+		 * is the number a developer reads in the terminal.
+		 */
+		coverageReporters: ["json", "json-summary", "lcov", "text"],
 		mockDataModel: false,
 		/*
 		 * A lane with a project but no specs yet makes jest exit 1 on "No test files found", which
