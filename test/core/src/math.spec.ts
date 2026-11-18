@@ -124,8 +124,13 @@ describe("round", () => {
 	it("should round to the requested number of decimals", () => {
 		expect.assertions(1);
 
-		// `round` floors, so 12.3456 truncates to 12.34 rather than rounding up to 12.35.
-		expect(round(12.3456, 2)).toBe(12.34);
+		/*
+		 * `12.3456` at two decimals is `12.34`: the implementation floors, it does not round half up.
+		 * Asserted to three decimals rather than with `toBe`, because a float comparison against an
+		 * exact literal is the kind of assertion that passes here and breaks on another platform's
+		 * rounding mode.
+		 */
+		expect(round(12.3456, 2)).toBeCloseTo(12.34, 3);
 	});
 
 	it("should truncate rather than round half up", () => {

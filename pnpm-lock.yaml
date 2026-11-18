@@ -1232,6 +1232,12 @@ importers:
       '@lisachandra/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@lisachandra/matter':
+        specifier: workspace:*
+        version: link:../../packages/matter
+      '@lisachandra/react-template':
+        specifier: workspace:*
+        version: link:../../packages/react-template
       '@lisachandra/test':
         specifier: workspace:*
         version: link:../../packages/test
@@ -1250,6 +1256,21 @@ importers:
       '@rbxts/jest-globals':
         specifier: 'catalog:'
         version: 3.16.0-ts.1(patch_hash=d42fa3158b6373f2ccc3e1d6b4a349da546dbc66e3412add2bc04fe7c973caf0)
+      '@rbxts/pretty-react-hooks':
+        specifier: 'catalog:'
+        version: 0.6.4(@rbxts/react-roblox@17.3.7-ts.2(@rbxts/react@17.3.7-ts.2))(@rbxts/react@17.3.7-ts.2)
+      '@rbxts/react':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.2
+      '@rbxts/react-roblox':
+        specifier: 'catalog:'
+        version: 17.3.7-ts.2(@rbxts/react@17.3.7-ts.2)
+      '@rbxts/react-roblox-fire':
+        specifier: 'catalog:'
+        version: 0.1.4
+      '@rbxts/react-testing-library':
+        specifier: 'catalog:'
+        version: 12.1.5-rc.6(@rbxts/dom-testing-library@8.16.0-ts.2(@rbxts-js/dom-testing-library-lua@8.16.0-ts.3)(@rbxts/jest@3.16.0-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react@17.3.7-ts.2))(@rbxts/jest@3.16.0-ts.1)(@rbxts/luau-polyfill@1.1.3)(@rbxts/react-roblox@17.3.7-ts.2(@rbxts/react@17.3.7-ts.2))(@rbxts/react@17.3.7-ts.2)
       '@rbxts/services':
         specifier: 'catalog:'
         version: 1.6.0
@@ -1259,6 +1280,9 @@ importers:
       io-serve:
         specifier: 'catalog:'
         version: 1.1.2(supports-color@7.2.0)
+      rbxts-transformer-flamework:
+        specifier: 'catalog:'
+        version: 1.3.2(patch_hash=3a79de85108978631c3a1dc357b5c5e9f4e9730271da8ac793692f7bc20ebc12)(typescript@6.0.3)
       shx:
         specifier: 'catalog:'
         version: 0.4.0
@@ -3287,11 +3311,6 @@ packages:
 
   '@rbxts/react-roblox-fire@0.1.4':
     resolution: {integrity: sha512-P9QaPMaUilxeg/1HvkDXXNPlicqutjp3w7sOJVfE3jFwCoYC5/GSfwPDXprrGc5JVAm5rjDdfhWR9L+k2lBCHg==}
-
-  '@rbxts/react-roblox@17.3.7-ts.1':
-    resolution: {integrity: sha512-lsH3lP+X0JUS/6Fg5MJfP8OjMn7bjxapbg3r1ajrpvwZGPGU1WOFcFDS/xMMk/2RK/GNYRmkduNM8pQ9vHw54Q==}
-    peerDependencies:
-      '@rbxts/react': ^17.3.7-ts.1
 
   '@rbxts/react-roblox@17.3.7-ts.2':
     resolution: {integrity: sha512-T5a9noru9M0Ye4+k8Py43z2lLfnsLfxoigssIiDkU7+776BsnG2IlQVRiM7ICZaMFAlckIQj2HxYL5oyNK4HQQ==}
@@ -8807,13 +8826,8 @@ snapshots:
   '@rbxts/react-roblox-fire@0.1.4':
     dependencies:
       '@rbxts/react': 17.3.7-ts.2
-      '@rbxts/react-roblox': 17.3.7-ts.1(@rbxts/react@17.3.7-ts.2)
+      '@rbxts/react-roblox': 17.3.7-ts.2(@rbxts/react@17.3.7-ts.2)
       '@rbxts/services': 1.6.0
-
-  '@rbxts/react-roblox@17.3.7-ts.1(@rbxts/react@17.3.7-ts.2)':
-    dependencies:
-      '@rbxts-js/react-roblox': 17.3.7-ts.1
-      '@rbxts/react': 17.3.7-ts.2
 
   '@rbxts/react-roblox@17.3.7-ts.2(@rbxts/react@17.3.7-ts.2)':
     dependencies:
