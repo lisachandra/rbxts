@@ -57,6 +57,31 @@ export default defineConfig({
 	test: {
 		clearMocks: true,
 		collectCoverage: true,
+		/*
+		 * The universe the harness probes against. Left unset, the harness derives it from each
+		 * project's `include` patterns — which name only the lane's own `src`, so every package the
+		 * lane mounts through `node_modules/@lisachandra` was mirrored into the shadow with no
+		 * probe placed, and
+		 * no lane but `demo` reported anything. These globs name both halves the run actually
+		 * executes: the lane's TypeScript and the mounted packages' TypeScript (their compiled
+		 * `.luau` maps back to `node_modules/@lisachandra/<pkg>/src/**` through the sidecar the
+		 * compiler ships). Vendor mounts (`@rbxts`, `@rbxts-js`) match neither glob and stay
+		 * outside the probes, which is the scope a monorepo can ratchet a floor against.
+		 */
+		collectCoverageFrom: [
+			"src/**/*.ts",
+			"src/**/*.tsx",
+			"node_modules/@lisachandra/*/src/**/*.ts",
+			"node_modules/@lisachandra/*/src/**/*.tsx",
+			/*
+			 * `constant`, `constant-protocol` and `types` ship compiled output with no
+			 * `.map` sidecar, so their candidates are the compiled paths themselves; a
+			 * package left unmatched here is mirrored with no probes, and the demote that
+			 * narrowing then runs leaves its `$path` pointing at a junction Rojo
+			 * cannot mount.
+			 */
+			"node_modules/@lisachandra/*/out/**/*.luau",
+		],
 		coveragePathIgnorePatterns: ["**/*.spec.ts", "**/*.spec.tsx"],
 		/*
 		 * `json-summary` is what `pnpm coverage` reads, so the config writes it rather than leaving it

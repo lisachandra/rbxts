@@ -58,8 +58,8 @@ catalogs:
       specifier: 6.0.0-beta.11
       version: 6.0.0-beta.11
     '@isentinel/jest-roblox':
-      specifier: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz
-      version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz
+      specifier: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz
+      version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz
     '@isentinel/tsconfig':
       specifier: 1.2.0
       version: 1.2.0
@@ -302,7 +302,7 @@ importers:
         version: 6.0.0-beta.11(0b993c4fb3a61dae47c47b3c3cec5822)
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -819,7 +819,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1000,7 +1000,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1027,7 +1027,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1081,7 +1081,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1135,7 +1135,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1180,7 +1180,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -1225,7 +1225,7 @@ importers:
     devDependencies:
       '@isentinel/jest-roblox':
         specifier: 'catalog:'
-        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
+        version: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@6.0.3)
@@ -2158,9 +2158,9 @@ packages:
       oxlint-tsgolint:
         optional: true
 
-  '@isentinel/jest-roblox@https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz':
-    resolution: {integrity: sha512-Yy+pLtzYU6xYJSKsfQ9s5bmrAHViEfWhTj8WZp4OZQwhInBDKynivSqI5xoULjqg6W3SE2DhGoy0tUbP8wWlkw==, tarball: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz}
-    version: 0.4.12-fork.1
+  '@isentinel/jest-roblox@https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz':
+    resolution: {integrity: sha512-fK4ZRPvkFkBBt62G4GpDz0srp95LgFj/mOHGuMUbNnkkKvlPMb0crEG11GCXkaSFzmDJv48AXm/VGj0Yi6begg==, tarball: https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz}
+    version: 0.4.13-fork.2
     engines: {node: '>=24.12.0'}
     hasBin: true
     peerDependencies:
@@ -7780,7 +7780,7 @@ snapshots:
       - typescript
       - vite-plus
 
-  '@isentinel/jest-roblox@https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.12-fork.1/isentinel-jest-roblox-0.4.12-fork.1.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)':
+  '@isentinel/jest-roblox@https://github.com/lisachandra/jest-roblox-cli/releases/download/v0.4.13-fork.2/isentinel-jest-roblox-0.4.13-fork.2.tgz(@typescript/native-preview@7.0.0-dev.20260707.2)(dotenv@8.6.0)(jiti@2.6.1)(magicast@0.5.5)(typescript@6.0.3)':
     dependencies:
       '@bedrock-rbx/ocale': 0.3.4
       '@jridgewell/trace-mapping': 0.3.31

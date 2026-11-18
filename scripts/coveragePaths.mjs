@@ -11,49 +11,50 @@
  */
 
 /*
- * Why a lane cannot report, keyed by lane name.
+ * Why a lane cannot report, keyed by lane name — exceptions only.
  *
  * A lane is measured by the presence of its summary, never by this table: the report is the only
- * evidence that probes were actually placed, and the lanes declared projects plus
- * `collectCoverage: true` while emitting nothing. This map only supplies the sentence a human reads
- * about a lane with no summary; a lane listed here that starts reporting is treated as measured.
+ * evidence that probes were actually placed, and the lanes once declared projects plus
+ * `collectCoverage: true` while emitting nothing. This map supplies the sentence a human reads about
+ * a lane with no summary; a lane listed here that starts reporting is treated as measured.
  *
- * All seven share one cause: each mounts its package's compiled output through a `$path` that
- * leaves the lane's own instrumented frame, so no probes are placed there. That is a harness limit,
- * not a missing spec — see `#15` and `docs/agents/coverage.md`. (`ui` carried a different sentence
- * until its first specs landed in 2026-11-18; the specs ran, still emitted nothing, and the cause
- * turned out to be the same mount as the other lanes, so the sentence was corrected rather than
- * kept as history.)
+ * The table is empty as of 2026-11-19. It began with six rows — every package lane shared one cause,
+ * a `$path` mount that left the lane's instrumented frame, and `docs/agents/coverage.md` tells that
+ * story — but the harness now instruments the mounted packages, so a missing summary has no known
+ * cause left. A lane that stops reporting fails its floor in `checkFloors`; a new lane that cannot
+ * report yet gets a row here, and the spec pins that choice against the tree.
  */
-export const UNMEASURED_REASONS = new Map([
-	["core", "package output mounted outside the lane's instrumented frame"],
-	["matter", "package output mounted outside the lane's instrumented frame"],
-	["platform", "package output mounted outside the lane's instrumented frame"],
-	["react-router", "package output mounted outside the lane's instrumented frame"],
-	["react-template", "package output mounted outside the lane's instrumented frame"],
-	["ui", "package output mounted outside the lane's instrumented frame"],
-]);
+export const UNMEASURED_REASONS = new Map();
 
 /*
  * Floors, cut from the measured level rather than from a target.
  *
- * `test/demo` measured 30/382 lines = 7.85% on 2026-11-18, and that is where both floors sit. The
- * destination is 90% (`#19`), but a floor is not a goal: it is a promise that the number will not go
- * down. Setting it at the measurement makes every regression a failure today, and the ratchet rule —
- * floors move up when the measurement does, never down — is what carries it to the destination
- * without a threshold that fails before the tests exist.
+ * Every lane measured on 2026-11-19, the first run that probed the mounted packages as well as the
+ * lane's own specs — the harness release that made it possible is `@isentinel/jest-roblox`
+ * v0.4.13-fork.2, and `jest.shared.ts` names the universe that run probed. Each floor sits at the
+ * number `pnpm coverage` prints for its lane, computed by `percentOf` from the same counts — not at
+ * Istanbul's own `pct`, which floors rather than rounds and can sit a hundredth below what the gate
+ * prints. The destination is 90% (`#19`), but a floor is not a goal: it is a promise that the number
+ * will not go down. Setting it at the measurement makes every regression a failure today, and the
+ * ratchet rule — floors move up when the measurement does, never down — is what carries it to the
+ * destination without a threshold that fails before the tests exist.
  *
  * A consequence worth stating, because it will be felt: adding an untested file lowers the
  * percentage and fails the floor. That is intended pressure rather than a workaround target, and the
  * answer is a test, not a widened ignore list.
  *
- * The two entries are not redundant. `demo` names one lane, and disappears the day that lane stops
- * reporting; `repository` folds every measured lane, so it keeps holding as the other lanes come
- * online.
+ * `repository` folds every measured lane, so it keeps holding as lanes come and go; a lane floor
+ * disappears the day that lane stops reporting — as a failure, per `checkFloors`.
  */
 export const FLOORS = new Map([
-	["demo", 7.85],
-	["repository", 7.85],
+	["core", 26.86],
+	["demo", 8.65],
+	["matter", 25.05],
+	["platform", 14.37],
+	["react-router", 12.88],
+	["react-template", 11.05],
+	["repository", 16.34],
+	["ui", 19.12],
 ]);
 
 /**

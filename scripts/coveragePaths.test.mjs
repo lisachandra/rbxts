@@ -175,22 +175,30 @@ describe("checkFloors", () => {
 });
 
 describe("the committed policy", () => {
-	test("should hold the floors at the measured level, never below it", () => {
+	test("should hold every floor at the measured level, never below it", () => {
 		/*
 		 * A floor below the measurement is a regression budget nobody asked for. These are the
-		 * numbers `pnpm coverage` printed when the floors were cut; a floor that moves down has to
-		 * argue for it here rather than merely change the constant.
+		 * numbers `pnpm coverage` printed for the 2026-11-19 run — the first that probed the
+		 * mounted packages too — so each lane's floor is its own measurement, and `repository` is
+		 * the fold. A floor that moves down has to argue for it here rather than merely change the
+		 * constant.
 		 */
-		assert.equal(FLOORS.get("demo"), 7.85);
-		assert.equal(FLOORS.get("repository"), 7.85);
+		assert.equal(FLOORS.get("core"), 26.86);
+		assert.equal(FLOORS.get("demo"), 8.65);
+		assert.equal(FLOORS.get("matter"), 25.05);
+		assert.equal(FLOORS.get("platform"), 14.37);
+		assert.equal(FLOORS.get("react-router"), 12.88);
+		assert.equal(FLOORS.get("react-template"), 11.05);
+		assert.equal(FLOORS.get("repository"), 16.34);
+		assert.equal(FLOORS.get("ui"), 19.12);
 	});
 
-	test("should classify every lane the repository has, so a new one cannot arrive unexplained", () => {
+	test("should floor every lane the repository has, so a new one cannot arrive unclassified", () => {
 		/*
-		 * An unclassified lane falls through to the generic reason, which is truthful but
-		 * uninformative. This pins the table against the tree: adding `test/foo` without deciding
-		 * whether it is expected to report fails here, rather than silently reporting "no coverage
-		 * summary was written" for the rest of the repository's life.
+		 * The default is now that a lane reports and holds a floor; the exception is a row in
+		 * UNMEASURED_REASONS. This pins the pair of tables against the tree: adding `test/foo`
+		 * without deciding — a floor at its measured level, or a stated reason it cannot report —
+		 * fails here, rather than `test/foo` sitting outside the promise the floors make.
 		 */
 		const testRoot = path.join(import.meta.dirname, "..", "test");
 		const lanes = fs
@@ -199,13 +207,12 @@ describe("the committed policy", () => {
 			.map((entry) => entry.name)
 			.sort();
 
-		// `demo` is the one lane expected to report, so it is classified by measurement instead.
-		const unclassified = lanes.filter((lane) => lane !== "demo" && !UNMEASURED_REASONS.has(lane));
+		const unclassified = lanes.filter((lane) => !FLOORS.has(lane) && !UNMEASURED_REASONS.has(lane));
 
 		assert.deepEqual(
 			unclassified,
 			[],
-			`every lane needs a row in UNMEASURED_REASONS or a measured report; unclassified: ${unclassified.join(", ")}`,
+			`every lane needs a floor or a row in UNMEASURED_REASONS; unclassified: ${unclassified.join(", ")}`,
 		);
 	});
 });

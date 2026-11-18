@@ -9,12 +9,23 @@ deciding whether new code needs a spec before it lands.
 floor and the per-lane floors only ratchet up.
 
 The floors are not the destination and are not a target. They are the promise that the measured
-number will not go down. Today they sit at the measured level because nothing higher exists yet:
+number will not go down. Every lane measured for the first time on 2026-11-19 — the first run whose
+harness probed the mounted packages too — and each floor sits at that measurement:
 
-| Floor        | Value | Lane                        |
-| ------------ | ----- | --------------------------- |
-| `demo`       | 7.85% | `test/demo`                 |
-| `repository` | 7.85% | every measured lane, folded |
+| Floor            | Value  | Lane                        |
+| ---------------- | ------ | --------------------------- |
+| `core`           | 26.86% | `test/core`                 |
+| `demo`           | 8.65%  | `test/demo`                 |
+| `matter`         | 25.05% | `test/matter`               |
+| `platform`       | 14.37% | `test/platform`             |
+| `react-router`   | 12.88% | `test/react-router`         |
+| `react-template` | 11.05% | `test/react-template`       |
+| `repository`     | 16.34% | every measured lane, folded |
+| `ui`             | 19.12% | `test/ui`                   |
+
+The numbers in the table are the gate's own rounding (`percentOf`), not Istanbul's: Istanbul floors
+its two decimals and can sit a hundredth below what `pnpm coverage` prints, and a floor set from
+Istanbul's figure would read one hundredth below the measurement it was cut from.
 
 ## How To Read The Number
 
@@ -38,32 +49,42 @@ from the same object. There is no second implementation of the fold in the workf
 
 A lane is **measured** when it wrote `test/<lane>/coverage/coverage-summary.json`. The report is the
 only evidence: `collectCoverage: true` in a config, a `default.project.json`, and a non-empty spec
-directory all appeared in six lanes that emit no summary at all.
+directory all appeared in six lanes that once emitted no summary at all.
 
 An **unmeasured** lane is reported by name with its reason and contributes nothing to the fold. It is
 never counted as `0%` — that would both understate the repository and hide the harness defect behind
-a number that looks like a test gap.
+a number that looks like a test gap. The reasons table (`UNMEASURED_REASONS` in
+`scripts/coveragePaths.mjs`) is exceptions-only and empty today: every lane measures, so a lane with
+no summary has no known cause and fails its floor instead.
 
-The six unmeasured package lanes and `demo`, at the time of writing:
+The seven lanes, as measured on 2026-11-19:
 
-| Lane             | Status                                                           |
-| ---------------- | ---------------------------------------------------------------- |
-| `demo`           | measured, 30/382 lines                                           |
-| `core`           | unmeasured: output mounted outside the lane's instrumented frame |
-| `matter`         | unmeasured: same                                                 |
-| `platform`       | unmeasured: same                                                 |
-| `react-router`   | unmeasured: same                                                 |
-| `react-template` | unmeasured: same                                                 |
-| `ui`             | unmeasured: declares a project with no specs                     |
+| Lane             | Lines     |
+| ---------------- | --------- |
+| `core`           | 405/1508  |
+| `demo`           | 607/7019  |
+| `matter`         | 1378/5502 |
+| `platform`       | 858/5972  |
+| `react-router`   | 206/1599  |
+| `react-template` | 177/1602  |
+| `ui`             | 1109/5800 |
 
-The single cause behind the five: each mounts its package's compiled output through a `$path` that
-leaves the lane's own instrumented frame, and Istanbul probes are placed only for coverage roots
-inside the frame. Workspace mode is not the escape hatch — the emulator backend refuses it outright
-(`--workspace is not supported by the emulator backend`). See #15, #16, #18, #20.
+The history behind that table is a harness story, and it is worth keeping because the same shape can
+come back with a new mount: each package lane mounted its package's compiled output through a
+`$path` that left the lane's own instrumented frame, and Istanbul probes were placed only for
+coverage roots inside the frame — so `demo` (which mounts its own source) measured and the other six
+did not. Two fixes landed together. `jest.shared.ts` now names `collectCoverageFrom` explicitly,
+because a universe derived from the lane's `include` patterns names only the lane's own `src`; and
+the harness release pinned in the catalog (`@isentinel/jest-roblox` v0.4.13-fork.2) fixed the
+junction-blind walks that follow — a pnpm workspace's `node_modules/@scope` folders are junctions,
+every one of which a `Dirent` reports as "not a directory", and four separate walkers trusted that
+bit. See the fork's history for the four: root detection, the spine mirror, and the two staging
+demotes.
 
-The consequence that matters for planning: **the current figure measures `test/demo` only.** It is
-not a statement about the packages. Work that "raises coverage" has to first make a package lane
-report, and that is a harness change, not a spec.
+The consequence that matters for planning now: **the figure measures both halves every lane runs** —
+the lane's own specs and the mounted packages they exercise. A package with no spec still reports
+its files at `0%` inside every lane that mounts it, so the repository fold is a statement about the
+packages. Work that "raises coverage" is ordinary spec work again, not a harness change.
 
 ## The Ratchet
 
@@ -81,9 +102,25 @@ the answer is a test, not a widened ignore list.
 
 ## What Is In The Universe
 
-Every `.ts`/`.tsx` under `packages/*/src` is in scope. Coverage uses vitest `all` / Istanbul
-semantics, so every instrumented file matching the include globs is reported — a source file with no
-test shows `0%` rather than being silently omitted.
+The universe is named, not derived: `jest.shared.ts` sets `collectCoverageFrom`, because left unset
+the harness derives it from each lane project's `include` patterns — which name only the lane's own
+`src`, and every mounted package would be mirrored unprobed. Three glob groups:
+
+- the lane's own TypeScript (`src/**/*.ts(x)`);
+- the mounted packages' TypeScript (`node_modules/@lisachandra/*/src/**/*.ts(x)`), matched through
+  the `.map` sidecar the compiler ships, so a probe lands on the source file it belongs to;
+- the mounted packages' compiled output (`node_modules/@lisachandra/*/out/**/*.luau`) —
+  `constant`, `constant-protocol` and `types` ship no `.map` sidecar, so their candidates are the
+  compiled paths themselves, and their rows in a report are keyed on `.luau` paths.
+
+Vendor mounts (`@rbxts`, `@rbxts-js`) match no group and stay unprobed. That is deliberate: they are
+other people's shipped code, and a monorepo cannot ratchet a floor against lines it does not own.
+
+Coverage uses vitest `all` / Istanbul semantics, so every file matching the globs is reported — a
+source file with no test shows `0%` rather than being silently omitted. One class of that is worth
+naming: a spec listed in the emulator's parity ledger (`docs/agents/offline-runtime-spike.md`) does
+not run, so its subject measures `0%` until the parity gap closes. That is the honest number for a
+spec the lane cannot execute, not a hole in the universe.
 
 `coveragePathIgnorePatterns` does not grow. A file is excepted only if no test could ever execute
 it, and that class is vendored `.luau` (`r6ik`, `formatTable`, `setup`, `utils`, `include/*`), which
@@ -95,7 +132,8 @@ nothing today.
 
 ## Where The Numbers Live
 
-`scripts/coveragePaths.mjs` holds the floors, the per-lane reasons, and the arithmetic. This document
+`scripts/coveragePaths.mjs` holds the floors, the exceptions table for unmeasured lanes, and the
+arithmetic. This document
 deliberately does not restate the arithmetic: a number stated in prose and a number enforced in code
 drift apart the moment either moves. The module answers every question the entry point asks, and its
 spec (`scripts/coveragePaths.test.mjs`) pins the fold, the rounding, the absence rule, and the floor
