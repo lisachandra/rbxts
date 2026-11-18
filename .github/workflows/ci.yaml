@@ -185,11 +185,13 @@ jobs:
           # recursive `pnpm -r test`, so including it would re-enter every
           # package — including the one excluded below.
           #
-          # Coverage reporters are a jest-roblox flag. `@lisachandra/sandcastle`
-          # runs vitest, which rejects them outright ("Unknown option
-          # --coverageReporters"), so it runs separately without the flags.
+          # No `--coverageReporters` here either: `jest.shared.ts` names the
+          # reporters, so CI and a developer's `pnpm test` write the same files.
+          # Passing them as flags made the summary exist only in CI, and a local
+          # `pnpm coverage` then gated against a stale one. `@lisachandra/sandcastle`
+          # still runs separately: it uses vitest, which has no such config.
           pnpm -r --filter '!@lisachandra/sandcastle' --stream --workspace-concurrency=1 \
-            test --coverageReporters json-summary --coverageReporters json | tee test_results.txt
+            test | tee test_results.txt
           pnpm --filter @lisachandra/sandcastle test | tee -a test_results.txt
 
       - name: Test the repository scripts
@@ -203,15 +205,30 @@ jobs:
           ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
           ROBLOX_UNIVERSE_ID: ${{ secrets.ROBLOX_UNIVERSE_ID }}
 
+      - name: Check the coverage floors
+        # `scripts/coverage.mjs` folds every lane's `coverage-summary.json` into one report, names the
+        # lanes that could not measure, and enforces the floors in `scripts/coveragePaths.mjs`. It
+        # replaces the old repo-root `coverage/coverage-summary.json` read, which pointed at a path
+        # nothing ever wrote — the badge said `n/a` for the same reason the gate checked nothing.
+        #
+        # Runs after the suites because it reads their reports. A lane that writes no summary is
+        # reported as unmeasured rather than as 0%, so a harness defect cannot masquerade as a
+        # coverage number.
+        run: pnpm coverage
+
       - id: extract_coverage
+        # `always()` so the badge still refreshes when the floor gate above failed: a red tests badge
+        # plus the current number says more than a stale number beside a red tests badge.
+        if: ${{ !cancelled() }}
         name: Extract coverage
         run: |
-          if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE=$(node -e "const fs=require('fs'); const summary=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')); process.stdout.write(String(summary.total.lines.pct));")
-          else
-            # No summary is not 0% coverage — it means coverage did not run.
-            # Leave it empty so the badge reports n/a instead of a false zero.
-            COVERAGE=""
-          fi
+          # Read the figure the policy script computed rather than folding the summaries a second
+          # time here: two implementations of the fold are two chances to disagree, and the workflow
+          # one would be the untested one. `--json` prints one object; `repository` is absent when no
+          # lane measured anything, which leaves the badge at `n/a` instead of a false 0%.
+          COVERAGE=$(pnpm --silent coverage --json | node -p "
+            const report = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+            report.repository === undefined ? '' : String(report.repository)
+          ")
           echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
         shell: bash

@@ -6,6 +6,7 @@
 	"scripts": {
 		"changeset": "changeset",
 		"commit": "cz",
+		"coverage": "node ./scripts/coverage.mjs",
 		"issues:agent-ready": "sandcastle queue list",
 		"issues:audit": "gh issue list --state open --limit 200 --json number,title,labels,url",
 		"issues:labels": "gh label list --limit 200",
