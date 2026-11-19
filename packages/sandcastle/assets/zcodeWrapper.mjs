@@ -598,13 +598,23 @@ function resolveProviderConfigEnv() {
 	return env;
 }
 
-let providerConfigNoteEmitted = false;
+/*
+ * Notes that are worth saying once per run, latched per call site rather than globally.
+ *
+ * A single flag muted every note after the first one, and on a host without the desktop app
+ * resolveProviderConfigEnv takes that first slot unconditionally — so the note a resumed phase
+ * prints when its model cannot honour the requested reasoning level was silently dropped, and an
+ * operator saw a phase quietly keep an old level with no explanation. The latch keys on the message
+ * so the guarantee stays "this same note is not repeated": repeated setup notes collapse, distinct
+ * ones all survive.
+ */
+const emittedNotes = new Set();
 function emitNoteOnce(message) {
-	if (providerConfigNoteEmitted) {
+	if (emittedNotes.has(message)) {
 		return;
 	}
 
-	providerConfigNoteEmitted = true;
+	emittedNotes.add(message);
 	emitNote(message);
 }
 

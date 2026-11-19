@@ -145,7 +145,8 @@ describe("zcodeAgent", () => {
 
 describe("zcode wrapper (stub app-server)", () => {
 	interface StubOptions {
-		env?: Record<string, string>;
+		/** Overlay for the child's env; `undefined` removes the key so a preset cannot leak in. */
+		env?: Record<string, string | undefined>;
 		extraArgs?: string;
 		failTurn?: boolean;
 		requestPermission?: boolean;
@@ -164,7 +165,7 @@ describe("zcode wrapper (stub app-server)", () => {
 		const dir = tempDir();
 		const seenFile = join(dir, "seen.json");
 		const prefsFile = join(dir, "prefs.json");
-		const env: Record<string, string> = {
+		const env: Record<string, string | undefined> = {
 			...((process.env as Record<string, string | undefined>) ?? {}),
 			// Point binary resolution at the stub so tests never touch a real zcode.
 			STUB_RUNTIME_PREFS_FILE: prefsFile,
@@ -172,6 +173,22 @@ describe("zcode wrapper (stub app-server)", () => {
 			ZCODE_SANDCASTLE_BIN: stubPath,
 			...stubOptions.env,
 		};
+		/*
+		 * `undefined` means "this key must not reach the child". Windows env is case-insensitive,
+		 * so deleting one spelling leaves another case variant of the same key in place and the
+		 * wrapper still finds what the test meant to hide — that is why the removal is folded.
+		 */
+		const removals = Object.entries(stubOptions.env ?? {})
+			.filter(([, value]) => value === undefined)
+			.map(([key]) => key.toUpperCase());
+		for (const removal of removals) {
+			for (const existing of Object.keys(env)) {
+				if (existing.toUpperCase() === removal) {
+					delete env[existing];
+				}
+			}
+		}
+
 		if (stubOptions.failTurn === true) {
 			env.STUB_FAIL_TURN = "1";
 		}
@@ -501,9 +518,27 @@ describe("zcode wrapper (stub app-server)", () => {
 			 * setThoughtLevel throws for a level the model does not register, so a
 			 * request the model cannot honour must not fail the phase — the turn
 			 * still runs on the session's own level.
+			 *
+			 * The second assertion is the regression: the wrapper's notes were latched by one
+			 * process-wide flag, so whichever note fired first muted every later one. Setup runs
+			 * before the resume fix-up, so on a host with no ZCode desktop the provider-config note
+			 * took the flag and this note — the only explanation for why the phase ignored the
+			 * requested level — was silently dropped.
+			 *
+			 * Reproducing that needs the provider-config note to fire, which means the ambient env
+			 * must not preset the catalog. Deleting the keys rather than blanking them matters:
+			 * Windows treats `LocalAppData` case-insensitively, so an empty string still lets
+			 * `findPackagedBuiltinConfig` find the desktop install, and the suite would pass for
+			 * the wrong reason on the very host that ships one.
 			 */
 			const { seen, status, stderr } = runWrapper("continue", {
-				env: { STUB_THOUGHT_LEVELS: "low" },
+				env: {
+					// Windows reads this key case-insensitively, so the real spelling is what matters.
+					LocalAppData: undefined,
+					STUB_THOUGHT_LEVELS: "low",
+					ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: undefined,
+					ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: undefined,
+				},
 				extraArgs: `${resumeArgs} --reasoning-effort max`,
 			});
 			assert.equal(status, 0, `wrapper failed: ${stderr}`);
@@ -512,6 +547,11 @@ describe("zcode wrapper (stub app-server)", () => {
 			assert.ok(!methods.has("session/setThoughtLevel"));
 			assert.ok(methods.has("session/send"));
 			assert.match(stderr, /does not register reasoning level "max"/);
+			assert.match(
+				stderr,
+				/relying on zcode's own lookup/u,
+				"the setup note and the reasoning-level note are distinct, so neither may mute the other",
+			);
 		});
 	});
 

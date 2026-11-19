@@ -433,6 +433,12 @@ describe("queue run dispatch", () => {
 		} finally {
 			config.queue.lease = config$;
 			io.execFileSync = execFileSync$;
+			/*
+			 * `approve` writes a real `.sandcastle/state/5.json`, which outlives the file: another
+			 * spec reading issue 5's completion — `queue clean` does — would see this test's state
+			 * and reach `gh`. Its sibling approval tests clean up the same way.
+			 */
+			cleanupIssueArtifacts("5");
 		}
 
 		assert.equal(

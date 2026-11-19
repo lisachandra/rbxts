@@ -865,44 +865,54 @@ describe("junction-safe worktree removal", () => {
 		assert.equal(existsSync(live), true, "and its directory");
 	});
 
-	test("rmdir's output is not buffered, so a noisy delete cannot be killed mid-way", () => {
-		/*
-		 * `execFileSync` buffers a piped child against a 1 MiB `maxBuffer`. rmdir prints one line per
-		 * path it cannot delete, and on a worktree with submodules that overflowed: the ENOBUFS kill
-		 * arrived about two minutes in with the tree half-deleted, `.git` already gone, which then made
-		 * `git worktree remove` refuse the path. `stdio: "ignore"` is what stops that.
-		 */
-		const root = makeRepo("rmdir-io");
-		const worktree = addWorktree(root, "sandcastle/issue-8");
-		config.symlinks = [];
+	test.skipIf(process.platform !== "win32")(
+		"rmdir's output is not buffered, so a noisy delete cannot be killed mid-way",
+		() => {
+			/*
+			 * Windows-only by construction: `removeWithRmdir` returns false before spawning anything
+			 * unless the host is win32, so on a POSIX host `cmd` is never invoked and there is no
+			 * call to assert. The behaviour is worth pinning where it exists — `stdio: "ignore"` is
+			 * load-bearing, not tidiness: rmdir prints one line per path it cannot delete, and
+			 * `execFileSync` buffers a piped child against a 1 MiB `maxBuffer`, which on a worktree
+			 * with submodules overflowed. The ENOBUFS kill arrived about two minutes in with the
+			 * tree half-deleted, `.git` already gone, which then made `git worktree remove` refuse
+			 * the path.
+			 *
+			 * The argument list itself is not Windows-gated any more: `rmdirArgs` is asserted
+			 * below without spawning anything, so the quoting stays covered on every host.
+			 */
+			const root = makeRepo("rmdir-io");
+			const worktree = addWorktree(root, "sandcastle/issue-8");
+			config.symlinks = [];
 
-		const calls: Array<{ args: ReadonlyArray<string>; options: unknown }> = [];
-		const realExecFileSync = io.execFileSync;
-		io.execFileSync = ((command: string, args: Array<string>, options: unknown) => {
-			if (command === "cmd") {
-				calls.push({ args, options });
-				// Report failure without touching the tree, so the caller falls back.
-				throw new Error("rmdir unavailable");
+			const calls: Array<{ args: ReadonlyArray<string>; options: unknown }> = [];
+			const realExecFileSync = io.execFileSync;
+			io.execFileSync = ((command: string, args: Array<string>, options: unknown) => {
+				if (command === "cmd") {
+					calls.push({ args, options });
+					// Report failure without touching the tree, so the caller falls back.
+					throw new Error("rmdir unavailable");
+				}
+
+				return realExecFileSync(command, args, options as never);
+			}) as typeof io.execFileSync;
+
+			try {
+				removeWorktree(worktree, { cwd: root, force: true });
+			} finally {
+				io.execFileSync = realExecFileSync;
 			}
 
-			return realExecFileSync(command, args, options as never);
-		}) as typeof io.execFileSync;
-
-		try {
-			removeWorktree(worktree, { cwd: root, force: true });
-		} finally {
-			io.execFileSync = realExecFileSync;
-		}
-
-		assert.equal(calls.length, 1, "rmdir ran once");
-		const options = calls[0]?.options as undefined | { stdio?: unknown; timeout?: unknown };
-		assert.deepEqual(
-			options?.stdio,
-			["ignore", "ignore", "ignore"],
-			"a piped rmdir is buffered, and an over-buffer kill leaves a half-deleted tree",
-		);
-		assert.equal(typeof options?.timeout, "number", "an unbounded delete has a bound");
-	});
+			assert.equal(calls.length, 1, "rmdir ran once");
+			const options = calls[0]?.options as undefined | { stdio?: unknown; timeout?: unknown };
+			assert.deepEqual(
+				options?.stdio,
+				["ignore", "ignore", "ignore"],
+				"a piped rmdir is buffered, and an over-buffer kill leaves a half-deleted tree",
+			);
+			assert.equal(typeof options?.timeout, "number", "an unbounded delete has a bound");
+		},
+	);
 
 	test("finishes a removal whose .git a partial delete already took", () => {
 		/*

@@ -70,11 +70,21 @@ function worktree(issueNumber: string): { branch: string; path: string } {
 	return { branch, path: worktreePathForBranch(branch) };
 }
 
+/*
+ * Selection is arithmetic over the state the caller passes in, so every spec here supplies the two
+ * readers rather than letting the defaults read this checkout's `.sandcastle/state` and shell out to
+ * `gh`. Without them a spec only passes on a host whose state directory does not happen to contain
+ * the issue numbers it names, which is how one leaked `state/5.json` turned an unrelated spec red.
+ */
+const notComplete = (): boolean => false;
+const neverLanded = { isComplete: notComplete, reviewMarker: (): undefined => undefined } as const;
+
 describe("queue clean", () => {
 	test("selects a CLOSED issue's worktree under --closed and keeps the rest", () => {
 		const closed = worktree("5");
 		const open = worktree("6");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("5", { state: "CLOSED" }), issue("6")),
 			manifest: manifest({ sequences: [{ issues: ["5", "6"], name: "U2" }] }),
 			selections: { ...off, closed: true },
@@ -96,6 +106,7 @@ describe("queue clean", () => {
 	test("keeps an open, unapproved issue even when every selection is on", () => {
 		const open = worktree("7");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("7")),
 			manifest: manifest({ sequences: [{ issues: ["7"], name: "U2" }] }),
 			selections: { ...off, all: true, closed: true, landed: true, stale: true },
@@ -106,9 +117,44 @@ describe("queue clean", () => {
 		assert.match(result.kept[0]?.reason ?? "", /still open and not approved/u);
 	});
 
+	test("--landed selects an approved, landed issue even while it is still open", () => {
+		const landed = worktree("14");
+		const result = selectIssueWorktrees({
+			isComplete: () => true,
+			live: live(issue("14")),
+			manifest: manifest({ sequences: [{ issues: ["14"], name: "U2" }] }),
+			reviewMarker: () => "APPROVED",
+			selections: { ...off, landed: true },
+			worktrees: [landed],
+		});
+
+		assert.deepEqual(
+			result.remove.map((entry) => entry.issue),
+			["14"],
+			"a closed pull request never flips the issue, so approval is what marks it landed",
+		);
+		assert.equal(result.remove[0]?.reason, "review APPROVED");
+	});
+
+	test("--landed keeps a complete issue whose review came back BLOCKED", () => {
+		const blocked = worktree("15");
+		const result = selectIssueWorktrees({
+			isComplete: () => true,
+			live: live(issue("15")),
+			manifest: manifest({ sequences: [{ issues: ["15"], name: "U2" }] }),
+			reviewMarker: () => "BLOCKED",
+			selections: { ...off, landed: true },
+			worktrees: [blocked],
+		});
+
+		assert.deepEqual(result.remove, [], "a blocked review is not a landing");
+		assert.match(result.kept[0]?.reason ?? "", /still open and not approved/u);
+	});
+
 	test("--stale selects a worktree with no manifest placement and no live issue", () => {
 		const orphan = worktree("9");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("5", { state: "CLOSED" })),
 			manifest: manifest({ sequences: [{ issues: ["5"], name: "U2" }] }),
 			selections: { ...off, stale: true },
@@ -123,6 +169,7 @@ describe("queue clean", () => {
 
 	test("ignores a branch that is not a sandcastle issue worktree", () => {
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(),
 			manifest: manifest(),
 			selections: { ...off, all: true, closed: true, landed: true, stale: true },
@@ -134,6 +181,7 @@ describe("queue clean", () => {
 
 	test("ignores a runner branch registered at a foreign path", () => {
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("5", { state: "CLOSED" })),
 			manifest: manifest(),
 			selections: { ...off, closed: true },
@@ -148,6 +196,7 @@ describe("queue clean", () => {
 		const branch = "sandcastle/issue-8";
 		const asGitPrintsIt = worktreePathForBranch(branch).replaceAll("\\", "/");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("8", { state: "CLOSED" })),
 			manifest: manifest(),
 			selections: { ...off, closed: true },
@@ -165,6 +214,7 @@ describe("queue clean", () => {
 		const mine = worktree("11");
 		const other = worktree("12");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(issue("11", { state: "CLOSED" }), issue("12", { state: "CLOSED" })),
 			manifest: manifest({
 				sequences: [
@@ -188,6 +238,7 @@ describe("queue clean", () => {
 	test("--batch keeps an unplaced worktree even when --stale is on", () => {
 		const unplaced = worktree("13");
 		const result = selectIssueWorktrees({
+			...neverLanded,
 			live: live(),
 			manifest: manifest({ sequences: [{ issues: ["11"], name: "chat-work" }] }),
 			selections: { ...off, batch: "chat-work", stale: true },

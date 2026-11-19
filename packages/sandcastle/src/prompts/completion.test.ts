@@ -4,12 +4,27 @@ import { describe, test } from "vitest";
 import { completionPromptArgs, completionRules } from "./completion.js";
 
 describe("completion prompt block", () => {
-	test("hands the agent the marker the runner waits for, in bash form", () => {
+	/*
+	 * The marker command has two host-dependent halves, and they are asserted apart. The `touch`
+	 * target is only a backslash conversion, so a Windows-style input renders the same everywhere.
+	 * The `mkdir` directory comes from the host's own `dirname`, so a Windows literal on a POSIX
+	 * host yields `"."` — a property of the test host, not of the block, which is what made the
+	 * original single assertion fail on the Linux CI leg.
+	 */
+	test("renders the marker path backslash-free for bash", () => {
 		const rules = completionRules("C:\\sandcastle\\markers\\7.review.completed");
+		const command = /^```\n(.+)\n```$/mu.exec(rules)?.[1] ?? "";
+
+		assert.match(command, /touch "C:\/sandcastle\/markers\/7\.review\.completed"/u);
+		assert.doesNotMatch(command, /\\/u, "a backslash in the command would escape in bash");
+	});
+
+	test("creates the marker's own directory before touching the file", () => {
+		const rules = completionRules("/sandcastle/markers/7.review.completed");
 
 		assert.match(
 			rules,
-			/mkdir -p "C:\/sandcastle\/markers" && touch "C:\/sandcastle\/markers\/7\.review\.completed"/u,
+			/mkdir -p "\/sandcastle\/markers" && touch "\/sandcastle\/markers\/7\.review\.completed"/u,
 		);
 	});
 

@@ -30,7 +30,7 @@ import {
 import { integrationWorktreePath, readIntegrationManifest } from "../integration/manifest.js";
 import { resetIntegration } from "../integration/orchestrator.js";
 import { config, integrationsDir, worktreePathForBranch } from "../runtime.js";
-import { getLatestReviewMarker, isIssueComplete } from "../state.js";
+import { getLatestReviewMarker, isIssueComplete, type ReviewMarker } from "../state.js";
 import { pruneWorktreeRegistrations, pushThenRemoveWorktree, removeWorktree } from "../worktree.js";
 import { fetchLiveQueueState, type LiveQueueState } from "./live.js";
 import {
@@ -153,15 +153,24 @@ function removalReason({
  *   worktree path are considered, so a hand-made worktree is never a candidate. An issue that is
  *   still open and not approved is kept: it may yet run. `selections.batch` narrows the candidates
  *   to one batch's members, which is how a batch is cleaned right after it is composed.
+ *
+ *   `isComplete` and `reviewMarker` are the reader seams for the landed test, mirroring
+ *   `selectIntegrations`' `readManifest`: the defaults read this checkout's phase state and shell out
+ *   to `gh`, so a caller that only wants the selection arithmetic can supply its own and stay off the
+ *   disk and the network.
  */
 export function selectIssueWorktrees({
+	isComplete = isIssueComplete,
 	live,
 	manifest,
+	reviewMarker = getLatestReviewMarker,
 	selections,
 	worktrees,
 }: {
+	isComplete?: (issue: string) => boolean;
 	live: LiveQueueState;
 	manifest: QueueManifest;
+	reviewMarker?: (issue: string) => undefined | ReviewMarker;
 	selections: CleanSelections;
 	worktrees: ReadonlyArray<RegisteredWorktree>;
 }): { kept: Array<KeptWorktree>; remove: Array<IssueWorktreeCandidate> } {
@@ -190,7 +199,7 @@ export function selectIssueWorktrees({
 
 		const reason = removalReason({
 			closed: state?.state === "CLOSED",
-			landed: isIssueComplete(issue) && getLatestReviewMarker(issue) === "APPROVED",
+			landed: isComplete(issue) && reviewMarker(issue) === "APPROVED",
 			selections,
 			stale: placement === undefined && state === undefined,
 		});
