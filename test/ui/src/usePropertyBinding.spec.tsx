@@ -106,20 +106,17 @@ describe("usePropertyBinding", () => {
 		});
 
 		/*
-		 * The hook rebuilds its bindings on every render, and this spec pins that rather than hiding it.
+		 * The hook builds its bindings once per distinct set of property names, and this spec pins
+		 * that.
 		 *
-		 * `propertyNames` is a rest parameter, so it is a fresh table on each call, and all three
-		 * `useMemo`s below list it as a dependency. A dependency that never has the same identity twice
-		 * means the memo never hits: `createBinding` runs again every render, the `Change` handlers close
-		 * over the new setters, and a value written through the *previous* render's binding is
-		 * unreachable from the current one.
-		 *
-		 * The consequence is that a real change does land — the handler and the binding it writes to are
-		 * from the same render — but nothing subscribes the element to the new binding, so the visual
-		 * update is lost. That is a defect, not a contract; it is filed rather than asserted as correct.
-		 * This spec exists so the defect cannot be introduced or removed silently.
+		 * `propertyNames` is a rest parameter, so it is a fresh table on each call. Listing it
+		 * directly as a `useMemo` dependency never compares equal, so the memo never hits,
+		 * `createBinding` runs again every render, and the element keeps a binding nothing writes to:
+		 * a change lands in the binding from the render that supplied the handler and nowhere else
+		 * (#75). Spreading the names into the dependency list compares them element by element, which
+		 * is what makes a fixed call site reuse one binding per property.
 		 */
-		it("should rebuild its bindings on every render", () => {
+		it("should keep the same bindings across renders", () => {
 			expect.assertions(2);
 
 			const identities = new Array<FrameBinding>();
@@ -138,23 +135,20 @@ describe("usePropertyBinding", () => {
 
 			expect(identities.size()).toBeGreaterThanOrEqual(2);
 
-			/*
-			 * Different objects is the observation. If this ever starts passing as `never`, the rest
-			 * parameter was replaced by a stable dependency and the spec should be rewritten to assert
-			 * the stable behaviour instead.
-			 */
-			expect(identities[identities.size() - 1]).never.toBe(identities[0]);
+			// The same object: the second render reused the first render's binding.
+			expect(identities[identities.size() - 1]).toBe(identities[0]);
 		});
 
 		/*
-		 * What the rebuild does *not* break: the handler and the setter it calls come from the same
-		 * render, so writing through a handler does update the binding that handler captured.
+		 * The consequence of the stable binding, and the behaviour the user actually sees: a value
+		 * written through the `Change` handler is observed by the element, even when the handler and
+		 * the binding are read from different renders.
 		 */
-		it("should route a change into the binding captured with the handler", () => {
+		it("should route a change through the handler into the binding the element holds", () => {
 			expect.assertions(2);
 
 			let fired = false;
-			let firstBinding: undefined | FrameBinding;
+			let latestBinding: undefined | FrameBinding;
 
 			const size = new Vector2(320, 180);
 
@@ -165,12 +159,7 @@ describe("usePropertyBinding", () => {
 					"Position",
 				) as TwoBindingResult;
 
-				/*
-				 * Keep the *first* render's binding. The effect runs once, closes over the first render's
-				 * handlers, and therefore writes through the first render's setters; reading the latest
-				 * binding would read a different object, which is the point of the identity spec above.
-				 */
-				firstBinding ??= sizeBinding;
+				latestBinding = sizeBinding;
 
 				React.useEffect(() => {
 					if (fired) {
@@ -188,12 +177,15 @@ describe("usePropertyBinding", () => {
 			const { rerender, unmount } = render(<TestFrame />);
 			rerender(<TestFrame />);
 
-			const value = firstBinding!.getValue();
-
 			unmount();
 
 			expect(fired).toBe(true);
-			expect(value).toBe(size);
+
+			/*
+			 * Read the latest binding, after the rerender — the one the element is actually subscribed
+			 * to. With the old rebuild-per-render behaviour this read answered `undefined`.
+			 */
+			expect(latestBinding!.getValue()).toBe(size);
 		});
 
 		it("should accept any creatable instance class", () => {

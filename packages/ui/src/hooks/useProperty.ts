@@ -38,11 +38,11 @@ export function useProperty<
 
 			return accumulator;
 		}, {});
-	}, [propertyNames]);
+	}, [...propertyNames]);
 
 	return useMemo(() => {
 		const results = table.clone<Array<unknown>>(values);
 		results[propertyNames.size()] = events;
 		return results as [...InstanceProperties<T, P>, InstanceChangeEvent<T>];
-	}, [values, propertyNames, events]);
+	}, [values, events, propertyNames.size()]);
 }

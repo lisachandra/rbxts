@@ -293,38 +293,27 @@ describe("item lifecycle", () => {
 	});
 
 	/*
-	 * `moveItem` cannot move anything, and these three specs pin that rather than the behaviour the
-	 * names describe. The cause is one cast in `state.ts`:
-	 *
-	 *     let [inventory, hotbar] = world.get(entityId, Components.Inventory, Components.Hotbar) as [..]
-	 *
-	 * `World.get` returns *multiple values* (`unpack`), not a table. Casting the result to an array
-	 * tuple tells roblox-ts to compile the destructuring as table indexing of the first return value,
-	 * so the generated code reads `local inventory = first_component[1]` — which is nil, because a
-	 * component has no numeric key 1. Every branch then dereferences nil with 'items'. The same
-	 * destructuring *without* the cast compiles correctly (verified by probe), so this is a defect in
-	 * the package, not an emulator gap. Filed as #77; these specs fail the day the cast is removed,
-	 * which is the point — a fix has to acknowledge them deliberately.
+	 * `moveItem` reads its two containers out of one multi-value `world.get`. That call used to carry
+	 * an array cast, which made roblox-ts index the first return value instead of destructuring the
+	 * multiple returns, so every path dereferenced a nil container (#77). These specs assert the
+	 * transfers themselves rather than the crash, so a reintroduced cast fails them.
 	 */
 	describe("moveItem", () => {
-		it("should never complete an intra-entity move while the cast stands", async () => {
+		it("should move an item from the inventory into the hotbar", async () => {
 			expect.assertions(3);
 
 			const entity = spawnPlayer(world, [potion("g1")]);
 			pointer("g1", `${entity}_Inventory`);
 			await flush();
 
-			const moved = pcall(() => {
-				moveItem(world, entity, "g1", "Hotbar");
-			});
+			moveItem(world, entity, "g1", "Hotbar");
 
-			// `pcall` answers a tuple; its first slot is the success flag.
-			expect((moved as unknown as Array<unknown>)[0]).toBe(false);
-			expect(world.get(entity, Components.Inventory)!.items.size()).toBe(1);
-			expect(world.get(entity, Components.Hotbar)!.items.size()).toBe(0);
+			expect(world.get(entity, Components.Inventory)!.items.size()).toBe(0);
+			expect(world.get(entity, Components.Hotbar)!.items.size()).toBe(1);
+			expect(world.get(entity, Components.Hotbar)!.items[0]!.guid).toBe("g1");
 		});
 
-		it("should never complete a hotbar-to-inventory move while the cast stands", async () => {
+		it("should move an item from the hotbar into the inventory", async () => {
 			expect.assertions(3);
 
 			const entity = world.spawn(
@@ -334,16 +323,14 @@ describe("item lifecycle", () => {
 			pointer("g1", `${entity}_Hotbar`);
 			await flush();
 
-			const moved = pcall(() => {
-				moveItem(world, entity, "g1", "Inventory");
-			});
+			moveItem(world, entity, "g1", "Inventory");
 
-			expect((moved as unknown as Array<unknown>)[0]).toBe(false);
-			expect(world.get(entity, Components.Hotbar)!.items.size()).toBe(1);
-			expect(world.get(entity, Components.Inventory)!.items.size()).toBe(0);
+			expect(world.get(entity, Components.Hotbar)!.items.size()).toBe(0);
+			expect(world.get(entity, Components.Inventory)!.items.size()).toBe(1);
+			expect(world.get(entity, Components.Inventory)!.items[0]!.guid).toBe("g1");
 		});
 
-		it("should never complete a ground pickup while the cast stands", async () => {
+		it("should pick a ground item up into the player's inventory", async () => {
 			expect.assertions(3);
 
 			const ground = world.spawn(
@@ -353,14 +340,15 @@ describe("item lifecycle", () => {
 			pointer("g1", `${ground}`);
 			await flush();
 
-			const moved = pcall(() => {
-				moveItem(world, player, "g1", "Inventory");
-			});
+			moveItem(world, player, "g1", "Inventory");
 
-			expect((moved as unknown as Array<unknown>)[0]).toBe(false);
-			expect(world.get(player, Components.Inventory)!.items.size()).toBe(0);
-			// The ground entity survives with its stack; nothing was consumed.
-			expect(world.get(ground, Components.Items)!.items.size()).toBe(1);
+			expect(world.get(player, Components.Inventory)!.items.size()).toBe(1);
+			expect(world.get(player, Components.Inventory)!.items[0]!.guid).toBe("g1");
+			/*
+			 * The ground entity is marked before the deferred despawn. `moved` is what tells the rest
+			 * of the server that the item left under its own steam rather than vanishing.
+			 */
+			expect(world.get(ground, Components.Items)!.moved).toBe(true);
 		});
 
 		it("should do nothing when the pointer names no entity", () => {

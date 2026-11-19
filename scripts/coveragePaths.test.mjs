@@ -182,15 +182,19 @@ describe("the committed policy", () => {
 		 * mounted packages too — so each lane's floor is its own measurement, and `repository` is
 		 * the fold. A floor that moves down has to argue for it here rather than merely change the
 		 * constant.
+		 *
+		 * `matter` and `repository` rose when `#76`'s fix landed; `platform` and `ui` fell a
+		 * hundredth because they mount `@lisachandra/matter` and `hooks/useDocument.ts` grew inside
+		 * their denominators. `FLOORS` carries the argument for the two that fell.
 		 */
 		assert.equal(FLOORS.get("core"), 26.86);
 		assert.equal(FLOORS.get("demo"), 8.65);
-		assert.equal(FLOORS.get("matter"), 25.05);
-		assert.equal(FLOORS.get("platform"), 14.37);
+		assert.equal(FLOORS.get("matter"), 25.48);
+		assert.equal(FLOORS.get("platform"), 14.35);
 		assert.equal(FLOORS.get("react-router"), 12.88);
 		assert.equal(FLOORS.get("react-template"), 11.05);
-		assert.equal(FLOORS.get("repository"), 16.34);
-		assert.equal(FLOORS.get("ui"), 19.12);
+		assert.equal(FLOORS.get("repository"), 16.42);
+		assert.equal(FLOORS.get("ui"), 19.11);
 	});
 
 	test("should floor every lane the repository has, so a new one cannot arrive unclassified", () => {

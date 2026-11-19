@@ -15,8 +15,9 @@ import { None } from "@rbxts/sift";
  *
  * What survived the rewrite: the discriminator, the "no document on the first call" contract, the
  * cache reuse, and the close-driven cleanup. What the rewrite adds: the two paths that skip the
- * cache write — a player who leaves mid-load, and a call with no player at all — because both leave
- * a permanent `LOADING` sentinel behind. Those are pinned as observations, not contracts.
+ * cache write — a player who leaves mid-load, and a call with no player at all — and the bounded
+ * retry after a failed load. All three were defects in the first port (#76); these specs now assert
+ * the fixed contracts.
  */
 
 interface TestData {
@@ -41,10 +42,16 @@ function createTestStore(): {
 	return { scheduler, store: dfStore };
 }
 
-/** A minimal mock Player whose Parent is set so caching proceeds. */
+/*
+ * A minimal mock Player whose Parent is set so caching proceeds.
+ *
+ * `Kick` takes the receiver explicitly: roblox-ts compiles `player:Kick(message)` to a method call
+ * whose first argument is the player, so the mock's first parameter has to be the player itself.
+ * Nothing exercised this until the attempt-limit spec did, which is how the mistake survived.
+ */
 function createMockPlayer(name: string, kicks: Array<string> = []): Player {
 	return {
-		Kick: (message: string) => {
+		Kick: (_self: Player, message: string) => {
 			kicks.push(message);
 		},
 		Name: name,
@@ -176,19 +183,16 @@ describe("useDocument", () => {
 	});
 
 	/*
-	 * The two specs below pin behaviour the godkin suite never reached, because its assertions either
-	 * stopped at "`load` was called" or depended on a mocked collection that resolved on demand.
+	 * The three specs below cover the paths the godkin suite never reached, because its assertions
+	 * either stopped at "`load` was called" or depended on a mocked collection that resolved on
+	 * demand.
 	 *
-	 * Both describe the same shape: the early `return` inside the `then` skips the cache write, but
-	 * nothing clears the `LOADING` sentinel placed before the load. The entry is therefore permanent
-	 * for that discriminator — a later call for the same player sees `LOADING`, decides the load is
-	 * already in flight, and starts nothing. A player who leaves and rejoins within one server
-	 * lifetime is never loaded again.
-	 *
-	 * That is a defect, not a contract, and it is pinned here rather than asserted as correct so that
-	 * a fix has to update this spec deliberately. See #76.
+	 * The first two share a shape: the load finishes but the cache write is skipped. The first port
+	 * left the `LOADING` sentinel in the slot, which made the discriminator permanently unusable —
+	 * a later call saw the sentinel, decided a load was in flight, and started nothing. The slot is
+	 * now cleared, so the next call loads again (#76).
 	 */
-	it("should leave the loading sentinel behind when the player leaves mid-load", async () => {
+	it("should clear the loading sentinel when the player leaves mid-load", async () => {
 		expect.assertions(2);
 
 		const { scheduler, store: dfStore } = createTestStore();
@@ -203,29 +207,65 @@ describe("useDocument", () => {
 		}
 
 		expect(isLoaded("Player_15")).toBe(false);
-		// The sentinel, not `undefined`: nothing resets the slot the load was tracking.
-		expect(store.documents.Player_15).toBe(LOADING);
+
+		/*
+		 * `undefined`, not the sentinel: the abandoned load releases its claim, so a returning player
+		 * gets a fresh load rather than a slot nobody will ever fill.
+		 */
+		expect(store.documents.Player_15).toBeUndefined();
 	});
 
-	it("should leave the loading sentinel behind when called without a player", async () => {
+	it("should load a document when called without a player", async () => {
 		expect.assertions(3);
 
 		const { scheduler, store: dfStore } = createTestStore();
+		const typed = dfStore as unknown as dataforge.Store<CollectionData>;
 
 		/*
-		 * `!player?.Parent` is true when `player` is nil, so the no-player overload takes the same
-		 * branch as a player who left: the profile is unloaded and never cached. The overload looks
-		 * like "load without a kick target", but it can never hand a document back.
+		 * Omitting the player means "load without a kick target", not "the player has left". Reading
+		 * the two the same way made this overload unable to answer a document, ever.
 		 */
-		const result = useDocument(dfStore as unknown as dataforge.Store<CollectionData>, 16);
+		const result = useDocument(typed, 16);
 
 		expect(result.discriminator).toBe("Player_16");
+		expect(await settle(scheduler, "Player_16")).toBe(true);
 
-		for (const _ of $range(0, 40)) {
-			await advance(scheduler);
+		// The second call now observes the cached profile, which the old implementation could not.
+		expect(useDocument(typed, 16).document).toBeDefined();
+	});
+
+	/*
+	 * A failed load has to be retried, but not without limit: `waitForPlayerLoaded` polls this hook
+	 * once a second and a render loop can poll it every frame, so an unconditional reset would turn a
+	 * DataStore outage into a load storm. A closed store is the failure this spec can produce
+	 * deterministically — `load` answers `store_closed` without yielding.
+	 */
+	it("should stop retrying and kick the player once the attempt limit is reached", async () => {
+		expect.assertions(3);
+
+		const kicks = new Array<string>();
+		const { store: dfStore } = createTestStore();
+		const player = createMockPlayer("Player_17", kicks);
+		const typed = dfStore as unknown as dataforge.Store<CollectionData>;
+
+		dfStore.close();
+
+		/*
+		 * Four calls for three attempts: the first three each start a load, the fourth finds the
+		 * bound already reached and returns without touching the store.
+		 */
+		for (let round = 0; round < 4; round++) {
+			useDocument(typed, 17, player);
+
+			for (let step = 0; step < 4; step++) {
+				await Promise.delay(0.02);
+			}
 		}
 
-		expect(isLoaded("Player_16")).toBe(false);
-		expect(store.documents.Player_16).toBe(LOADING);
+		// The slot is free after every failure, so nothing is left claiming a load.
+		expect(store.documents.Player_17).toBeUndefined();
+		// The player still in the server is told to rejoin rather than left waiting forever.
+		expect(kicks.size()).toBe(1);
+		expect(kicks[0]).toBe("Document failed to load, please rejoin");
 	});
 });

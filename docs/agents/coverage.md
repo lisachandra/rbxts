@@ -16,16 +16,21 @@ harness probed the mounted packages too — and each floor sits at that measurem
 | ---------------- | ------ | --------------------------- |
 | `core`           | 26.86% | `test/core`                 |
 | `demo`           | 8.65%  | `test/demo`                 |
-| `matter`         | 25.05% | `test/matter`               |
-| `platform`       | 14.37% | `test/platform`             |
+| `matter`         | 25.48% | `test/matter`               |
+| `platform`       | 14.35% | `test/platform`             |
 | `react-router`   | 12.88% | `test/react-router`         |
 | `react-template` | 11.05% | `test/react-template`       |
-| `repository`     | 16.34% | every measured lane, folded |
-| `ui`             | 19.12% | `test/ui`                   |
+| `repository`     | 16.42% | every measured lane, folded |
+| `ui`             | 19.11% | `test/ui`                   |
 
 The numbers in the table are the gate's own rounding (`percentOf`), not Istanbul's: Istanbul floors
 its two decimals and can sit a hundredth below what `pnpm coverage` prints, and a floor set from
 Istanbul's figure would read one hundredth below the measurement it was cut from.
+
+`matter` and `repository` rose when the `#75`–`#77` fixes landed. `platform` and `ui` each fell a
+hundredth in the same commit, because both mount `@lisachandra/matter` and `hooks/useDocument.ts`
+grew to 45 lines inside their denominators; the argument for accepting the two lower floors is
+recorded beside the table in `scripts/coveragePaths.mjs`, where a lower floor has to be argued.
 
 ## How To Read The Number
 
@@ -62,12 +67,12 @@ The seven lanes, as measured on 2026-11-19:
 | Lane             | Lines     |
 | ---------------- | --------- |
 | `core`           | 405/1508  |
-| `demo`           | 607/7019  |
-| `matter`         | 1378/5502 |
-| `platform`       | 858/5972  |
+| `demo`           | 609/7039  |
+| `matter`         | 1407/5521 |
+| `platform`       | 860/5991  |
 | `react-router`   | 206/1599  |
 | `react-template` | 177/1602  |
-| `ui`             | 1109/5800 |
+| `ui`             | 1112/5820 |
 
 The history behind that table is a harness story, and it is worth keeping because the same shape can
 come back with a new mount: each package lane mounted its package's compiled output through a

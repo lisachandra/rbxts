@@ -1,6 +1,6 @@
 import { store } from "@lisachandra/core/store";
 import Log from "@rbxts/log";
-import type { AnyEntity, Component, World } from "@rbxts/matter";
+import type { AnyEntity, World } from "@rbxts/matter";
 import { HttpService, Workspace } from "@rbxts/services";
 import { removeValue } from "@rbxts/sift/Array";
 
@@ -164,10 +164,12 @@ export function moveItem(
 	guid: string,
 	destination: "Hotbar" | "Inventory",
 ): void {
-	let [inventory, hotbar] = world.get(entityId, Components.Inventory, Components.Hotbar) as [
-		Component<Components["Inventory"]>,
-		Component<Components["Hotbar"]>,
-	];
+	/*
+	 * No array cast: `World.get` answers a `LuaTuple`, and casting it to a tuple type makes roblox-ts
+	 * index the first return value instead of destructuring the multiple returns. That compiled to
+	 * `local inventory = component[1]` and every path then dereferenced a nil inventory (#77).
+	 */
+	const [inventory, hotbar] = world.get(entityId, Components.Inventory, Components.Hotbar);
 
 	const item = getItemFromGUID(world, guid)!;
 	const itemPointers = store.shared.getState("itemPointers");
@@ -180,13 +182,16 @@ export function moveItem(
 		const items = world.get(entityIdForGuid, Components.Items);
 		const itemContainer = destination === "Inventory" ? inventory : hotbar;
 
+		// A stale pointer is a normal race; the ground entity left before the pickup arrived.
 		if (!items) {
 			return;
 		}
 
+		assert(itemContainer, `Cannot move item into a ${destination} the entity does not have`);
+
 		// Mark as moved and transfer to the new entity. Clean up the old entity afterwards.
 		world.insert(entityIdForGuid, items.patch({ moved: true }));
-		world.insert(entityId, itemContainer!.patch({ items: [...itemContainer!.items, item] }));
+		world.insert(entityId, itemContainer.patch({ items: [...itemContainer.items, item] }));
 
 		// Use task.delay instead of task.defer so it can be mocked in tests
 		task.delay(0, () => {
@@ -197,19 +202,22 @@ export function moveItem(
 	}
 
 	// Handle intra-entity transfer (between hotbar and inventory).
+	assert(inventory, "Cannot move an item from an entity without an Inventory");
+	assert(hotbar, "Cannot move an item from an entity without a Hotbar");
+
 	world.insert(
 		entityId,
-		inventory!.patch({
+		inventory.patch({
 			items:
 				destination === "Inventory"
-					? [...inventory!.items, item]
-					: removeValue(inventory!.items, item),
+					? [...inventory.items, item]
+					: removeValue(inventory.items, item),
 		}),
-		hotbar!.patch({
+		hotbar.patch({
 			items:
 				destination === "Hotbar"
-					? [...hotbar!.items, item]
-					: removeValue(hotbar!.items, item),
+					? [...hotbar.items, item]
+					: removeValue(hotbar.items, item),
 		}),
 	);
 }
