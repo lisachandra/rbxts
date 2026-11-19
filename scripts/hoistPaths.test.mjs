@@ -73,6 +73,8 @@ describe("normalizePackageRelativePath", () => {
 		["a leading parent", "../x"],
 		["an absolute path", "/abs"],
 		["a Windows absolute path", "C:/Windows"],
+		["a Windows absolute path with backslashes", "C:\\Windows"],
+		["a UNC path", "\\\\server\\share"],
 		["a glob", "src/*"],
 		["an empty string", ""],
 		["a non-string", 42],

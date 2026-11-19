@@ -130,7 +130,13 @@ export function normalizePackageRelativePath(value, packageDirectory) {
 		return undefined;
 	}
 
-	if (path.isAbsolute(value)) {
+	/*
+	 * Both separator styles are absolute-shaped regardless of host. `path.isAbsolute` answers for
+	 * the host alone, so on POSIX it calls `C:/Windows` relative and the containment test below
+	 * happily resolves it to `<package>/C:/Windows` — a path a manifest can spell but never means.
+	 * A package-relative field has no business naming a drive or a leading separator.
+	 */
+	if (path.isAbsolute(value) || path.win32.isAbsolute(value)) {
 		return undefined;
 	}
 
